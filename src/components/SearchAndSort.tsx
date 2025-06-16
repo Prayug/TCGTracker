@@ -60,7 +60,6 @@ export const SearchAndSort: React.FC<SearchAndSortProps> = ({
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            disabled={isLoading}
           />
         </div>
 
@@ -71,7 +70,6 @@ export const SearchAndSort: React.FC<SearchAndSortProps> = ({
             value={filterBy}
             onChange={(e) => onFilterChange(e.target.value as FilterOption)}
             className="pl-10 pr-8 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white min-w-[180px] appearance-none cursor-pointer"
-            disabled={isLoading}
           >
             {filterOptions.map((option) => (
               <option key={option.value} value={option.value}>
@@ -88,7 +86,6 @@ export const SearchAndSort: React.FC<SearchAndSortProps> = ({
             value={sortBy}
             onChange={(e) => onSortChange(e.target.value as SortOption)}
             className="pl-10 pr-8 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white min-w-[200px] appearance-none cursor-pointer"
-            disabled={isLoading}
           >
             {sortOptions.map((option) => (
               <option key={option.value} value={option.value}>

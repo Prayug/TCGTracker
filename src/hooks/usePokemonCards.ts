@@ -46,11 +46,7 @@ export const usePokemonCards = (): UsePokemonCardsReturn => {
   }, []);
 
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      fetchCards(searchQuery);
-    }, 300); // Debounce search
-
-    return () => clearTimeout(timeoutId);
+    fetchCards(searchQuery);
   }, [searchQuery, fetchCards]);
 
   // Apply filters

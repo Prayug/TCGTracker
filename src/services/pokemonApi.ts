@@ -27,7 +27,7 @@ class PokemonApiService {
     }
   }
 
-  async searchCards(query?: string, setId?: string, pageSize: number = 50): Promise<PokemonCard[]> {
+  async searchCards(query?: string, setId?: string, pageSize: number = 250): Promise<PokemonCard[]> {
     const params: Record<string, string> = {
       pageSize: pageSize.toString()
     };

@@ -32,6 +32,14 @@ export default defineConfig({
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
+      },
+      '/api/pokemonprice': {
+        target: 'https://www.pokemonprice.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/pokemonprice/, ''),
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
       }
     }
   }

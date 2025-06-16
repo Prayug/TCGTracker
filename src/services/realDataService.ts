@@ -1,94 +1,145 @@
+import axios, { AxiosError } from 'axios';
+import { load, CheerioAPI } from 'cheerio';
 import { PSAData, PricePoint } from '../types/pokemon';
-import { seededRandom } from '../utils/random';
 
 class RealDataService {
-  // This is a MOCK service that generates realistic but fake data.
-  // The original implementation attempted to scrape live websites, which is
-  // brittle and unreliable for a demo application. This mock service ensures
-  // the app is always populated with interesting and varied data.
+  private readonly API_BASE = '/api/pokemonprice';
 
   async fetchRealPSAPopulation(cardName: string, setName: string): Promise<PSAData | null> {
-    // Generate a consistent seed from the card name and set name.
-    // This ensures that the same card always gets the same mock data.
-    const seed = cardName + setName;
+    try {
+      const searchHtml = await this.searchForCard(cardName, setName);
+      if (!searchHtml) return null;
+
+      const cardPageLink = this.findCardPageLink(searchHtml, cardName, setName);
+      if (!cardPageLink) {
+        console.warn(`Could not find a matching card link for ${cardName} on pokemonprice.com`);
+        return null;
+      }
+
+      const cardPageHtml = await this.getCardPage(cardPageLink);
+      if (!cardPageHtml) return null;
+
+      return this.parseCardPage(cardPageHtml);
+
+    } catch (error) {
+      console.error(`Error processing ${cardName}:`, (error as Error).message);
+      return null;
+    }
+  }
+  
+  private async searchForCard(cardName: string, setName: string): Promise<string | null> {
+    // pokemonprice.com uses a simple GET request for search
+    const searchQuery = `${cardName} ${setName}`;
+    const searchUrl = `${this.API_BASE}/?s=${encodeURIComponent(searchQuery)}`;
+
+    try {
+      const response = await axios.get(searchUrl);
+      return response.data;
+    } catch (error) {
+      console.error(`Failed to search for card: ${searchQuery}`, (error as AxiosError).message);
+      return null;
+    }
+  }
+
+  private findCardPageLink($: CheerioAPI | string, cardName: string, setName: string): string | null {
+    const html = typeof $ === 'string' ? load($) : $;
+    let bestMatchLink: string | null = null;
+    let highestScore = 0;
     
-    const grade10 = this.generatePopulation(seed, 'g10', 3, 500);
-    const grade9 = this.generatePopulation(seed, 'g9', 10, 2000);
-    const grade8 = this.generatePopulation(seed, 'g8', 20, 3000);
-    const grade7 = this.generatePopulation(seed, 'g7', 30, 4000);
+    html('div.card-container a').each((_i, el) => {
+      const link = html(el);
+      const title = link.find('h3').text();
+      const score = this.calculateMatchScore(title, cardName, setName);
+      
+      if (score > highestScore) {
+        highestScore = score;
+        bestMatchLink = link.attr('href') || null;
+      }
+    });
+
+    // We need a reasonably high score to be confident it's the right card
+    return highestScore > 3 ? bestMatchLink : null;
+  }
+
+  private calculateMatchScore(title: string, cardName: string, setName: string): number {
+    const lowerTitle = title.toLowerCase();
+    const lowerCardName = cardName.toLowerCase();
+    const lowerSetName = setName.toLowerCase();
+    let score = 0;
+
+    if (lowerTitle.includes(lowerCardName)) score += 5;
+    if (lowerTitle.includes(lowerSetName)) score += 3;
+    if (lowerTitle.includes('psa')) score += 1;
+
+    // Penalize for incorrect terms to avoid false positives
+    if (lowerTitle.includes('sealed') || lowerTitle.includes('booster')) score -= 10;
+    
+    return score;
+  }
+
+  private async getCardPage(cardLink: string): Promise<string | null> {
+    try {
+      const response = await axios.get(`${this.API_BASE}${cardLink}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Failed to fetch card page: ${cardLink}`, (error as AxiosError).message);
+      return null;
+    }
+  }
+  
+  private parseCardPage(html: string): PSAData | null {
+    const $ = load(html);
+    const popData: { [grade: string]: number } = {};
+
+    // As per the reddit post, the data is in a clean table.
+    // Let's find the PSA Population table
+    $('h3:contains("PSA Population Report")').next('table').find('tr').each((_i, row) => {
+      const cells = $(row).find('td');
+      if (cells.length >= 2) {
+        const grade = $(cells[0]).text().trim();
+        const population = parseInt($(cells[1]).text().trim().replace(/,/g, ''), 10);
+        popData[grade] = population;
+      }
+    });
+    
+    const grade10 = popData['PSA 10'] || 0;
+    const grade9 = popData['PSA 9'] || 0;
+    const grade8 = popData['PSA 8'] || 0;
+    const grade7 = popData['PSA 7'] || 0;
+
+    // If we didn't find any data, it's not a valid card page for our needs.
+    if (grade10 === 0 && grade9 === 0) {
+      return null;
+    }
+
+    return this.buildPSAData(grade10, grade9, grade8, grade7);
+  }
+
+  private buildPSAData(grade10: number, grade9: number, grade8: number, grade7: number): PSAData {
     const total = grade10 + grade9 + grade8 + grade7;
-
-    const basePrice = this.generateBasePrice(seed, 5, 300);
-
-    const psaData: PSAData = {
-      population: {
-        grade10,
-        grade9,
-        grade8,
-        grade7,
-        total,
-      },
-      prices: {
-        grade10: basePrice * this.getPriceMultiplier(10),
-        grade9: basePrice * this.getPriceMultiplier(9),
-        grade8: basePrice * this.getPriceMultiplier(8),
-        raw: basePrice,
-      },
+    const prices = {
+        grade10: 0, // Price history will be handled separately
+        grade9: 0,
+        grade8: 0,
+        raw: 0
+    };
+    return {
+      population: { grade10, grade9, grade8, grade7, total },
+      prices,
       popReport: {
-        lowPop: total > 0 && grade10 < 100,
+        lowPop: grade10 < 100 && grade10 > 0,
         grade10Percentage: total > 0 ? (grade10 / total) * 100 : 0,
         totalSubmissions: total,
       },
-      returnRate: total > 0 ? ((grade9 + grade10) / total) * 100 : 0,
+      returnRate: total > 0 ? ((grade10 + grade9) / total) * 100 : 0
     };
-    
-    return Promise.resolve(psaData);
   }
 
-  async fetchRealPriceHistory(cardName: string, setName: string): Promise<PricePoint[]> {
-    const seed = cardName + setName;
-    const pricePoints: PricePoint[] = [];
-    const today = new Date();
-    
-    let currentPrice = this.generateBasePrice(seed, 5, 300);
-    const trendFactor = (seededRandom(seed + 'trend')() - 0.5) * 0.1; // -5% to +5% monthly trend
-
-    for (let i = 365; i > 0; i--) {
-      const date = new Date(today);
-      date.setDate(today.getDate() - i);
-
-      // Fluctuate price based on trend and randomness
-      const randomFactor = (seededRandom(seed + i)() - 0.5) * 0.05; // Daily noise
-      currentPrice *= (1 + trendFactor / 30 + randomFactor);
-      
-      // Ensure price doesn't go below a floor
-      currentPrice = Math.max(0.5, currentPrice);
-
-      pricePoints.push({
-        date: date.toISOString().split('T')[0],
-        price: parseFloat(currentPrice.toFixed(2)),
-        volume: this.generatePopulation(seed, 'vol' + i, 1, 20),
-      });
-    }
-
-    return Promise.resolve(pricePoints);
-  }
-
-  private generatePopulation(seed: string, salt: string, min: number, max: number): number {
-    const random = seededRandom(seed + salt)();
-    return min + Math.floor(random * (max - min + 1));
-  }
-
-  private generateBasePrice(seed: string, min: number, max: number): number {
-    return this.generatePopulation(seed, 'price', min, max);
-  }
-
-  private getPriceMultiplier(grade: number): number {
-    const seed = 'multiplier_seed_' + grade;
-    if (grade === 10) return seededRandom(seed)() * 10 + 5; // 5x - 15x
-    if (grade === 9) return seededRandom(seed)() * 3 + 2;   // 2x - 5x
-    if (grade === 8) return seededRandom(seed)() * 1.5 + 1; // 1x - 2.5x
-    return 1;
+  async fetchRealPriceHistory(cardName: string): Promise<PricePoint[]> {
+    // This is a placeholder. A full implementation would scrape the price history table
+    // from pokemonprice.com in a similar fashion to the PSA population.
+    console.warn(`Real price history for ${cardName} from pokemonprice.com is not fully implemented.`);
+    return [];
   }
 }
 
