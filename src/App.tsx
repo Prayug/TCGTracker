@@ -4,6 +4,7 @@ import { PokemonCard } from './types/pokemon';
 import { SearchAndSort } from './components/SearchAndSort';
 import { CardGrid } from './components/CardGrid';
 import { CardModal } from './components/CardModal';
+import { InvestmentModal } from './components/InvestmentModal';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { ErrorMessage } from './components/ErrorMessage';
 import { EmptyState } from './components/EmptyState';
@@ -12,6 +13,7 @@ import { usePokemonCards } from './hooks/usePokemonCards';
 function App() {
   const [selectedCard, setSelectedCard] = useState<PokemonCard | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalType, setModalType] = useState<'basic' | 'investment'>('basic');
 
   const {
     cards,
@@ -19,13 +21,16 @@ function App() {
     error,
     searchQuery,
     sortBy,
+    filterBy,
     setSearchQuery,
     setSortBy,
+    setFilterBy,
     refetch
   } = usePokemonCards();
 
   const handleCardClick = (card: PokemonCard) => {
     setSelectedCard(card);
+    setModalType(card.investmentData ? 'investment' : 'basic');
     setIsModalOpen(true);
   };
 
@@ -46,9 +51,9 @@ function App() {
               </div>
               <div>
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  Pokemon TCG Explorer
+                  Pokemon TCG Investment Tracker
                 </h1>
-                <p className="text-gray-600 text-sm">Discover and explore Pokemon trading cards</p>
+                <p className="text-gray-600 text-sm">Discover undervalued cards with PSA population data</p>
               </div>
             </div>
           </div>
@@ -62,6 +67,8 @@ function App() {
           onSearchChange={setSearchQuery}
           sortBy={sortBy}
           onSortChange={setSortBy}
+          filterBy={filterBy}
+          onFilterChange={setFilterBy}
           isLoading={isLoading}
         />
 
@@ -69,13 +76,18 @@ function App() {
         {searchQuery && !isLoading && !error && (
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Search Results
+              Investment Opportunities
             </h2>
             <p className="text-gray-600">
               Found <span className="font-semibold text-blue-600">{cards.length}</span> cards
               {searchQuery && (
                 <>
                   {' '}for "<span className="font-semibold">{searchQuery}</span>"
+                </>
+              )}
+              {filterBy !== 'all' && (
+                <>
+                  {' '}• Filtered by <span className="font-semibold">{filterBy}</span>
                 </>
               )}
             </p>
@@ -110,17 +122,26 @@ function App() {
               >
                 Pokemon TCG API
               </a>
+              {' '}• PSA population data simulated for demonstration
             </p>
           </div>
         </div>
       </footer>
 
-      {/* Modal */}
-      <CardModal
-        card={selectedCard}
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
-      />
+      {/* Modals */}
+      {modalType === 'investment' ? (
+        <InvestmentModal
+          card={selectedCard}
+          isOpen={isModalOpen}
+          onClose={handleCloseModal}
+        />
+      ) : (
+        <CardModal
+          card={selectedCard}
+          isOpen={isModalOpen}
+          onClose={handleCloseModal}
+        />
+      )}
     </div>
   );
 }

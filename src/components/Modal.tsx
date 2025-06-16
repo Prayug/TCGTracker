@@ -5,9 +5,10 @@ interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   children: React.ReactNode;
+  size?: 'small' | 'medium' | 'large';
 }
 
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children }) => {
+export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, size = 'medium' }) => {
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -36,13 +37,19 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children }) => {
 
   if (!isOpen) return null;
 
+  const sizeClasses = {
+    small: 'max-w-md',
+    medium: 'max-w-2xl',
+    large: 'max-w-6xl'
+  };
+
   return (
     <div 
       className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div 
-        className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto relative animate-in zoom-in-95 duration-200"
+        className={`bg-white rounded-2xl shadow-2xl ${sizeClasses[size]} w-full max-h-[90vh] overflow-y-auto relative animate-in zoom-in-95 duration-200`}
         onClick={(e) => e.stopPropagation()}
       >
         <button
