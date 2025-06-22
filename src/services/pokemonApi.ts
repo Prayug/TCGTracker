@@ -1,5 +1,4 @@
 import { PokemonCard, PokemonSet, ApiResponse } from '../types/pokemon';
-import { investmentService } from './investmentService';
 
 const API_BASE_URL = 'https://api.pokemontcg.io/v2';
 
@@ -50,27 +49,8 @@ class PokemonApiService {
       const response = await this.fetchApi<PokemonCard>('/cards', params);
       const cards = response.data || [];
       
-      // Enhance cards with investment data
-      const enhancedCards = await Promise.all(
-        cards.map(async (card) => {
-          try {
-            const currentPrice = this.extractCardPrice(card);
-            if (currentPrice > 0) {
-              const investmentData = await investmentService.getCardInvestmentData(
-                card.name,
-                card.set.name,
-                currentPrice
-              );
-              return { ...card, investmentData };
-            }
-          } catch (error) {
-            console.error(`Error getting investment data for ${card.name}:`, error);
-          }
-          return card;
-        })
-      );
-      
-      return enhancedCards;
+      // Return only the raw card data - NO INVESTMENT DATA OR SIMULATIONS
+      return cards;
     } catch (error) {
       console.error('Error searching cards:', error);
       return [];

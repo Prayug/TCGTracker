@@ -15,6 +15,9 @@ export interface PokemonCard {
   types?: string[];
   artist?: string;
   tcgplayer?: {
+    url?: string;
+    updatedAt?: string;
+    productId?: string;
     prices?: {
       [key: string]: {
         low?: number;
@@ -121,3 +124,8 @@ export type SortOption =
   | 'trend-bullish';
 
 export type FilterOption = 'all' | 'undervalued' | 'overvalued' | 'low-pop' | 'high-return' | 'bullish';
+
+export interface RealData {
+  psaData: PSAData | null;
+  priceHistory: PricePoint[];
+}
