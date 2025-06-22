@@ -1,10 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { PokemonCard } from '../types/pokemon';
 import { Modal } from './Modal';
-import { InvestmentBadge } from './InvestmentBadge';
-import { PSAPopulationChart } from './PSAPopulationChart';
 import { PriceChart } from './PriceChart';
-import { TrendingUp, Award, Target, AlertTriangle } from 'lucide-react';
+import { PriceHistoryApi } from '../services/priceHistoryApi';
+import { Database } from 'lucide-react';
 
 interface InvestmentModalProps {
   card: PokemonCard | null;
@@ -13,14 +12,78 @@ interface InvestmentModalProps {
 }
 
 export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, onClose }) => {
-  if (!card || !card.investmentData) return null;
+  const [priceHistory, setPriceHistory] = useState<Array<{ date: string; price: number }>>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [hasRealData, setHasRealData] = useState(false);
 
-  const { investmentData } = card;
+  useEffect(() => {
+    if (card && isOpen) {
+      fetchPriceHistory();
+    }
+  }, [card, isOpen]);
+
+  const fetchPriceHistory = async () => {
+    if (!card) return;
+
+    setIsLoadingHistory(true);
+    try {
+      // Extract card number from various sources
+      const cardNumber = extractCardNumber(card);
+      
+      const history = await PriceHistoryApi.getPokemonCardPriceHistory({
+        id: card.id,
+        name: card.name,
+        set: card.set,
+        number: cardNumber
+      });
+
+      if (history && history.length > 0) {
+        setPriceHistory(history);
+        setHasRealData(true);
+      } else {
+        // NO FALLBACK TO SIMULATED DATA - ONLY REAL DATA
+        setPriceHistory([]);
+        setHasRealData(false);
+      }
+    } catch (error) {
+      console.error('Error fetching price history:', error);
+      // NO FALLBACK TO SIMULATED DATA - ONLY REAL DATA
+      setPriceHistory([]);
+      setHasRealData(false);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  const extractCardNumber = (card: PokemonCard): string | undefined => {
+    // Try to extract card number from various sources
+    if (card.tcgplayer?.url) {
+      const urlParts = card.tcgplayer.url.split('/');
+      const cardInfo = urlParts[urlParts.length - 1];
+      const numberMatch = cardInfo.match(/(\d+)/);
+      if (numberMatch) return numberMatch[1];
+    }
+    
+    // Extract from card ID (e.g., "xy1-1" -> "1")
+    const parts = card.id.split('-');
+    if (parts.length > 1) {
+      return parts[parts.length - 1];
+    }
+    
+    return undefined;
+  };
+
+  if (!card) return null;
+
   const formattedDate = new Date(card.set.releaseDate).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
     day: 'numeric'
   });
+
+  const mostRecentPriceDate = hasRealData && priceHistory.length > 0 
+    ? new Date(priceHistory[priceHistory.length - 1].date).toLocaleDateString()
+    : null;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="large">
@@ -52,96 +115,64 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
               )}
             </div>
 
-            <InvestmentBadge investmentData={investmentData} />
-
-            {/* Key Metrics */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-gradient-to-r from-purple-50 to-purple-100 p-4 rounded-lg">
-                <div className="flex items-center gap-2 mb-1">
-                  <Target className="w-4 h-4 text-purple-600" />
-                  <span className="text-sm font-medium text-purple-700">Investment Score</span>
-                </div>
-                <div className="text-2xl font-bold text-purple-800">
-                  {investmentData.investmentScore}/100
-                </div>
+            {/* Basic Card Information */}
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="text-left">
+                <p className="font-semibold text-gray-700 mb-1">Rarity</p>
+                <p className="text-gray-900">{card.rarity || 'N/A'}</p>
               </div>
               
-              <div className="bg-gradient-to-r from-green-50 to-green-100 p-4 rounded-lg">
-                <div className="flex items-center gap-2 mb-1">
-                  <Award className="w-4 h-4 text-green-600" />
-                  <span className="text-sm font-medium text-green-700">PSA 10 Pop</span>
+              {card.artist && (
+                <div className="text-left">
+                  <p className="font-semibold text-gray-700 mb-1">Artist</p>
+                  <p className="text-gray-900">{card.artist}</p>
                 </div>
-                <div className="text-2xl font-bold text-green-800">
-                  {investmentData.psaData.population.grade10.toLocaleString()}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Market Analysis */}
-        <div className="mb-6">
-          <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5" />
-            Market Analysis
-          </h3>
-          
-          <div className="grid grid-cols-3 gap-4 mb-4">
-            <div className="bg-gray-50 p-4 rounded-lg text-center">
-              <div className="text-sm text-gray-600">30-Day Change</div>
-              <div className={`text-lg font-bold ${
-                investmentData.marketAnalysis.priceChange30d >= 0 ? 'text-green-600' : 'text-red-600'
-              }`}>
-                {investmentData.marketAnalysis.priceChange30d >= 0 ? '+' : ''}
-                {investmentData.marketAnalysis.priceChange30d.toFixed(1)}%
-              </div>
-            </div>
-            
-            <div className="bg-gray-50 p-4 rounded-lg text-center">
-              <div className="text-sm text-gray-600">Fair Value</div>
-              <div className="text-lg font-bold text-gray-900">
-                ${investmentData.marketAnalysis.fairValue.toFixed(2)}
-              </div>
-            </div>
-            
-            <div className="bg-gray-50 p-4 rounded-lg text-center">
-              <div className="text-sm text-gray-600">Confidence</div>
-              <div className="text-lg font-bold text-blue-600">
-                {investmentData.marketAnalysis.confidence}%
-              </div>
-            </div>
-          </div>
-
-          {/* Risk Assessment */}
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <AlertTriangle className="w-5 h-5 text-yellow-600" />
-              <span className="font-semibold text-yellow-800">Risk Assessment</span>
-            </div>
-            <div className="text-sm text-yellow-700">
-              Risk Level: <span className="font-semibold">{investmentData.riskLevel}</span>
-              {investmentData.riskLevel === 'HIGH' && (
-                <span className="ml-2">⚠️ High volatility and market uncertainty</span>
-              )}
-              {investmentData.riskLevel === 'MEDIUM' && (
-                <span className="ml-2">⚡ Moderate risk with growth potential</span>
-              )}
-              {investmentData.riskLevel === 'LOW' && (
-                <span className="ml-2">✅ Stable investment with lower volatility</span>
               )}
             </div>
           </div>
         </div>
 
-        {/* Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white border border-gray-200 rounded-lg p-4">
-            <PriceChart priceHistory={investmentData.priceHistory} />
+        {/* Price Chart */}
+        <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="text-lg font-semibold">TCGCSV Price History</h4>
+            <div className="flex items-center gap-2">
+              {isLoadingHistory && (
+                <div className="flex items-center gap-1 text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded-full">
+                  <div className="w-3 h-3 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin"></div>
+                  <span>Loading...</span>
+                </div>
+              )}
+              {!isLoadingHistory && hasRealData && (
+                <div className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                  <Database className="w-3 h-3" />
+                  <span>TCGCSV Data</span>
+                </div>
+              )}
+            </div>
           </div>
           
-          <div className="bg-white border border-gray-200 rounded-lg p-4">
-            <PSAPopulationChart psaData={investmentData.psaData} />
-          </div>
+          {priceHistory.length > 0 ? (
+            <>
+              <PriceChart priceHistory={priceHistory} />
+              {hasRealData && mostRecentPriceDate && (
+                <div className="mt-2 text-xs text-gray-500 text-center">
+                  Last updated: {mostRecentPriceDate}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="h-64 flex items-center justify-center text-gray-500">
+              <div className="text-center">
+                <Database className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm font-medium">No price history available</p>
+                <p className="text-xs mt-1">Run the backend data fetcher to collect TCGCSV price data</p>
+                <div className="mt-3 text-xs text-gray-400">
+                  <code>cd TCGTracker/backend && npm run start</code>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </Modal>
