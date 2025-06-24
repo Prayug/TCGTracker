@@ -8,7 +8,7 @@ interface PokemonCardProps {
 }
 
 export const PokemonCard: React.FC<PokemonCardProps> = ({ card, onClick }) => {
-  const price = pokemonApi.extractCardPrice(card);
+  const price = card.marketPrice || pokemonApi.extractCardPrice(card);
 
   return (
     <div 

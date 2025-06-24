@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { PokemonCard, SortOption, FilterOption } from '../types/pokemon';
 import { pokemonApi } from '../services/pokemonApi';
+import { PriceHistoryApi } from '../services/priceHistoryApi';
 import { sortCards } from '../utils/sorting';
+import { realDataService } from '../services/realDataService';
 
 interface UsePokemonCardsReturn {
   cards: PokemonCard[];
@@ -24,30 +26,62 @@ export const usePokemonCards = (): UsePokemonCardsReturn => {
   const [sortBy, setSortBy] = useState<SortOption>('price-high');
   const [filterBy, setFilterBy] = useState<FilterOption>('all');
 
-  const fetchCards = useCallback(async (query: string) => {
-    if (!query.trim()) {
-      setCards([]);
-      return;
-    }
-
+  const loadCards = async (query?: string, setId?: string) => {
     setIsLoading(true);
     setError(null);
-
+    
     try {
-      const fetchedCards = await pokemonApi.searchCards(query);
-      setCards(fetchedCards);
+      // Get cards from Pokemon TCG API
+      let pokemonCards = await pokemonApi.searchCards(query, setId);
+      
+      // Always get updated prices from local database for consistency
+      console.log('Fetching latest prices from local database for consistency...');
+      
+      const cardsWithLocalPrices = await Promise.all(
+        pokemonCards.map(async (card) => {
+          try {
+            // Extract card number from the card ID (format: set-cardNumber)
+            const cardNumber = card.number || '';
+            
+            // Get latest price from local database
+            const latestPrice = await realDataService.getLatestPrice(
+              card.name, 
+              card.set.name, 
+              cardNumber
+            );
+            
+            // If we found a price in the local database, use it
+            if (latestPrice > 0) {
+              return { ...card, marketPrice: latestPrice };
+            }
+            
+            // Otherwise, keep the original price from Pokemon TCG API
+            return card;
+          } catch (error) {
+            console.error(`Error fetching price for ${card.name}:`, error);
+            return card;
+          }
+        })
+      );
+
+      setCards(cardsWithLocalPrices);
+      console.log(`✅ Loaded ${cardsWithLocalPrices.length} cards with local database prices`);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch cards';
-      setError(errorMessage);
+      console.error('Error loading cards:', err);
+      setError('Failed to load Pokemon cards');
       setCards([]);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
-    fetchCards(searchQuery);
-  }, [searchQuery, fetchCards]);
+    if (searchQuery.trim()) {
+      loadCards(searchQuery);
+    } else {
+      setCards([]);
+    }
+  }, [searchQuery]);
 
   // Apply filters
   const filteredCards = cards.filter(card => {
@@ -74,9 +108,9 @@ export const usePokemonCards = (): UsePokemonCardsReturn => {
 
   const refetch = useCallback(() => {
     if (searchQuery.trim()) {
-      fetchCards(searchQuery);
+      loadCards(searchQuery);
     }
-  }, [searchQuery, fetchCards]);
+  }, [searchQuery]);
 
   return {
     cards: sortedCards,

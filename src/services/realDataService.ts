@@ -307,6 +307,49 @@ class RealDataService {
       return null;
     }
   }
+
+  // New method to get latest price for a single card from local database
+  async getLatestPrice(cardName: string, setName: string, cardNumber: string): Promise<number> {
+    try {
+      console.log(`Getting latest price for: "${cardName}" from "${setName}" (#${cardNumber})`);
+
+      // Use the same matching endpoint as fetchRealData
+      const response = await axios.get(`${this.BACKEND_API}/prices/match`, {
+        params: { cardName, setName, cardNumber },
+      });
+
+      if (response.data?.priceHistory?.length > 0) {
+        const { priceHistory } = response.data;
+        
+        // Get the most recent price point
+        const latestPrice = priceHistory
+          .map((item: { date: string; marketPrice?: number; price?: number }) => ({
+            date: item.date,
+            price: item.marketPrice || item.price || 0,
+          }))
+          .filter((item: { price: number }) => item.price > 0)
+          .sort((a: { date: string }, b: { date: string }) => 
+            new Date(b.date).getTime() - new Date(a.date).getTime()
+          )[0];
+
+        if (latestPrice) {
+          console.log(`✅ Latest price found: $${latestPrice.price} for ${cardName}`);
+          return latestPrice.price;
+        }
+      }
+
+      console.log(`❌ No price found in database for ${cardName} from ${setName}`);
+      return 0;
+
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 404) {
+        console.log(`❌ No matching product found in backend for "${cardName}" from "${setName}"`);
+      } else {
+        console.error('Error fetching latest price:', error);
+      }
+      return 0;
+    }
+  }
 }
 
 export const realDataService = new RealDataService();

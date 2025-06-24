@@ -120,25 +120,41 @@ export const findCardByDetails = async (
     }
 
     function findWithOtherDetails() {
-      // Build a more flexible query
-      let sql = 'SELECT * FROM card_mappings WHERE cardName = ?';
-      const params: string[] = [cardName];
+      const isPromo = (rarity === 'Promo' || setId.toLowerCase().includes('promo'));
+      
+      let sql = 'SELECT * FROM card_mappings';
+      const params: any[] = [];
+      const conditions: string[] = [];
 
-      // Check by setId or setName
-      sql += ' AND (setId = ? OR setName LIKE ?)';
-      params.push(setId, `%${setId}%`);
+      // Card Name is always required
+      conditions.push('cardName = ?');
+      params.push(cardName);
 
+      // Set matching logic
+      if (isPromo) {
+        // For promos, be more lenient with the set name
+        conditions.push("setName LIKE '%Promo%'");
+      } else {
+        // For standard sets, be stricter
+        conditions.push('(setId = ? OR setName LIKE ?)');
+        params.push(setId, `%${setId}%`);
+      }
+
+      // Number matching logic
       if (cardNumber) {
-        // Check if either the database number contains the input number, or vice-versa.
-        sql += ' AND (INSTR(cardNumber, ?) > 0 OR INSTR(?, cardNumber) > 0)';
-        params.push(cardNumber, cardNumber);
+        // Normalize both numbers by removing non-alphanumeric chars for a better match
+        const normalizedCardNumber = cardNumber.replace(/[^a-zA-Z0-9]/g, '');
+        conditions.push("(REPLACE(LOWER(cardNumber), '-', '') = ? OR REPLACE(LOWER(cardNumber), ' ', '') = ?)");
+        params.push(normalizedCardNumber.toLowerCase(), normalizedCardNumber.toLowerCase());
       }
       
+      // Rarity matching
       if (rarity) {
-        sql += ' AND rarity = ?';
+        conditions.push('rarity = ?');
         params.push(rarity);
       }
 
+      sql += ' WHERE ' + conditions.join(' AND ');
       sql += ' ORDER BY length(cardNumber) ASC, createdAt DESC LIMIT 1';
 
       db.get(sql, params, (err, row: any) => {
