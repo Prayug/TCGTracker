@@ -58,79 +58,82 @@ const fetchGroupPrices = async (groupId: number): Promise<TCGCSVPrice[]> => {
 
 const storePriceData = async (prices: TCGCSVPrice[], products: TCGCSVProduct[], groupName: string, date: string) => {
   const db = getDb();
-  const insertSql = `
+  
+  const priceInsertSql = `
     INSERT INTO price_history (
       productId, date, price, subTypeName, productName, groupName, 
       source, lowPrice, highPrice, marketPrice, volume, uniqueIdentifier
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(productId, date, subTypeName, source) DO UPDATE SET
+    ON CONFLICT(productId, date, source, subTypeName) DO UPDATE SET
       price = excluded.price,
       lowPrice = excluded.lowPrice,
       highPrice = excluded.highPrice,
       marketPrice = excluded.marketPrice,
-      productName = excluded.productName,
-      groupName = excluded.groupName,
-      uniqueIdentifier = excluded.uniqueIdentifier;
+      productName = excluded.productName;
   `;
-  const stmt = db.prepare(insertSql);
 
-  // Create a map of productId to product name for quick lookup
+  const mappingInsertSql = `
+    INSERT OR REPLACE INTO card_mappings 
+    (cardId, productId, cardName, setId, setName, cardNumber, rarity, tcgplayerProductId, uniqueIdentifier, updatedAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+  `;
+
+  const priceStmt = db.prepare(priceInsertSql);
+  const mappingStmt = db.prepare(mappingInsertSql);
+
   const productMap = new Map(products.map(p => [p.productId, p.name]));
 
   return new Promise<void>((resolve, reject) => {
     db.serialize(() => {
       db.run('BEGIN TRANSACTION');
-      
-      for (const price of prices) {
-        if (price.marketPrice && price.marketPrice > 0) {
-          const productName = productMap.get(price.productId) || '';
-          
-          // Extract card details from product name for better identification
-          const cardDetails = extractCardDetails(productName, groupName);
-          const uniqueIdentifier = generateUniqueIdentifier(
-            cardDetails.setId, 
-            cardDetails.cardNumber, 
-            cardDetails.cardName
-          );
-          
-          // Store card mapping if we have enough information
-          if (cardDetails.cardName && cardDetails.setId) {
-            storeCardMapping({
-              cardId: `tcgcsv-${price.productId}`,
-              productId: price.productId,
-              cardName: cardDetails.cardName,
-              setId: cardDetails.setId,
-              setName: groupName,
-              cardNumber: cardDetails.cardNumber,
-              tcgplayerProductId: price.productId.toString()
-            }).catch(err => console.warn('Error storing card mapping:', err));
+
+      try {
+        for (const price of prices) {
+          if (price.marketPrice && price.marketPrice > 0) {
+            const productName = productMap.get(price.productId) || '';
+            const cardDetails = extractCardDetails(productName, groupName);
+            const uniqueIdentifier = generateUniqueIdentifier(
+              cardDetails.setId,
+              cardDetails.cardNumber,
+              cardDetails.cardName
+            );
+            
+            priceStmt.run([
+              price.productId, date, price.marketPrice,
+              price.subTypeName || 'Normal', productName, groupName,
+              'tcgcsv', price.lowPrice || null, price.highPrice || null,
+              price.marketPrice || null, null, uniqueIdentifier
+            ]);
+
+            if (cardDetails.cardName && cardDetails.setId) {
+              mappingStmt.run([
+                `tcgcsv-${price.productId}`, price.productId,
+                cardDetails.cardName, cardDetails.setId, groupName,
+                cardDetails.cardNumber || null, null,
+                price.productId.toString(), uniqueIdentifier
+              ]);
+            }
           }
-          
-          stmt.run([
-            price.productId, 
-            date, 
-            price.marketPrice, // Use marketPrice as primary price
-            price.subTypeName || 'Normal',
-            productName,
-            groupName,
-            'tcgcsv',
-            price.lowPrice || null,
-            price.highPrice || null,
-            price.marketPrice || null,
-            null, // volume not available from TCGCSV
-            uniqueIdentifier
-          ]);
         }
-      }
-      
-      db.run('COMMIT', (err) => {
-        if (err) {
-          reject(err);
-        } else {
+        
+        db.run('COMMIT', (commitErr) => {
+          if (commitErr) {
+            throw commitErr;
+          }
+          priceStmt.finalize();
+          mappingStmt.finalize();
           resolve();
-        }
-      });
+        });
+
+      } catch (runErr) {
+        console.error('Error during transaction, rolling back.', runErr);
+        db.run('ROLLBACK', () => {
+          priceStmt.finalize();
+          mappingStmt.finalize();
+          reject(runErr);
+        });
+      }
     });
   });
 };
@@ -139,29 +142,36 @@ const storePriceData = async (prices: TCGCSVPrice[], products: TCGCSVProduct[], 
  * Extracts card details from TCGCSV product name
  */
 const extractCardDetails = (productName: string, setName: string) => {
-  // Common patterns in TCGCSV product names:
-  // "Charizard ex (003/165)" 
-  // "Pikachu - 25/102 - Common"
-  // "Rayquaza VMAX (111/203) [Evolving Skies]"
-  
   let cardName = productName;
   let cardNumber = '';
   let setId = setName.toLowerCase().replace(/[^a-z0-9]/g, '');
-  
-  // Extract card number from parentheses or after dash
-  const numberMatches = productName.match(/\((\d+\/\d+)\)/) || productName.match(/(\d+\/\d+)/);
+
+  // Try to match standard card numbers first, e.g., (199/165)
+  let numberMatches = productName.match(/\s\(?(\d+\/\d+)\)?/);
+
   if (numberMatches) {
     cardNumber = numberMatches[1];
-    cardName = productName.replace(/\s*\([^)]*\)/, '').replace(/\s*-\s*\d+\/\d+.*$/, '').trim();
+    cardName = productName.substring(0, numberMatches.index).trim();
+  } else {
+    // If not found, try to match promo numbers, e.g., - SWSH250
+    // This pattern looks for a dash followed by a code that contains at least one digit.
+    numberMatches = productName.match(/-\s+([a-zA-Z0-9-]*[a-zA-Z]*\d+[a-zA-Z0-9-]*)$/);
+    if (numberMatches) {
+      cardNumber = numberMatches[1];
+      cardName = productName.substring(0, numberMatches.index).trim();
+    }
   }
-  
-  // Clean up card name
-  cardName = cardName.replace(/\s*-\s*(Common|Uncommon|Rare|Ultra Rare|Secret Rare).*$/i, '').trim();
-  
+
+  // Clean up card name from rarity indicators often found in TCGPlayer names
+  cardName = cardName.replace(/\s*-\s*(Common|Uncommon|Rare|Holo Rare|Reverse Holo|Promo|Secret Rare|Ultra Rare|Amazing Rare).*$/i, '').trim();
+  if (cardName.endsWith(' -')) {
+    cardName = cardName.slice(0, -2).trim();
+  }
+
   return {
     cardName,
     cardNumber,
-    setId
+    setId,
   };
 };
 
@@ -252,47 +262,37 @@ export const updatePriceData = async () => {
     
     let totalPricesProcessed = 0;
     
-    // Process groups in batches to avoid overwhelming the API
-    for (let i = 0; i < groups.length; i += 5) {
-      const batch = groups.slice(i, i + 5);
-      
-      await Promise.all(batch.map(async (group) => {
-        try {
-          console.log(`Processing group: ${group.name} (${group.groupId})`);
-          
-          // Fetch both products and prices for this group
-          const [products, prices] = await Promise.all([
-            fetchGroupProducts(group.groupId),
-            fetchGroupPrices(group.groupId)
-          ]);
-          
-          if (prices.length > 0) {
-            await storePriceData(prices, products, group.name, currentDate);
-            totalPricesProcessed += prices.length;
-            console.log(`Stored ${prices.length} prices for ${group.name}`);
-          }
-          
-          // Small delay to be respectful to the API
-          await new Promise(resolve => setTimeout(resolve, 100));
-        } catch (error) {
-          console.error(`Error processing group ${group.name}:`, error);
-        }
-      }));
-      
-      // Longer delay between batches
-      await new Promise(resolve => setTimeout(resolve, 500));
-    }
+    // Process groups sequentially to prevent database locking issues
+    for (const group of groups) {
+      try {
+        console.log(`Processing group: ${group.name} (${group.groupId})`);
+        
+        const [products, prices] = await Promise.all([
+          fetchGroupProducts(group.groupId),
+          fetchGroupPrices(group.groupId)
+        ]);
 
-    // Create daily snapshot for analytics
+        if (prices.length > 0 && products.length > 0) {
+          await storePriceData(prices, products, group.name, currentDate);
+          totalPricesProcessed += prices.length;
+          console.log(`Successfully processed ${prices.length} price points for ${group.name}.`);
+        } else {
+          console.log(`No price or product data found for ${group.name}, skipping.`);
+        }
+      } catch (error) {
+        console.error(`Failed to process group ${group.name} (${group.groupId}):`, error);
+      }
+      // Add a small delay between processing each group to be kind to the API
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+    
+    console.log(`Finished processing all groups. Total price points processed: ${totalPricesProcessed}`);
+    
     console.log('Creating daily market snapshot...');
     await createDailySnapshot(currentDate);
+    console.log('Daily market snapshot created.');
     
-    console.log(`
-      Price data update completed:
-      - TCGCSV prices: ${totalPricesProcessed}
-      - Daily snapshot created
-    `);
   } catch (error) {
-    console.error('Failed to update price data:', error);
+    console.error('An error occurred during the price data update process:', error);
   }
 };

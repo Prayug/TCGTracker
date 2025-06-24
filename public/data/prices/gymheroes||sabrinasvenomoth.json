@@ -1,0 +1,18 @@
+[
+  {
+    "date": "2025-06-23",
+    "price": 10.65,
+    "subTypeName": "1st Edition",
+    "lowPrice": 4.89,
+    "highPrice": 14.99,
+    "marketPrice": 10.84
+  },
+  {
+    "date": "2025-06-23",
+    "price": 5.51,
+    "subTypeName": "Unlimited",
+    "lowPrice": 3.5,
+    "highPrice": 16.98,
+    "marketPrice": 5.43
+  }
+]

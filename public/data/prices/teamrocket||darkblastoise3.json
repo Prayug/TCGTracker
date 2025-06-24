@@ -1,0 +1,18 @@
+[
+  {
+    "date": "2025-06-23",
+    "price": 445.03,
+    "subTypeName": "1st Edition Holofoil",
+    "lowPrice": 182.06,
+    "highPrice": 599.95,
+    "marketPrice": 218.93
+  },
+  {
+    "date": "2025-06-23",
+    "price": 136.21,
+    "subTypeName": "Unlimited Holofoil",
+    "lowPrice": 86.49,
+    "highPrice": 399.99,
+    "marketPrice": 119.53
+  }
+]

@@ -17,8 +17,11 @@ export const PriceChart: React.FC<PriceChartProps> = ({ priceHistory, title = "P
   }
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    // Manually parse the date string to avoid timezone issues.
+    // 'YYYY-MM-DD' strings are parsed as UTC, but this is more robust.
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
   };
 
   const formatPrice = (price: number) => `$${price.toFixed(2)}`;
@@ -66,7 +69,12 @@ export const PriceChart: React.FC<PriceChartProps> = ({ priceHistory, title = "P
             />
             <Tooltip 
               formatter={(value: number) => [formatPrice(value), 'Price']}
-              labelFormatter={(label: string) => new Date(label).toLocaleDateString()}
+              labelFormatter={(label: string) => {
+                if (!label.includes('-')) return label;
+                const [year, month, day] = label.split('-').map(Number);
+                const date = new Date(Date.UTC(year, month - 1, day));
+                return date.toLocaleDateString('en-US', { timeZone: 'UTC' });
+              }}
               contentStyle={{
                 backgroundColor: 'white',
                 border: '1px solid #E5E7EB',

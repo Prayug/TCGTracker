@@ -99,10 +99,61 @@ export const findCardByIdentifier = async (uniqueIdentifier: string): Promise<Ca
 export const findCardByDetails = async (
   cardName: string, 
   setId: string, 
-  cardNumber?: string
+  cardNumber?: string,
+  rarity?: string,
+  productId?: string
 ): Promise<CardIdentifier | null> => {
-  const uniqueIdentifier = generateUniqueIdentifier(setId, cardNumber, cardName);
-  return findCardByIdentifier(uniqueIdentifier);
+  const db = getDb();
+  
+  return new Promise((resolve, reject) => {
+    // Priority 1: Match by tcgplayerProductId if available
+    if (productId) {
+      const sql = 'SELECT * FROM card_mappings WHERE tcgplayerProductId = ? LIMIT 1';
+      db.get(sql, [productId], (err, row: any) => {
+        if (err) return reject(err);
+        if (row) return resolve(row as CardIdentifier);
+        // If not found, continue to other checks
+        findWithOtherDetails();
+      });
+    } else {
+      findWithOtherDetails();
+    }
+
+    function findWithOtherDetails() {
+      // Build a more flexible query
+      let sql = 'SELECT * FROM card_mappings WHERE cardName = ?';
+      const params: string[] = [cardName];
+
+      // Check by setId or setName
+      sql += ' AND (setId = ? OR setName LIKE ?)';
+      params.push(setId, `%${setId}%`);
+
+      if (cardNumber) {
+        // Check if either the database number contains the input number, or vice-versa.
+        sql += ' AND (INSTR(cardNumber, ?) > 0 OR INSTR(?, cardNumber) > 0)';
+        params.push(cardNumber, cardNumber);
+      }
+      
+      if (rarity) {
+        sql += ' AND rarity = ?';
+        params.push(rarity);
+      }
+
+      sql += ' ORDER BY length(cardNumber) ASC, createdAt DESC LIMIT 1';
+
+      db.get(sql, params, (err, row: any) => {
+        if (err) {
+          reject(err);
+        } else if (row) {
+          resolve(row as CardIdentifier);
+        } else {
+          // If no match, try generating a unique identifier as a fallback
+          const uniqueIdentifier = generateUniqueIdentifier(setId, cardNumber, cardName);
+          findCardByIdentifier(uniqueIdentifier).then(resolve).catch(reject);
+        }
+      });
+    }
+  });
 };
 
 /**

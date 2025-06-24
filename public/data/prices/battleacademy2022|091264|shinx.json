@@ -1,0 +1,34 @@
+[
+  {
+    "date": "2025-06-23",
+    "price": 0.15,
+    "subTypeName": "Normal",
+    "lowPrice": 0.04,
+    "highPrice": 0.56,
+    "marketPrice": 0.15
+  },
+  {
+    "date": "2025-06-23",
+    "price": 0.19,
+    "subTypeName": "Normal",
+    "lowPrice": 0.05,
+    "highPrice": 0.61,
+    "marketPrice": 0.16
+  },
+  {
+    "date": "2025-06-23",
+    "price": 0.16,
+    "subTypeName": "Normal",
+    "lowPrice": 0.05,
+    "highPrice": 0.59,
+    "marketPrice": 0.16
+  },
+  {
+    "date": "2025-06-23",
+    "price": 0.18,
+    "subTypeName": "Normal",
+    "lowPrice": 0.05,
+    "highPrice": 0.54,
+    "marketPrice": 0.18
+  }
+]

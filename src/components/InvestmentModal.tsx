@@ -27,50 +27,29 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
 
     setIsLoadingHistory(true);
     try {
-      // Extract card number from various sources
-      const cardNumber = extractCardNumber(card);
-      
       const history = await PriceHistoryApi.getPokemonCardPriceHistory({
         id: card.id,
         name: card.name,
         set: card.set,
-        number: cardNumber
+        number: card.number,
+        rarity: card.rarity,
+        productId: card.tcgplayer?.productId
       });
 
       if (history && history.length > 0) {
         setPriceHistory(history);
         setHasRealData(true);
       } else {
-        // NO FALLBACK TO SIMULATED DATA - ONLY REAL DATA
         setPriceHistory([]);
         setHasRealData(false);
       }
     } catch (error) {
       console.error('Error fetching price history:', error);
-      // NO FALLBACK TO SIMULATED DATA - ONLY REAL DATA
       setPriceHistory([]);
       setHasRealData(false);
     } finally {
       setIsLoadingHistory(false);
     }
-  };
-
-  const extractCardNumber = (card: PokemonCard): string | undefined => {
-    // Try to extract card number from various sources
-    if (card.tcgplayer?.url) {
-      const urlParts = card.tcgplayer.url.split('/');
-      const cardInfo = urlParts[urlParts.length - 1];
-      const numberMatch = cardInfo.match(/(\d+)/);
-      if (numberMatch) return numberMatch[1];
-    }
-    
-    // Extract from card ID (e.g., "xy1-1" -> "1")
-    const parts = card.id.split('-');
-    if (parts.length > 1) {
-      return parts[parts.length - 1];
-    }
-    
-    return undefined;
   };
 
   if (!card) return null;
