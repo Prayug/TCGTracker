@@ -11,6 +11,7 @@ export interface PokemonCard {
     releaseDate: string;
     total: number;
   };
+  number: string;
   rarity?: string;
   types?: string[];
   artist?: string;

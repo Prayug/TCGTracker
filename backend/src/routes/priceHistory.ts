@@ -167,7 +167,7 @@ router.get('/match', (req: Request, res: Response): void => {
 
 // New endpoint specifically for getting price history by card details
 router.get('/history', async (req: Request, res: Response) => {
-  const { cardName, setName, cardNumber, setId } = req.query;
+  const { cardName, setName, cardNumber, setId, rarity, productId } = req.query;
 
   if (!cardName || !setName) {
     return res.status(400).json({ error: 'cardName and setName are required.' });
@@ -176,8 +176,10 @@ router.get('/history', async (req: Request, res: Response) => {
   try {
     const card = await findCardByDetails(
       String(cardName),
-      String(setId || ''),
-      String(cardNumber || '')
+      String(setId || setName),
+      String(cardNumber || ''),
+      rarity ? String(rarity) : undefined,
+      productId ? String(productId) : undefined
     );
 
     if (card) {

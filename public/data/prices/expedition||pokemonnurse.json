@@ -1,0 +1,18 @@
+[
+  {
+    "date": "2025-06-23",
+    "price": 4.92,
+    "subTypeName": "Normal",
+    "lowPrice": 3,
+    "highPrice": 10,
+    "marketPrice": 4.81
+  },
+  {
+    "date": "2025-06-23",
+    "price": 22.47,
+    "subTypeName": "Reverse Holofoil",
+    "lowPrice": 20,
+    "highPrice": 37.49,
+    "marketPrice": 22.1
+  }
+]

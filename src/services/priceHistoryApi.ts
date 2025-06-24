@@ -1,3 +1,6 @@
+import { PokemonCard, PokemonSet, ApiResponse } from '../types/pokemon';
+import { CardIdentifier } from '../types/identifiers';
+
 interface PriceHistoryPoint {
   date: string;
   price: number;
@@ -6,6 +9,7 @@ interface PriceHistoryPoint {
   highPrice?: number;
   volume?: number;
   source: string;
+  message?: string;
 }
 
 interface CardPriceHistoryResponse {
@@ -38,6 +42,82 @@ interface CardMatchResponse {
 
 export class PriceHistoryApi {
   private static baseUrl = 'http://localhost:3001/api/prices';
+  public static dataMode: 'live' | 'static' = 'static'; // <-- Change to 'live' to use the backend
+  private static staticMappings: CardIdentifier[] | null = null;
+
+  private static async getStaticMappings(): Promise<CardIdentifier[]> {
+    if (this.staticMappings) {
+      return this.staticMappings;
+    }
+    try {
+      const response = await fetch('/data/mappings.json');
+      if (!response.ok) return [];
+      const mappings = await response.json();
+      this.staticMappings = mappings;
+      return mappings;
+    } catch (error) {
+      console.error('Failed to load static mappings:', error);
+      return [];
+    }
+  }
+
+  private static async findCardStatically(card: {
+    name: string;
+    set: { id: string; name: string };
+    number?: string;
+    rarity?: string;
+    productId?: string;
+  }): Promise<CardIdentifier | null> {
+    const mappings = await this.getStaticMappings();
+    if (mappings.length === 0) return null;
+
+    // Priority 1: Find by TCGPlayer Product ID
+    if (card.productId) {
+      const found = mappings.find(m => m.tcgplayerProductId === card.productId);
+      if (found) return found;
+    }
+
+    // Priority 2: Find by details (name, set, number, rarity)
+    const normalizedSetName = card.set.name.toLowerCase();
+    const normalizedCardName = card.name.toLowerCase();
+    
+    const potentialMatches = mappings.filter(m => {
+      if (m.cardName.toLowerCase() !== normalizedCardName) {
+        return false;
+      }
+      
+      const setMatch = m.setId === card.set.id || m.setName.toLowerCase().includes(normalizedSetName);
+      if (!setMatch) {
+        return false;
+      }
+
+      // The card number from TCGCSV can be "SWSH199", while from pokemontcg.io it might be just "199".
+      // We perform a bidirectional check to see if one number contains the other.
+      const numberMatch = !card.number || !m.cardNumber || 
+        m.cardNumber.includes(card.number) || card.number.includes(m.cardNumber);
+      if (!numberMatch) {
+        return false;
+      }
+
+      // Rarity must also match if provided
+      const rarityMatch = !card.rarity || m.rarity === card.rarity;
+      return rarityMatch;
+    });
+
+    if (potentialMatches.length > 0) {
+      // If multiple matches, prefer the one with the most similar card number
+      potentialMatches.sort((a, b) => {
+        const aContains = a.cardNumber?.includes(card.number || '') || false;
+        const bContains = b.cardNumber?.includes(card.number || '') || false;
+        if (aContains && !bContains) return -1;
+        if (!aContains && bContains) return 1;
+        return (a.cardNumber || '').length - (b.cardNumber || '').length;
+      });
+      return potentialMatches[0];
+    }
+    
+    return null;
+  }
 
   /**
    * Gets price history for a specific card using its details
@@ -130,6 +210,8 @@ export class PriceHistoryApi {
     name: string;
     set: { id: string; name: string };
     number?: string;
+    rarity?: string;
+    productId?: string;
   }): Promise<Array<{ date: string; price: number }>> {
     const cardNumber = card.number || this.extractCardNumber(card.id);
     
@@ -138,6 +220,8 @@ export class PriceHistoryApi {
       name: card.name,
       set: card.set,
       number: cardNumber,
+      rarity: card.rarity,
+      productId: card.productId
     });
 
     if (history.length > 0) {
@@ -188,7 +272,26 @@ export class PriceHistoryApi {
     name: string;
     set: { id: string; name: string };
     number?: string;
+    rarity?: string;
+    productId?: string;
   }): Promise<Array<{ date: string; price: number }>> {
+    if (PriceHistoryApi.dataMode === 'static') {
+      const matchedCard = await this.findCardStatically(card);
+      if (!matchedCard || !matchedCard.uniqueIdentifier) {
+        return [];
+      }
+      try {
+        const response = await fetch(`/data/prices/${matchedCard.uniqueIdentifier}.json`);
+        if (!response.ok) return [];
+        const data = await response.json();
+        return this.formatPriceHistory(data || []);
+      } catch (error) {
+        console.error('Error fetching static price history:', error);
+        return [];
+      }
+    }
+
+    // Live mode
     const params = new URLSearchParams({
       cardName: card.name,
       setName: card.set.name,
@@ -196,6 +299,12 @@ export class PriceHistoryApi {
     });
     if (card.number) {
       params.append('cardNumber', card.number);
+    }
+    if (card.rarity) {
+      params.append('rarity', card.rarity);
+    }
+    if (card.productId) {
+      params.append('productId', card.productId);
     }
 
     try {
