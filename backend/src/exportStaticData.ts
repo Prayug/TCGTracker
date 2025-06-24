@@ -51,6 +51,26 @@ const exportStaticData = async () => {
       }
     }
 
+    // 5. Create a unified file with the latest price for every card
+    const latestPrices: { [uniqueIdentifier: string]: any } = {};
+    for (const mapping of mappings) {
+      if (!mapping.uniqueIdentifier) continue;
+
+      const history = await new Promise<any[]>((resolve, reject) => {
+        db.all('SELECT date, price FROM price_history WHERE uniqueIdentifier = ? ORDER BY date DESC LIMIT 1', [mapping.uniqueIdentifier], (err, rows) => {
+          if (err) return reject(err);
+          resolve(rows);
+        });
+      });
+
+      if (history.length > 0) {
+        latestPrices[mapping.uniqueIdentifier] = history[0];
+      }
+    }
+
+    fs.writeFileSync(path.join(DATA_DIR, 'latest-prices.json'), JSON.stringify(latestPrices, null, 2));
+    console.log('Exported latest prices to latest-prices.json');
+
     console.log(`Exported price history for ${exportedCount} of ${mappings.length} cards.`);
     console.log('Static data export complete!');
   } catch (error) {

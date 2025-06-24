@@ -15,6 +15,7 @@ export interface PokemonCard {
   rarity?: string;
   types?: string[];
   artist?: string;
+  marketPrice?: number;
   tcgplayer?: {
     url?: string;
     updatedAt?: string;
@@ -74,7 +75,6 @@ export interface PSAData {
 export interface PricePoint {
   date: string;
   price: number;
-  volume?: number;
 }
 
 export interface MarketAnalysis {

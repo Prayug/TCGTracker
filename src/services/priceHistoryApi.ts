@@ -44,6 +44,7 @@ export class PriceHistoryApi {
   private static baseUrl = 'http://localhost:3001/api/prices';
   public static dataMode: 'live' | 'static' = 'static'; // <-- Change to 'live' to use the backend
   private static staticMappings: CardIdentifier[] | null = null;
+  private static latestPrices: { [uniqueIdentifier: string]: PricePoint } | null = null;
 
   private static async getStaticMappings(): Promise<CardIdentifier[]> {
     if (this.staticMappings) {
@@ -58,6 +59,22 @@ export class PriceHistoryApi {
     } catch (error) {
       console.error('Failed to load static mappings:', error);
       return [];
+    }
+  }
+
+  public static async getLatestPrices(): Promise<{ [uniqueIdentifier: string]: PricePoint }> {
+    if (this.latestPrices) {
+      return this.latestPrices;
+    }
+    try {
+      const response = await fetch('/data/latest-prices.json');
+      if (!response.ok) return {};
+      const prices = await response.json();
+      this.latestPrices = prices;
+      return prices;
+    } catch (error) {
+      console.error('Failed to load latest prices:', error);
+      return {};
     }
   }
 
@@ -78,41 +95,45 @@ export class PriceHistoryApi {
     }
 
     // Priority 2: Find by details (name, set, number, rarity)
-    const normalizedSetName = card.set.name.toLowerCase();
+    const isPromo = card.rarity === 'Promo' || card.set.name.toLowerCase().includes('promo');
     const normalizedCardName = card.name.toLowerCase();
-    
+
     const potentialMatches = mappings.filter(m => {
+      // Name must match
       if (m.cardName.toLowerCase() !== normalizedCardName) {
         return false;
       }
-      
-      const setMatch = m.setId === card.set.id || m.setName.toLowerCase().includes(normalizedSetName);
-      if (!setMatch) {
-        return false;
+
+      // Set matching logic
+      const dbIsPromo = m.rarity === 'Promo' || m.setName.toLowerCase().includes('promo');
+      if (isPromo) {
+        if (!dbIsPromo) return false; // If we expect a promo, it must be a promo in the DB
+      } else {
+        // For non-promos, the set match should be stricter
+        const normalizedSetName = card.set.name.toLowerCase();
+        const setMatch = m.setId === card.set.id || m.setName.toLowerCase().includes(normalizedSetName);
+        if (!setMatch) return false;
       }
 
-      // The card number from TCGCSV can be "SWSH199", while from pokemontcg.io it might be just "199".
-      // We perform a bidirectional check to see if one number contains the other.
-      const numberMatch = !card.number || !m.cardNumber || 
-        m.cardNumber.includes(card.number) || card.number.includes(m.cardNumber);
-      if (!numberMatch) {
+      // Number matching logic
+      if (card.number && m.cardNumber) {
+        const apiNumber = card.number.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const dbNumber = m.cardNumber.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (apiNumber !== dbNumber) {
+          return false;
+        }
+      } else if (card.number || m.cardNumber) {
+        // If one has a number and the other doesn't, it's not a match.
         return false;
       }
 
       // Rarity must also match if provided
-      const rarityMatch = !card.rarity || m.rarity === card.rarity;
-      return rarityMatch;
+      return !card.rarity || m.rarity === card.rarity;
     });
-
+    
     if (potentialMatches.length > 0) {
-      // If multiple matches, prefer the one with the most similar card number
-      potentialMatches.sort((a, b) => {
-        const aContains = a.cardNumber?.includes(card.number || '') || false;
-        const bContains = b.cardNumber?.includes(card.number || '') || false;
-        if (aContains && !bContains) return -1;
-        if (!aContains && bContains) return 1;
-        return (a.cardNumber || '').length - (b.cardNumber || '').length;
-      });
+      // If multiple matches, prefer the one with the shortest, most exact card number
+      potentialMatches.sort((a, b) => (a.cardNumber || '').length - (b.cardNumber || '').length);
       return potentialMatches[0];
     }
     
