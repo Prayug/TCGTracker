@@ -1,4 +1,5 @@
 import { PokemonCard, PokemonSet, PricePoint } from '../types/pokemon';
+import { toReliableSetPricePoints } from '../utils/setValueHistory';
 import { cacheService } from './cacheService';
 import { vaultService } from './vaultService';
 import { env } from '../config/env';
@@ -105,7 +106,7 @@ class SetTrackerService {
     setId: string,
     range: ValueHistoryRange = '90d'
   ): Promise<SetValueHistoryPoint[]> {
-    const cacheKey = `set_value_history_v2_${setId}_${range}`;
+    const cacheKey = `set_value_history_v3_${setId}_${range}`;
     const cached = cacheService.get<SetValueHistoryPoint[]>(cacheKey);
     if (cached) return cached;
 
@@ -117,8 +118,8 @@ class SetTrackerService {
     return points;
   }
 
-  toPricePoints(history: SetValueHistoryPoint[]): PricePoint[] {
-    return history.map((p) => ({ date: p.date, price: p.setValue }));
+  toPricePoints(history: SetValueHistoryPoint[], totalCatalogCards?: number): PricePoint[] {
+    return toReliableSetPricePoints(history, totalCatalogCards);
   }
 
   /** Completion % for index badges (vault-only, no API per set) */

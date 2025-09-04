@@ -13,6 +13,11 @@ exports.updateActualResults = updateActualResults;
 exports.getForwardTestStatus = getForwardTestStatus;
 const database_1 = require("../db/database");
 const logger_1 = require("../utils/logger");
+const WINDOW_COLS = {
+    7: { price: 'actual_7d_price', dir: 'direction_correct_7d' },
+    30: { price: 'actual_30d_price', dir: 'direction_correct_30d' },
+    90: { price: 'actual_90d_price', dir: 'direction_correct_90d' },
+};
 function updateActualResults() {
     return __awaiter(this, void 0, void 0, function* () {
         const db = (0, database_1.getDb)();
@@ -32,7 +37,7 @@ function updateActualResults() {
         for (const pred of pendingPredictions) {
             try {
                 const now = new Date();
-                const predDate = new Date(pred.prediction_date + 'T00:00:00');
+                const predDate = new Date(pred.prediction_date + 'T00:00:00Z');
                 const daysSince = Math.floor((now.getTime() - predDate.getTime()) / (1000 * 60 * 60 * 24));
                 if (daysSince < 7)
                     continue;
@@ -52,11 +57,11 @@ function updateActualResults() {
                     ? Math.abs((pred.expected_30d_return || 0) - actual30dReturn) : null;
                 const error90d = actual90dReturn !== null
                     ? Math.abs((pred.expected_90d_return || 0) - actual90dReturn) : null;
-                const directionCorrect7d = pred.expected_7d_return && actual7dReturn
+                const directionCorrect7d = (pred.expected_7d_return != null && actual7dReturn != null)
                     ? (pred.expected_7d_return > 0) === (actual7dReturn > 0) ? 1 : 0 : 0;
-                const directionCorrect30d = pred.expected_30d_return && actual30dReturn
+                const directionCorrect30d = (pred.expected_30d_return != null && actual30dReturn != null)
                     ? (pred.expected_30d_return > 0) === (actual30dReturn > 0) ? 1 : 0 : 0;
-                const directionCorrect90d = pred.expected_90d_return && actual90dReturn
+                const directionCorrect90d = (pred.expected_90d_return != null && actual90dReturn != null)
                     ? (pred.expected_90d_return > 0) === (actual90dReturn > 0) ? 1 : 0 : 0;
                 const has7d = actual7d !== null;
                 const has30d = actual30d !== null;
@@ -108,7 +113,7 @@ function updateActualResults() {
 function fetchActualPrice(cardId, predictionDate, daysAhead) {
     return __awaiter(this, void 0, void 0, function* () {
         const db = (0, database_1.getDb)();
-        const targetDate = new Date(predictionDate + 'T00:00:00');
+        const targetDate = new Date(predictionDate + 'T00:00:00Z');
         targetDate.setDate(targetDate.getDate() + daysAhead);
         const targetStr = targetDate.toISOString().split('T')[0];
         return new Promise((resolve, reject) => {
@@ -155,24 +160,26 @@ function getForwardTestStatus() {
             getCountByStatus('missed'),
             getCountByStatus('partially_correct'),
         ]);
-        const getWindowStats = (days, col) => __awaiter(this, void 0, void 0, function* () {
+        const getWindowStats = (days) => __awaiter(this, void 0, void 0, function* () {
+            const cols = WINDOW_COLS[days];
+            if (!cols) {
+                return { pending: totalPredictions, hit: 0, missed: 0, accuracy: null };
+            }
             const total = yield new Promise((resolve, reject) => {
                 db.get(`SELECT COUNT(*) as count FROM prediction_results pr
          JOIN card_predictions cp ON cp.id = pr.prediction_id
          WHERE cp.run_id = (SELECT MAX(id) FROM prediction_runs)
-         AND pr.${col} IS NOT NULL`, [], (err, row) => {
+         AND pr.${cols.price} IS NOT NULL`, [], (err, row) => {
                     if (err)
                         return reject(err);
                     resolve((row === null || row === void 0 ? void 0 : row.count) || 0);
                 });
             });
             const correct = yield new Promise((resolve, reject) => {
-                const dirCol = days === 7 ? 'direction_correct_7d'
-                    : days === 30 ? 'direction_correct_30d' : 'direction_correct_90d';
                 db.get(`SELECT COUNT(*) as count FROM prediction_results pr
          JOIN card_predictions cp ON cp.id = pr.prediction_id
          WHERE cp.run_id = (SELECT MAX(id) FROM prediction_runs)
-         AND pr.${dirCol} = 1`, [], (err, row) => {
+         AND pr.${cols.dir} = 1`, [], (err, row) => {
                     if (err)
                         return reject(err);
                     resolve((row === null || row === void 0 ? void 0 : row.count) || 0);
@@ -187,9 +194,9 @@ function getForwardTestStatus() {
             };
         });
         const [_7d, _30d, _90d] = yield Promise.all([
-            getWindowStats(7, 'actual_7d_price'),
-            getWindowStats(30, 'actual_30d_price'),
-            getWindowStats(90, 'actual_90d_price'),
+            getWindowStats(7),
+            getWindowStats(30),
+            getWindowStats(90),
         ]);
         return {
             totalPredictions,

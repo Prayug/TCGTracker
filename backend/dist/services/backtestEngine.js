@@ -102,7 +102,7 @@ function runBacktest(backtestDate_1) {
                     trendScore, recoveryScore, demandScore, riskScore,
                     externalSignalScore: 0,
                 };
-                const expectedReturns = (0, predictionEngine_1.computeExpectedReturns)(scores, currentPrice);
+                const expectedReturns = (0, predictionEngine_1.computeExpectedReturns)(scores);
                 const futurePrice = yield fetchFuturePrice(uid, backtestDate, windowDays);
                 let actual90dReturn = null;
                 let error90d = null;
@@ -221,7 +221,14 @@ function getBacktestResults() {
             db.all(`SELECT * FROM backtest_runs ORDER BY created_at DESC LIMIT 20`, [], (err, rows) => {
                 if (err)
                     return reject(err);
-                resolve(rows.map(r => (Object.assign(Object.assign({}, r), { category_performance: r.category_performance ? JSON.parse(r.category_performance) : [] }))));
+                resolve(rows.map(r => (Object.assign(Object.assign({}, r), { category_performance: (() => {
+                        try {
+                            return r.category_performance ? JSON.parse(r.category_performance) : [];
+                        }
+                        catch (_a) {
+                            return [];
+                        }
+                    })() }))));
             });
         });
     });
