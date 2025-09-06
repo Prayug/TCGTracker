@@ -49,3 +49,4 @@ backend/*.db-*
 *.backup
 
 .vercel
+.env.vercel
