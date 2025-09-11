@@ -106,20 +106,39 @@ function computeRecoveryMetrics(points) {
         return { recentDrop: null, hasStabilized: false, daysSinceBottom: null, priorRecoveryPattern: false };
     }
     const currentPrice = prices[prices.length - 1];
-    const peak90 = Math.max(...prices.slice(-90));
+    const recent90 = prices.slice(-Math.min(90, prices.length));
+    let peak90 = recent90[0];
+    for (const p of recent90) {
+        if (p > peak90)
+            peak90 = p;
+    }
     const recentDrop = peak90 > 0 ? ((currentPrice - peak90) / peak90) * 100 : null;
     const recent30 = prices.slice(-30);
     const recent10 = prices.slice(-10);
     const avg10 = recent10.reduce((a, b) => a + b, 0) / recent10.length;
     const avg30 = recent30.reduce((a, b) => a + b, 0) / recent30.length;
     const hasStabilized = Math.abs(recent10[recent10.length - 1] - recent10[0]) / recent10[0] < 0.05;
-    const minIdx = prices.lastIndexOf(Math.min(...prices.slice(-90)));
+    let minIdx = 0;
+    let minVal = prices[0];
+    const startIdx = Math.max(0, prices.length - 90);
+    for (let i = startIdx; i < prices.length; i++) {
+        if (prices[i] < minVal) {
+            minVal = prices[i];
+            minIdx = i;
+        }
+    }
     const daysSinceBottom = prices.length - 1 - minIdx;
     const priorDrops = [];
     for (let i = 0; i < prices.length - 60; i += 30) {
         const segment = prices.slice(i, i + 60);
-        const segPeak = Math.max(...segment);
-        const segTrough = Math.min(...segment);
+        let segPeak = segment[0];
+        let segTrough = segment[0];
+        for (const p of segment) {
+            if (p > segPeak)
+                segPeak = p;
+            if (p < segTrough)
+                segTrough = p;
+        }
         if (segPeak > 0) {
             const drop = ((segTrough - segPeak) / segPeak) * 100;
             if (drop < -10 && i + 60 <= prices.length) {

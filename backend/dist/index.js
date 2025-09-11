@@ -50,6 +50,8 @@ const node_cron_1 = __importDefault(require("node-cron"));
 const swagger_ui_express_1 = __importDefault(require("swagger-ui-express"));
 const priceHistory_1 = __importDefault(require("./routes/priceHistory"));
 const cardSearch_1 = __importDefault(require("./routes/cardSearch"));
+const onePieceCards_1 = __importDefault(require("./routes/onePieceCards"));
+const onePieceSync_1 = require("./services/onePieceSync");
 const setTracker_1 = __importDefault(require("./routes/setTracker"));
 const enhancedPacks_1 = __importDefault(require("./routes/enhancedPacks"));
 const marketInsights_1 = __importDefault(require("./routes/marketInsights"));
@@ -145,12 +147,23 @@ function setupRoutes(authService, alertService, portfolioService) {
             logger_1.logger.error('Failed to sync card catalog', { error: error.message });
         }
     }), { timezone: 'America/New_York' });
+    node_cron_1.default.schedule('45 1 * * *', () => __awaiter(this, void 0, void 0, function* () {
+        logger_1.logger.info('Running scheduled One Piece catalog and price sync...');
+        try {
+            const result = yield (0, onePieceSync_1.syncOnePieceData)();
+            logger_1.logger.info('One Piece sync completed', result);
+        }
+        catch (error) {
+            logger_1.logger.error('Failed to sync One Piece data', { error: error.message });
+        }
+    }), { timezone: 'America/New_York' });
     app.use('/api/auth', rateLimiter_1.authLimiter, (0, auth_2.createAuthRouter)(authService));
     app.use('/api/alerts', (0, alerts_1.createAlertsRouter)(alertService));
     app.use('/api/portfolio', (0, portfolio_1.createPortfolioRouter)(portfolioService));
     app.use('/api/prices', priceHistory_1.default);
     app.use('/api/cards', setTracker_1.default);
     app.use('/api/cards', cardSearch_1.default);
+    app.use('/api/cards', onePieceCards_1.default);
     app.use('/api/packs', enhancedPacks_1.default);
     app.use('/api/market-insights', marketInsights_1.default);
     node_cron_1.default.schedule('0 3 * * *', () => __awaiter(this, void 0, void 0, function* () {
@@ -175,10 +188,11 @@ function setupRoutes(authService, alertService, portfolioService) {
                 return;
             }
             logger_1.logger.info('Manual update finished', result);
+            const successResult = result;
             res.status(202).json({
                 success: true,
-                syncRunId: result.syncRunId,
-                message: `Data update process completed. Prices processed: ${result.totalPricesProcessed}`,
+                syncRunId: successResult.syncRunId,
+                message: `Data update process completed. Prices processed: ${successResult.totalPricesProcessed}`,
             });
         }
         catch (error) {
@@ -246,6 +260,19 @@ function setupRoutes(authService, alertService, portfolioService) {
             res.status(500).json({ success: false, error: 'Failed to start catalog sync process' });
         }
     }));
+    app.post('/api/sync-onepiece', auth_1.authenticate, admin_1.requireAdmin, (_req, res) => __awaiter(this, void 0, void 0, function* () {
+        try {
+            logger_1.logger.info('Manual One Piece sync requested');
+            (0, onePieceSync_1.syncOnePieceData)()
+                .then((result) => logger_1.logger.info('Manual One Piece sync completed', result))
+                .catch((error) => logger_1.logger.error('Manual One Piece sync failed', { error: error.message }));
+            res.status(202).json({ success: true, message: 'One Piece sync started in background.' });
+        }
+        catch (error) {
+            logger_1.logger.error('Error starting manual One Piece sync', { error: error.message });
+            res.status(500).json({ success: false, error: 'Failed to start One Piece sync process' });
+        }
+    }));
     app.get('/health', (_req, res) => {
         res.status(200).json({
             status: 'healthy',
@@ -270,6 +297,7 @@ function setupRoutes(authService, alertService, portfolioService) {
                 version: '1.0.0',
                 scheduledTasks: {
                     catalogSync: 'Daily at 1:30 AM EST',
+                    onePieceSync: 'Daily at 1:45 AM EST',
                     dataUpdate: 'Daily at 2:00 AM EST',
                     predictions: 'Daily at 3:00 AM EST',
                 },
@@ -333,6 +361,20 @@ function bootstrap() {
                     .then((result) => logger_1.logger.info('Startup image backfill completed', result))
                     .catch((error) => logger_1.logger.warn('Startup image backfill failed (non-fatal)', { error: error.message }));
             }, 15000);
+            setTimeout(() => __awaiter(this, void 0, void 0, function* () {
+                try {
+                    const incomplete = yield (0, onePieceSync_1.isOnePieceCatalogIncomplete)();
+                    if (incomplete) {
+                        logger_1.logger.info('One Piece catalog incomplete — running sync in background');
+                        (0, onePieceSync_1.syncOnePieceData)()
+                            .then((result) => logger_1.logger.info('One Piece sync completed', result))
+                            .catch((error) => logger_1.logger.warn('One Piece sync failed (non-fatal)', { error: error.message }));
+                    }
+                }
+                catch (error) {
+                    logger_1.logger.warn('One Piece catalog check failed (non-fatal)', { error: error.message });
+                }
+            }), 20000);
         }
         catch (error) {
             logger_1.logger.error('Failed to start server', { error });

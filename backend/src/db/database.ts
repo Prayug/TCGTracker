@@ -66,19 +66,19 @@ export const initializeDatabase = (): Promise<void> => {
         updatedAt TEXT DEFAULT (datetime('now'))
       )`,
       `CREATE TABLE IF NOT EXISTS price_history (
+        uniqueIdentifier TEXT NOT NULL DEFAULT '',
+        date TEXT NOT NULL,
+        source TEXT NOT NULL DEFAULT 'tcgcsv',
         productId INTEGER,
-        date TEXT,
         price REAL,
         subTypeName TEXT,
         productName TEXT,
         groupName TEXT,
-        source TEXT DEFAULT 'tcgcsv',
         lowPrice REAL,
         highPrice REAL,
         marketPrice REAL,
         volume INTEGER,
-        uniqueIdentifier TEXT,
-        PRIMARY KEY (productId, date, subTypeName, source)
+        PRIMARY KEY (uniqueIdentifier, date, source)
       )`,
       `CREATE TABLE IF NOT EXISTS price_snapshots (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -168,6 +168,7 @@ export const initializeDatabase = (): Promise<void> => {
         risk_factors TEXT,
         external_signals_json TEXT,
         model_version TEXT DEFAULT '1.0.0',
+        UNIQUE(run_id, card_id),
         FOREIGN KEY (run_id) REFERENCES prediction_runs(id) ON DELETE CASCADE
       )`,
       `CREATE TABLE IF NOT EXISTS prediction_results (
@@ -215,6 +216,36 @@ export const initializeDatabase = (): Promise<void> => {
         category_performance TEXT,
         created_at TEXT DEFAULT (datetime('now'))
       )`,
+      `CREATE TABLE IF NOT EXISTS onepiece_catalog (
+        catalogId TEXT PRIMARY KEY,
+        cardSetId TEXT NOT NULL,
+        cardImageId TEXT NOT NULL,
+        cardName TEXT NOT NULL,
+        setId TEXT NOT NULL,
+        setName TEXT NOT NULL,
+        rarity TEXT,
+        cardColor TEXT,
+        cardType TEXT,
+        cardCost TEXT,
+        cardPower TEXT,
+        counterAmount INTEGER,
+        life TEXT,
+        subTypes TEXT,
+        attribute TEXT,
+        cardText TEXT,
+        imageUrl TEXT,
+        marketPrice REAL,
+        inventoryPrice REAL,
+        syncedAt TEXT DEFAULT (datetime('now'))
+      )`,
+      `CREATE TABLE IF NOT EXISTS onepiece_price_history (
+        catalogId TEXT NOT NULL,
+        date TEXT NOT NULL,
+        marketPrice REAL,
+        inventoryPrice REAL,
+        source TEXT NOT NULL DEFAULT 'optcg',
+        PRIMARY KEY (catalogId, date, source)
+      )`,
     ];
 
     for (let i = 0; i < tables.length; i++) {
@@ -246,6 +277,11 @@ export const initializeDatabase = (): Promise<void> => {
       'CREATE INDEX IF NOT EXISTS idx_prediction_results_prediction ON prediction_results(prediction_id)',
       'CREATE INDEX IF NOT EXISTS idx_external_signals_card ON external_market_signals(card_id)',
       'CREATE INDEX IF NOT EXISTS idx_backtest_runs_date ON backtest_runs(created_at)',
+      'CREATE INDEX IF NOT EXISTS idx_onepiece_catalog_name ON onepiece_catalog(cardName)',
+      'CREATE INDEX IF NOT EXISTS idx_onepiece_catalog_set ON onepiece_catalog(setId, setName)',
+      'CREATE INDEX IF NOT EXISTS idx_onepiece_catalog_card_set_id ON onepiece_catalog(cardSetId)',
+      'CREATE INDEX IF NOT EXISTS idx_onepiece_price_history_card ON onepiece_price_history(catalogId)',
+      'CREATE INDEX IF NOT EXISTS idx_onepiece_price_history_date ON onepiece_price_history(date)',
     ];
 
     for (const indexSql of indexes) {
