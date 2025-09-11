@@ -25,6 +25,7 @@ import {
 } from '../services/cardDatabase';
 import { getPopulationCounts } from '../services/populationService';
 import { getCardMappingImages } from '../services/cardImageBackfillService';
+import { enrichCardsWithInvestmentData } from '../services/cardEnrichment';
 
 const router = Router();
 
@@ -572,7 +573,7 @@ router.get('/pokemon', async (req, res) => {
       if (!rows || rows.length === 0) {
         return null;
       }
-      const cards = await mapLocalRowsToPokemonCards(rows);
+      const cards = await enrichCardsWithInvestmentData(await mapLocalRowsToPokemonCards(rows));
       return {
         data: cards,
         totalCount: cards.length,
@@ -595,8 +596,9 @@ router.get('/pokemon', async (req, res) => {
     const now = Date.now();
     const inMemory = pokemonApiCache.get(cacheKey);
     if (inMemory && now - inMemory.fetchedAt < POKEMON_CACHE_TTL) {
+      const enrichedData = await enrichCardsWithInvestmentData(inMemory.data);
       return res.json({
-        data: inMemory.data,
+        data: enrichedData,
         totalCount: inMemory.totalCount,
         pageSize: inMemory.pageSize,
         pagesFetched: inMemory.pagesFetched,
@@ -619,6 +621,7 @@ router.get('/pokemon', async (req, res) => {
         pageSize: persistentCacheEntry.pageSize || limit,
       });
       if (payload) {
+        payload.data = await enrichCardsWithInvestmentData(payload.data);
         pokemonApiCache.set(cacheKey, {
           data: payload.data,
           totalCount: payload.totalCount,
@@ -638,7 +641,7 @@ router.get('/pokemon', async (req, res) => {
       maxPages: maxPagesToFetch,
     });
 
-    const uniqueCards = apiResult.cards;
+    const uniqueCards = await enrichCardsWithInvestmentData(apiResult.cards);
 
     if (uniqueCards.length === 0) {
       logger.warn(
@@ -662,6 +665,7 @@ router.get('/pokemon', async (req, res) => {
           true
         );
         if (payload) {
+          payload.data = await enrichCardsWithInvestmentData(payload.data);
           logger.info(`✅ Serving ${payload.data.length} stale cached cards as fallback`);
           return res.json(payload);
         }
@@ -731,6 +735,7 @@ router.get('/pokemon', async (req, res) => {
     if (persistentCacheEntry) {
       const payload = respondWithPersistent(persistentCacheEntry, true);
       if (payload) {
+        payload.data = await enrichCardsWithInvestmentData(payload.data);
         logger.info(`✅ Serving ${payload.data.length} stale cached cards (error fallback)`);
         return res.status(200).json(payload);
       }

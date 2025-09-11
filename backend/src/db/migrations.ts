@@ -525,6 +525,65 @@ export const migrations: Migration[] = [
       logger.info('Skipping rollback of set_id_aliases (SQLite limitation)');
     },
   },
+  {
+    id: 11,
+    name: 'onepiece_catalog_variant_schema',
+    up: async (db: Database) => {
+      const run = (sql: string): Promise<void> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, (err) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+
+      await run('DROP TABLE IF EXISTS onepiece_price_history');
+      await run('DROP TABLE IF EXISTS onepiece_catalog');
+
+      await run(`CREATE TABLE onepiece_catalog (
+        catalogId TEXT PRIMARY KEY,
+        cardSetId TEXT NOT NULL,
+        cardImageId TEXT NOT NULL,
+        cardName TEXT NOT NULL,
+        setId TEXT NOT NULL,
+        setName TEXT NOT NULL,
+        rarity TEXT,
+        cardColor TEXT,
+        cardType TEXT,
+        cardCost TEXT,
+        cardPower TEXT,
+        counterAmount INTEGER,
+        life TEXT,
+        subTypes TEXT,
+        attribute TEXT,
+        cardText TEXT,
+        imageUrl TEXT,
+        marketPrice REAL,
+        inventoryPrice REAL,
+        syncedAt TEXT DEFAULT (datetime('now'))
+      )`);
+
+      await run(`CREATE TABLE onepiece_price_history (
+        catalogId TEXT NOT NULL,
+        date TEXT NOT NULL,
+        marketPrice REAL,
+        inventoryPrice REAL,
+        source TEXT NOT NULL DEFAULT 'optcg',
+        PRIMARY KEY (catalogId, date, source)
+      )`);
+
+      await run('CREATE INDEX IF NOT EXISTS idx_onepiece_catalog_name ON onepiece_catalog(cardName)');
+      await run('CREATE INDEX IF NOT EXISTS idx_onepiece_catalog_set ON onepiece_catalog(setId, setName)');
+      await run('CREATE INDEX IF NOT EXISTS idx_onepiece_catalog_card_set_id ON onepiece_catalog(cardSetId)');
+      await run('CREATE INDEX IF NOT EXISTS idx_onepiece_price_history_card ON onepiece_price_history(catalogId)');
+      await run('CREATE INDEX IF NOT EXISTS idx_onepiece_price_history_date ON onepiece_price_history(date)');
+
+      logger.info('Rebuilt One Piece catalog tables with per-variant catalogId primary key');
+    },
+    down: async () => {
+      logger.info('Skipping rollback of One Piece variant schema');
+    },
+  },
 ];
 
 // Run pending migrations

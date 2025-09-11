@@ -1,5 +1,6 @@
 import { MarketPriceProvider, MarketPriceSnapshot } from './contracts';
 import { logger } from '../../utils/logger';
+import { normalizeVariantKey } from '../../utils/normalizeVariantKey';
 
 const TCGDEX_BASE_URL = 'https://api.tcgdex.net/v2/en';
 
@@ -23,16 +24,6 @@ interface TcgdexCardResponse {
     tcgplayer?: Record<string, TcgdexPriceEntry & { unit?: string; updated?: string }>;
   };
 }
-
-const normalizeVariantKey = (raw: string): string => {
-  const cleaned = raw.toLowerCase().replace(/[^a-z0-9]/g, '');
-  if (!cleaned) return 'normal';
-  if (cleaned.includes('firstedition')) return '1stedition';
-  if (cleaned.includes('reverse')) return 'reverseholofoil';
-  if (cleaned.includes('holo')) return 'holofoil';
-  if (cleaned.includes('normal')) return 'normal';
-  return cleaned;
-};
 
 export class TcgdexMarketProvider implements MarketPriceProvider {
   readonly timeoutMs = 8000;

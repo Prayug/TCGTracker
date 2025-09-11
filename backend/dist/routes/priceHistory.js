@@ -247,6 +247,51 @@ const fallbackMatch = (cardName, setName, cardNumber, db) => {
         });
     });
 };
+// One Piece price history from local DB (built by daily OPTCG sync)
+router.get('/onepiece/:catalogId', (req, res) => {
+    const catalogId = decodeURIComponent(req.params.catalogId);
+    const { days } = req.query;
+    const db = (0, database_1.getDb)();
+    let sql = `
+    SELECT date, marketPrice, inventoryPrice, source
+    FROM onepiece_price_history
+    WHERE catalogId = ?
+  `;
+    const params = [catalogId];
+    if (days) {
+        const daysNum = parseInt(days, 10);
+        if (isNaN(daysNum) || daysNum < 1) {
+            res.status(400).json({ error: 'Invalid days parameter' });
+            return;
+        }
+        sql += ' AND date >= date("now", ?)';
+        params.push(`-${daysNum} days`);
+    }
+    sql += ' ORDER BY date ASC';
+    db.all(sql, params, (err, rows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        const priceHistory = (rows || []).map((row) => {
+            var _a, _b;
+            return ({
+                date: row.date,
+                price: (_b = (_a = row.marketPrice) !== null && _a !== void 0 ? _a : row.inventoryPrice) !== null && _b !== void 0 ? _b : 0,
+                marketPrice: row.marketPrice,
+                inventoryPrice: row.inventoryPrice,
+            });
+        });
+        if (priceHistory.length === 0) {
+            res.status(404).json({
+                message: 'No price history found for this card yet. History builds after the daily sync runs.',
+                catalogId,
+            });
+            return;
+        }
+        res.json({ catalogId, priceHistory });
+    });
+});
 // Get price history for a specific product
 router.get('/:productId', (req, res) => {
     const { productId } = req.params;
