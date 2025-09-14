@@ -1,6 +1,7 @@
 import { PricePoint } from '../types/pokemon';
 import { CardIdentifier } from '../types/identifiers';
 import { env } from '../config/env';
+import { normalizeVariantKey } from '../utils/normalizeVariantKey';
 
 interface PriceHistoryPoint {
   date: string;
@@ -47,12 +48,6 @@ export class PriceHistoryApi {
   public static dataMode: 'live' | 'static' = 'live'; // Use live mode by default (backend server)
   private static staticMappings: CardIdentifier[] | null = null;
   private static latestPrices: { [uniqueIdentifier: string]: PricePoint } | null = null;
-  private static normalizeVariantKey(value?: string): string {
-    if (!value) return 'normal';
-    const compact = value.toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (!compact) return 'normal';
-    return compact;
-  }
 
   private static async getStaticMappings(): Promise<CardIdentifier[]> {
     if (this.staticMappings) {
@@ -315,11 +310,11 @@ export class PriceHistoryApi {
     priceHistory: PriceHistoryPoint[],
     preferredVariant?: string
   ): Array<{ date: string; price: number }> {
-    const preferred = this.normalizeVariantKey(preferredVariant);
+    const preferred = normalizeVariantKey(preferredVariant);
     const byDate = new Map<string, { price: number; score: number }>();
 
     const scoreVariant = (subTypeName?: string): number => {
-      const rowVariant = this.normalizeVariantKey(subTypeName);
+      const rowVariant = normalizeVariantKey(subTypeName);
       if (rowVariant === preferred) return 3;
       if (preferred !== 'normal' && rowVariant.includes(preferred)) return 2;
       if (preferred === 'normal' && (rowVariant === 'normal' || rowVariant === 'unlimited')) return 2;
@@ -401,7 +396,7 @@ export class PriceHistoryApi {
     productId?: string;
     variant?: string;
   }): Promise<Array<{ date: string; price: number }>> {
-    const variantKey = this.normalizeVariantKey(card.variant);
+    const variantKey = normalizeVariantKey(card.variant);
 
     if (PriceHistoryApi.dataMode === 'static') {
       const matchedCard = await this.findCardStatically(card);
@@ -424,7 +419,7 @@ export class PriceHistoryApi {
         
         const data = await response.json();
         const normalizedData = (data || []).filter((point: PriceHistoryPoint) => {
-          const pointVariant = this.normalizeVariantKey(point.subTypeName);
+          const pointVariant = normalizeVariantKey(point.subTypeName);
           return variantKey === 'normal' ? true : pointVariant === variantKey;
         });
         return this.formatPriceHistory(normalizedData, card.variant);

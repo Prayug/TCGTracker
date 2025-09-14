@@ -7,8 +7,10 @@ import {
   LayoutGrid,
   LineChart,
   Package,
+  Swords,
   TrendingUp,
 } from 'lucide-react';
+import { useGame, GameType } from '../../contexts/GameContext';
 
 const NAV_GROUPS: {
   label: string;
@@ -42,7 +44,14 @@ const NAV_GROUPS: {
   },
 ];
 
+const GAME_OPTIONS: { value: GameType; label: string; icon: React.ElementType }[] = [
+  { value: 'pokemon', label: 'Pokemon', icon: LayoutGrid },
+  { value: 'onepiece', label: 'One Piece', icon: Swords },
+];
+
 export const Sidebar: React.FC = () => {
+  const { game, setGame } = useGame();
+
   return (
     <aside className="hidden w-56 shrink-0 border-r border-border-subtle bg-surface-raised md:flex md:flex-col">
       <div className="flex h-14 items-center border-b border-border-subtle px-5">
@@ -52,6 +61,27 @@ export const Sidebar: React.FC = () => {
           </div>
           <span className="text-sm font-semibold tracking-tight text-ink-primary">TCGTracker</span>
         </NavLink>
+      </div>
+
+      {/* Game Switcher */}
+      <div className="px-3 pt-3 pb-1">
+        <div className="flex rounded-lg border border-border-default bg-surface-inset p-0.5">
+          {GAME_OPTIONS.map(({ value, label, icon: Icon }) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setGame(value)}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-all ${
+                game === value
+                  ? 'bg-accent text-white shadow-sm'
+                  : 'text-ink-muted hover:text-ink-secondary'
+              }`}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <nav aria-label="Primary" className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
