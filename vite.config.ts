@@ -90,6 +90,15 @@ export default defineConfig({
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           'Accept': 'application/json'
         }
+      },
+      '/api/optcg': {
+        target: 'https://optcgapi.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/optcg/, '/api'),
+        timeout: 30000,
+        headers: {
+          'Accept': 'application/json'
+        }
       }
     }
   },
