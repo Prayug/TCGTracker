@@ -1,17 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ChevronDown, LayoutGrid, List } from 'lucide-react';
-import { PokemonCard } from './PokemonCard';
+import { CardTile, AnyCard } from './CardTile';
 import { CardListRow } from './CardListRow';
 import { PokemonCard as PokemonCardType } from '../../../types/pokemon';
 
 export type CardViewMode = 'grid' | 'list';
 
 interface CardGridProps {
-  cards: PokemonCardType[];
+  cards: AnyCard[];
   viewMode?: CardViewMode;
-  onCardClick: (card: PokemonCardType) => void;
-  onAddToCollection?: (card: PokemonCardType) => void;
-  onViewPriceHistory?: (card: PokemonCardType) => void;
+  onCardClick: (card: AnyCard) => void;
+  onAddToCollection?: (card: AnyCard) => void;
+  onViewPriceHistory?: (card: AnyCard) => void;
 }
 
 const PAGE_SIZE = 60;
@@ -22,7 +22,7 @@ const AUTO_PAGES = 3;
  * (IntersectionObserver sentinel), then an explicit Load more button takes
  * over so the footer stays reachable and scroll position stays predictable.
  */
-function useIncrementalReveal(cards: PokemonCardType[]) {
+function useIncrementalReveal(cards: AnyCard[]) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const listKey = `${cards.length}:${cards[0]?.id ?? ''}`;
@@ -128,7 +128,7 @@ export const CardGrid: React.FC<CardGridProps> = ({
     <section className="animate-fade-in">
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
         {reveal.visibleCards.map((card) => (
-          <PokemonCard
+          <CardTile
             key={card.id}
             card={card}
             onClick={() => onCardClick(card)}

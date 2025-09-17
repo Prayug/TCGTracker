@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronDown, SlidersHorizontal, X } from 'lucide-react';
 import { SortOption } from '../../../types/pokemon';
+import { OnePieceSortOption } from '../../../types/onepiece';
 import { getSortOptions } from '../../../utils/sorting';
 import { SectionLabel } from '../../../components/common/SectionLabel';
 
@@ -16,12 +17,13 @@ interface FilterSidebarProps {
   onCloseMobile?: () => void;
   filters: MarketplaceFilters;
   onFiltersChange: (filters: MarketplaceFilters) => void;
-  sortBy: SortOption;
-  onSortChange: (sort: SortOption) => void;
+  sortBy: SortOption | OnePieceSortOption;
+  onSortChange: (sort: SortOption | OnePieceSortOption) => void;
   setOptions: string[];
   rarityOptions: string[];
   typeOptions: string[];
   onReset: () => void;
+  isOnePiece?: boolean;
 }
 
 const priceRanges = [
@@ -75,8 +77,9 @@ function SidebarPanel({
   rarityOptions,
   typeOptions,
   onReset,
+  isOnePiece = false,
 }: Omit<FilterSidebarProps, 'isMobileOpen' | 'onCloseMobile'>) {
-  const sortOptions = getSortOptions();
+  const sortOptions = getSortOptions(isOnePiece ? 'onepiece' : 'pokemon');
 
   const setFilter = (key: keyof MarketplaceFilters, value: string) => {
     onFiltersChange({ ...filters, [key]: value });
@@ -104,7 +107,7 @@ function SidebarPanel({
       <FilterGroup title="Sort" defaultOpen>
         <select
           value={sortBy}
-          onChange={(e) => onSortChange(e.target.value as SortOption)}
+          onChange={(e) => onSortChange(e.target.value as SortOption | OnePieceSortOption)}
           className={selectClass}
         >
           {sortOptions.map((opt) => (
@@ -151,7 +154,7 @@ function SidebarPanel({
         </select>
       </FilterGroup>
 
-      <FilterGroup title="Type" defaultOpen={false}>
+      <FilterGroup title={isOnePiece ? 'Color' : 'Type'} defaultOpen={true}>
         <select value={filters.cardType} onChange={(e) => setFilter('cardType', e.target.value)} className={selectClass}>
           <option value="all">All Types</option>
           {typeOptions.map((type) => (
