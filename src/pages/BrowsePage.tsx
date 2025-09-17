@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { PokemonCard } from '../types/pokemon';
+import { OnePieceCard } from '../types/onepiece';
 import { SearchFilters } from '../features/cards/components/SearchAndSort';
 import { CardGrid, CardViewMode, ViewModeToggle } from '../features/cards/components/CardGrid';
 import { countActiveMarketplaceFilters } from '../utils/marketplaceFilters';
@@ -9,8 +10,8 @@ import { FilterSidebar, MarketplaceFilters } from '../features/cards/components/
 import { LoadingGrid } from '../components/common/LoadingSpinner';
 import { ErrorMessage } from '../components/common/ErrorMessage';
 import { EmptyState } from '../components/common/EmptyState';
-import { usePokemonCards } from '../hooks/usePokemonCards';
-import { pokemonApi } from '../services/pokemonApi';
+import { useCards, AnyCard, isPokemonCard, isOnePieceCard, getCardPrice } from '../hooks/useCards';
+import { useGame } from '../contexts/GameContext';
 import { useCardModal } from '../contexts/CardModalContext';
 import { markOnboardingStep } from '../components/common/OnboardingChecklist';
 
@@ -23,6 +24,7 @@ const DEFAULT_FILTERS: MarketplaceFilters = {
 
 export function BrowsePage() {
   const navigate = useNavigate();
+  const { isPokemon, isOnePiece } = useGame();
   const { openCard } = useCardModal();
   const [searchParams, setSearchParams] = useSearchParams();
   const urlQuery = searchParams.get('q') ?? '';
@@ -42,7 +44,7 @@ export function BrowsePage() {
     setSortBy,
     setFilterBy,
     refetch,
-  } = usePokemonCards();
+  } = useCards();
 
   // URL is the source of truth for the query (shareable searches, back button).
   useEffect(() => {
@@ -75,7 +77,7 @@ export function BrowsePage() {
     setMarketplaceFilters(DEFAULT_FILTERS);
   };
 
-  const handleAddToCollection = (_card: PokemonCard) => {
+  const handleAddToCollection = (_card: AnyCard) => {
     navigate('/vault');
   };
 
@@ -83,8 +85,20 @@ export function BrowsePage() {
   const rarityOptions = Array.from(
     new Set(cards.map((card) => card.rarity).filter(Boolean) as string[])
   ).sort();
+
+  // For Pokemon cards, extract types; for One Piece, extract card colors
   const typeOptions = Array.from(
-    new Set(cards.flatMap((card) => (card.types && card.types.length > 0 ? card.types : [])))
+    new Set(
+      cards.flatMap((card) => {
+        if (isPokemonCard(card)) {
+          return card.types && card.types.length > 0 ? card.types : [];
+        }
+        if (isOnePieceCard(card)) {
+          return card.cardColor ? [card.cardColor] : [];
+        }
+        return [];
+      })
+    )
   ).sort();
 
   const cardsWithMarketplaceFilters = cards.filter((card) => {
@@ -96,15 +110,16 @@ export function BrowsePage() {
       return false;
     }
 
-    if (
-      marketplaceFilters.cardType !== 'all' &&
-      !(card.types || []).some((type) => type === marketplaceFilters.cardType)
-    ) {
-      return false;
+    if (marketplaceFilters.cardType !== 'all') {
+      if (isPokemonCard(card)) {
+        if (!(card.types || []).some((type) => type === marketplaceFilters.cardType)) return false;
+      } else if (isOnePieceCard(card)) {
+        if (card.cardColor !== marketplaceFilters.cardType) return false;
+      }
     }
 
     if (marketplaceFilters.priceRange !== 'all') {
-      const price = card.marketPrice ?? pokemonApi.extractCardPrice(card);
+      const price = getCardPrice(card);
       if (marketplaceFilters.priceRange === '0-10' && !(price >= 0 && price < 10)) return false;
       if (marketplaceFilters.priceRange === '10-50' && !(price >= 10 && price < 50)) return false;
       if (marketplaceFilters.priceRange === '50-150' && !(price >= 50 && price < 150)) return false;
@@ -122,13 +137,15 @@ export function BrowsePage() {
   if (marketplaceFilters.priceRange !== 'all')
     facetChips.push({ key: 'priceRange', label: `$${marketplaceFilters.priceRange}` });
 
+  const gameLabel = isPokemon ? 'Pokemon' : 'One Piece';
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <section className="mb-6 rounded-xl border border-border-default bg-surface-raised p-4 text-white shadow-sm">
         <SectionLabel className="text-accent/90">Marketplace</SectionLabel>
         <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Browse Pokemon Cards</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">Browse {gameLabel} Cards</h1>
             <p className="mt-1 text-sm text-ink-secondary">
               Analyze cards with marketplace filters, pricing surfaces, and collection actions.
             </p>
@@ -146,6 +163,7 @@ export function BrowsePage() {
         isLoading={isLoading}
         onOpenAdvancedFilters={() => setMobileFiltersOpen(true)}
         activeFilterCount={countActiveMarketplaceFilters(marketplaceFilters)}
+        isOnePiece={isOnePiece}
       />
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -202,6 +220,7 @@ export function BrowsePage() {
           onReset={handleResetBrowseState}
           isMobileOpen={mobileFiltersOpen}
           onCloseMobile={() => setMobileFiltersOpen(false)}
+          isOnePiece={isOnePiece}
         />
 
         <section className="min-w-0">
@@ -211,11 +230,11 @@ export function BrowsePage() {
             <LoadingGrid />
           ) : cardsWithMarketplaceFilters.length > 0 ? (
             <CardGrid
-              cards={cardsWithMarketplaceFilters}
+              cards={cardsWithMarketplaceFilters as PokemonCard[]}
               viewMode={cardViewMode}
-              onCardClick={openCard}
-              onAddToCollection={handleAddToCollection}
-              onViewPriceHistory={openCard}
+              onCardClick={(card) => openCard(card as PokemonCard)}
+              onAddToCollection={handleAddToCollection as (card: PokemonCard) => void}
+              onViewPriceHistory={(card) => openCard(card as PokemonCard)}
             />
           ) : (
             <EmptyState
