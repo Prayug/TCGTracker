@@ -1,8 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Search, Star, Layers } from 'lucide-react';
 import { PokemonSet } from '../../../types/pokemon';
+import { OnePieceSet } from '../../../types/onepiece';
 import { setTrackerService } from '../../../services/setTrackerService';
 import { setWishlistService } from '../../../services/setWishlistService';
+import { onePieceApi } from '../../../services/onepieceApi';
+import { useGame } from '../../../contexts/GameContext';
 import { SectionLabel } from '../../../components/common/SectionLabel';
 import { LoadingSpinner } from '../../../components/common/LoadingSpinner';
 import { ErrorMessage } from '../../../components/common/ErrorMessage';
@@ -15,19 +18,33 @@ interface SetIndexProps {
   onSelectSet: (setId: string) => void;
 }
 
+type AnySet = PokemonSet | OnePieceSet;
+
+function isPokemonSet(s: AnySet): s is PokemonSet {
+  return 'releaseDate' in s || 'images' in s;
+}
+
 function SetCard({
   set,
   onSelect,
   onTogglePin,
   pinned,
+  isPokemon,
 }: {
-  set: PokemonSet;
+  set: AnySet;
   onSelect: () => void;
   onTogglePin: (e: React.MouseEvent) => void;
   pinned: boolean;
+  isPokemon: boolean;
 }) {
-  const completion = setTrackerService.getCompletionForSet(set.id, set.name, set.total);
-  const year = formatReleaseYear(set.releaseDate);
+  let completion = 0;
+  let year: string | undefined;
+
+  if (isPokemon) {
+    const pokemonSet = set as PokemonSet;
+    completion = setTrackerService.getCompletionForSet(pokemonSet.id, pokemonSet.name, pokemonSet.total);
+    year = formatReleaseYear(pokemonSet.releaseDate);
+  }
 
   return (
     <div
@@ -42,7 +59,12 @@ function SetCard({
       }}
       className="group relative flex w-full cursor-pointer items-center gap-3 rounded-xl border border-border-default bg-surface-raised p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-border-strong"
     >
-      <SetLogo set={set} size="md" />
+      {isPokemon && <SetLogo set={set as PokemonSet} size="md" />}
+      {!isPokemon && (
+        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-accent-muted text-accent">
+          <Layers className="h-6 w-6" />
+        </div>
+      )}
       <div className="min-w-0 flex-1">
         <button
           type="button"
@@ -54,16 +76,19 @@ function SetCard({
         </button>
         <p className="pr-8 font-semibold text-white">{set.name}</p>
         <p className="mt-0.5 text-xs text-ink-muted">
-          {set.total} cards{year ? ` · ${year}` : ''}
+          {isPokemon && `${(set as PokemonSet).total} cards`}
+          {!isPokemon && `Set ID: ${set.id}`}
+          {year ? ` · ${year}` : ''}
         </p>
       </div>
-      <CompletionRing percent={completion} className="mr-1" />
+      {isPokemon && <CompletionRing percent={completion} className="mr-1" />}
     </div>
   );
 }
 
 export const SetIndex: React.FC<SetIndexProps> = ({ onSelectSet }) => {
-  const [sets, setSets] = useState<PokemonSet[]>([]);
+  const { isPokemon, isOnePiece } = useGame();
+  const [sets, setSets] = useState<AnySet[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -76,8 +101,13 @@ export const SetIndex: React.FC<SetIndexProps> = ({ onSelectSet }) => {
       setIsLoading(true);
       setError(null);
       try {
-        const data = await setTrackerService.getSets();
-        if (!cancelled) setSets(data);
+        if (isPokemon) {
+          const data = await setTrackerService.getSets();
+          if (!cancelled) setSets(data);
+        } else if (isOnePiece) {
+          const data = await onePieceApi.getSets();
+          if (!cancelled) setSets(data);
+        }
       } catch (e) {
         if (!cancelled) setError((e as Error).message);
       } finally {
@@ -87,7 +117,7 @@ export const SetIndex: React.FC<SetIndexProps> = ({ onSelectSet }) => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isPokemon, isOnePiece]);
 
   const filtered = useMemo(() => {
     let list = sets;
@@ -97,25 +127,30 @@ export const SetIndex: React.FC<SetIndexProps> = ({ onSelectSet }) => {
         (s) =>
           s.name.toLowerCase().includes(q) ||
           s.id.toLowerCase().includes(q) ||
-          (s.eraLabel || '').toLowerCase().includes(q) ||
-          (s.series || '').toLowerCase().includes(q)
+          (isPokemonSet(s) && ((s as PokemonSet).eraLabel || '').toLowerCase().includes(q)) ||
+          (isPokemonSet(s) && ((s as PokemonSet).series || '').toLowerCase().includes(q))
       );
     }
-    if (pinnedOnly) {
+    if (pinnedOnly && isPokemon) {
       const pinned = new Set(setWishlistService.getPinnedSets());
       list = list.filter((s) => pinned.has(s.id));
     }
     return list;
-  }, [sets, search, pinnedOnly]);
+  }, [sets, search, pinnedOnly, isPokemon]);
 
-  const grouped = useMemo(() => groupSetsByEra(filtered), [filtered]);
-  const showGrouped = !search.trim() && !pinnedOnly;
+  const grouped = useMemo(() => {
+    if (!isPokemon) return [{ era: 'All Sets', label: 'All Sets', sets: filtered }];
+    return groupSetsByEra(filtered as PokemonSet[]);
+  }, [filtered, isPokemon]);
+  const showGrouped = !search.trim() && !pinnedOnly && isPokemon;
 
   const handleTogglePin = (e: React.MouseEvent, setId: string) => {
     e.stopPropagation();
     setWishlistService.togglePinnedSet(setId);
     setPinTick((t) => t + 1);
   };
+
+  const gameLabel = isPokemon ? 'Pokemon' : 'One Piece';
 
   if (isLoading) {
     return (
@@ -134,7 +169,7 @@ export const SetIndex: React.FC<SetIndexProps> = ({ onSelectSet }) => {
       <PageEmptyState
         icon={Layers}
         title="No sets in catalog"
-        message="Run catalog sync on the backend to populate set checklists."
+        message={isPokemon ? 'Run catalog sync on the backend to populate set checklists.' : 'Loading One Piece sets...'}
       />
     );
   }
@@ -143,9 +178,11 @@ export const SetIndex: React.FC<SetIndexProps> = ({ onSelectSet }) => {
     <div className="space-y-6">
       <section className="rounded-xl border border-border-default bg-surface-raised p-4 text-white shadow-sm">
         <SectionLabel className="text-accent/90">Set Tracker</SectionLabel>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">Browse sets</h1>
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight">Browse {gameLabel} Sets</h1>
         <p className="mt-1 text-sm text-ink-secondary">
-          Newest releases first, grouped by generation — Mega, SV, SWSH, and more.
+          {isPokemon
+            ? 'Newest releases first, grouped by generation — Mega, SV, SWSH, and more.'
+            : 'All One Piece TCG sets with card images and market prices.'}
         </p>
       </section>
 
@@ -160,18 +197,20 @@ export const SetIndex: React.FC<SetIndexProps> = ({ onSelectSet }) => {
             className="w-full rounded-lg border border-border-subtle bg-surface-hover py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-ink-muted focus:border-violet-500/50 focus:outline-none"
           />
         </div>
-        <button
-          type="button"
-          onClick={() => setPinnedOnly((p) => !p)}
-          className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
-            pinnedOnly
-              ? 'border-amber-500/40 bg-amber-500/15 text-amber-200'
-              : 'border-border-subtle bg-surface-hover text-ink-secondary hover:text-ink-primary'
-          }`}
-        >
-          <Star className={`h-4 w-4 ${pinnedOnly ? 'fill-amber-400' : ''}`} />
-          Pinned only
-        </button>
+        {isPokemon && (
+          <button
+            type="button"
+            onClick={() => setPinnedOnly((p) => !p)}
+            className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
+              pinnedOnly
+                ? 'border-amber-500/40 bg-amber-500/15 text-amber-200'
+                : 'border-border-subtle bg-surface-hover text-ink-secondary hover:text-ink-primary'
+            }`}
+          >
+            <Star className={`h-4 w-4 ${pinnedOnly ? 'fill-amber-400' : ''}`} />
+            Pinned only
+          </button>
+        )}
       </div>
 
       {showGrouped ? (
@@ -195,7 +234,8 @@ export const SetIndex: React.FC<SetIndexProps> = ({ onSelectSet }) => {
                     set={set}
                     onSelect={() => onSelectSet(set.id)}
                     onTogglePin={(e) => handleTogglePin(e, set.id)}
-                    pinned={setWishlistService.isPinned(set.id)}
+                    pinned={isPokemon ? setWishlistService.isPinned(set.id) : false}
+                    isPokemon={isPokemon}
                   />
                 ))}
               </div>
@@ -210,7 +250,8 @@ export const SetIndex: React.FC<SetIndexProps> = ({ onSelectSet }) => {
               set={set}
               onSelect={() => onSelectSet(set.id)}
               onTogglePin={(e) => handleTogglePin(e, set.id)}
-              pinned={setWishlistService.isPinned(set.id)}
+              pinned={isPokemon ? setWishlistService.isPinned(set.id) : false}
+              isPokemon={isPokemon}
             />
           ))}
         </div>

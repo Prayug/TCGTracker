@@ -19,6 +19,9 @@ import {
   ValueHistoryRange,
 } from '../../../services/setTrackerService';
 import { setWishlistService } from '../../../services/setWishlistService';
+import { onePieceApi } from '../../../services/onepieceApi';
+import { OnePieceCard } from '../../../types/onepiece';
+import { useGame } from '../../../contexts/GameContext';
 import { PokemonSet } from '../../../types/pokemon';
 import { formatCurrency, formatPercent } from '../../../utils/cardDisplay';
 import { sortSetTrackerCards, SetCardSort } from '../../../utils/setCardSort';
@@ -35,9 +38,59 @@ interface SetDetailProps {
 
 type FilterMode = 'all' | 'owned' | 'missing' | 'wishlist';
 
+function OnePieceSetBinderGrid({
+  cards,
+  onCardClick,
+}: {
+  cards: OnePieceCard[];
+  onCardClick: (card: OnePieceCard) => void;
+}) {
+  return (
+    <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
+      {cards.map((card) => (
+        <button
+          key={card.id}
+          type="button"
+          onClick={() => onCardClick(card)}
+          className="group relative overflow-hidden rounded-lg border border-border-default bg-surface-raised shadow-sm transition-all hover:-translate-y-0.5 hover:border-border-strong"
+        >
+          <div className="aspect-[63/88] overflow-hidden bg-surface-inset">
+            {card.images?.small ? (
+              <img
+                src={card.images.small}
+                alt={card.name}
+                className="h-full w-full object-contain p-1 transition-transform duration-300 group-hover:scale-105"
+                loading="lazy"
+                decoding="async"
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center px-2 text-center text-[10px] text-ink-muted">
+                {card.name}
+              </div>
+            )}
+          </div>
+          <div className="p-1.5">
+            <p className="truncate text-[11px] font-medium text-white">{card.name}</p>
+            <div className="mt-0.5 flex items-center justify-between">
+              <span className="text-[10px] text-ink-muted">{card.id}</span>
+              {card.marketPrice != null && card.marketPrice > 0 && (
+                <span className="text-[10px] font-medium text-gain">
+                  ${card.marketPrice.toFixed(2)}
+                </span>
+              )}
+            </div>
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
+  const { isPokemon, isOnePiece } = useGame();
   const [setMeta, setSetMeta] = useState<PokemonSet | null>(null);
   const [cards, setCards] = useState<SetTrackerCard[]>([]);
+  const [opCards, setOpCards] = useState<OnePieceCard[]>([]);
   const [summary, setSummary] = useState<SetSummary | null>(null);
   const [historyRange, setHistoryRange] = useState<ValueHistoryRange>('90d');
   const [priceHistory, setPriceHistory] = useState<{ date: string; price: number }[]>([]);
@@ -46,7 +99,7 @@ export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
   const [filter, setFilter] = useState<FilterMode>('all');
   const [sortBy, setSortBy] = useState<SetCardSort>('number');
   const [wishlistIds, setWishlistIds] = useState<Set<string>>(() =>
-    setWishlistService.getWishlistForSet(setId)
+    isPokemon ? setWishlistService.getWishlistForSet(setId) : new Set()
   );
   const [vaultCard, setVaultCard] = useState<SetTrackerCard | null>(null);
   const [vaultModalOpen, setVaultModalOpen] = useState(false);
@@ -54,6 +107,19 @@ export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
   const reload = useCallback(async () => {
     setIsLoading(true);
     setError(null);
+
+    if (isOnePiece) {
+      try {
+        const data = await onePieceApi.getSetCards(setId);
+        setOpCards(data);
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
     const wish = setWishlistService.getWishlistForSet(setId);
     setWishlistIds(wish);
     try {
@@ -71,7 +137,7 @@ export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [setId, historyRange]);
+  }, [setId, historyRange, isPokemon, isOnePiece]);
 
   useEffect(() => {
     reload();
@@ -95,6 +161,13 @@ export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
     reload();
   };
 
+  const handleOPCardClick = (card: OnePieceCard) => {
+    // For now, just show the card image in a new tab
+    if (card.images?.large) {
+      window.open(card.images.large, '_blank');
+    }
+  };
+
   const filterButtons: { key: FilterMode; label: string }[] = [
     { key: 'all', label: 'All' },
     { key: 'owned', label: 'Owned' },
@@ -102,7 +175,7 @@ export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
     { key: 'wishlist', label: 'Wishlist' },
   ];
 
-  if (isLoading && !setMeta) {
+  if (isLoading && !setMeta && !opCards.length) {
     return (
       <div className="flex min-h-[320px] items-center justify-center">
         <LoadingSpinner />
@@ -114,6 +187,57 @@ export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
     return <ErrorMessage message={error} onRetry={reload} />;
   }
 
+  // One Piece set detail view
+  if (isOnePiece) {
+    return (
+      <div className="space-y-6">
+        <button
+          type="button"
+          onClick={onBack}
+          className="inline-flex items-center gap-2 text-sm text-ink-muted hover:text-ink-primary"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          All sets
+        </button>
+
+        <section className="rounded-xl border border-border-default bg-surface-raised p-4 text-white shadow-sm">
+          <div className="flex flex-wrap items-start gap-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-accent-muted text-accent">
+              <Layers className="h-8 w-8" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <SectionLabel className="text-accent/90">One Piece TCG</SectionLabel>
+              <h1 className="mt-1 text-2xl font-semibold tracking-tight">{setId}</h1>
+              <p className="mt-1 text-sm text-ink-muted">
+                {opCards.length} cards · Prices from TCGPlayer
+              </p>
+            </div>
+          </div>
+          <div className="mt-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <TrackerStatCard
+                icon={Layers}
+                label="Total cards"
+                value={opCards.length}
+                helper="Cards in this set"
+              />
+              <TrackerStatCard
+                icon={DollarSign}
+                label="Set value"
+                value={formatCurrency(opCards.reduce((sum, c) => sum + (c.marketPrice || 0), 0))}
+                helper="Sum of all market prices"
+                tone="gain"
+              />
+            </div>
+          </div>
+        </section>
+
+        <OnePieceSetBinderGrid cards={opCards} onCardClick={handleOPCardClick} />
+      </div>
+    );
+  }
+
+  // Pokemon set detail view (original)
   return (
     <div className="space-y-6">
       <button

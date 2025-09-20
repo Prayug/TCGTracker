@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { VaultCard as VaultCardType } from '../../../types/pokemon';
 import { vaultService } from '../../../services/vaultService';
+import { useGame } from '../../../contexts/GameContext';
 import { VaultCard } from './VaultCard';
 import { VaultPortfolioBySet } from './VaultPortfolioBySet';
 import { VaultHeatmap } from './VaultHeatmap';
@@ -14,6 +15,7 @@ interface VaultViewProps {
 }
 
 export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
+  const { game, isPokemon, isOnePiece } = useGame();
   const [vaultCards, setVaultCards] = useState<VaultCardType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -23,27 +25,27 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
     const onVaultUpdated = () => loadVaultCards();
     window.addEventListener('tcg:vault-updated', onVaultUpdated);
     return () => window.removeEventListener('tcg:vault-updated', onVaultUpdated);
-  }, []);
+  }, [game]);
 
   const loadVaultCards = () => {
     setIsLoading(true);
-    const cards = vaultService.getVaultCards();
+    const cards = vaultService.getVaultCards(game);
     setVaultCards(cards);
     setIsLoading(false);
   };
 
   const handleRemoveCard = (id: string) => {
-    vaultService.removeFromVault(id);
+    vaultService.removeFromVault(id, game);
     loadVaultCards();
   };
 
   const handleExport = () => {
-    const data = vaultService.exportVault();
+    const data = vaultService.exportVault(game);
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `tcg-vault-${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `tcg-vault-${game}-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -59,7 +61,7 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
         reader.onload = (e) => {
           try {
             const content = e.target?.result as string;
-            vaultService.importVault(content);
+            vaultService.importVault(content, game);
             loadVaultCards();
             alert('Vault imported successfully!');
           } catch (error) {
@@ -74,12 +76,12 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
 
   const handleClearVault = () => {
     if (window.confirm('Are you sure you want to clear your entire vault? This cannot be undone!')) {
-      vaultService.clearVault();
+      vaultService.clearVault(game);
       loadVaultCards();
     }
   };
 
-  const stats = vaultService.getVaultStats();
+  const stats = vaultService.getVaultStats(game);
 
   if (isLoading) {
     return (
@@ -90,6 +92,7 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
   }
 
   const gain = stats.profit >= 0;
+  const gameLabel = isPokemon ? 'Pokemon' : 'One Piece';
 
   return (
     <div className="space-y-8">
@@ -98,7 +101,7 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <SectionLabel>Portfolio</SectionLabel>
-            <h1 className="mt-1 text-h1 text-ink-primary">My Vault</h1>
+            <h1 className="mt-1 text-h1 text-ink-primary">My {gameLabel} Vault</h1>
           </div>
           <div className="flex gap-2">
             <button onClick={handleExport} className="btn-secondary" disabled={vaultCards.length === 0}>
@@ -166,25 +169,31 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
           <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full border border-border-default bg-surface-inset">
             <Vault className="h-8 w-8 text-ink-muted" aria-hidden="true" />
           </div>
-          <h3 className="mb-2 text-xl font-semibold text-ink-primary">No cards yet</h3>
+          <h3 className="mb-2 text-xl font-semibold text-ink-primary">No {gameLabel} cards yet</h3>
           <p className="mx-auto mb-6 max-w-md text-sm text-ink-muted">
-            Scan or browse to add your first.
+            {isPokemon ? 'Scan or browse to add your first.' : 'Browse One Piece cards to add your first.'}
           </p>
           <div className="flex flex-wrap justify-center gap-3">
-            <Link to="/scanner" className="btn-primary">
-              <Camera className="h-4 w-4" aria-hidden="true" />
-              Scan a card
-            </Link>
+            {isPokemon && (
+              <Link to="/scanner" className="btn-primary">
+                <Camera className="h-4 w-4" aria-hidden="true" />
+                Scan a card
+              </Link>
+            )}
             <Link to="/browse" className="btn-secondary">
               <Search className="h-4 w-4" aria-hidden="true" />
-              Browse cards
+              Browse {gameLabel} cards
             </Link>
           </div>
         </div>
       ) : (
         <div className="space-y-8">
-          <VaultHeatmap vaultCards={vaultCards} onOpenSet={onOpenSet} />
-          <VaultPortfolioBySet vaultCards={vaultCards} onOpenSet={onOpenSet} />
+          {isPokemon && (
+            <>
+              <VaultHeatmap vaultCards={vaultCards} onOpenSet={onOpenSet} />
+              <VaultPortfolioBySet vaultCards={vaultCards} onOpenSet={onOpenSet} />
+            </>
+          )}
           <div>
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-ink-primary">
