@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { TrendingUp, TrendingDown, AlertCircle, Plus, Trash2, Search, Star, Target, Bell, Package } from 'lucide-react';
+import { TrendingUp, TrendingDown, AlertCircle, Plus, Trash2, Search, Star, Target, Bell, Package, LineChart } from 'lucide-react';
 import { priceTrackingService, TrackedCard, PriceAlert } from '../../../services/priceTrackingService';
 import { pokemonApi } from '../../../services/pokemonApi';
 import { PokemonCard } from '../../../types/pokemon';
+import { useGame } from '../../../contexts/GameContext';
 import { SectionLabel } from '../../../components/common/SectionLabel';
 import { PageEmptyState } from '../../../components/common/PageEmptyState';
 import { MiniSparkline } from '../../../components/common/MiniSparkline';
@@ -12,6 +13,7 @@ import { formatCurrency, formatPercent } from '../../../utils/cardDisplay';
 import { markOnboardingStep } from '../../../components/common/OnboardingChecklist';
 
 export const PriceTrackingDashboard: React.FC = () => {
+  const { isOnePiece } = useGame();
   const [trackedCards, setTrackedCards] = useState<TrackedCard[]>([]);
   const [alerts, setAlerts] = useState<PriceAlert[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -88,6 +90,23 @@ export const PriceTrackingDashboard: React.FC = () => {
 
   return (
     <div className="section-stack">
+      {/* One Piece coming soon */}
+      {isOnePiece && (
+        <div className="flex flex-col items-center rounded-2xl border border-dashed border-border-strong bg-surface-raised p-12 text-center">
+          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full border border-border-default bg-surface-inset">
+            <LineChart className="h-8 w-8 text-ink-muted" aria-hidden="true" />
+          </div>
+          <h3 className="mb-2 text-xl font-semibold text-ink-primary">Coming Soon</h3>
+          <p className="mx-auto mb-6 max-w-md text-sm text-ink-muted">
+            One Piece price tracking is under development. Browse One Piece cards to see market prices!
+          </p>
+          <a href="/browse" className="btn-secondary">
+            <Package className="h-4 w-4" aria-hidden="true" />
+            Browse One Piece Cards
+          </a>
+        </div>
+      )}
+
       <div className="animate-slide-up">
         <SectionLabel className="text-violet-300/90">Price tracker</SectionLabel>
         <h2 className="mt-2 text-3xl font-bold tracking-tight text-white">Watchlist & alerts</h2>

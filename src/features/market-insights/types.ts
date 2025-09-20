@@ -27,6 +27,11 @@ export const CATEGORY_COLORS: Record<PredictionCategory, string> = {
   downtrend: 'text-orange-400 border-orange-500/30 bg-orange-500/10',
 };
 
+export const PREDICTION_THRESHOLDS = {
+  GAINERS_MIN_RETURN: 0.05,
+  DOWNTREND_MAX_RETURN: -0.05,
+} as const;
+
 export interface PriceRange {
   low: number;
   mid: number;

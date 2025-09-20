@@ -25,11 +25,14 @@ import {
   PredictionCategory,
   CATEGORY_LABELS,
   CATEGORY_COLORS,
+  PREDICTION_THRESHOLDS,
 } from '../types';
 import { PokemonCard } from '../../../types/pokemon';
 import { PredictionCard } from './PredictionCard';
 import { useResolvedPredictionCards } from '../hooks/useResolvedPredictionCards';
 import { useAuth } from '../../../hooks/useAuth';
+import { useGame } from '../../../contexts/GameContext';
+import { Package, Brain } from 'lucide-react';
 
 type SectionType = 'gainers' | 'recovery' | 'momentum' | 'stagnant' | 'overheated' | 'downtrend' | 'backtest' | 'forward';
 
@@ -67,6 +70,7 @@ const CATEGORY_MAP: Record<SectionType, PredictionCategory | 'all'> = {
 };
 
 export function MarketInsightsDashboard() {
+  const { isOnePiece } = useGame();
   const { isAdmin } = useAuth();
   const canRunAdminActions = isAdmin || import.meta.env.DEV;
   const [activeSection, setActiveSection] = useState<SectionType>('gainers');
@@ -158,6 +162,23 @@ export function MarketInsightsDashboard() {
 
   return (
     <div className="mx-auto max-w-7xl">
+      {/* One Piece coming soon */}
+      {isOnePiece && (
+        <div className="flex flex-col items-center rounded-2xl border border-dashed border-border-strong bg-surface-raised p-12 text-center">
+          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full border border-border-default bg-surface-inset">
+            <Brain className="h-8 w-8 text-ink-muted" aria-hidden="true" />
+          </div>
+          <h3 className="mb-2 text-xl font-semibold text-ink-primary">Coming Soon</h3>
+          <p className="mx-auto mb-6 max-w-md text-sm text-ink-muted">
+            One Piece market insights and AI predictions are under development. Browse One Piece cards to see market prices!
+          </p>
+          <a href="/browse" className="btn-secondary">
+            <Package className="h-4 w-4" aria-hidden="true" />
+            Browse One Piece Cards
+          </a>
+        </div>
+      )}
+
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">Card Market Insights</h1>
@@ -259,7 +280,7 @@ export function MarketInsightsDashboard() {
                 <CardGridSection
                   title={SECTION_LABELS[activeSection]}
                   icon={SECTION_ICONS[activeSection]}
-                  predictions={sortedByReturn.filter(p => p.expected90dReturn >= 0.05).slice(0, 20)}
+                  predictions={sortedByReturn.filter(p => p.expected90dReturn >= PREDICTION_THRESHOLDS.GAINERS_MIN_RETURN).slice(0, 20)}
                   emptyMessage="No cards match this category yet. Run predictions to see results."
                   cardsById={cardsById}
                 />
@@ -267,7 +288,7 @@ export function MarketInsightsDashboard() {
                 <CardGridSection
                   title={SECTION_LABELS[activeSection]}
                   icon={SECTION_ICONS[activeSection]}
-                  predictions={sortedByDowntrend.filter(p => p.expected90dReturn < -0.05).slice(0, 20)}
+                  predictions={sortedByDowntrend.filter(p => p.expected90dReturn < PREDICTION_THRESHOLDS.DOWNTREND_MAX_RETURN).slice(0, 20)}
                   emptyMessage="No cards in downtrend. Run predictions to see results."
                   cardsById={cardsById}
                 />
