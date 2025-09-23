@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:backend": "npm run dev --prefix backend",
-    "dev:full": "npx concurrently -n fe,be -c blue,green \"npm run dev\" \"npm run dev:backend\"",
+    "dev:full": "concurrently -n fe,be -c blue,green \"npm run dev\" \"npm run dev:backend\"",
     "build": "vite build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -21,10 +21,9 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@sentry/react": "^7.91.0",
+    "@sentry/react": "^8.35.0",
     "axios": "^1.6.0",
-    "cheerio": "^1.1.0",
-    "cors-anywhere": "^0.4.4",
+    "focus-trap-react": "^12.0.3",
     "framer-motion": "^11.15.0",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",
@@ -38,15 +37,17 @@
     "@testing-library/jest-dom": "^6.1.5",
     "@testing-library/react": "^14.1.2",
     "@testing-library/user-event": "^14.5.1",
-    "@types/node": "^24.10.0",
+    "@types/node": "^20.17.0",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
     "@vitest/coverage-v8": "^1.0.4",
     "@vitest/ui": "^1.0.4",
     "autoprefixer": "^10.4.18",
+    "concurrently": "^9.1.0",
     "eslint": "^9.9.1",
-    "eslint-plugin-react-hooks": "^5.1.0-rc.0",
+    "eslint-plugin-jsx-a11y": "^6.10.0",
+    "eslint-plugin-react-hooks": "^5.1.0",
     "eslint-plugin-react-refresh": "^0.4.11",
     "globals": "^15.9.0",
     "husky": "^8.0.3",
@@ -68,5 +69,10 @@
     "*.{json,css,md}": [
       "prettier --write"
     ]
-  }
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "packageManager": "npm@10.9.0"
 }
