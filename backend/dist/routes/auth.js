@@ -17,6 +17,7 @@ const env_1 = require("../config/env");
 const validation_1 = require("../middleware/validation");
 const rateLimiter_1 = require("../middleware/rateLimiter");
 const cookies_1 = require("../utils/cookies");
+const logger_1 = require("../utils/logger");
 const router = (0, express_1.Router)();
 // Validation schemas
 const registerSchema = zod_1.z.object({
@@ -151,34 +152,10 @@ const createAuthRouter = (authService) => {
             });
         }
         catch (error) {
-            res.status(500).json({ error: error.message });
+            logger_1.logger.error('Get me failed', { error: error.message });
+            res.status(500).json({ error: 'Failed to fetch user data' });
         }
     }));
-    /**
-     * @swagger
-     * /api/auth/update:
-     *   put:
-     *     summary: Update user profile
-     *     tags: [Auth]
-     *     security:
-     *       - bearerAuth: []
-     *     requestBody:
-     *       required: true
-     *       content:
-     *         application/json:
-     *           schema:
-     *             type: object
-     *             properties:
-     *               username:
-     *                 type: string
-     *               email:
-     *                 type: string
-     *     responses:
-     *       200:
-     *         description: User updated successfully
-     *       401:
-     *         description: Unauthorized
-     */
     router.put('/update', auth_1.authenticate, (0, validation_1.validate)(updateUserSchema), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         try {
             const updates = req.body;

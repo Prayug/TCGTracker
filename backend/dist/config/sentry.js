@@ -37,17 +37,18 @@ exports.Sentry = exports.initSentry = void 0;
 const Sentry = __importStar(require("@sentry/node"));
 exports.Sentry = Sentry;
 const env_1 = require("./env");
+const logger_1 = require("../utils/logger");
 const initSentry = () => {
     if (env_1.env.sentry.dsn && env_1.env.isProduction) {
         Sentry.init({
             dsn: env_1.env.sentry.dsn,
             environment: env_1.env.sentry.environment,
-            tracesSampleRate: 1.0,
+            tracesSampleRate: 0.2,
             integrations: [
                 new Sentry.Integrations.Http({ tracing: true }),
             ],
         });
-        console.log('Sentry initialized for backend error tracking');
+        logger_1.logger.info('Sentry initialized for backend error tracking');
     }
 };
 exports.initSentry = initSentry;

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { AlertService } from '../services/alertService';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validation';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -41,7 +42,8 @@ export const createAlertsRouter = (alertService: AlertService) => {
       const alerts = await alertService.getAlertsByUser(req.user!.id);
       res.json({ alerts });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error('Alerts route error', { error: error.message });
+      res.status(500).json({ error: 'An internal error occurred' });
     }
   });
 
@@ -92,7 +94,8 @@ export const createAlertsRouter = (alertService: AlertService) => {
       );
       res.status(201).json({ alert });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error('Alerts route error', { error: error.message });
+      res.status(500).json({ error: 'An internal error occurred' });
     }
   });
 
@@ -122,7 +125,8 @@ export const createAlertsRouter = (alertService: AlertService) => {
       await alertService.deleteAlert(alertId, req.user!.id);
       res.json({ message: 'Alert deleted successfully' });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error('Alerts route error', { error: error.message });
+      res.status(500).json({ error: 'An internal error occurred' });
     }
   });
 
@@ -168,7 +172,8 @@ export const createAlertsRouter = (alertService: AlertService) => {
         await alertService.toggleAlert(alertId, req.user!.id, isActive);
         res.json({ message: 'Alert status updated successfully' });
       } catch (error: any) {
-        res.status(500).json({ error: error.message });
+        logger.error('Alerts route error', { error: error.message });
+      res.status(500).json({ error: 'An internal error occurred' });
       }
     }
   );

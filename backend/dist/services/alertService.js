@@ -13,11 +13,18 @@ exports.AlertService = void 0;
 const logger_1 = require("../utils/logger");
 class AlertService {
     constructor(db) {
+        this.initialized = false;
         this.db = db;
-        this.initializeDatabase();
     }
-    initializeDatabase() {
-        this.db.run(`
+    init() {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (this.initialized)
+                return;
+            this.initialized = true;
+            const run = (sql) => new Promise((resolve, reject) => {
+                this.db.run(sql, (err) => (err ? reject(err) : resolve()));
+            });
+            yield run(`
       CREATE TABLE IF NOT EXISTS price_alerts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
@@ -31,15 +38,10 @@ class AlertService {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
-        this.db.run(`
-      CREATE INDEX IF NOT EXISTS idx_alerts_user ON price_alerts(user_id)
-    `);
-        this.db.run(`
-      CREATE INDEX IF NOT EXISTS idx_alerts_card ON price_alerts(card_id)
-    `);
-        this.db.run(`
-      CREATE INDEX IF NOT EXISTS idx_alerts_active ON price_alerts(is_active)
-    `);
+            yield run(`CREATE INDEX IF NOT EXISTS idx_alerts_user ON price_alerts(user_id)`);
+            yield run(`CREATE INDEX IF NOT EXISTS idx_alerts_card ON price_alerts(card_id)`);
+            yield run(`CREATE INDEX IF NOT EXISTS idx_alerts_active ON price_alerts(is_active)`);
+        });
     }
     createAlert(userId, cardId, cardName, targetPrice, condition) {
         return __awaiter(this, void 0, void 0, function* () {
