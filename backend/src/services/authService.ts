@@ -14,31 +14,39 @@ export interface User {
 
 export class AuthService {
   private db: Database;
+  private initialized = false;
 
   constructor(db: Database) {
     this.db = db;
-    this.initializeDatabase();
   }
 
-  private initializeDatabase() {
-    this.db.run(`
-      CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        email TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+  async init() {
+    if (this.initialized) return;
+    this.initialized = true;
+    await new Promise<void>((resolve, reject) => {
+      this.db.run(`
+        CREATE TABLE IF NOT EXISTS users (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          username TEXT UNIQUE NOT NULL,
+          email TEXT UNIQUE NOT NULL,
+          password_hash TEXT NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `, (err) => (err ? reject(err) : resolve()));
+    });
 
-    this.db.run(`
-      CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)
-    `);
+    await new Promise<void>((resolve, reject) => {
+      this.db.run(`
+        CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)
+      `, (err) => (err ? reject(err) : resolve()));
+    });
 
-    this.db.run(`
-      CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)
-    `);
+    await new Promise<void>((resolve, reject) => {
+      this.db.run(`
+        CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)
+      `, (err) => (err ? reject(err) : resolve()));
+    });
   }
 
   async register(username: string, email: string, password: string): Promise<{

@@ -14,6 +14,7 @@ const express_1 = require("express");
 const zod_1 = require("zod");
 const auth_1 = require("../middleware/auth");
 const validation_1 = require("../middleware/validation");
+const logger_1 = require("../utils/logger");
 const router = (0, express_1.Router)();
 const createAlertSchema = zod_1.z.object({
     body: zod_1.z.object({
@@ -49,7 +50,8 @@ const createAlertsRouter = (alertService) => {
             res.json({ alerts });
         }
         catch (error) {
-            res.status(500).json({ error: error.message });
+            logger_1.logger.error('Alerts route error', { error: error.message });
+            res.status(500).json({ error: 'An internal error occurred' });
         }
     }));
     /**
@@ -94,7 +96,8 @@ const createAlertsRouter = (alertService) => {
             res.status(201).json({ alert });
         }
         catch (error) {
-            res.status(500).json({ error: error.message });
+            logger_1.logger.error('Alerts route error', { error: error.message });
+            res.status(500).json({ error: 'An internal error occurred' });
         }
     }));
     /**
@@ -124,7 +127,8 @@ const createAlertsRouter = (alertService) => {
             res.json({ message: 'Alert deleted successfully' });
         }
         catch (error) {
-            res.status(500).json({ error: error.message });
+            logger_1.logger.error('Alerts route error', { error: error.message });
+            res.status(500).json({ error: 'An internal error occurred' });
         }
     }));
     /**
@@ -166,7 +170,8 @@ const createAlertsRouter = (alertService) => {
             res.json({ message: 'Alert status updated successfully' });
         }
         catch (error) {
-            res.status(500).json({ error: error.message });
+            logger_1.logger.error('Alerts route error', { error: error.message });
+            res.status(500).json({ error: 'An internal error occurred' });
         }
     }));
     return router;

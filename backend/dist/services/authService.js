@@ -29,26 +29,37 @@ const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const env_1 = require("../config/env");
 class AuthService {
     constructor(db) {
+        this.initialized = false;
         this.db = db;
-        this.initializeDatabase();
     }
-    initializeDatabase() {
-        this.db.run(`
-      CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        email TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-        this.db.run(`
-      CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)
-    `);
-        this.db.run(`
-      CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)
-    `);
+    init() {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (this.initialized)
+                return;
+            this.initialized = true;
+            yield new Promise((resolve, reject) => {
+                this.db.run(`
+        CREATE TABLE IF NOT EXISTS users (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          username TEXT UNIQUE NOT NULL,
+          email TEXT UNIQUE NOT NULL,
+          password_hash TEXT NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `, (err) => (err ? reject(err) : resolve()));
+            });
+            yield new Promise((resolve, reject) => {
+                this.db.run(`
+        CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)
+      `, (err) => (err ? reject(err) : resolve()));
+            });
+            yield new Promise((resolve, reject) => {
+                this.db.run(`
+        CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)
+      `, (err) => (err ? reject(err) : resolve()));
+            });
+        });
     }
     register(username, email, password) {
         return __awaiter(this, void 0, void 0, function* () {

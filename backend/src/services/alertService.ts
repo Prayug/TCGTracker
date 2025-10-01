@@ -15,14 +15,21 @@ export interface PriceAlert {
 
 export class AlertService {
   private db: Database;
+  private initialized = false;
 
   constructor(db: Database) {
     this.db = db;
-    this.initializeDatabase();
   }
 
-  private initializeDatabase() {
-    this.db.run(`
+  async init() {
+    if (this.initialized) return;
+    this.initialized = true;
+    const run = (sql: string) =>
+      new Promise<void>((resolve, reject) => {
+        this.db.run(sql, (err) => (err ? reject(err) : resolve()));
+      });
+
+    await run(`
       CREATE TABLE IF NOT EXISTS price_alerts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
@@ -37,17 +44,9 @@ export class AlertService {
       )
     `);
 
-    this.db.run(`
-      CREATE INDEX IF NOT EXISTS idx_alerts_user ON price_alerts(user_id)
-    `);
-
-    this.db.run(`
-      CREATE INDEX IF NOT EXISTS idx_alerts_card ON price_alerts(card_id)
-    `);
-
-    this.db.run(`
-      CREATE INDEX IF NOT EXISTS idx_alerts_active ON price_alerts(is_active)
-    `);
+    await run(`CREATE INDEX IF NOT EXISTS idx_alerts_user ON price_alerts(user_id)`);
+    await run(`CREATE INDEX IF NOT EXISTS idx_alerts_card ON price_alerts(card_id)`);
+    await run(`CREATE INDEX IF NOT EXISTS idx_alerts_active ON price_alerts(is_active)`);
   }
 
   async createAlert(

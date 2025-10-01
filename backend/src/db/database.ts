@@ -2,6 +2,7 @@ import sqlite3 from 'sqlite3';
 import path from 'path';
 import fs from 'fs';
 import { env } from '../config/env';
+import { logger } from '../utils/logger';
 
 const DB_SOURCE = (() => {
   const resolvedPath = path.resolve(env.databasePath);
@@ -31,7 +32,7 @@ export const getDb = () => {
   if (!db) {
     db = new sqlite3.Database(DB_SOURCE, (err) => {
       if (err) {
-        console.error(err.message);
+        logger.error('Failed to open database', { error: err.message });
         throw err;
       }
     });
@@ -189,6 +190,19 @@ export const initializeDatabase = (): Promise<void> => {
         status TEXT DEFAULT 'pending',
         FOREIGN KEY (prediction_id) REFERENCES card_predictions(id) ON DELETE CASCADE
       )`,
+      `CREATE TABLE IF NOT EXISTS graded_prices (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cardId TEXT NOT NULL,
+        cardName TEXT,
+        setId TEXT,
+        setName TEXT,
+        grader TEXT NOT NULL,
+        grade TEXT NOT NULL,
+        price REAL,
+        soldListings INTEGER DEFAULT 0,
+        fetchedAt TEXT DEFAULT (datetime('now')),
+        UNIQUE(cardId, grader, grade)
+      )`,
       `CREATE TABLE IF NOT EXISTS external_market_signals (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         card_id TEXT,
@@ -250,7 +264,7 @@ export const initializeDatabase = (): Promise<void> => {
 
     for (let i = 0; i < tables.length; i++) {
       await runDb(database, tables[i]);
-      console.log(`Database table ${i + 1} created successfully.`);
+      logger.info(`Database table ${i + 1} created successfully.`);
     }
 
     const indexes = [
@@ -282,24 +296,34 @@ export const initializeDatabase = (): Promise<void> => {
       'CREATE INDEX IF NOT EXISTS idx_onepiece_catalog_card_set_id ON onepiece_catalog(cardSetId)',
       'CREATE INDEX IF NOT EXISTS idx_onepiece_price_history_card ON onepiece_price_history(catalogId)',
       'CREATE INDEX IF NOT EXISTS idx_onepiece_price_history_date ON onepiece_price_history(date)',
+      'CREATE INDEX IF NOT EXISTS idx_graded_prices_card ON graded_prices(cardId)',
+      'CREATE INDEX IF NOT EXISTS idx_graded_prices_grader ON graded_prices(grader, grade)',
     ];
 
     for (const indexSql of indexes) {
       await runDb(database, indexSql);
     }
 
-    console.log('All database tables and indexes ready.');
-    console.log(`Using database at ${DB_SOURCE}`);
+    logger.info('All database tables and indexes ready.');
+    logger.info(`Using database at ${DB_SOURCE}`);
 
     setTimeout(() => {
       database.run('PRAGMA auto_vacuum = INCREMENTAL', (vacuumErr) => {
         if (vacuumErr) {
-          console.error('Failed to set auto_vacuum mode:', vacuumErr);
+          logger.error('Failed to set auto_vacuum mode:', { error: vacuumErr.message });
         } else {
           database.run('PRAGMA incremental_vacuum(100)', () => {});
         }
       });
     }, 10000);
+
+    setInterval(() => {
+      database.run('PRAGMA wal_checkpoint(TRUNCATE)', (err) => {
+        if (err) {
+          logger.warn('WAL checkpoint failed', { error: err.message });
+        }
+      });
+    }, 30 * 60 * 1000);
   })();
 
   return dbInitPromise;
