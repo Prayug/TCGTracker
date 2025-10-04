@@ -64,6 +64,7 @@ const cardImageBackfillService_1 = require("./services/cardImageBackfillService"
 const env_1 = require("./config/env");
 const swagger_1 = require("./config/swagger");
 const security_1 = require("./middleware/security");
+const csrf_1 = require("./middleware/csrf");
 const rateLimiter_1 = require("./middleware/rateLimiter");
 const errorHandler_1 = require("./middleware/errorHandler");
 const auth_1 = require("./middleware/auth");
@@ -84,6 +85,7 @@ const BODY_LIMIT = '1mb';
 app.set('trust proxy', 1);
 app.use((0, security_1.securityMiddleware)());
 app.use((0, security_1.corsMiddleware)());
+app.use(csrf_1.csrfProtection);
 app.use(express_1.default.json({ limit: BODY_LIMIT }));
 app.use(express_1.default.urlencoded({ extended: true, limit: BODY_LIMIT }));
 const REQUEST_TIMEOUT_MS = 120000;
@@ -184,7 +186,13 @@ function setupRoutes(authService, alertService, portfolioService) {
             logger_1.logger.info('Manual price data update requested');
             const result = yield (0, dataFetcher_1.updatePriceData)();
             if (result.skipped) {
-                res.status(409).json({ success: false, message: 'Update already running' });
+                const skippedResult = result;
+                res.status(409).json({ success: false, message: skippedResult.reason || 'Update already running' });
+                return;
+            }
+            if (result.syncRunId == null) {
+                const errorResult = result;
+                res.status(409).json({ success: false, message: errorResult.error || 'Update failed to start' });
                 return;
             }
             logger_1.logger.info('Manual update finished', result);
@@ -197,7 +205,7 @@ function setupRoutes(authService, alertService, portfolioService) {
         }
         catch (error) {
             logger_1.logger.error('Error during manual update', { error: error.message });
-            res.status(500).json({ success: false, error: 'Update failed: ' + error.message });
+            res.status(500).json({ success: false, error: 'Update failed' });
         }
     }));
     app.get('/api/update/status/:runId', (req, res) => __awaiter(this, void 0, void 0, function* () {
@@ -250,9 +258,15 @@ function setupRoutes(authService, alertService, portfolioService) {
     app.post('/api/sync-catalog', auth_1.authenticate, admin_1.requireAdmin, (_req, res) => __awaiter(this, void 0, void 0, function* () {
         try {
             logger_1.logger.info('Manual catalog sync requested');
-            (0, catalogSync_1.syncCatalogData)()
-                .then((result) => logger_1.logger.info('Manual catalog sync completed', result))
-                .catch((error) => logger_1.logger.error('Manual catalog sync failed', { error: error.message }));
+            (() => __awaiter(this, void 0, void 0, function* () {
+                try {
+                    const result = yield (0, catalogSync_1.syncCatalogData)();
+                    logger_1.logger.info('Manual catalog sync completed', result);
+                }
+                catch (error) {
+                    logger_1.logger.error('Manual catalog sync failed', { error: error.message });
+                }
+            }))();
             res.status(202).json({ success: true, message: 'Catalog sync started in background.' });
         }
         catch (error) {
@@ -263,9 +277,15 @@ function setupRoutes(authService, alertService, portfolioService) {
     app.post('/api/sync-onepiece', auth_1.authenticate, admin_1.requireAdmin, (_req, res) => __awaiter(this, void 0, void 0, function* () {
         try {
             logger_1.logger.info('Manual One Piece sync requested');
-            (0, onePieceSync_1.syncOnePieceData)()
-                .then((result) => logger_1.logger.info('Manual One Piece sync completed', result))
-                .catch((error) => logger_1.logger.error('Manual One Piece sync failed', { error: error.message }));
+            (() => __awaiter(this, void 0, void 0, function* () {
+                try {
+                    const result = yield (0, onePieceSync_1.syncOnePieceData)();
+                    logger_1.logger.info('Manual One Piece sync completed', result);
+                }
+                catch (error) {
+                    logger_1.logger.error('Manual One Piece sync failed', { error: error.message });
+                }
+            }))();
             res.status(202).json({ success: true, message: 'One Piece sync started in background.' });
         }
         catch (error) {
@@ -354,27 +374,36 @@ function bootstrap() {
             const authService = new authService_1.AuthService(db);
             const alertService = new alertService_1.AlertService(db);
             const portfolioService = new portfolioService_1.PortfolioService(db);
+            yield Promise.all([
+                authService.init(),
+                alertService.init(),
+            ]);
             yield initializeSetCodeService();
             setupRoutes(authService, alertService, portfolioService);
-            setTimeout(() => {
-                (0, cardImageBackfillService_1.backfillCardMappingImages)()
-                    .then((result) => logger_1.logger.info('Startup image backfill completed', result))
-                    .catch((error) => logger_1.logger.warn('Startup image backfill failed (non-fatal)', { error: error.message }));
-            }, 15000);
-            setTimeout(() => __awaiter(this, void 0, void 0, function* () {
+            (() => __awaiter(this, void 0, void 0, function* () {
+                yield new Promise((r) => setTimeout(r, 15000));
+                try {
+                    const result = yield (0, cardImageBackfillService_1.backfillCardMappingImages)();
+                    logger_1.logger.info('Startup image backfill completed', result);
+                }
+                catch (error) {
+                    logger_1.logger.warn('Startup image backfill failed (non-fatal)', { error: error.message });
+                }
+            }))();
+            (() => __awaiter(this, void 0, void 0, function* () {
+                yield new Promise((r) => setTimeout(r, 20000));
                 try {
                     const incomplete = yield (0, onePieceSync_1.isOnePieceCatalogIncomplete)();
                     if (incomplete) {
                         logger_1.logger.info('One Piece catalog incomplete — running sync in background');
-                        (0, onePieceSync_1.syncOnePieceData)()
-                            .then((result) => logger_1.logger.info('One Piece sync completed', result))
-                            .catch((error) => logger_1.logger.warn('One Piece sync failed (non-fatal)', { error: error.message }));
+                        const result = yield (0, onePieceSync_1.syncOnePieceData)();
+                        logger_1.logger.info('One Piece sync completed', result);
                     }
                 }
                 catch (error) {
-                    logger_1.logger.warn('One Piece catalog check failed (non-fatal)', { error: error.message });
+                    logger_1.logger.warn('One Piece catalog check / sync failed (non-fatal)', { error: error.message });
                 }
-            }), 20000);
+            }))();
         }
         catch (error) {
             logger_1.logger.error('Failed to start server', { error });
