@@ -10,6 +10,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
+const database_1 = require("../db/database");
 const enhancedPackService_1 = require("../services/enhancedPackService");
 const setCodeService_1 = require("../services/setCodeService");
 const logger_1 = require("../utils/logger");
@@ -110,7 +111,7 @@ router.get('/stats/:setId', (req, res) => __awaiter(void 0, void 0, void 0, func
                 error: 'Set ID is required'
             });
         }
-        const db = require('../db/database').getDb();
+        const db = (0, database_1.getDb)();
         // Get card count and average price for the set
         const stats = yield new Promise((resolve, reject) => {
             const sql = `

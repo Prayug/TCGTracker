@@ -3,6 +3,7 @@ import { logger } from '../utils/logger';
 
 const CACHE_TTL_MS = 1000 * 60 * 60 * 12; // 12 hours
 const REQUEST_TIMEOUT_MS = 12000;
+const REQUEST_DELAY_MS = 1500; // 1.5s delay between scrapes to avoid rate limiting
 const BECKETT_SPORT_POKEMON = '477173';
 
 type GraderKey = 'psa' | 'cgc' | 'beckett';
@@ -36,6 +37,8 @@ export interface PopulationLookupResult {
   cached: boolean;
   companies: Record<GraderKey, GraderPopulationResult>;
 }
+
+const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const normalize = (value?: string) => (value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
@@ -298,8 +301,16 @@ const fetchBeckettPopulation = async (input: PopulationLookupInput): Promise<num
   return ranked[0]?.row.total ?? null;
 };
 
+let lastScrapeTime = 0;
+
 const resolveGrader = async (grader: GraderKey, input: PopulationLookupInput): Promise<GraderPopulationResult> => {
   try {
+    const now = Date.now();
+    const elapsed = now - lastScrapeTime;
+    if (elapsed < REQUEST_DELAY_MS) {
+      await delay(REQUEST_DELAY_MS - elapsed);
+    }
+    lastScrapeTime = Date.now();
     if (grader === 'psa' || grader === 'cgc') {
       const totals = await fetchPriceChartingPopulations(input);
       const total = grader === 'psa' ? totals.psa : totals.cgc;
