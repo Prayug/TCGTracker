@@ -14,7 +14,9 @@ const database_1 = require("../db/database");
 const logger_1 = require("../utils/logger");
 const CACHE_TTL_MS = 1000 * 60 * 60 * 12; // 12 hours
 const REQUEST_TIMEOUT_MS = 12000;
+const REQUEST_DELAY_MS = 1500; // 1.5s delay between scrapes to avoid rate limiting
 const BECKETT_SPORT_POKEMON = '477173';
+const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 const normalize = (value) => (value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 const buildCacheKey = (input) => [
     normalize(input.cardId),
@@ -246,8 +248,15 @@ const fetchBeckettPopulation = (input) => __awaiter(void 0, void 0, void 0, func
         .sort((a, b) => b.score - a.score);
     return (_b = (_a = ranked[0]) === null || _a === void 0 ? void 0 : _a.row.total) !== null && _b !== void 0 ? _b : null;
 });
+let lastScrapeTime = 0;
 const resolveGrader = (grader, input) => __awaiter(void 0, void 0, void 0, function* () {
     try {
+        const now = Date.now();
+        const elapsed = now - lastScrapeTime;
+        if (elapsed < REQUEST_DELAY_MS) {
+            yield delay(REQUEST_DELAY_MS - elapsed);
+        }
+        lastScrapeTime = Date.now();
         if (grader === 'psa' || grader === 'cgc') {
             const totals = yield fetchPriceChartingPopulations(input);
             const total = grader === 'psa' ? totals.psa : totals.cgc;

@@ -236,6 +236,7 @@ const deterministicProductId = (cardId, variantKey) => {
 };
 exports.deterministicProductId = deterministicProductId;
 const snapshotFromPokemonCatalog = (date) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b, _c, _d, _e, _f;
     const db = (0, database_1.getDb)();
     const priceInsertSql = `
     INSERT INTO price_history (
@@ -286,65 +287,70 @@ const snapshotFromPokemonCatalog = (date) => __awaiter(void 0, void 0, void 0, f
         });
     const stmt = db.prepare(priceInsertSql);
     let inserted = 0;
-    yield new Promise((resolve, reject) => {
-        db.serialize(() => {
-            var _a, _b, _c, _d, _e, _f;
-            db.run('BEGIN TRANSACTION');
-            try {
-                for (const row of refreshedRows) {
-                    const parsedPrices = JSON.parse(row.tcgplayerPrices || '{}');
-                    for (const [rawVariantKey, variantValue] of Object.entries(parsedPrices)) {
-                        const priceData = variantValue;
-                        const market = (_c = (_b = (_a = priceData.market) !== null && _a !== void 0 ? _a : priceData.mid) !== null && _b !== void 0 ? _b : priceData.low) !== null && _c !== void 0 ? _c : 0;
-                        if (!market || market <= 0) {
-                            continue;
-                        }
-                        if (!(0, exports.isValidPrice)(market)) {
-                            continue;
-                        }
-                        const variantKey = (0, normalizeVariantKey_1.normalizeVariantKey)(rawVariantKey);
-                        const uniqueIdentifier = (0, cardIdentifier_1.generateUniqueIdentifier)(row.setId, row.cardNumber, row.cardName, variantKey);
-                        const parsedProductId = row.tcgplayerProductId
-                            ? Number.parseInt(String(row.tcgplayerProductId), 10)
-                            : Number.NaN;
-                        const productId = Number.isFinite(parsedProductId)
-                            ? parsedProductId
-                            : (0, exports.deterministicProductId)(row.cardId || `${row.setId}-${row.cardNumber}-${row.cardName}`, variantKey);
-                        stmt.run([
-                            productId,
-                            date,
-                            market,
-                            variantKey,
-                            row.cardName,
-                            row.setName,
-                            'catalog_fallback',
-                            (_d = priceData.low) !== null && _d !== void 0 ? _d : null,
-                            (_e = priceData.high) !== null && _e !== void 0 ? _e : null,
-                            (_f = priceData.market) !== null && _f !== void 0 ? _f : market,
-                            null,
-                            uniqueIdentifier,
-                        ]);
-                        inserted += 1;
-                    }
-                }
-                stmt.finalize();
-                db.run('COMMIT', (commitErr) => {
-                    if (commitErr) {
-                        reject(commitErr);
-                        return;
-                    }
-                    resolve();
-                });
-            }
-            catch (err) {
-                stmt.finalize();
-                db.run('ROLLBACK', () => reject(err));
-            }
+    const runStmt = (params) => new Promise((resolve, reject) => {
+        stmt.run(params, (err) => {
+            if (err)
+                reject(err);
+            else
+                resolve();
         });
     });
+    try {
+        yield new Promise((resolve, reject) => {
+            db.run('BEGIN TRANSACTION', (err) => (err ? reject(err) : resolve()));
+        });
+        for (const row of refreshedRows) {
+            const parsedPrices = JSON.parse(row.tcgplayerPrices || '{}');
+            for (const [rawVariantKey, variantValue] of Object.entries(parsedPrices)) {
+                const priceData = variantValue;
+                const market = (_c = (_b = (_a = priceData.market) !== null && _a !== void 0 ? _a : priceData.mid) !== null && _b !== void 0 ? _b : priceData.low) !== null && _c !== void 0 ? _c : 0;
+                if (!market || market <= 0) {
+                    continue;
+                }
+                if (!(0, exports.isValidPrice)(market)) {
+                    continue;
+                }
+                const variantKey = (0, normalizeVariantKey_1.normalizeVariantKey)(rawVariantKey);
+                const uniqueIdentifier = (0, cardIdentifier_1.generateUniqueIdentifier)(row.setId, row.cardNumber, row.cardName, variantKey);
+                const parsedProductId = row.tcgplayerProductId
+                    ? Number.parseInt(String(row.tcgplayerProductId), 10)
+                    : Number.NaN;
+                const productId = Number.isFinite(parsedProductId)
+                    ? parsedProductId
+                    : (0, exports.deterministicProductId)(row.cardId || `${row.setId}-${row.cardNumber}-${row.cardName}`, variantKey);
+                yield runStmt([
+                    productId,
+                    date,
+                    market,
+                    variantKey,
+                    row.cardName,
+                    row.setName,
+                    'catalog_fallback',
+                    (_d = priceData.low) !== null && _d !== void 0 ? _d : null,
+                    (_e = priceData.high) !== null && _e !== void 0 ? _e : null,
+                    (_f = priceData.market) !== null && _f !== void 0 ? _f : market,
+                    null,
+                    uniqueIdentifier,
+                ]);
+                inserted += 1;
+            }
+        }
+        stmt.finalize();
+        yield new Promise((resolve, reject) => {
+            db.run('COMMIT', (err) => (err ? reject(err) : resolve()));
+        });
+    }
+    catch (err) {
+        stmt.finalize();
+        yield new Promise((resolve) => {
+            db.run('ROLLBACK', () => resolve());
+        });
+        throw err;
+    }
     return inserted;
 });
 const snapshotFromMarketProvider = (date, marketProvider) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b, _c;
     const db = (0, database_1.getDb)();
     const rows = yield loadCatalogCards();
     if (rows.length === 0) {
@@ -446,61 +452,73 @@ const snapshotFromMarketProvider = (date, marketProvider) => __awaiter(void 0, v
     let cardsFailed = workerResults.reduce((s, r) => s + r.cardsFailed, 0);
     let tcgdexAttempted = workerResults.reduce((s, r) => s + r.tcgdexAttempted, 0);
     let tcgdexSuccessful = workerResults.reduce((s, r) => s + r.tcgdexSuccessful, 0);
-    yield new Promise((resolve, reject) => {
-        db.serialize(() => {
-            var _a, _b, _c;
-            db.run('BEGIN TRANSACTION');
-            try {
-                for (const entry of collected) {
-                    const uniqueIdentifier = (0, cardIdentifier_1.generateUniqueIdentifier)(entry.row.setId, entry.row.cardNumber, entry.row.cardName, entry.variantKey);
-                    priceStmt.run([
-                        entry.productId,
-                        date,
-                        entry.marketPrice,
-                        entry.subTypeName,
-                        entry.row.cardName,
-                        entry.row.setName,
-                        entry.source,
-                        (_a = entry.lowPrice) !== null && _a !== void 0 ? _a : null,
-                        (_b = entry.highPrice) !== null && _b !== void 0 ? _b : null,
-                        entry.marketPrice,
-                        (_c = entry.volume) !== null && _c !== void 0 ? _c : null,
-                        uniqueIdentifier,
-                    ]);
-                    mappingStmt.run([
-                        entry.row.cardId,
-                        entry.productId,
-                        entry.row.cardName,
-                        entry.row.setId,
-                        entry.row.setName,
-                        entry.row.cardNumber || null,
-                        null,
-                        entry.variantKey,
-                        entry.row.tcgplayerProductId || null,
-                        uniqueIdentifier,
-                        entry.row.setId,
-                        entry.row.imageSmall || null,
-                        entry.row.imageLarge || null,
-                        entry.row.imageSmall || entry.row.imageLarge ? 'catalog_sync' : null,
-                    ]);
-                }
-                priceStmt.finalize();
-                mappingStmt.finalize();
-                db.run('COMMIT', (commitErr) => {
-                    if (commitErr) {
-                        reject(commitErr);
-                        return;
-                    }
-                    resolve();
-                });
-            }
-            catch (err) {
-                priceStmt.finalize();
-                mappingStmt.finalize();
-                db.run('ROLLBACK', () => reject(err));
-            }
+    const runPriceStmt = (params) => new Promise((resolve, reject) => {
+        priceStmt.run(params, (err) => {
+            if (err)
+                reject(err);
+            else
+                resolve();
         });
     });
+    const runMappingStmt = (params) => new Promise((resolve, reject) => {
+        mappingStmt.run(params, (err) => {
+            if (err)
+                reject(err);
+            else
+                resolve();
+        });
+    });
+    try {
+        yield new Promise((resolve, reject) => {
+            db.run('BEGIN TRANSACTION', (err) => (err ? reject(err) : resolve()));
+        });
+        for (const entry of collected) {
+            const uniqueIdentifier = (0, cardIdentifier_1.generateUniqueIdentifier)(entry.row.setId, entry.row.cardNumber, entry.row.cardName, entry.variantKey);
+            yield runPriceStmt([
+                entry.productId,
+                date,
+                entry.marketPrice,
+                entry.subTypeName,
+                entry.row.cardName,
+                entry.row.setName,
+                entry.source,
+                (_a = entry.lowPrice) !== null && _a !== void 0 ? _a : null,
+                (_b = entry.highPrice) !== null && _b !== void 0 ? _b : null,
+                entry.marketPrice,
+                (_c = entry.volume) !== null && _c !== void 0 ? _c : null,
+                uniqueIdentifier,
+            ]);
+            yield runMappingStmt([
+                entry.row.cardId,
+                entry.productId,
+                entry.row.cardName,
+                entry.row.setId,
+                entry.row.setName,
+                entry.row.cardNumber || null,
+                null,
+                entry.variantKey,
+                entry.row.tcgplayerProductId || null,
+                uniqueIdentifier,
+                entry.row.setId,
+                entry.row.imageSmall || null,
+                entry.row.imageLarge || null,
+                entry.row.imageSmall || entry.row.imageLarge ? 'catalog_sync' : null,
+            ]);
+        }
+        priceStmt.finalize();
+        mappingStmt.finalize();
+        yield new Promise((resolve, reject) => {
+            db.run('COMMIT', (err) => (err ? reject(err) : resolve()));
+        });
+    }
+    catch (err) {
+        priceStmt.finalize();
+        mappingStmt.finalize();
+        yield new Promise((resolve) => {
+            db.run('ROLLBACK', () => resolve());
+        });
+        throw err;
+    }
     return {
         pricesWritten: collected.length,
         cardsProcessed,

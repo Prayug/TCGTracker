@@ -82,11 +82,14 @@ const buildSetMappingWhereClause = (keys) => {
         params.push(...keys.setIds);
     }
     if (keys.setNames.length > 0) {
-        parts.push(`cm.setName IN (${keys.setNames.map(() => '?').join(',')})`);
-        params.push(...keys.setNames);
-        for (const name of keys.setNames) {
-            parts.push(`cm.setName LIKE ?`);
-            params.push(`%${name}%`);
+        const validNames = keys.setNames.filter((n) => n.trim().length > 0);
+        if (validNames.length > 0) {
+            parts.push(`cm.setName IN (${validNames.map(() => '?').join(',')})`);
+            params.push(...validNames);
+            for (const name of validNames) {
+                parts.push(`cm.setName LIKE ?`);
+                params.push(`%${name}%`);
+            }
         }
     }
     if (parts.length === 0) {
