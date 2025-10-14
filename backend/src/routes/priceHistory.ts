@@ -8,6 +8,7 @@ import {
   getCardPriceHistory,
   getCardPriceHistoryForProduct,
 } from '../services/cardIdentifier';
+import { getOnePiecePriceHistory } from '../services/onePiecePriceHistoryService';
 
 // Type definitions for database query results
 interface PriceHistoryRow {
@@ -110,9 +111,9 @@ router.get('/card', (req: Request, res: Response): void => {
       });
     })
     .catch(err => {
+      logger.error('Price history query failed', { error: err.message });
       res.status(500).json({ 
-        error: 'Database error fetching price history.',
-        details: err.message 
+        error: 'Database error fetching price history.'
       });
     });
 });
@@ -335,54 +336,45 @@ const fallbackMatch = (cardName: string, setName: string, cardNumber: string | u
   });
 };
 
-// One Piece price history from local DB (built by daily OPTCG sync)
-router.get('/onepiece/:catalogId', (req: Request, res: Response): void => {
+// One Piece price history — prefers TCGPlayer when OPTCG data is stale
+router.get('/onepiece/:catalogId', async (req: Request, res: Response): Promise<void> => {
   const catalogId = decodeURIComponent(req.params.catalogId);
-  const { days } = req.query;
-  const db = getDb();
+  const days = req.query.days ? parseInt(req.query.days as string, 10) : undefined;
 
-  let sql = `
-    SELECT date, marketPrice, inventoryPrice, source
-    FROM onepiece_price_history
-    WHERE catalogId = ?
-  `;
-  const params: unknown[] = [catalogId];
-
-  if (days) {
-    const daysNum = parseInt(days as string, 10);
-    if (isNaN(daysNum) || daysNum < 1) {
-      res.status(400).json({ error: 'Invalid days parameter' });
-      return;
-    }
-    sql += ' AND date >= date("now", ?)';
-    params.push(`-${daysNum} days`);
+  if (days != null && (Number.isNaN(days) || days < 1)) {
+    res.status(400).json({ error: 'Invalid days parameter' });
+    return;
   }
 
-  sql += ' ORDER BY date ASC';
-
-  db.all(sql, params, (err, rows: { date: string; marketPrice: number; inventoryPrice: number }[]) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
+  try {
+    const result = await getOnePiecePriceHistory(catalogId, days);
+    if (!result) {
+      res.status(404).json({ error: 'Card not found', catalogId });
       return;
     }
 
-    const priceHistory = (rows || []).map((row) => ({
-      date: row.date,
-      price: row.marketPrice ?? row.inventoryPrice ?? 0,
-      marketPrice: row.marketPrice,
-      inventoryPrice: row.inventoryPrice,
-    }));
-
-    if (priceHistory.length === 0) {
+    if (result.priceHistory.length === 0) {
       res.status(404).json({
-        message: 'No price history found for this card yet. History builds after the daily sync runs.',
+        message: 'No price history found for this card yet.',
         catalogId,
       });
       return;
     }
 
-    res.json({ catalogId, priceHistory });
-  });
+    res.json({
+      catalogId: result.catalogId,
+      priceSource: result.priceSource,
+      currentPrice: result.currentPrice,
+      priceHistory: result.priceHistory.map((point) => ({
+        date: point.date,
+        price: point.price,
+        source: point.source,
+      })),
+    });
+  } catch (error) {
+    logger.error(`One Piece price history failed for ${catalogId}:`, error);
+    res.status(500).json({ error: (error as Error).message });
+  }
 });
 
 // Get price history for a specific product
@@ -523,12 +515,12 @@ router.get('/compare/:productId', (req: Request, res: Response) => {
     const typedRows = rows as PriceComparisonRow[];
     
     // Calculate percentage changes
-    const period1Data = typedRows.find(r => r.period === 'period1');
-    const period2Data = typedRows.find(r => r.period === 'period2');
+    const outerData = typedRows.find(r => r.period === 'outer');
+    const innerData = typedRows.find(r => r.period === 'inner');
     
     let priceChange = null;
-    if (period1Data && period2Data && period1Data.avgPrice > 0) {
-      priceChange = ((period2Data.avgPrice - period1Data.avgPrice) / period1Data.avgPrice) * 100;
+    if (outerData && innerData && outerData.avgPrice > 0) {
+      priceChange = ((innerData.avgPrice - outerData.avgPrice) / outerData.avgPrice) * 100;
     }
     
     res.json({ 

@@ -23,6 +23,9 @@ export interface OnePieceCard {
   cardText?: string;
   marketPrice?: number;
   inventoryPrice?: number;
+  priceSource?: 'tcgplayer' | 'optcg';
+  tcgplayerProductId?: number;
+  cardImageId?: string;
 }
 
 export interface OnePieceSet {

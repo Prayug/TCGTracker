@@ -4,9 +4,11 @@ import { logger } from '../utils/logger';
 import { allDbRows, getDbRow } from '../utils/dbAsync';
 import {
   getAllOptcgCards,
+  getOptcgSetCards,
   getOptcgSets,
 } from '../services/providers/onePieceOptcgClient';
 import { buildOnePieceCatalogId, isOnePieceCatalogId } from '../services/onePieceCatalogId';
+import { enrichOnePieceApiCards } from '../services/onePiecePriceResolver';
 import {
   cardMatchesQuery,
   mapRawToApiCard,
@@ -39,7 +41,7 @@ router.get('/onepiece', async (req, res) => {
     }
 
     const apiCards = matches.map((raw) => mapRawToApiCard(raw));
-    const cards = apiCards.slice(0, searchLimit);
+    const cards = await enrichOnePieceApiCards(apiCards.slice(0, searchLimit));
 
     logger.info(
       `One Piece search: ${cards.length}/${apiCards.length} results for "${sanitizedQuery}" (${allCards.length} catalog)`
@@ -50,7 +52,7 @@ router.get('/onepiece', async (req, res) => {
       count: cards.length,
       totalMatches: apiCards.length,
       catalogSize: allCards.length,
-      source: 'optcg_full_catalog',
+      source: 'optcg_full_catalog_tcgplayer_enriched',
     });
   } catch (error) {
     logger.error('One Piece card search failed:', error);
@@ -132,12 +134,14 @@ router.get('/onepiece/card/:catalogId', async (req, res) => {
       );
 
       if (row) {
-        return res.json({ data: mapRowToApiCard(row), source: 'local_database' });
+        const enriched = await enrichOnePieceApiCards([mapRowToApiCard(row)]);
+        return res.json({ data: enriched[0], source: 'local_database_tcgplayer_enriched' });
       }
 
       const live = allCards.find((c) => buildOnePieceCatalogId(c) === catalogId);
       if (live) {
-        return res.json({ data: mapRawToApiCard(live), source: 'optcg_full_catalog' });
+        const enriched = await enrichOnePieceApiCards([mapRawToApiCard(live)]);
+        return res.json({ data: enriched[0], source: 'optcg_full_catalog_tcgplayer_enriched' });
       }
     }
 
@@ -161,14 +165,18 @@ router.get('/onepiece/card/:catalogId', async (req, res) => {
     );
 
     if (rows.length > 0) {
-      const sorted = rows.map((row) => mapRowToApiCard(row)).sort((a, b) => (b.marketPrice ?? 0) - (a.marketPrice ?? 0));
-      return res.json({ data: sorted[0], variants: sorted, source: 'local_database' });
+      const sorted = await enrichOnePieceApiCards(
+        rows.map((row) => mapRowToApiCard(row)).sort((a, b) => (b.marketPrice ?? 0) - (a.marketPrice ?? 0))
+      );
+      return res.json({ data: sorted[0], variants: sorted, source: 'local_database_tcgplayer_enriched' });
     }
 
-    const liveVariants = allCards
-      .filter((c) => c.card_set_id === cardSetId)
-      .map((raw) => mapRawToApiCard(raw))
-      .sort((a, b) => (b.marketPrice ?? 0) - (a.marketPrice ?? 0));
+    const liveVariants = await enrichOnePieceApiCards(
+      allCards
+        .filter((c) => c.card_set_id === cardSetId)
+        .map((raw) => mapRawToApiCard(raw))
+        .sort((a, b) => (b.marketPrice ?? 0) - (a.marketPrice ?? 0))
+    );
 
     if (!liveVariants.length) {
       return res.status(404).json({ error: 'Card not found', catalogId: cardSetId });
@@ -177,10 +185,30 @@ router.get('/onepiece/card/:catalogId', async (req, res) => {
     res.json({
       data: liveVariants[0],
       variants: liveVariants,
-      source: 'optcg_full_catalog',
+      source: 'optcg_full_catalog_tcgplayer_enriched',
     });
   } catch (error) {
     logger.error(`One Piece card fetch failed for ${req.params.catalogId}:`, error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: (error as Error).message,
+    });
+  }
+});
+
+router.get('/onepiece/set/:setId', async (req, res) => {
+  try {
+    const setId = decodeURIComponent(req.params.setId);
+    const rawCards = await getOptcgSetCards(setId);
+    const cards = await enrichOnePieceApiCards(rawCards.map((raw) => mapRawToApiCard(raw)));
+
+    res.json({
+      data: cards,
+      count: cards.length,
+      source: 'optcg_live_tcgplayer_enriched',
+    });
+  } catch (error) {
+    logger.error(`One Piece set cards fetch failed for ${req.params.setId}:`, error);
     res.status(500).json({
       error: 'Internal server error',
       message: (error as Error).message,
