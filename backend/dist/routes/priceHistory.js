@@ -13,6 +13,7 @@ const express_1 = require("express");
 const database_1 = require("../db/database");
 const logger_1 = require("../utils/logger");
 const cardIdentifier_1 = require("../services/cardIdentifier");
+const onePiecePriceHistoryService_1 = require("../services/onePiecePriceHistoryService");
 const router = (0, express_1.Router)();
 const clampNumber = (value, min, max) => Math.min(Math.max(value, min), max);
 // Get price history for a specific card using card details
@@ -52,9 +53,9 @@ router.get('/card', (req, res) => {
         });
     })
         .catch(err => {
+        logger_1.logger.error('Price history query failed', { error: err.message });
         res.status(500).json({
-            error: 'Database error fetching price history.',
-            details: err.message
+            error: 'Database error fetching price history.'
         });
     });
 });
@@ -247,51 +248,43 @@ const fallbackMatch = (cardName, setName, cardNumber, db) => {
         });
     });
 };
-// One Piece price history from local DB (built by daily OPTCG sync)
-router.get('/onepiece/:catalogId', (req, res) => {
+// One Piece price history — prefers TCGPlayer when OPTCG data is stale
+router.get('/onepiece/:catalogId', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const catalogId = decodeURIComponent(req.params.catalogId);
-    const { days } = req.query;
-    const db = (0, database_1.getDb)();
-    let sql = `
-    SELECT date, marketPrice, inventoryPrice, source
-    FROM onepiece_price_history
-    WHERE catalogId = ?
-  `;
-    const params = [catalogId];
-    if (days) {
-        const daysNum = parseInt(days, 10);
-        if (isNaN(daysNum) || daysNum < 1) {
-            res.status(400).json({ error: 'Invalid days parameter' });
-            return;
-        }
-        sql += ' AND date >= date("now", ?)';
-        params.push(`-${daysNum} days`);
+    const days = req.query.days ? parseInt(req.query.days, 10) : undefined;
+    if (days != null && (Number.isNaN(days) || days < 1)) {
+        res.status(400).json({ error: 'Invalid days parameter' });
+        return;
     }
-    sql += ' ORDER BY date ASC';
-    db.all(sql, params, (err, rows) => {
-        if (err) {
-            res.status(500).json({ error: err.message });
+    try {
+        const result = yield (0, onePiecePriceHistoryService_1.getOnePiecePriceHistory)(catalogId, days);
+        if (!result) {
+            res.status(404).json({ error: 'Card not found', catalogId });
             return;
         }
-        const priceHistory = (rows || []).map((row) => {
-            var _a, _b;
-            return ({
-                date: row.date,
-                price: (_b = (_a = row.marketPrice) !== null && _a !== void 0 ? _a : row.inventoryPrice) !== null && _b !== void 0 ? _b : 0,
-                marketPrice: row.marketPrice,
-                inventoryPrice: row.inventoryPrice,
-            });
-        });
-        if (priceHistory.length === 0) {
+        if (result.priceHistory.length === 0) {
             res.status(404).json({
-                message: 'No price history found for this card yet. History builds after the daily sync runs.',
+                message: 'No price history found for this card yet.',
                 catalogId,
             });
             return;
         }
-        res.json({ catalogId, priceHistory });
-    });
-});
+        res.json({
+            catalogId: result.catalogId,
+            priceSource: result.priceSource,
+            currentPrice: result.currentPrice,
+            priceHistory: result.priceHistory.map((point) => ({
+                date: point.date,
+                price: point.price,
+                source: point.source,
+            })),
+        });
+    }
+    catch (error) {
+        logger_1.logger.error(`One Piece price history failed for ${catalogId}:`, error);
+        res.status(500).json({ error: error.message });
+    }
+}));
 // Get price history for a specific product
 router.get('/:productId', (req, res) => {
     const { productId } = req.params;
@@ -410,11 +403,11 @@ router.get('/compare/:productId', (req, res) => {
         }
         const typedRows = rows;
         // Calculate percentage changes
-        const period1Data = typedRows.find(r => r.period === 'period1');
-        const period2Data = typedRows.find(r => r.period === 'period2');
+        const outerData = typedRows.find(r => r.period === 'outer');
+        const innerData = typedRows.find(r => r.period === 'inner');
         let priceChange = null;
-        if (period1Data && period2Data && period1Data.avgPrice > 0) {
-            priceChange = ((period2Data.avgPrice - period1Data.avgPrice) / period1Data.avgPrice) * 100;
+        if (outerData && innerData && outerData.avgPrice > 0) {
+            priceChange = ((innerData.avgPrice - outerData.avgPrice) / outerData.avgPrice) * 100;
         }
         res.json({
             data: typedRows,

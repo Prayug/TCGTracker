@@ -58,6 +58,7 @@ function mapRawToApiCard(raw, source = 'optcg_live') {
         cardText: fields.cardText || undefined,
         marketPrice: (_b = fields.marketPrice) !== null && _b !== void 0 ? _b : undefined,
         inventoryPrice: (_c = fields.inventoryPrice) !== null && _c !== void 0 ? _c : undefined,
+        cardImageId: fields.cardImageId,
         source,
     };
 }
@@ -93,6 +94,7 @@ function mapRowToApiCard(row, source = 'local_database') {
         inventoryPrice: typeof row.latestInventoryPrice === 'number'
             ? row.latestInventoryPrice
             : (_c = row.inventoryPrice) !== null && _c !== void 0 ? _c : undefined,
+        cardImageId: row.cardImageId,
         source,
     };
 }
