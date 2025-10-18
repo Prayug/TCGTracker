@@ -54,6 +54,7 @@ const cardDatabase_1 = require("../services/cardDatabase");
 const populationService_1 = require("../services/populationService");
 const cardImageBackfillService_1 = require("../services/cardImageBackfillService");
 const cardEnrichment_1 = require("../services/cardEnrichment");
+const gradedPriceService_1 = require("../services/gradedPriceService");
 const router = (0, express_1.Router)();
 const parsePrices = (value) => {
     if (!value) {
@@ -760,14 +761,14 @@ router.get('/search-pokemon', (req, res) => __awaiter(void 0, void 0, void 0, fu
             const db = (0, database_1.getDb)();
             const setIdNormalized = ((_f = card.set) === null || _f === void 0 ? void 0 : _f.id) || '';
             const cardNumber = card.number || '';
-            const cardName = card.name || '';
-            const uniqueIdentifier = (0, cardIdentifier_1.generateUniqueIdentifier)(setIdNormalized, cardNumber, cardName);
+            const resolvedCardName = card.name || '';
+            const uniqueIdentifier = (0, cardIdentifier_1.generateUniqueIdentifier)(setIdNormalized, cardNumber, resolvedCardName);
             db.run('UPDATE card_mappings SET rarity = ? WHERE uniqueIdentifier = ?', [card.rarity, uniqueIdentifier], (err) => {
                 if (err) {
-                    logger_1.logger.warn(`Failed to update rarity for ${cardName}:`, err);
+                    logger_1.logger.warn(`Failed to update rarity for ${resolvedCardName}:`, err);
                 }
                 else {
-                    logger_1.logger.info(`✅ Updated rarity for ${cardName}: ${card.rarity}`);
+                    logger_1.logger.info(`Updated rarity for ${resolvedCardName}: ${card.rarity}`);
                 }
             });
         }
@@ -824,6 +825,20 @@ router.get('/set-mappings/stats', (req, res) => __awaiter(void 0, void 0, void 0
             error: 'Internal server error',
             message: error.message
         });
+    }
+}));
+router.get('/graded-prices', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { cardId, cardName, setId, setName, cardNumber } = req.query;
+        if (!cardId || !cardName) {
+            return res.status(400).json({ error: 'cardId and cardName are required' });
+        }
+        const result = yield (0, gradedPriceService_1.getGradedPrices)(String(cardId), String(cardName), setId ? String(setId) : undefined, setName ? String(setName) : undefined, cardNumber ? String(cardNumber) : undefined);
+        res.json({ data: result });
+    }
+    catch (error) {
+        logger_1.logger.error('Graded prices lookup failed', { error: error.message });
+        res.status(500).json({ error: 'Failed to fetch graded prices' });
     }
 }));
 exports.default = router;
