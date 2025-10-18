@@ -26,6 +26,7 @@ import {
 import { getPopulationCounts } from '../services/populationService';
 import { getCardMappingImages } from '../services/cardImageBackfillService';
 import { enrichCardsWithInvestmentData } from '../services/cardEnrichment';
+import { getGradedPrices } from '../services/gradedPriceService';
 
 const router = Router();
 
@@ -834,17 +835,17 @@ router.get('/search-pokemon', async (req, res) => {
       const db = getDb();
       const setIdNormalized = card.set?.id || '';
       const cardNumber = card.number || '';
-      const cardName = card.name || '';
-      const uniqueIdentifier = generateUniqueIdentifier(setIdNormalized, cardNumber, cardName);
+      const resolvedCardName = card.name || '';
+      const uniqueIdentifier = generateUniqueIdentifier(setIdNormalized, cardNumber, resolvedCardName);
 
       db.run(
         'UPDATE card_mappings SET rarity = ? WHERE uniqueIdentifier = ?',
         [card.rarity, uniqueIdentifier],
         (err) => {
           if (err) {
-            logger.warn(`Failed to update rarity for ${cardName}:`, err);
+            logger.warn(`Failed to update rarity for ${resolvedCardName}:`, err);
           } else {
-            logger.info(`✅ Updated rarity for ${cardName}: ${card.rarity}`);
+            logger.info(`Updated rarity for ${resolvedCardName}: ${card.rarity}`);
           }
         }
       );
@@ -905,6 +906,29 @@ router.get('/set-mappings/stats', async (req, res) => {
       error: 'Internal server error',
       message: (error as Error).message
     });
+  }
+});
+
+router.get('/graded-prices', async (req, res) => {
+  try {
+    const { cardId, cardName, setId, setName, cardNumber } = req.query;
+
+    if (!cardId || !cardName) {
+      return res.status(400).json({ error: 'cardId and cardName are required' });
+    }
+
+    const result = await getGradedPrices(
+      String(cardId),
+      String(cardName),
+      setId ? String(setId) : undefined,
+      setName ? String(setName) : undefined,
+      cardNumber ? String(cardNumber) : undefined
+    );
+
+    res.json({ data: result });
+  } catch (error: any) {
+    logger.error('Graded prices lookup failed', { error: error.message });
+    res.status(500).json({ error: 'Failed to fetch graded prices' });
   }
 });
 

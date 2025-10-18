@@ -572,6 +572,76 @@ exports.migrations = [
             logger_1.logger.info('Skipping rollback of One Piece variant schema');
         }),
     },
+    {
+        id: 13,
+        name: 'rebuild_graded_prices_for_pricecharting',
+        up: (db) => __awaiter(void 0, void 0, void 0, function* () {
+            const run = (sql) => new Promise((resolve, reject) => {
+                db.run(sql, (err) => {
+                    if (err)
+                        reject(err);
+                    else
+                        resolve();
+                });
+            });
+            yield run('DROP INDEX IF EXISTS idx_graded_prices_card_grader');
+            yield run('DROP INDEX IF EXISTS idx_graded_prices_grader');
+            yield run('DROP INDEX IF EXISTS idx_graded_prices_card');
+            yield run('DROP TABLE IF EXISTS graded_prices');
+            yield run(`CREATE TABLE graded_prices (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cardId TEXT NOT NULL,
+        cardName TEXT,
+        setId TEXT,
+        setName TEXT,
+        grader TEXT NOT NULL,
+        grade TEXT NOT NULL,
+        price REAL,
+        soldListings INTEGER DEFAULT 0,
+        fetchedAt TEXT DEFAULT (datetime('now')),
+        UNIQUE(cardId, grader, grade)
+      )`);
+            yield run('CREATE INDEX IF NOT EXISTS idx_graded_prices_card ON graded_prices(cardId)');
+            yield run('CREATE INDEX IF NOT EXISTS idx_graded_prices_grader ON graded_prices(grader, grade)');
+            logger_1.logger.info('Rebuilt graded_prices table for PriceCharting slab pricing');
+        }),
+        down: () => __awaiter(void 0, void 0, void 0, function* () {
+            logger_1.logger.info('Skipping rollback of graded_prices rebuild');
+        }),
+    },
+    {
+        id: 14,
+        name: 'add_backtest_metrics_columns',
+        up: (db) => __awaiter(void 0, void 0, void 0, function* () {
+            const run = (sql) => new Promise((resolve, reject) => {
+                db.run(sql, (err) => {
+                    if (err)
+                        reject(err);
+                    else
+                        resolve();
+                });
+            });
+            yield run('ALTER TABLE backtest_runs ADD COLUMN sharpe_ratio REAL');
+            yield run('ALTER TABLE backtest_runs ADD COLUMN max_drawdown REAL');
+            yield run('ALTER TABLE backtest_runs ADD COLUMN win_rate REAL');
+            yield run('ALTER TABLE backtest_runs ADD COLUMN profit_factor REAL');
+            logger_1.logger.info('Added sharpe_ratio, max_drawdown, win_rate, profit_factor columns to backtest_runs');
+        }),
+        down: (db) => __awaiter(void 0, void 0, void 0, function* () {
+            const run = (sql) => new Promise((resolve, reject) => {
+                db.run(sql, (err) => {
+                    if (err)
+                        reject(err);
+                    else
+                        resolve();
+                });
+            });
+            yield run('ALTER TABLE backtest_runs DROP COLUMN sharpe_ratio');
+            yield run('ALTER TABLE backtest_runs DROP COLUMN max_drawdown');
+            yield run('ALTER TABLE backtest_runs DROP COLUMN win_rate');
+            yield run('ALTER TABLE backtest_runs DROP COLUMN profit_factor');
+        }),
+    },
 ];
 // Run pending migrations
 const runMigrations = (db) => __awaiter(void 0, void 0, void 0, function* () {
