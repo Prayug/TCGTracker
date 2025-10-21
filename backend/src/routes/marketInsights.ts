@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import { logger } from '../utils/logger';
-import { runPredictions, getLatestPredictions } from '../services/predictionEngine';
+import { runPredictions, getLatestPredictions, PredictionQueryFilters } from '../services/predictionEngine';
 import { runBacktest, getBacktestResults } from '../services/backtestEngine';
 import { updateActualResults, getForwardTestStatus } from '../services/forwardTestTracker';
 import { getExternalSignalsForCard } from '../services/externalSignalService';
@@ -22,12 +22,24 @@ router.get('/predictions', asyncHandler(async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit as string) || 100, 500);
   const category = req.query.category as string | undefined;
 
-  const predictions = await getLatestPredictions(limit, category);
+  const minPrice = req.query.minPrice !== undefined ? parseFloat(req.query.minPrice as string) : undefined;
+  const maxPrice = req.query.maxPrice !== undefined ? parseFloat(req.query.maxPrice as string) : undefined;
+  const minConfidence = req.query.minConfidence !== undefined ? parseFloat(req.query.minConfidence as string) : undefined;
+  const rarities = req.query.rarities
+    ? (req.query.rarities as string).split(',').map(r => r.trim()).filter(Boolean)
+    : undefined;
+
+  const predictions = await getLatestPredictions(limit, category, {
+    minPrice,
+    maxPrice,
+    minConfidence,
+    rarities,
+  });
 
   res.json({
     data: predictions,
     count: predictions.length,
-    modelVersion: '1.0.0',
+    modelVersion: '2.0.0',
   });
 }));
 

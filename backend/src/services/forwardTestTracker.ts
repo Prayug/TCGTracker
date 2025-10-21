@@ -7,16 +7,33 @@ const WINDOW_COLS: Record<number, { price: string; dir: string }> = {
   90: { price: 'actual_90d_price', dir: 'direction_correct_90d' },
 };
 
+export interface CategoryAccuracy {
+  category: string;
+  total: number;
+  hit: number;
+  missed: number;
+  partiallyCorrect: number;
+  accuracy: number | null;
+  avgError: number | null;
+}
+
 export interface ForwardTestStatus {
   totalPredictions: number;
   pending: number;
   hit: number;
   missed: number;
   partiallyCorrect: number;
+  overallAccuracy: number | null;
   byWindow: {
     _7d: { pending: number; hit: number; missed: number; accuracy: number | null };
     _30d: { pending: number; hit: number; missed: number; accuracy: number | null };
     _90d: { pending: number; hit: number; missed: number; accuracy: number | null };
+  };
+  byCategory: CategoryAccuracy[];
+  byPriceRange: {
+    under5: { total: number; hit: number; accuracy: number | null };
+    fiveToFifty: { total: number; hit: number; accuracy: number | null };
+    overFifty: { total: number; hit: number; accuracy: number | null };
   };
 }
 
@@ -187,6 +204,9 @@ export async function getForwardTestStatus(): Promise<ForwardTestStatus> {
     getCountByStatus('partially_correct'),
   ]);
 
+  const totalResolved = hit + missed + partiallyCorrect;
+  const overallAccuracy = totalResolved > 0 ? (hit + partiallyCorrect * 0.5) / totalResolved : null;
+
   const getWindowStats = async (days: number) => {
     const cols = WINDOW_COLS[days];
     if (!cols) {
@@ -236,9 +256,89 @@ export async function getForwardTestStatus(): Promise<ForwardTestStatus> {
     getWindowStats(90),
   ]);
 
+  const getCategoryStats = async (): Promise<CategoryAccuracy[]> => {
+    const categories = ['strong_buy', 'watch_dip', 'recovery', 'momentum', 'stagnant', 'avoid', 'downtrend'];
+    const results: CategoryAccuracy[] = [];
+
+    for (const cat of categories) {
+      const stats: any = await new Promise((resolve, reject) => {
+        db.get(
+          `SELECT
+            COUNT(*) as total,
+            COUNT(CASE WHEN pr.status = 'hit' THEN 1 END) as hit,
+            COUNT(CASE WHEN pr.status = 'missed' THEN 1 END) as missed,
+            COUNT(CASE WHEN pr.status = 'partially_correct' THEN 1 END) as partial,
+            AVG(pr.error_90d) as avg_error
+          FROM prediction_results pr
+          JOIN card_predictions cp ON cp.id = pr.prediction_id
+          WHERE cp.run_id = (SELECT MAX(id) FROM prediction_runs)
+          AND cp.category = ?`,
+          [cat],
+          (err, row: any) => {
+            if (err) return reject(err);
+            resolve(row || { total: 0, hit: 0, missed: 0, partial: 0, avg_error: null });
+          }
+        );
+      });
+
+      const resolved = stats.hit + stats.missed + stats.partial;
+      results.push({
+        category: cat,
+        total: stats.total,
+        hit: stats.hit,
+        missed: stats.missed,
+        partiallyCorrect: stats.partial,
+        accuracy: resolved > 0 ? (stats.hit + stats.partial * 0.5) / resolved : null,
+        avgError: stats.avg_error,
+      });
+    }
+
+    return results;
+  };
+
+  const getPriceRangeStats = async () => {
+    const getStatsForRange = (minPrice: number, maxPrice: number | null) => {
+      return new Promise<{ total: number; hit: number; accuracy: number | null }>((resolve, reject) => {
+        const priceClause = maxPrice !== null
+          ? 'AND cp.current_price >= ? AND cp.current_price < ?'
+          : 'AND cp.current_price >= ?';
+        const params = maxPrice !== null ? [minPrice, maxPrice] : [minPrice];
+
+        db.get(
+          `SELECT
+            COUNT(*) as total,
+            COUNT(CASE WHEN pr.status = 'hit' THEN 1 END) as hit
+          FROM prediction_results pr
+          JOIN card_predictions cp ON cp.id = pr.prediction_id
+          WHERE cp.run_id = (SELECT MAX(id) FROM prediction_runs)
+          ${priceClause}`,
+          params,
+          (err, row: any) => {
+            if (err) return reject(err);
+            const r = row || { total: 0, hit: 0 };
+            resolve({ total: r.total, hit: r.hit, accuracy: r.total > 0 ? r.hit / r.total : null });
+          }
+        );
+      });
+    };
+
+    const [under5, fiveToFifty, overFifty] = await Promise.all([
+      getStatsForRange(0, 5),
+      getStatsForRange(5, 50),
+      getStatsForRange(50, null),
+    ]);
+
+    return { under5, fiveToFifty, overFifty };
+  };
+
+  const [byCategory, byPriceRange] = await Promise.all([getCategoryStats(), getPriceRangeStats()]);
+
   return {
     totalPredictions,
     pending, hit, missed, partiallyCorrect,
+    overallAccuracy,
     byWindow: { _7d, _30d, _90d },
+    byCategory,
+    byPriceRange,
   };
 }

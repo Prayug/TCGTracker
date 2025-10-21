@@ -9,6 +9,12 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.DEFAULT_CARD_QUALITY_FILTER = void 0;
+exports.isRarityInvestmentWorthy = isRarityInvestmentWorthy;
+exports.hasMeaningfulPriceMovement = hasMeaningfulPriceMovement;
+exports.isCardInvestmentWorthy = isCardInvestmentWorthy;
+exports.computeLiquidityScore = computeLiquidityScore;
+exports.computeDataQualityScore = computeDataQualityScore;
 exports.computeTrendScore = computeTrendScore;
 exports.computeRecoveryScore = computeRecoveryScore;
 exports.computeDemandScore = computeDemandScore;
@@ -27,7 +33,180 @@ const database_1 = require("../db/database");
 const logger_1 = require("../utils/logger");
 const marketAnalyzer_1 = require("./marketAnalyzer");
 const externalSignalService_1 = require("./externalSignalService");
-const MODEL_VERSION = '1.0.0';
+const MODEL_VERSION = '2.0.0';
+exports.DEFAULT_CARD_QUALITY_FILTER = {
+    minPrice: 2.0,
+    maxPrice: 10000,
+    minDataPoints: 14,
+    minConfidence: 30,
+    rarities: [
+        'Rare Holo',
+        'Rare Ultra',
+        'Rare Secret',
+        'Ultra Rare',
+        'Secret Rare',
+        'Double Rare',
+        'Illustration Rare',
+        'Special Illustration Rare',
+        'Hyper Rare',
+    ],
+    excludeStagnant: true,
+};
+const RARITY_SQL_PATTERNS = {
+    'Rare Holo': '%Rare Holo%',
+    'Rare Ultra': '%Rare Ultra%',
+    'Rare Secret': '%Rare Secret%',
+    'Ultra Rare': '%Ultra Rare%',
+    'Secret Rare': '%Secret Rare%',
+    'Double Rare': '%Double Rare%',
+    'Illustration Rare': '%Illustration Rare%',
+    'Special Illustration Rare': '%Special Illustration%',
+    'Hyper Rare': '%Hyper Rare%',
+};
+function buildRarityWhereClause(column, rarities) {
+    var _a;
+    if (rarities.length === 0)
+        return { clause: '1=1', params: [] };
+    const conditions = [];
+    const params = [];
+    for (const rarity of rarities) {
+        const pattern = (_a = RARITY_SQL_PATTERNS[rarity]) !== null && _a !== void 0 ? _a : `%${rarity}%`;
+        conditions.push(`${column} LIKE ?`);
+        params.push(pattern);
+    }
+    return { clause: `(${conditions.join(' OR ')})`, params };
+}
+function isRarityInvestmentWorthy(rarity) {
+    if (!rarity)
+        return false;
+    const lower = rarity.toLowerCase().trim();
+    if (lower === 'common' || lower === 'uncommon')
+        return false;
+    const worthyPatterns = [
+        'rare holo',
+        'rare ultra',
+        'rare secret',
+        'ultra rare',
+        'secret rare',
+        'double rare',
+        'illustration rare',
+        'special illustration',
+        'hyper rare',
+        'rainbow rare',
+        'gold rare',
+    ];
+    if (worthyPatterns.some(p => lower.includes(p)))
+        return true;
+    if (lower === 'rare')
+        return false;
+    return lower.includes('vmax') || lower.includes('vstar') ||
+        (lower.includes('holo') && lower.includes('rare'));
+}
+function hasMeaningfulPriceMovement(priceHistory) {
+    if (priceHistory.length < 2)
+        return false;
+    const prices = priceHistory.map(p => { var _a, _b; return (_b = (_a = p.price) !== null && _a !== void 0 ? _a : p.marketPrice) !== null && _b !== void 0 ? _b : 0; }).filter(p => p > 0);
+    if (prices.length < 2)
+        return false;
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+    if (min <= 0)
+        return false;
+    const rangePct = ((max - min) / min) * 100;
+    return rangePct >= 5;
+}
+function isCardInvestmentWorthy(card, priceHistory, currentPrice, filter = exports.DEFAULT_CARD_QUALITY_FILTER) {
+    if (!currentPrice || currentPrice < filter.minPrice || currentPrice > filter.maxPrice) {
+        return false;
+    }
+    if (!isRarityInvestmentWorthy(card.rarity))
+        return false;
+    if (priceHistory.length < filter.minDataPoints)
+        return false;
+    if (filter.excludeStagnant && !hasMeaningfulPriceMovement(priceHistory)) {
+        return false;
+    }
+    return true;
+}
+function computeLiquidityScore(priceHistory, currentPrice, volatility) {
+    var _a;
+    const dataPointScore = Math.min(100, (priceHistory.length / 90) * 100);
+    const stabilityScore = Math.max(0, 100 - volatility.monthlyVolatility * 200);
+    const priceLevelScore = currentPrice >= 100 ? 100 :
+        currentPrice >= 50 ? 85 :
+            currentPrice >= 20 ? 70 :
+                currentPrice >= 10 ? 55 :
+                    currentPrice >= 5 ? 40 :
+                        currentPrice >= 2 ? 25 : 10;
+    const lastDate = (_a = priceHistory[priceHistory.length - 1]) === null || _a === void 0 ? void 0 : _a.date;
+    let recencyScore = 50;
+    if (lastDate) {
+        const daysSince = (Date.now() - new Date(lastDate).getTime()) / (1000 * 60 * 60 * 24);
+        if (daysSince <= 3)
+            recencyScore = 100;
+        else if (daysSince <= 7)
+            recencyScore = 85;
+        else if (daysSince <= 14)
+            recencyScore = 65;
+        else if (daysSince <= 30)
+            recencyScore = 40;
+        else
+            recencyScore = 20;
+    }
+    const score = 0.30 * dataPointScore +
+        0.25 * stabilityScore +
+        0.25 * priceLevelScore +
+        0.20 * recencyScore;
+    return Math.round(Math.max(0, Math.min(100, score)));
+}
+function computeDataQualityScore(priceHistory) {
+    var _a, _b, _c, _d, _e, _f;
+    if (priceHistory.length < 2)
+        return 0;
+    let score = 100;
+    const gaps = [];
+    for (let i = 1; i < priceHistory.length; i++) {
+        const d1 = new Date(priceHistory[i - 1].date).getTime();
+        const d2 = new Date(priceHistory[i].date).getTime();
+        gaps.push((d2 - d1) / (1000 * 60 * 60 * 24));
+    }
+    const avgGap = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+    const maxGap = Math.max(...gaps);
+    if (avgGap > 7)
+        score -= 20;
+    else if (avgGap > 4)
+        score -= 10;
+    if (maxGap > 30)
+        score -= 15;
+    else if (maxGap > 14)
+        score -= 8;
+    const prices = priceHistory.map(p => { var _a, _b; return (_b = (_a = p.price) !== null && _a !== void 0 ? _a : p.marketPrice) !== null && _b !== void 0 ? _b : 0; }).filter(p => p > 0);
+    if (prices.length >= 3) {
+        const mean = prices.reduce((a, b) => a + b, 0) / prices.length;
+        const variance = prices.reduce((a, p) => a + (p - mean) ** 2, 0) / prices.length;
+        const stdDev = Math.sqrt(variance);
+        if (stdDev > 0) {
+            const outlierCount = prices.filter(p => Math.abs(p - mean) > 3 * stdDev).length;
+            score -= Math.min(25, outlierCount * 5);
+        }
+    }
+    for (let i = 1; i < priceHistory.length - 1; i++) {
+        const prev = (_b = (_a = priceHistory[i - 1].price) !== null && _a !== void 0 ? _a : priceHistory[i - 1].marketPrice) !== null && _b !== void 0 ? _b : 0;
+        const curr = (_d = (_c = priceHistory[i].price) !== null && _c !== void 0 ? _c : priceHistory[i].marketPrice) !== null && _d !== void 0 ? _d : 0;
+        const next = (_f = (_e = priceHistory[i + 1].price) !== null && _e !== void 0 ? _e : priceHistory[i + 1].marketPrice) !== null && _f !== void 0 ? _f : 0;
+        if (prev > 0 && curr > 0 && next > 0) {
+            const spikeUp = (curr - prev) / prev;
+            const revert = (curr - next) / curr;
+            if (spikeUp > 0.5 && revert > 0.3)
+                score -= 15;
+            const spikeDown = (prev - curr) / prev;
+            const recover = (next - curr) / curr;
+            if (spikeDown > 0.5 && recover > 0.3)
+                score -= 10;
+        }
+    }
+    return Math.max(0, Math.min(100, score));
+}
 /** One mapping row per cardId — images are persisted on card_mappings by the backfill pipeline. */
 const CARD_METADATA_JOIN = `
   LEFT JOIN (
@@ -218,10 +397,14 @@ function computeExpectedReturns(scores) {
     const recoveryN = scores.recoveryScore / 100;
     const demandN = scores.demandScore / 100;
     const riskN = scores.riskScore / 100;
-    const raw30d = 0.35 * trendN +
-        0.30 * recoveryN +
-        0.25 * demandN -
-        0.10 * riskN;
+    const liquidityN = scores.liquidityScore / 100;
+    const dataQualityN = scores.dataQualityScore / 100;
+    const raw30d = 0.30 * trendN +
+        0.25 * recoveryN +
+        0.20 * demandN -
+        0.10 * riskN +
+        0.10 * liquidityN +
+        0.05 * dataQualityN;
     const expected30dReturn = (raw30d - 0.40) * 0.4;
     const expected7dReturn = expected30dReturn * 0.35;
     const expected90dReturn = expected30dReturn * 1.8;
@@ -241,26 +424,28 @@ function computePriceRanges(currentPrice, expectedReturn, volatility, days, conf
 }
 function determineCategory(scores, expected90dReturn, priceChanges, recoveryMetrics) {
     var _a;
-    if (expected90dReturn >= 0.20 && scores.riskScore < 65) {
+    const liquidityPenalty = scores.liquidityScore < 30 ? 10 : scores.liquidityScore < 50 ? 5 : 0;
+    const qualityBonus = scores.dataQualityScore > 70 ? -5 : 0;
+    if (expected90dReturn >= 0.15 && scores.riskScore < 70 && scores.liquidityScore >= 40) {
         return 'strong_buy';
     }
-    if (expected90dReturn >= 0.10 && expected90dReturn < 0.20 && scores.riskScore < 70) {
+    if (expected90dReturn >= 0.08 && expected90dReturn < 0.15 && scores.riskScore < 75 && scores.liquidityScore >= 35) {
         return 'watch_dip';
     }
-    if (recoveryMetrics.recentDrop !== null && recoveryMetrics.recentDrop <= -15 && recoveryMetrics.hasStabilized) {
+    if (recoveryMetrics.recentDrop !== null && recoveryMetrics.recentDrop <= -15 && recoveryMetrics.hasStabilized && scores.liquidityScore >= 30) {
         return 'recovery';
     }
-    if (priceChanges.change30d !== null && priceChanges.change30d >= 10) {
+    if (priceChanges.change30d !== null && priceChanges.change30d >= 8 && scores.liquidityScore >= 35) {
         return 'momentum';
     }
-    if (scores.riskScore > 75) {
+    if (scores.riskScore > 75 + qualityBonus) {
         return 'avoid';
     }
     if (priceChanges.change90d !== null && priceChanges.change90d <= -15) {
         return 'downtrend';
     }
     const changeMagnitude = Math.abs((_a = priceChanges.change90d) !== null && _a !== void 0 ? _a : 0);
-    if (changeMagnitude < 5) {
+    if (changeMagnitude < 3 && scores.liquidityScore < 50) {
         return 'stagnant';
     }
     return expected90dReturn > 0 ? 'watch_dip' : 'stagnant';
@@ -371,37 +556,63 @@ function fetchCardPriceHistory(uniqueIdentifier) {
         });
     });
 }
-function fetchAllCards() {
+function fetchAllCards(filter = exports.DEFAULT_CARD_QUALITY_FILTER) {
     const db = (0, database_1.getDb)();
+    const { clause: rarityClause, params: rarityParams } = buildRarityWhereClause('cm.rarity', filter.rarities);
     return new Promise((resolve, reject) => {
         db.all(`SELECT cm.cardId, cm.cardName, cm.setId, cm.setName, cm.cardNumber, cm.rarity,
-              cm.uniqueIdentifier
+              cm.uniqueIdentifier, ph_stats.latest_price, ph_stats.data_point_count
        FROM card_mappings cm
+       INNER JOIN (
+         SELECT
+           ph.uniqueIdentifier,
+           COUNT(DISTINCT ph.date) AS data_point_count,
+           (
+             SELECT COALESCE(ph2.marketPrice, ph2.price)
+             FROM price_history ph2
+             WHERE ph2.uniqueIdentifier = ph.uniqueIdentifier
+               AND ph2.source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
+             ORDER BY ph2.date DESC
+             LIMIT 1
+           ) AS latest_price
+         FROM price_history ph
+         WHERE ph.source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
+         GROUP BY ph.uniqueIdentifier
+         HAVING data_point_count >= ?
+           AND latest_price >= ?
+           AND latest_price <= ?
+       ) ph_stats ON ph_stats.uniqueIdentifier = cm.uniqueIdentifier
        WHERE cm.cardName IS NOT NULL AND TRIM(cm.cardName) <> ''
-       ORDER BY cm.cardName ASC`, [], (err, rows) => {
+         AND ${rarityClause}
+       ORDER BY cm.cardName ASC`, [filter.minDataPoints, filter.minPrice, filter.maxPrice, ...rarityParams], (err, rows) => {
             if (err)
                 return reject(err);
             resolve(rows || []);
         });
     });
 }
-function predictSingleCard(card, allCardReturns) {
-    return __awaiter(this, void 0, void 0, function* () {
+function predictSingleCard(card_1, allCardReturns_1) {
+    return __awaiter(this, arguments, void 0, function* (card, allCardReturns, filter = exports.DEFAULT_CARD_QUALITY_FILTER) {
         try {
             const uid = card.uniqueIdentifier;
             if (!uid)
                 return null;
             const priceHistory = yield fetchCardPriceHistory(uid);
-            if (priceHistory.length < 7)
+            if (priceHistory.length < filter.minDataPoints)
                 return null;
             const currentPrice = (0, marketAnalyzer_1.getLatestPrice)(priceHistory);
             if (!currentPrice || currentPrice <= 0)
                 return null;
+            if (!isCardInvestmentWorthy(card, priceHistory, currentPrice, filter)) {
+                return null;
+            }
             const movingAverages = (0, marketAnalyzer_1.computeMovingAverages)(priceHistory);
             const priceChanges = (0, marketAnalyzer_1.computePriceChanges)(priceHistory);
             const volatility = (0, marketAnalyzer_1.computeVolatility)(priceHistory);
             const supportResistance = (0, marketAnalyzer_1.findSupportResistance)(priceHistory);
             const recoveryMetrics = (0, marketAnalyzer_1.computeRecoveryMetrics)(priceHistory);
+            const liquidityScore = computeLiquidityScore(priceHistory, currentPrice, volatility);
+            const dataQualityScore = computeDataQualityScore(priceHistory);
             const externalSignals = yield (0, externalSignalService_1.searchExternalSignals)(card.cardName, card.setName);
             const externalSignalScore = computeExternalSignalScore(externalSignals);
             const trendScore = computeTrendScore(priceChanges, movingAverages, currentPrice);
@@ -414,16 +625,23 @@ function predictSingleCard(card, allCardReturns) {
                 demandScore,
                 riskScore,
                 externalSignalScore,
+                liquidityScore,
+                dataQualityScore,
             };
             const expectedReturns = computeExpectedReturns(scores);
             const baseConfidence = Math.max(20, Math.min(95, 50
                 + (trendScore > 60 ? 10 : trendScore > 40 ? 5 : 0)
                 + (priceHistory.length > 90 ? 15 : priceHistory.length > 30 ? 8 : priceHistory.length > 14 ? 3 : 0)
                 + (demandScore > 60 ? 10 : 0)
+                + (liquidityScore > 60 ? 8 : liquidityScore > 40 ? 4 : 0)
+                + (dataQualityScore > 70 ? 5 : dataQualityScore > 50 ? 2 : 0)
                 - (riskScore > 70 ? 10 : riskScore > 50 ? 5 : 0)
-                - (priceHistory.length < 14 ? 15 : priceHistory.length < 30 ? 5 : 0)));
+                - (priceHistory.length < 14 ? 15 : priceHistory.length < 30 ? 5 : 0)
+                - (dataQualityScore < 40 ? 10 : dataQualityScore < 60 ? 5 : 0)));
             const volatilityAdjust = volatility.monthlyVolatility;
-            const confidenceScore = Math.max(10, Math.min(95, Math.round(baseConfidence * (1 - volatilityAdjust * 0.5))));
+            let confidenceScore = Math.max(10, Math.min(95, Math.round(baseConfidence * (1 - volatilityAdjust * 0.5))));
+            if (confidenceScore < filter.minConfidence)
+                return null;
             const category = determineCategory(scores, expectedReturns.expected90dReturn, priceChanges, recoveryMetrics);
             const predicted7d = computePriceRanges(currentPrice, expectedReturns.expected7dReturn, volatility.dailyVolatility, 7, confidenceScore);
             const predicted30d = computePriceRanges(currentPrice, expectedReturns.expected30dReturn, volatility.dailyVolatility, 30, confidenceScore);
@@ -520,7 +738,7 @@ function runPredictions() {
     });
 }
 function getLatestPredictions() {
-    return __awaiter(this, arguments, void 0, function* (limit = 100, category) {
+    return __awaiter(this, arguments, void 0, function* (limit = 100, category, filters) {
         const db = (0, database_1.getDb)();
         let sql = `
     SELECT cp.*, cm.cardName, cm.setName, cm.setId, cm.cardNumber, cm.rarity,
@@ -533,6 +751,23 @@ function getLatestPredictions() {
         if (category) {
             sql += ' AND cp.category = ?';
             params.push(category);
+        }
+        if ((filters === null || filters === void 0 ? void 0 : filters.minPrice) !== undefined) {
+            sql += ' AND cp.current_price >= ?';
+            params.push(filters.minPrice);
+        }
+        if ((filters === null || filters === void 0 ? void 0 : filters.maxPrice) !== undefined) {
+            sql += ' AND cp.current_price <= ?';
+            params.push(filters.maxPrice);
+        }
+        if ((filters === null || filters === void 0 ? void 0 : filters.minConfidence) !== undefined) {
+            sql += ' AND cp.confidence_score >= ?';
+            params.push(filters.minConfidence);
+        }
+        if ((filters === null || filters === void 0 ? void 0 : filters.rarities) && filters.rarities.length > 0) {
+            const { clause, params: rarityParams } = buildRarityWhereClause('cm.rarity', filters.rarities);
+            sql += ` AND ${clause}`;
+            params.push(...rarityParams);
         }
         sql += ' ORDER BY cp.expected_90d_return DESC LIMIT ?';
         params.push(limit);
