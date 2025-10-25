@@ -57,7 +57,7 @@ function fetchFuturePrice(uniqueIdentifier, startDate, daysAhead) {
     });
 }
 function runBacktest(backtestDate_1) {
-    return __awaiter(this, arguments, void 0, function* (backtestDate, windowDays = 90, cardIdFilter) {
+    return __awaiter(this, arguments, void 0, function* (backtestDate, windowDays = 90, cardIdFilter, filter = predictionEngine_1.DEFAULT_CARD_QUALITY_FILTER) {
         const db = (0, database_1.getDb)();
         let cards = yield new Promise((resolve, reject) => {
             let sql = `SELECT cm.cardId, cm.cardName, cm.setId, cm.setName, cm.cardNumber, cm.rarity, cm.uniqueIdentifier
@@ -79,21 +79,30 @@ function runBacktest(backtestDate_1) {
         let totalDirectionalTests = 0;
         let totalMape = 0;
         let totalMapeCount = 0;
+        const returns = [];
         for (const card of cards) {
             try {
                 const uid = card.uniqueIdentifier;
                 if (!uid)
                     continue;
                 const priceHistory = yield fetchPriceHistoryUpToDate(uid, backtestDate);
-                if (priceHistory.length < 14)
+                if (priceHistory.length < filter.minDataPoints)
                     continue;
                 const currentPrice = (0, marketAnalyzer_1.getLatestPrice)(priceHistory);
                 if (!currentPrice || currentPrice <= 0)
+                    continue;
+                if (currentPrice < filter.minPrice || currentPrice > filter.maxPrice)
+                    continue;
+                if (!(0, predictionEngine_1.isRarityInvestmentWorthy)(card.rarity))
+                    continue;
+                if (filter.excludeStagnant && !(0, predictionEngine_1.hasMeaningfulPriceMovement)(priceHistory))
                     continue;
                 const movingAverages = (0, marketAnalyzer_1.computeMovingAverages)(priceHistory);
                 const priceChanges = (0, marketAnalyzer_1.computePriceChanges)(priceHistory);
                 const volatility = (0, marketAnalyzer_1.computeVolatility)(priceHistory);
                 const recoveryMetrics = (0, marketAnalyzer_1.computeRecoveryMetrics)(priceHistory);
+                const liquidityScore = (0, predictionEngine_1.computeLiquidityScore)(priceHistory, currentPrice, volatility);
+                const dataQualityScore = (0, predictionEngine_1.computeDataQualityScore)(priceHistory);
                 const trendScore = (0, predictionEngine_1.computeTrendScore)(priceChanges, movingAverages, currentPrice);
                 const recoveryScore = (0, predictionEngine_1.computeRecoveryScore)(recoveryMetrics, priceChanges);
                 const demandScore = (0, predictionEngine_1.computeDemandScore)(card.rarity, card.cardNumber);
@@ -101,6 +110,8 @@ function runBacktest(backtestDate_1) {
                 const scores = {
                     trendScore, recoveryScore, demandScore, riskScore,
                     externalSignalScore: 0,
+                    liquidityScore,
+                    dataQualityScore,
                 };
                 const expectedReturns = (0, predictionEngine_1.computeExpectedReturns)(scores);
                 const futurePrice = yield fetchFuturePrice(uid, backtestDate, windowDays);
@@ -120,16 +131,21 @@ function runBacktest(backtestDate_1) {
                     error90d = Math.abs(expectedReturns.expected90dReturn - actual90dReturn);
                     totalMape += Math.abs(error90d);
                     totalMapeCount++;
+                    returns.push(actual90dReturn);
                 }
                 const category = (0, predictionEngine_1.determineCategory)(scores, expectedReturns.expected90dReturn, priceChanges, recoveryMetrics);
                 cardResults.push({
                     cardId: card.cardId,
                     cardName: card.cardName,
+                    currentPrice,
                     predicted90dReturn: expectedReturns.expected90dReturn,
                     actual90dReturn,
                     error90d,
                     directionCorrect,
                     category,
+                    liquidityScore,
+                    dataQualityScore,
+                    riskScore,
                 });
             }
             catch (err) {
@@ -159,6 +175,32 @@ function runBacktest(backtestDate_1) {
         const avoidAvgReturn = avoidCards.length > 0
             ? avoidCards.reduce((s, r) => { var _a; return s + ((_a = r.actual90dReturn) !== null && _a !== void 0 ? _a : 0); }, 0) / avoidCards.length
             : null;
+        const winRate = returns.length > 0 ? returns.filter(r => r > 0).length / returns.length : null;
+        const gains = returns.filter(r => r > 0);
+        const losses = returns.filter(r => r < 0).map(r => Math.abs(r));
+        const avgGain = gains.length > 0 ? gains.reduce((a, b) => a + b, 0) / gains.length : 0;
+        const avgLoss = losses.length > 0 ? losses.reduce((a, b) => a + b, 0) / losses.length : 0;
+        const profitFactor = avgLoss > 0 ? avgGain / avgLoss : null;
+        let sharpeRatio = null;
+        let maxDrawdown = null;
+        if (returns.length > 1) {
+            const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+            const variance = returns.reduce((a, r) => a + (r - mean) ** 2, 0) / returns.length;
+            const stdDev = Math.sqrt(variance);
+            sharpeRatio = stdDev > 0 ? (mean / stdDev) * Math.sqrt(252) : null;
+            let peak = 0;
+            let maxDd = 0;
+            let cumulative = 0;
+            for (const r of returns) {
+                cumulative += r;
+                if (cumulative > peak)
+                    peak = cumulative;
+                const drawdown = peak - cumulative;
+                if (drawdown > maxDd)
+                    maxDd = drawdown;
+            }
+            maxDrawdown = maxDd;
+        }
         const categories = ['strong_buy', 'watch_dip', 'recovery', 'momentum', 'stagnant', 'avoid', 'downtrend'];
         const categoryPerformance = categories.map(cat => {
             const catCards = cardResults.filter(r => r.category === cat && r.actual90dReturn !== null);
@@ -179,6 +221,10 @@ function runBacktest(backtestDate_1) {
             marketAvgReturn,
             strongBuyFalsePositiveRate,
             avoidAvgReturn,
+            sharpeRatio,
+            maxDrawdown,
+            winRate,
+            profitFactor,
             categoryPerformance,
             cardResults,
         };
@@ -193,8 +239,9 @@ function saveBacktestResult(result) {
             db.run(`INSERT INTO backtest_runs
        (backtest_date, window_days, cards_tested, directional_accuracy, mape,
         top10_avg_return, market_avg_return, strong_buy_false_positive_rate,
-        avoid_avg_return, category_performance)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+        avoid_avg_return, sharpe_ratio, max_drawdown, win_rate, profit_factor,
+        category_performance)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
                 result.backtestDate,
                 result.windowDays,
                 result.cardsTested,
@@ -204,6 +251,10 @@ function saveBacktestResult(result) {
                 result.marketAvgReturn,
                 result.strongBuyFalsePositiveRate,
                 result.avoidAvgReturn,
+                result.sharpeRatio,
+                result.maxDrawdown,
+                result.winRate,
+                result.profitFactor,
                 JSON.stringify(result.categoryPerformance),
             ], function (err) {
                 if (err)
