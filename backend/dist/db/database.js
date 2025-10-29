@@ -21,21 +21,8 @@ const getDb = () => {
 exports.getDb = getDb;
 const initializeDatabase = () => {
     const db = (0, exports.getDb)();
-    // Drop existing tables if they exist (for development - fresh start)
-    const dropTables = [
-        'DROP TABLE IF EXISTS price_history',
-        'DROP TABLE IF EXISTS rolling_averages',
-        'DROP TABLE IF EXISTS price_alerts',
-        'DROP TABLE IF EXISTS price_snapshots',
-        'DROP TABLE IF EXISTS card_mappings'
-    ];
-    dropTables.forEach(sql => {
-        db.run(sql, (err) => {
-            if (err) {
-                console.error('Error dropping table:', err);
-            }
-        });
-    });
+    // NOTE: No longer dropping tables to preserve collected data
+    // Tables will be created only if they don't exist
     // Card mappings table for proper identification
     const createCardMappingsTable = `
     CREATE TABLE IF NOT EXISTS card_mappings (
@@ -53,7 +40,7 @@ const initializeDatabase = () => {
       updatedAt TEXT DEFAULT (datetime('now'))
     )
   `;
-    // Enhanced price history table
+    // TCGCSV price history table (ONLY SOURCE OF DATA)
     const createPriceHistoryTable = `
     CREATE TABLE IF NOT EXISTS price_history (
       productId INTEGER,
@@ -69,23 +56,6 @@ const initializeDatabase = () => {
       volume INTEGER,
       uniqueIdentifier TEXT,
       PRIMARY KEY (productId, date, subTypeName, source)
-    )
-  `;
-    // New table for Pokemon TCG API rolling averages
-    const createRollingAveragesTable = `
-    CREATE TABLE IF NOT EXISTS rolling_averages (
-      cardId TEXT,
-      date TEXT,
-      avg1 REAL,
-      avg7 REAL,
-      avg30 REAL,
-      lowPrice REAL,
-      trendPrice REAL,
-      marketPrice REAL,
-      source TEXT DEFAULT 'pokemontcg',
-      condition TEXT DEFAULT 'normal',
-      uniqueIdentifier TEXT,
-      PRIMARY KEY (cardId, date, condition, source)
     )
   `;
     // Price alerts table
@@ -119,7 +89,6 @@ const initializeDatabase = () => {
     const tables = [
         createCardMappingsTable,
         createPriceHistoryTable,
-        createRollingAveragesTable,
         createPriceAlertsTable,
         createSnapshotsTable
     ];
@@ -144,16 +113,13 @@ const initializeDatabase = () => {
         });
     };
     // Start creating tables
-    setTimeout(createNext, 100); // Small delay to ensure drops complete
+    createNext(); // No delay needed since we're not dropping tables
     function createIndexes() {
         // Create indexes for better query performance
         const indexes = [
             'CREATE INDEX IF NOT EXISTS idx_price_history_date ON price_history(date)',
             'CREATE INDEX IF NOT EXISTS idx_price_history_product ON price_history(productId)',
             'CREATE INDEX IF NOT EXISTS idx_price_history_identifier ON price_history(uniqueIdentifier)',
-            'CREATE INDEX IF NOT EXISTS idx_rolling_averages_card ON rolling_averages(cardId)',
-            'CREATE INDEX IF NOT EXISTS idx_rolling_averages_date ON rolling_averages(date)',
-            'CREATE INDEX IF NOT EXISTS idx_rolling_averages_identifier ON rolling_averages(uniqueIdentifier)',
             'CREATE INDEX IF NOT EXISTS idx_price_alerts_active ON price_alerts(isActive)',
             'CREATE INDEX IF NOT EXISTS idx_card_mappings_identifier ON card_mappings(uniqueIdentifier)',
             'CREATE INDEX IF NOT EXISTS idx_card_mappings_card_set ON card_mappings(cardName, setId, cardNumber)'

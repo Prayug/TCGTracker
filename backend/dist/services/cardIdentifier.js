@@ -9,7 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateRollingAveragesWithIdentifier = exports.updatePriceHistoryWithIdentifier = exports.getCardRollingAverages = exports.getCardPriceHistory = exports.findCardByDetails = exports.findCardByIdentifier = exports.storeCardMapping = exports.generateUniqueIdentifier = void 0;
+exports.updateRollingAveragesWithIdentifier = exports.updatePriceHistoryWithIdentifier = exports.getCardPriceHistory = exports.findCardByDetails = exports.findCardByIdentifier = exports.storeCardMapping = exports.generateUniqueIdentifier = void 0;
 const database_1 = require("../db/database");
 /**
  * Generates a unique identifier for a card based on its properties
@@ -89,13 +89,75 @@ exports.findCardByIdentifier = findCardByIdentifier;
 /**
  * Finds card mapping by card name, set, and optional card number
  */
-const findCardByDetails = (cardName, setId, cardNumber) => __awaiter(void 0, void 0, void 0, function* () {
-    const uniqueIdentifier = (0, exports.generateUniqueIdentifier)(setId, cardNumber, cardName);
-    return (0, exports.findCardByIdentifier)(uniqueIdentifier);
+const findCardByDetails = (cardName, setId, cardNumber, rarity, productId) => __awaiter(void 0, void 0, void 0, function* () {
+    const db = (0, database_1.getDb)();
+    return new Promise((resolve, reject) => {
+        // Priority 1: Match by tcgplayerProductId if available
+        if (productId) {
+            const sql = 'SELECT * FROM card_mappings WHERE tcgplayerProductId = ? LIMIT 1';
+            db.get(sql, [productId], (err, row) => {
+                if (err)
+                    return reject(err);
+                if (row)
+                    return resolve(row);
+                // If not found, continue to other checks
+                findWithOtherDetails();
+            });
+        }
+        else {
+            findWithOtherDetails();
+        }
+        function findWithOtherDetails() {
+            const isPromo = (rarity === 'Promo' || setId.toLowerCase().includes('promo'));
+            let sql = 'SELECT * FROM card_mappings';
+            const params = [];
+            const conditions = [];
+            // Card Name is always required
+            conditions.push('cardName = ?');
+            params.push(cardName);
+            // Set matching logic
+            if (isPromo) {
+                // For promos, be more lenient with the set name
+                conditions.push("setName LIKE '%Promo%'");
+            }
+            else {
+                // For standard sets, be stricter
+                conditions.push('(setId = ? OR setName LIKE ?)');
+                params.push(setId, `%${setId}%`);
+            }
+            // Number matching logic
+            if (cardNumber) {
+                // Normalize both numbers by removing non-alphanumeric chars for a better match
+                const normalizedCardNumber = cardNumber.replace(/[^a-zA-Z0-9]/g, '');
+                conditions.push("(REPLACE(LOWER(cardNumber), '-', '') = ? OR REPLACE(LOWER(cardNumber), ' ', '') = ?)");
+                params.push(normalizedCardNumber.toLowerCase(), normalizedCardNumber.toLowerCase());
+            }
+            // Rarity matching
+            if (rarity) {
+                conditions.push('rarity = ?');
+                params.push(rarity);
+            }
+            sql += ' WHERE ' + conditions.join(' AND ');
+            sql += ' ORDER BY length(cardNumber) ASC, createdAt DESC LIMIT 1';
+            db.get(sql, params, (err, row) => {
+                if (err) {
+                    reject(err);
+                }
+                else if (row) {
+                    resolve(row);
+                }
+                else {
+                    // If no match, try generating a unique identifier as a fallback
+                    const uniqueIdentifier = (0, exports.generateUniqueIdentifier)(setId, cardNumber, cardName);
+                    (0, exports.findCardByIdentifier)(uniqueIdentifier).then(resolve).catch(reject);
+                }
+            });
+        }
+    });
 });
 exports.findCardByDetails = findCardByDetails;
 /**
- * Gets all price history for a specific card using its unique identifier
+ * Gets all TCGCSV price history for a specific card using its unique identifier
  */
 const getCardPriceHistory = (uniqueIdentifier) => __awaiter(void 0, void 0, void 0, function* () {
     const db = (0, database_1.getDb)();
@@ -103,6 +165,7 @@ const getCardPriceHistory = (uniqueIdentifier) => __awaiter(void 0, void 0, void
         const sql = `
       SELECT * FROM price_history 
       WHERE uniqueIdentifier = ? 
+      AND source = 'tcgcsv'
       ORDER BY date ASC
     `;
         db.all(sql, [uniqueIdentifier], (err, rows) => {
@@ -116,28 +179,6 @@ const getCardPriceHistory = (uniqueIdentifier) => __awaiter(void 0, void 0, void
     });
 });
 exports.getCardPriceHistory = getCardPriceHistory;
-/**
- * Gets rolling averages for a specific card using its unique identifier
- */
-const getCardRollingAverages = (uniqueIdentifier) => __awaiter(void 0, void 0, void 0, function* () {
-    const db = (0, database_1.getDb)();
-    return new Promise((resolve, reject) => {
-        const sql = `
-      SELECT * FROM rolling_averages 
-      WHERE uniqueIdentifier = ? 
-      ORDER BY date ASC
-    `;
-        db.all(sql, [uniqueIdentifier], (err, rows) => {
-            if (err) {
-                reject(err);
-            }
-            else {
-                resolve(rows || []);
-            }
-        });
-    });
-});
-exports.getCardRollingAverages = getCardRollingAverages;
 /**
  * Updates price history with unique identifier
  */

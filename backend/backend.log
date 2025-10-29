@@ -1,0 +1,456 @@
+
+> backend@1.0.0 start
+> node dist/index.js
+
+Initializing database...
+🚀 TCGTracker Backend server running on http://localhost:3001
+📈 Price data updates scheduled daily at 2:00 AM EST
+🚨 Price alerts checked every 30 minutes
+📊 API documentation available at http://localhost:3001/api/status
+Database table 1 created successfully.
+Database table 2 created successfully.
+Database table 3 created successfully.
+Database table 4 created successfully.
+All database tables created successfully.
+Database index 1 created successfully.
+Database index 4 created successfully.
+Database index 5 created successfully.
+Database index 3 created successfully.
+Database index 6 created successfully.
+Database index 2 created successfully.
+Running initial price data update...
+Starting TCGCSV price data update...
+Fetching TCGCSV data...
+Found 210 Pokemon groups/sets
+Processing group: ME02: Phantasmal Flames (24448)
+Successfully processed 16 price points for ME02: Phantasmal Flames.
+Processing group: ME: Mega Evolution Promo (24451)
+Successfully processed 17 price points for ME: Mega Evolution Promo.
+Processing group: ME01: Mega Evolution (24380)
+Successfully processed 347 price points for ME01: Mega Evolution.
+Processing group: MEE: Mega Evolution Energies (24461)
+Successfully processed 9 price points for MEE: Mega Evolution Energies.
+Processing group: SV: Black Bolt (24325)
+Successfully processed 436 price points for SV: Black Bolt.
+Processing group: SV: White Flare (24326)
+Successfully processed 419 price points for SV: White Flare.
+Processing group: SV10: Destined Rivals (24269)
+Successfully processed 446 price points for SV10: Destined Rivals.
+Processing group: SV09: Journey Together (24073)
+Successfully processed 368 price points for SV09: Journey Together.
+Processing group: McDonald's Promos 2024 (24163)
+Successfully processed 16 price points for McDonald's Promos 2024.
+Processing group: SV: Prismatic Evolutions (23821)
+Successfully processed 495 price points for SV: Prismatic Evolutions.
+Processing group: SV08: Surging Sparks (23651)
+Successfully processed 451 price points for SV08: Surging Sparks.
+Processing group: SV07: Stellar Crown (23537)
+Successfully processed 335 price points for SV07: Stellar Crown.
+Processing group: Trick or Trade BOOster Bundle 2024 (23561)
+Successfully processed 35 price points for Trick or Trade BOOster Bundle 2024.
+Processing group: SV: Shrouded Fable (23529)
+Successfully processed 189 price points for SV: Shrouded Fable.
+Running initial price alert check...
+Checking price alerts...
+No active alerts to check
+Processing group: Battle Academy 2024 (23520)
+Successfully processed 140 price points for Battle Academy 2024.
+Processing group: SV06: Twilight Masquerade (23473)
+Successfully processed 408 price points for SV06: Twilight Masquerade.
+Processing group: SV05: Temporal Forces (23381)
+Successfully processed 395 price points for SV05: Temporal Forces.
+Processing group: SV: Paldean Fates (23353)
+Successfully processed 370 price points for SV: Paldean Fates.
+Processing group: Trading Card Game Classic (23323)
+Successfully processed 103 price points for Trading Card Game Classic.
+Processing group: SV04: Paradox Rift (23286)
+Successfully processed 467 price points for SV04: Paradox Rift.
+Processing group: My First Battle (23330)
+Successfully processed 49 price points for My First Battle.
+Processing group: SV: Scarlet & Violet 151 (23237)
+Successfully processed 397 price points for SV: Scarlet & Violet 151.
+Processing group: McDonald's Promos 2023 (23306)
+Successfully processed 16 price points for McDonald's Promos 2023.
+Processing group: Trick or Trade BOOster Bundle 2023 (23266)
+Successfully processed 33 price points for Trick or Trade BOOster Bundle 2023.
+Processing group: SV03: Obsidian Flames (23228)
+Successfully processed 437 price points for SV03: Obsidian Flames.
+Processing group: SV02: Paldea Evolved (23120)
+Successfully processed 490 price points for SV02: Paldea Evolved.
+Processing group: SV: Scarlet & Violet Promo Cards (22872)
+Successfully processed 275 price points for SV: Scarlet & Violet Promo Cards.
+Processing group: SV01: Scarlet & Violet Base Set (22873)
+Successfully processed 484 price points for SV01: Scarlet & Violet Base Set.
+Processing group: SVE: Scarlet & Violet Energies (24382)
+Successfully processed 57 price points for SVE: Scarlet & Violet Energies.
+Processing group: Crown Zenith (17688)
+Successfully processed 334 price points for Crown Zenith.
+Processing group: Crown Zenith: Galarian Gallery (17689)
+Successfully processed 70 price points for Crown Zenith: Galarian Gallery.
+Processing group: Prize Pack Series Cards (22880)
+Successfully processed 797 price points for Prize Pack Series Cards.
+Processing group: SWSH12: Silver Tempest (3170)
+Successfully processed 391 price points for SWSH12: Silver Tempest.
+Processing group: SWSH12: Silver Tempest Trainer Gallery (17674)
+Successfully processed 30 price points for SWSH12: Silver Tempest Trainer Gallery.
+Processing group: SWSH11: Lost Origin (3118)
+Successfully processed 419 price points for SWSH11: Lost Origin.
+Processing group: SWSH11: Lost Origin Trainer Gallery (3172)
+Successfully processed 30 price points for SWSH11: Lost Origin Trainer Gallery.
+Processing group: Trick or Trade BOOster Bundle (3179)
+Successfully processed 32 price points for Trick or Trade BOOster Bundle.
+Processing group: McDonald's Promos 2022 (3150)
+Successfully processed 16 price points for McDonald's Promos 2022.
+Processing group: Pokemon GO (3064)
+Successfully processed 200 price points for Pokemon GO.
+Processing group: SWSH10: Astral Radiance (3040)
+Successfully processed 377 price points for SWSH10: Astral Radiance.
+Processing group: SWSH10: Astral Radiance Trainer Gallery (3068)
+Successfully processed 30 price points for SWSH10: Astral Radiance Trainer Gallery.
+Processing group: Battle Academy 2022 (3051)
+Successfully processed 140 price points for Battle Academy 2022.
+Processing group: SWSH09: Brilliant Stars (2948)
+Successfully processed 363 price points for SWSH09: Brilliant Stars.
+Processing group: SWSH09: Brilliant Stars Trainer Gallery (3020)
+Successfully processed 30 price points for SWSH09: Brilliant Stars Trainer Gallery.
+Processing group: SWSH08: Fusion Strike (2906)
+Successfully processed 546 price points for SWSH08: Fusion Strike.
+Processing group: Celebrations (2867)
+Successfully processed 71 price points for Celebrations.
+Processing group: Celebrations: Classic Collection (2931)
+Successfully processed 25 price points for Celebrations: Classic Collection.
+Processing group: SWSH07: Evolving Skies (2848)
+Successfully processed 415 price points for SWSH07: Evolving Skies.
+Processing group: SWSH06: Chilling Reign (2807)
+Successfully processed 409 price points for SWSH06: Chilling Reign.
+Processing group: SWSH05: Battle Styles (2765)
+Successfully processed 349 price points for SWSH05: Battle Styles.
+Processing group: First Partner Pack (2776)
+Successfully processed 33 price points for First Partner Pack.
+Processing group: Shining Fates (2754)
+Successfully processed 162 price points for Shining Fates.
+Processing group: Shining Fates: Shiny Vault (2781)
+Successfully processed 122 price points for Shining Fates: Shiny Vault.
+Processing group: McDonald's 25th Anniversary Promos (2782)
+Successfully processed 51 price points for McDonald's 25th Anniversary Promos.
+Processing group: SWSH04: Vivid Voltage (2701)
+Successfully processed 385 price points for SWSH04: Vivid Voltage.
+Processing group: Champion's Path (2685)
+Successfully processed 164 price points for Champion's Path.
+Processing group: SWSH03: Darkness Ablaze (2675)
+Successfully processed 391 price points for SWSH03: Darkness Ablaze.
+Processing group: Battle Academy (2686)
+Successfully processed 140 price points for Battle Academy.
+Processing group: SWSH02: Rebel Clash (2626)
+Successfully processed 397 price points for SWSH02: Rebel Clash.
+Processing group: SWSH01: Sword & Shield Base Set (2585)
+Successfully processed 452 price points for SWSH01: Sword & Shield Base Set.
+Processing group: SWSH: Sword & Shield Promo Cards (2545)
+Successfully processed 337 price points for SWSH: Sword & Shield Promo Cards.
+Processing group: SM - Cosmic Eclipse (2534)
+Successfully processed 486 price points for SM - Cosmic Eclipse.
+Processing group: McDonald's Promos 2019 (2555)
+Successfully processed 12 price points for McDonald's Promos 2019.
+Processing group: Hidden Fates (2480)
+Successfully processed 152 price points for Hidden Fates.
+Processing group: Hidden Fates: Shiny Vault (2594)
+Successfully processed 94 price points for Hidden Fates: Shiny Vault.
+Processing group: SM - Unified Minds (2464)
+Successfully processed 488 price points for SM - Unified Minds.
+Processing group: SM - Unbroken Bonds (2420)
+Successfully processed 442 price points for SM - Unbroken Bonds.
+Processing group: Detective Pikachu (2409)
+Successfully processed 36 price points for Detective Pikachu.
+Processing group: SM - Team Up (2377)
+Successfully processed 387 price points for SM - Team Up.
+Processing group: SM - Lost Thunder (2328)
+Successfully processed 432 price points for SM - Lost Thunder.
+Processing group: McDonald's Promos 2018 (2364)
+Successfully processed 12 price points for McDonald's Promos 2018.
+Processing group: Miscellaneous Cards & Products (2374)
+Successfully processed 1165 price points for Miscellaneous Cards & Products.
+Processing group: Dragon Majesty (2295)
+Successfully processed 144 price points for Dragon Majesty.
+Processing group: SM - Celestial Storm (2278)
+Successfully processed 346 price points for SM - Celestial Storm.
+Processing group: World Championship Decks (2282)
+Successfully processed 1829 price points for World Championship Decks.
+Processing group: SM - Forbidden Light (2209)
+Successfully processed 271 price points for SM - Forbidden Light.
+Processing group: SM Trainer Kit: Alolan Sandslash & Alolan Ninetales (2208)
+Successfully processed 62 price points for SM Trainer Kit: Alolan Sandslash & Alolan Ninetales.
+Processing group: SM - Ultra Prism (2178)
+Successfully processed 322 price points for SM - Ultra Prism.
+Processing group: McDonald's Promos 2017 (2148)
+Successfully processed 12 price points for McDonald's Promos 2017.
+Processing group: SM - Crimson Invasion (2071)
+Successfully processed 243 price points for SM - Crimson Invasion.
+Processing group: Shining Legends (2054)
+Successfully processed 161 price points for Shining Legends.
+Processing group: SM - Burning Shadows (1957)
+Successfully processed 326 price points for SM - Burning Shadows.
+Processing group: Alternate Art Promos (1938)
+Successfully processed 59 price points for Alternate Art Promos.
+Processing group: SM - Guardians Rising (1919)
+Successfully processed 336 price points for SM - Guardians Rising.
+Processing group: Ash vs Team Rocket Deck Kit (JP Exclusive) (23095)
+Successfully processed 19 price points for Ash vs Team Rocket Deck Kit (JP Exclusive).
+Processing group: SM Trainer Kit: Lycanroc & Alolan Raichu (2069)
+Successfully processed 61 price points for SM Trainer Kit: Lycanroc & Alolan Raichu.
+Processing group: SM Base Set (1863)
+Successfully processed 338 price points for SM Base Set.
+Processing group: SM Promos (1861)
+Successfully processed 304 price points for SM Promos.
+Processing group: XY - Evolutions (1842)
+Successfully processed 242 price points for XY - Evolutions.
+Processing group: Deck Exclusives (1840)
+Successfully processed 478 price points for Deck Exclusives.
+Processing group: McDonald's Promos 2016 (3087)
+Successfully processed 6 price points for McDonald's Promos 2016.
+Processing group: XY - Steam Siege (1815)
+Successfully processed 241 price points for XY - Steam Siege.
+Processing group: League & Championship Cards (1539)
+Successfully processed 557 price points for League & Championship Cards.
+Processing group: XY - Fates Collide (1780)
+Successfully processed 250 price points for XY - Fates Collide.
+Processing group: XY Trainer Kit: Pikachu Libre & Suicune (1796)
+Successfully processed 61 price points for XY Trainer Kit: Pikachu Libre & Suicune.
+Processing group: Generations (1728)
+Successfully processed 186 price points for Generations.
+Processing group: Generations: Radiant Collection (1729)
+Successfully processed 32 price points for Generations: Radiant Collection.
+Processing group: XY - BREAKpoint (1701)
+Successfully processed 237 price points for XY - BREAKpoint.
+Processing group: McDonald's Promos 2015 (1694)
+Successfully processed 12 price points for McDonald's Promos 2015.
+Processing group: XY - BREAKthrough (1661)
+Successfully processed 331 price points for XY - BREAKthrough.
+Processing group: XY - Ancient Origins (1576)
+Successfully processed 187 price points for XY - Ancient Origins.
+Processing group: XY - Roaring Skies (1534)
+Successfully processed 215 price points for XY - Roaring Skies.
+Processing group: XY Trainer Kit: Latias & Latios (1536)
+Successfully processed 61 price points for XY Trainer Kit: Latias & Latios.
+Processing group: Jumbo Cards (1528)
+Successfully processed 278 price points for Jumbo Cards.
+Processing group: Double Crisis (1525)
+Successfully processed 69 price points for Double Crisis.
+Processing group: XY - Primal Clash (1509)
+Successfully processed 311 price points for XY - Primal Clash.
+Processing group: XY Trainer Kit: Bisharp & Wigglytuff (1533)
+Successfully processed 50 price points for XY Trainer Kit: Bisharp & Wigglytuff.
+Processing group: XY - Phantom Forces (1494)
+Successfully processed 235 price points for XY - Phantom Forces.
+Processing group: XY - Furious Fists (1481)
+Successfully processed 228 price points for XY - Furious Fists.
+Processing group: McDonald's Promos 2014 (1692)
+Successfully processed 12 price points for McDonald's Promos 2014.
+Processing group: XY - Flashfire (1464)
+Successfully processed 215 price points for XY - Flashfire.
+Processing group: XY Trainer Kit: Sylveon & Noivern (1532)
+Successfully processed 60 price points for XY Trainer Kit: Sylveon & Noivern.
+Processing group: XY Base Set (1387)
+Successfully processed 285 price points for XY Base Set.
+Processing group: XY Promos (1451)
+Successfully processed 237 price points for XY Promos.
+Processing group: Kalos Starter Set (1522)
+Successfully processed 54 price points for Kalos Starter Set.
+Processing group: Legendary Treasures (1409)
+Successfully processed 218 price points for Legendary Treasures.
+Processing group: Legendary Treasures: Radiant Collection (1465)
+Successfully processed 25 price points for Legendary Treasures: Radiant Collection.
+Processing group: Plasma Blast (1370)
+Successfully processed 196 price points for Plasma Blast.
+Processing group: Plasma Freeze (1382)
+Successfully processed 223 price points for Plasma Freeze.
+Processing group: Plasma Storm (1413)
+Successfully processed 259 price points for Plasma Storm.
+Processing group: Boundaries Crossed (1408)
+Successfully processed 285 price points for Boundaries Crossed.
+Processing group: Dragon Vault (1426)
+Successfully processed 22 price points for Dragon Vault.
+Processing group: Dragons Exalted (1394)
+Successfully processed 241 price points for Dragons Exalted.
+Processing group: McDonald's Promos 2012 (1427)
+Successfully processed 12 price points for McDonald's Promos 2012.
+Processing group: Dark Explorers (1386)
+Successfully processed 207 price points for Dark Explorers.
+Processing group: Next Destinies (1412)
+Successfully processed 195 price points for Next Destinies.
+Processing group: Noble Victories (1385)
+Successfully processed 201 price points for Noble Victories.
+Processing group: BW Trainer Kit: Excadrill & Zoroark (1538)
+Successfully processed 60 price points for BW Trainer Kit: Excadrill & Zoroark.
+Processing group: Emerging Powers (1424)
+Successfully processed 199 price points for Emerging Powers.
+Processing group: McDonald's Promos 2011 (1401)
+Successfully processed 12 price points for McDonald's Promos 2011.
+Processing group: Black and White (1400)
+Successfully processed 229 price points for Black and White.
+Processing group: Black and White Promos (1407)
+Successfully processed 122 price points for Black and White Promos.
+Processing group: Call of Legends (1415)
+Successfully processed 197 price points for Call of Legends.
+Processing group: Professor Program Promos (2332)
+Successfully processed 40 price points for Professor Program Promos.
+Processing group: Triumphant (1381)
+Successfully processed 193 price points for Triumphant.
+Processing group: Undaunted (1403)
+Successfully processed 171 price points for Undaunted.
+Processing group: Pikachu World Collection Promos (2205)
+Successfully processed 17 price points for Pikachu World Collection Promos.
+Processing group: HGSS Trainer Kit: Gyarados & Raichu (1540)
+Successfully processed 60 price points for HGSS Trainer Kit: Gyarados & Raichu.
+Processing group: Unleashed (1399)
+Successfully processed 179 price points for Unleashed.
+Processing group: HeartGold SoulSilver (1402)
+Successfully processed 230 price points for HeartGold SoulSilver.
+Processing group: HGSS Promos (1453)
+Successfully processed 32 price points for HGSS Promos.
+Processing group: Rumble (1433)
+Successfully processed 16 price points for Rumble.
+Processing group: Arceus (1391)
+Successfully processed 204 price points for Arceus.
+Processing group: Supreme Victors (1384)
+Successfully processed 291 price points for Supreme Victors.
+Processing group: Rising Rivals (1367)
+Successfully processed 221 price points for Rising Rivals.
+Processing group: Burger King Promos (2175)
+Successfully processed 24 price points for Burger King Promos.
+Processing group: Platinum (1406)
+Successfully processed 256 price points for Platinum.
+Processing group: Stormfront (1369)
+Successfully processed 200 price points for Stormfront.
+Processing group: Countdown Calendar Promos (2155)
+Successfully processed 21 price points for Countdown Calendar Promos.
+Processing group: Legends Awakened (1417)
+Successfully processed 282 price points for Legends Awakened.
+Processing group: Majestic Dawn (1390)
+Successfully processed 197 price points for Majestic Dawn.
+Processing group: Great Encounters (1405)
+Successfully processed 209 price points for Great Encounters.
+Processing group: Secret Wonders (1380)
+Successfully processed 262 price points for Secret Wonders.
+Processing group: DP Training Kit 1 Blue (609)
+No price or product data found for DP Training Kit 1 Blue, skipping.
+Processing group: DP Training Kit 1 Gold (610)
+No price or product data found for DP Training Kit 1 Gold, skipping.
+Processing group: DP Trainer Kit: Manaphy & Lucario (1541)
+Successfully processed 23 price points for DP Trainer Kit: Manaphy & Lucario.
+Processing group: Mysterious Treasures (1368)
+Successfully processed 247 price points for Mysterious Treasures.
+Processing group: Diamond and Pearl (1430)
+Successfully processed 257 price points for Diamond and Pearl.
+Processing group: Diamond and Pearl Promos (1421)
+Successfully processed 60 price points for Diamond and Pearl Promos.
+Processing group: Power Keepers (1383)
+Successfully processed 199 price points for Power Keepers.
+Processing group: Dragon Frontiers (1411)
+Successfully processed 189 price points for Dragon Frontiers.
+Processing group: Crystal Guardians (1395)
+Successfully processed 189 price points for Crystal Guardians.
+Processing group: Holon Phantoms (1379)
+Successfully processed 207 price points for Holon Phantoms.
+Processing group: Legend Maker (1378)
+Successfully processed 172 price points for Legend Maker.
+Processing group: Delta Species (1429)
+Successfully processed 218 price points for Delta Species.
+Processing group: Unseen Forces (1398)
+Successfully processed 240 price points for Unseen Forces.
+Processing group: Emerald (1410)
+Successfully processed 213 price points for Emerald.
+Processing group: Deoxys (1404)
+Successfully processed 215 price points for Deoxys.
+Processing group: Team Rocket Returns (1428)
+Successfully processed 212 price points for Team Rocket Returns.
+Processing group: EX Battle Stadium (1853)
+Successfully processed 49 price points for EX Battle Stadium.
+Processing group: FireRed & LeafGreen (1419)
+Successfully processed 234 price points for FireRed & LeafGreen.
+Processing group: Kids WB Promos (2214)
+Successfully processed 4 price points for Kids WB Promos.
+Processing group: Hidden Legends (1416)
+Successfully processed 195 price points for Hidden Legends.
+Processing group: Team Magma vs Team Aqua (1377)
+Successfully processed 184 price points for Team Magma vs Team Aqua.
+Processing group: Dragon (1376)
+Successfully processed 188 price points for Dragon.
+Processing group: Sandstorm (1392)
+Successfully processed 194 price points for Sandstorm.
+Processing group: Ruby and Sapphire (1393)
+Successfully processed 211 price points for Ruby and Sapphire.
+Processing group: Skyridge (1372)
+Successfully processed 300 price points for Skyridge.
+Processing group: Aquapolis (1397)
+Successfully processed 329 price points for Aquapolis.
+Processing group: Best of Promos (1455)
+Successfully processed 14 price points for Best of Promos.
+Processing group: Expedition (1375)
+Successfully processed 323 price points for Expedition.
+Processing group: e-Reader Sample Cards (24493)
+No price or product data found for e-Reader Sample Cards, skipping.
+Processing group: Legendary Collection (1374)
+Successfully processed 220 price points for Legendary Collection.
+Processing group: Neo Destiny (1444)
+Successfully processed 222 price points for Neo Destiny.
+Processing group: Neo Revelation (1389)
+Successfully processed 131 price points for Neo Revelation.
+Processing group: Southern Islands (648)
+Successfully processed 19 price points for Southern Islands.
+Processing group: Neo Discovery (1434)
+Successfully processed 153 price points for Neo Discovery.
+Processing group: Neo Genesis (1396)
+Successfully processed 223 price points for Neo Genesis.
+Processing group: Gym Challenge (1440)
+Successfully processed 270 price points for Gym Challenge.
+Processing group: Gym Heroes (1441)
+Successfully processed 271 price points for Gym Heroes.
+Processing group: Team Rocket (1373)
+Successfully processed 171 price points for Team Rocket.
+Processing group: Base Set 2 (605)
+Successfully processed 136 price points for Base Set 2.
+Processing group: Fossil (630)
+Successfully processed 128 price points for Fossil.
+Processing group: WoTC Promo (1418)
+Successfully processed 66 price points for WoTC Promo.
+Processing group: Jungle (635)
+Successfully processed 133 price points for Jungle.
+Processing group: Base Set (604)
+Successfully processed 107 price points for Base Set.
+Processing group: Base Set (Shadowless) (1663)
+Successfully processed 208 price points for Base Set (Shadowless).
+Processing group: Blister Exclusives (2289)
+Successfully processed 126 price points for Blister Exclusives.
+Processing group: EX Trainer Kit 1: Latias & Latios (1543)
+Successfully processed 20 price points for EX Trainer Kit 1: Latias & Latios.
+Processing group: EX Trainer Kit 2: Plusle & Minun (1542)
+Successfully processed 24 price points for EX Trainer Kit 2: Plusle & Minun.
+Processing group: Nintendo Promos (1423)
+Successfully processed 76 price points for Nintendo Promos.
+Processing group: POP Series 1 (1422)
+Successfully processed 25 price points for POP Series 1.
+Processing group: POP Series 2 (1447)
+Successfully processed 25 price points for POP Series 2.
+Processing group: POP Series 3 (1442)
+Successfully processed 25 price points for POP Series 3.
+Processing group: POP Series 4 (1452)
+Successfully processed 23 price points for POP Series 4.
+Processing group: POP Series 5 (1439)
+Successfully processed 23 price points for POP Series 5.
+Processing group: POP Series 6 (1432)
+Successfully processed 25 price points for POP Series 6.
+Processing group: POP Series 7 (1414)
+Successfully processed 23 price points for POP Series 7.
+Processing group: POP Series 8 (1450)
+Successfully processed 31 price points for POP Series 8.
+Processing group: POP Series 9 (1446)
+Successfully processed 23 price points for POP Series 9.
+Finished processing all groups. Total price points processed: 42878
+Creating daily market snapshot...
+Daily market snapshot created.
+Running scheduled price alert check...
+Checking price alerts...
+No active alerts to check
+Running scheduled price alert check...
+Checking price alerts...
+No active alerts to check

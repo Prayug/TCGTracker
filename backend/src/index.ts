@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import cron from 'node-cron';
 import priceHistoryRouter from './routes/priceHistory';
+import cardSearchRouter from './routes/cardSearch';
 import { initializeDatabase } from './db/database';
 import { updatePriceData } from './services/dataFetcher';
 import { alertService } from './services/alertService';
@@ -43,6 +44,7 @@ setTimeout(async () => {
 }, 10000);
 
 app.use('/api/prices', priceHistoryRouter);
+app.use('/api/cards', cardSearchRouter);
 
 // Manual update endpoint
 app.post('/api/update', async (req, res) => {
@@ -104,6 +106,7 @@ app.get('/api/status', async (req, res) => {
       recentAlerts: alertHistory.length,
       endpoints: {
         prices: '/api/prices',
+        cards: '/api/cards',
         manualUpdate: '/api/update',
         alertCheck: '/api/check-alerts',
         health: '/api/health'
@@ -124,6 +127,9 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     endpoints: {
       prices: '/api/prices',
+      cards: '/api/cards/search?query=pikachu',
+      sets: '/api/cards/sets',
+      stats: '/api/cards/stats',
       status: '/api/status',
       health: '/api/health'
     }

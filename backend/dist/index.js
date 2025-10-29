@@ -16,6 +16,7 @@ const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const node_cron_1 = __importDefault(require("node-cron"));
 const priceHistory_1 = __importDefault(require("./routes/priceHistory"));
+const cardSearch_1 = __importDefault(require("./routes/cardSearch"));
 const database_1 = require("./db/database");
 const dataFetcher_1 = require("./services/dataFetcher");
 const alertService_1 = require("./services/alertService");
@@ -49,6 +50,7 @@ setTimeout(() => __awaiter(void 0, void 0, void 0, function* () {
     yield alertService_1.alertService.checkPriceAlerts();
 }), 10000);
 app.use('/api/prices', priceHistory_1.default);
+app.use('/api/cards', cardSearch_1.default);
 // Manual update endpoint
 app.post('/api/update', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -107,6 +109,7 @@ app.get('/api/status', (req, res) => __awaiter(void 0, void 0, void 0, function*
             recentAlerts: alertHistory.length,
             endpoints: {
                 prices: '/api/prices',
+                cards: '/api/cards',
                 manualUpdate: '/api/update',
                 alertCheck: '/api/check-alerts',
                 health: '/api/health'
@@ -127,6 +130,9 @@ app.get('/', (req, res) => {
         version: '1.0.0',
         endpoints: {
             prices: '/api/prices',
+            cards: '/api/cards/search?query=pikachu',
+            sets: '/api/cards/sets',
+            stats: '/api/cards/stats',
             status: '/api/status',
             health: '/api/health'
         }

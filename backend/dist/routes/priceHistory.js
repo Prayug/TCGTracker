@@ -1,4 +1,13 @@
 "use strict";
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const database_1 = require("../db/database");
@@ -19,14 +28,11 @@ router.get('/card', (req, res) => {
     // Generate unique identifier
     const uniqueIdentifier = (0, cardIdentifier_1.generateUniqueIdentifier)(safeSetId, safeCardNumber, safeCardName);
     // Get price history using the unique identifier
-    Promise.all([
-        (0, cardIdentifier_1.getCardPriceHistory)(uniqueIdentifier),
-        (0, cardIdentifier_1.getCardRollingAverages)(uniqueIdentifier)
-    ])
-        .then(([priceHistory, rollingAverages]) => {
-        if (priceHistory.length === 0 && rollingAverages.length === 0) {
+    (0, cardIdentifier_1.getCardPriceHistory)(uniqueIdentifier)
+        .then((priceHistory) => {
+        if (priceHistory.length === 0) {
             res.status(404).json({
-                message: 'No price history found for the specified card',
+                message: 'No TCGCSV price history found for the specified card',
                 uniqueIdentifier
             });
             return;
@@ -38,8 +44,7 @@ router.get('/card', (req, res) => {
                 setId: safeSetId,
                 cardNumber: safeCardNumber
             },
-            priceHistory,
-            rollingAverages
+            priceHistory
         });
     })
         .catch(err => {
@@ -68,18 +73,15 @@ router.get('/match', (req, res) => {
         .then(mapping => {
         if (mapping) {
             // Found in our mappings, get the price history
-            return Promise.all([
-                (0, cardIdentifier_1.getCardPriceHistory)(mapping.uniqueIdentifier),
-                (0, cardIdentifier_1.getCardRollingAverages)(mapping.uniqueIdentifier)
-            ]).then(([priceHistory, rollingAverages]) => ({
+            return (0, cardIdentifier_1.getCardPriceHistory)(mapping.uniqueIdentifier)
+                .then((priceHistory) => ({
                 matchedProduct: {
                     productId: mapping.productId,
                     productName: mapping.cardName,
                     groupName: mapping.setName,
                     uniqueIdentifier: mapping.uniqueIdentifier
                 },
-                priceHistory,
-                rollingAverages
+                priceHistory
             }));
         }
         else {
@@ -97,6 +99,26 @@ router.get('/match', (req, res) => {
         });
     });
 });
+// New endpoint specifically for getting price history by card details
+router.get('/history', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { cardName, setName, cardNumber, setId, rarity, productId } = req.query;
+    if (!cardName || !setName) {
+        return res.status(400).json({ error: 'cardName and setName are required.' });
+    }
+    try {
+        const card = yield (0, cardIdentifier_1.findCardByDetails)(String(cardName), String(setId || setName), String(cardNumber || ''), rarity ? String(rarity) : undefined, productId ? String(productId) : undefined);
+        if (card) {
+            const priceHistory = yield (0, cardIdentifier_1.getCardPriceHistory)(card.uniqueIdentifier);
+            return res.json({ priceHistory });
+        }
+        // If not found, try a broader search or return 404
+        return res.status(404).json({ message: 'Price history not found for this card.' });
+    }
+    catch (error) {
+        console.error('Error fetching price history:', error);
+        res.status(500).json({ error: 'Failed to fetch price history.' });
+    }
+}));
 // Fallback matching function for cards not in our mapping system
 const fallbackMatch = (cardName, setName, cardNumber, db) => {
     return new Promise((resolve, reject) => {
@@ -109,6 +131,7 @@ const fallbackMatch = (cardName, setName, cardNumber, db) => {
       WHERE 
         (productName LIKE ? OR productName LIKE ?)
         AND groupName LIKE ?
+        AND source = 'tcgcsv'
       GROUP BY productId, productName, groupName
       ORDER BY
         CASE WHEN groupName = ? THEN 0 ELSE 1 END,
@@ -136,13 +159,13 @@ const fallbackMatch = (cardName, setName, cardNumber, db) => {
             }
             if (!row) {
                 resolve({
-                    message: 'No matching product found for the given criteria.',
+                    message: 'No matching TCGCSV product found for the given criteria.',
                     searchCriteria: { cardName, setName, cardNumber }
                 });
                 return;
             }
             const matchedProduct = row;
-            const historySql = 'SELECT * FROM price_history WHERE productId = ? ORDER BY date ASC';
+            const historySql = 'SELECT * FROM price_history WHERE productId = ? AND source = \'tcgcsv\' ORDER BY date ASC';
             db.all(historySql, [matchedProduct.productId], (historyErr, rows) => {
                 if (historyErr) {
                     reject(historyErr);
@@ -154,8 +177,7 @@ const fallbackMatch = (cardName, setName, cardNumber, db) => {
                         productName: matchedProduct.productName,
                         groupName: matchedProduct.groupName
                     },
-                    priceHistory: rows || [],
-                    rollingAverages: []
+                    priceHistory: rows || []
                 });
             });
         });
@@ -164,41 +186,10 @@ const fallbackMatch = (cardName, setName, cardNumber, db) => {
 // Get price history for a specific product
 router.get('/:productId', (req, res) => {
     const { productId } = req.params;
-    const { source, days } = req.query;
+    const { days } = req.query;
     const db = (0, database_1.getDb)();
-    let sql = 'SELECT * FROM price_history WHERE productId = ?';
+    let sql = 'SELECT * FROM price_history WHERE productId = ? AND source = \'tcgcsv\'';
     const params = [productId];
-    if (source) {
-        sql += ' AND source = ?';
-        params.push(source);
-    }
-    if (days) {
-        sql += ' AND date >= date("now", "-' + parseInt(days) + ' days")';
-    }
-    sql += ' ORDER BY date ASC';
-    db.all(sql, params, (err, rows) => {
-        if (err) {
-            res.status(500).json({ error: err.message });
-            return;
-        }
-        res.json({ data: rows });
-    });
-});
-// Get rolling averages for a Pokemon TCG card
-router.get('/rolling/:cardId', (req, res) => {
-    const { cardId } = req.params;
-    const { source, condition, days } = req.query;
-    const db = (0, database_1.getDb)();
-    let sql = 'SELECT * FROM rolling_averages WHERE cardId = ?';
-    const params = [cardId];
-    if (source) {
-        sql += ' AND source = ?';
-        params.push(source);
-    }
-    if (condition) {
-        sql += ' AND condition = ?';
-        params.push(condition);
-    }
     if (days) {
         sql += ' AND date >= date("now", "-' + parseInt(days) + ' days")';
     }
@@ -397,7 +388,7 @@ router.get('/export/:productId', (req, res) => {
     const { productId } = req.params;
     const { format = 'json' } = req.query;
     const db = (0, database_1.getDb)();
-    const sql = 'SELECT * FROM price_history WHERE productId = ? ORDER BY date ASC';
+    const sql = 'SELECT * FROM price_history WHERE productId = ? AND source = \'tcgcsv\' ORDER BY date ASC';
     db.all(sql, [productId], (err, rows) => {
         if (err) {
             res.status(500).json({ error: err.message });
