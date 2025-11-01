@@ -36,16 +36,6 @@ export const PriceChart: React.FC<PriceChartProps> = ({ priceHistory, title = "P
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h4 className="text-lg font-semibold">{title}</h4>
-        <div className="text-right">
-          <div className="text-2xl font-bold">{formatPrice(lastPrice)}</div>
-          <div className={`text-sm font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
-            {isPositive ? '+' : ''}{formatPrice(priceChange)} ({isPositive ? '+' : ''}{priceChangePercent.toFixed(1)}%)
-          </div>
-        </div>
-      </div>
-
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={priceHistory}>
@@ -91,28 +81,6 @@ export const PriceChart: React.FC<PriceChartProps> = ({ priceHistory, title = "P
             />
           </AreaChart>
         </ResponsiveContainer>
-      </div>
-
-      {/* Price Statistics */}
-      <div className="grid grid-cols-3 gap-4 text-sm">
-        <div className="text-center">
-          <div className="text-gray-600">Min Price</div>
-          <div className="font-semibold">
-            {formatPrice(Math.min(...priceHistory.map(p => p.price)))}
-          </div>
-        </div>
-        <div className="text-center">
-          <div className="text-gray-600">Max Price</div>
-          <div className="font-semibold">
-            {formatPrice(Math.max(...priceHistory.map(p => p.price)))}
-          </div>
-        </div>
-        <div className="text-center">
-          <div className="text-gray-600">Avg Price</div>
-          <div className="font-semibold">
-            {formatPrice(priceHistory.reduce((sum, p) => sum + p.price, 0) / priceHistory.length)}
-          </div>
-        </div>
       </div>
     </div>
   );

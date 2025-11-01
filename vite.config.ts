@@ -44,6 +44,16 @@ export default defineConfig({
       '/api/prices': {
         target: 'http://localhost:3001',
         changeOrigin: true
+      },
+      '/api/pokemontcg': {
+        target: 'https://api.pokemontcg.io',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/pokemontcg/, ''),
+        timeout: 60000, // 60 second timeout for proxy
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'application/json'
+        }
       }
     }
   }

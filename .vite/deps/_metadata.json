@@ -1,37 +1,43 @@
 {
-  "hash": "4d4534ee",
+  "hash": "d185f344",
   "configHash": "a61629aa",
-  "lockfileHash": "96dcceba",
-  "browserHash": "d31d21ed",
+  "lockfileHash": "a29d3fc2",
+  "browserHash": "a9b52c1a",
   "optimized": {
     "react": {
       "src": "../../node_modules/react/index.js",
       "file": "react.js",
-      "fileHash": "5e157b52",
+      "fileHash": "971aa53c",
       "needsInterop": true
     },
     "react-dom/client": {
       "src": "../../node_modules/react-dom/client.js",
       "file": "react-dom_client.js",
-      "fileHash": "307dabf0",
+      "fileHash": "7481ce19",
       "needsInterop": true
     },
     "lucide-react": {
       "src": "../../node_modules/lucide-react/dist/esm/lucide-react.js",
       "file": "lucide-react.js",
-      "fileHash": "e87c2678",
+      "fileHash": "1d76f2da",
       "needsInterop": false
     },
     "recharts": {
       "src": "../../node_modules/recharts/es6/index.js",
       "file": "recharts.js",
-      "fileHash": "82031f1e",
+      "fileHash": "c2bf0de0",
       "needsInterop": false
     },
     "axios": {
       "src": "../../node_modules/axios/index.js",
       "file": "axios.js",
-      "fileHash": "9013e205",
+      "fileHash": "8479d3b3",
+      "needsInterop": false
+    },
+    "cheerio": {
+      "src": "../../node_modules/cheerio/dist/browser/index.js",
+      "file": "cheerio.js",
+      "fileHash": "c45641fb",
       "needsInterop": false
     }
   },
