@@ -26,11 +26,9 @@ function App() {
     searchQuery,
     sortBy,
     filterBy,
-    language,
     setSearchQuery,
     setSortBy,
     setFilterBy,
-    setLanguage,
     refetch
   } = usePokemonCards();
 
@@ -148,8 +146,6 @@ function App() {
               onSortChange={setSortBy}
               filterBy={filterBy}
               onFilterChange={setFilterBy}
-              language={language}
-              onLanguageChange={setLanguage}
               isLoading={isLoading}
             />
 

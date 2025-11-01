@@ -10,11 +10,9 @@ interface UsePokemonCardsReturn {
   searchQuery: string;
   sortBy: SortOption;
   filterBy: FilterOption;
-  language: string;
   setSearchQuery: (query: string) => void;
   setSortBy: (sort: SortOption) => void;
   setFilterBy: (filter: FilterOption) => void;
-  setLanguage: (language: string) => void;
   refetch: () => void;
 }
 
@@ -25,15 +23,14 @@ export const usePokemonCards = (): UsePokemonCardsReturn => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('price-high');
   const [filterBy, setFilterBy] = useState<FilterOption>('all');
-  const [language, setLanguage] = useState<string>('en');
 
-  const loadCards = async (query?: string, setId?: string, lang?: string) => {
+  const loadCards = async (query?: string, setId?: string) => {
     setIsLoading(true);
     setError(null);
     
     try {
       // Get cards from Pokemon TCG API (with built-in retry logic)
-      let pokemonCards = await pokemonApi.searchCards(query, setId, 250, true, lang);
+      let pokemonCards = await pokemonApi.searchCards(query, setId, 250, true);
       
       // If no cards returned, show helpful message
       if (pokemonCards.length === 0) {
@@ -71,11 +68,11 @@ export const usePokemonCards = (): UsePokemonCardsReturn => {
 
   useEffect(() => {
     if (searchQuery.trim()) {
-      loadCards(searchQuery, undefined, language);
+      loadCards(searchQuery);
     } else {
       setCards([]);
     }
-  }, [searchQuery, language]);
+  }, [searchQuery]);
 
   // Apply filters
   const filteredCards = cards.filter(card => {
@@ -102,9 +99,9 @@ export const usePokemonCards = (): UsePokemonCardsReturn => {
 
   const refetch = useCallback(() => {
     if (searchQuery.trim()) {
-      loadCards(searchQuery, undefined, language);
+      loadCards(searchQuery);
     }
-  }, [searchQuery, language]);
+  }, [searchQuery]);
 
   return {
     cards: sortedCards,
@@ -113,11 +110,9 @@ export const usePokemonCards = (): UsePokemonCardsReturn => {
     searchQuery,
     sortBy,
     filterBy,
-    language,
     setSearchQuery,
     setSortBy,
     setFilterBy,
-    setLanguage,
     refetch
   };
 };
