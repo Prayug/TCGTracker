@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+/.pnp
+.pnp.js
+
+# Testing
+/coverage
+
+# Production
+/dist
+/build
+
+# Misc
+.DS_Store
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Database files (TOO LARGE FOR GITHUB!)
+backend/tcg-prices.db
+backend/tcg-prices.db-journal
+backend/tcg-prices.db-shm
+backend/tcg-prices.db-wal
+backend/*.db
+backend/*.db-*
+
+# SQLite files
+*.sqlite
+*.sqlite3
+*.sqbpro
+
+# Backup files
+*.bak
+*.backup
+
