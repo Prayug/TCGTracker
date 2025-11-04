@@ -208,5 +208,103 @@ router.get('/stats', async (req, res) => {
   }
 });
 
+/**
+ * Get a random pool of cards with latest market prices from local DB
+ */
+router.get('/pool', async (req, res) => {
+  try {
+    const db = getDb();
+
+    const { limit = '250', minPrice = '1', maxPrice = '20000' } = req.query;
+    const poolLimit = Math.min(parseInt(limit as string) || 250, 1000);
+
+    // Select random cards with their latest market price from price_history
+    const sql = `
+      SELECT 
+        cm.cardId,
+        cm.cardName,
+        cm.setId,
+        cm.setName,
+        cm.cardNumber,
+        cm.rarity,
+        cm.tcgplayerProductId,
+        cm.uniqueIdentifier,
+        ph.marketPrice as latestPrice,
+        ph.date as priceDate
+      FROM card_mappings cm
+      JOIN (
+        SELECT ph1.uniqueIdentifier, ph1.marketPrice, ph1.date
+        FROM price_history ph1
+        JOIN (
+          SELECT uniqueIdentifier, MAX(date) AS maxDate
+          FROM price_history
+          WHERE source = 'tcgcsv'
+          GROUP BY uniqueIdentifier
+        ) latest ON ph1.uniqueIdentifier = latest.uniqueIdentifier AND ph1.date = latest.maxDate
+        WHERE ph1.marketPrice IS NOT NULL
+      ) ph ON cm.uniqueIdentifier = ph.uniqueIdentifier
+      WHERE ph.marketPrice >= ? AND ph.marketPrice <= ?
+        AND cm.cardId IS NOT NULL
+        AND cm.cardNumber IS NOT NULL AND TRIM(cm.cardNumber) <> ''
+      ORDER BY RANDOM()
+      LIMIT ?
+    `;
+
+    db.all(sql, [minPrice, maxPrice, poolLimit], (err, rows: any[]) => {
+      if (err) {
+        console.error('Error fetching random card pool:', err);
+        return res.status(500).json({ 
+          error: 'Database error',
+          message: err.message 
+        });
+      }
+
+      const placeholder = (name: string, set: string) => (
+        'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="245" height="342" viewBox="0 0 245 342"%3E%3Crect width="245" height="342" fill="%23f3f4f6" rx="12"/%3E%3Ctext x="50%25" y="45%25" font-family="Arial,sans-serif" font-size="16" fill="%239ca3af" text-anchor="middle"%3E' +
+        encodeURIComponent(name) + '%3C/text%3E%3Ctext x="50%25" y="55%25" font-family="Arial,sans-serif" font-size="14" fill="%23d1d5db" text-anchor="middle"%3E' +
+        encodeURIComponent(set) + '%3C/text%3E%3Ctext x="50%25" y="65%25" font-family="Arial,sans-serif" font-size="12" fill="%23e5e7eb" text-anchor="middle"%3ENo Image%3C/text%3E%3C/svg%3E'
+      );
+
+      const cards = rows.map(row => ({
+        id: row.cardId || `${row.setId}-${row.cardNumber}`,
+        name: row.cardName,
+        number: row.cardNumber,
+        rarity: row.rarity,
+        set: {
+          id: row.setId,
+          name: row.setName,
+          releaseDate: '2020-01-01',
+          total: 100
+        },
+        images: {
+          small: placeholder(row.cardName, row.setName),
+          large: placeholder(row.cardName, row.setName)
+        },
+        tcgplayer: {
+          productId: row.tcgplayerProductId,
+          prices: row.latestPrice ? {
+            normal: { market: row.latestPrice }
+          } : undefined
+        },
+        marketPrice: row.latestPrice || 0,
+        uniqueIdentifier: row.uniqueIdentifier,
+        isLocalDbCard: true
+      }));
+
+      res.json({
+        data: cards,
+        count: cards.length,
+        source: 'local_database'
+      });
+    });
+  } catch (error) {
+    console.error('Error building card pool:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: (error as Error).message 
+    });
+  }
+});
+
 export default router;
 

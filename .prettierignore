@@ -1,0 +1,12 @@
+node_modules
+dist
+build
+coverage
+.git
+.husky
+*.log
+package-lock.json
+public/data
+backend/dist
+backend/node_modules
+

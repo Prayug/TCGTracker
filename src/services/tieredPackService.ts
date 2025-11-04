@@ -133,6 +133,17 @@ class TieredPackService {
         throw new Error('No suitable card found in the pool for this value range.');
       }
 
+      // If selected from local DB pool, enrich with actual images from Pokemon API (no fallback)
+      // Narrow type to local DB enriched shape when present
+      const maybeLocal = selectedCard as PokemonCard & { isLocalDbCard?: boolean };
+      if (maybeLocal.isLocalDbCard && selectedCard.id) {
+        const apiCard = await pokemonApi.getCardById(selectedCard.id);
+        if (!apiCard || !apiCard.images?.large || !apiCard.images?.small) {
+          throw new Error('Failed to load actual card images for selected card');
+        }
+        selectedCard.images = apiCard.images;
+      }
+
       const pulledCards = [selectedCard];
 
       // Calculate actual total value
@@ -191,27 +202,35 @@ class TieredPackService {
         return this.shuffleArray([...this.cardPoolCache]);
       }
 
-      console.log('🔍 Fetching fresh card pool from Pokemon TCG API...');
+      console.log('🔍 Fetching fresh card pool from local DB (backend)...');
       
       let allCards: PokemonCard[] = [];
       
       try {
-        // Fetch a single large batch to minimize timeout risk
-        // The API supports up to 250 cards per request
-        allCards = await pokemonApi.searchCards(undefined, undefined, 250, false); // fetchAll: false
-        console.log(`📦 Successfully fetched ${allCards.length} cards`);
-      } catch (error) {
-        console.error('Failed to fetch cards from API:', error);
-        
-        // If fetch fails, use cache if available
-        if (this.cardPoolCache.length > 0) {
-          console.log('⚠️ API failed, using cached card pool as fallback');
-          return this.shuffleArray([...this.cardPoolCache]);
+        // Prefer local DB pool via backend to avoid CORS and timeouts
+        const backendBase = window.location.origin.replace(':5173', ':3001');
+        const resp = await fetch(`${backendBase}/api/cards/pool?limit=250`);
+        if (!resp.ok) throw new Error(`Backend pool fetch failed: ${resp.status}`);
+        const json = await resp.json();
+        allCards = json.data || [];
+        console.log(`📦 Successfully fetched ${allCards.length} cards from local DB`);
+      } catch (err) {
+        console.warn('⚠️ Local DB pool fetch failed, falling back to Pokemon TCG API...', err);
+        try {
+          // Fallback: Pokemon TCG API single-page fetch
+          allCards = await pokemonApi.searchCards(undefined, undefined, 250, false);
+          console.log(`📦 Successfully fetched ${allCards.length} cards from API`);
+        } catch (error) {
+          console.error('Failed to fetch cards from API:', error);
+          // If fetch fails, use cache if available
+          if (this.cardPoolCache.length > 0) {
+            console.log('⚠️ API failed, using cached card pool as fallback');
+            return this.shuffleArray([...this.cardPoolCache]);
+          }
+          // If no cache, return empty array (caller should handle this)
+          console.error('❌ No cached data available');
+          return [];
         }
-        
-        // If no cache, return empty array (caller should handle this)
-        console.error('❌ No cached data available');
-        return [];
       }
       
       if (allCards.length === 0) {
@@ -283,45 +302,20 @@ class TieredPackService {
     console.log(`📋 Found ${candidates.length} cards in this range`);
 
     if (candidates.length === 0) {
-      // If no cards in this exact range, try adjacent ranges
-      console.warn('⚠️ No cards in exact range, trying broader search...');
-      
-      // Try 20% variance from range
-      const expandedMin = rolledRange.min * 0.8;
-      const expandedMax = rolledRange.max * 1.2;
-      
-      const expandedCandidates = cardPool.filter(card => {
-        const price = card.marketPrice || pokemonApi.extractCardPrice(card);
-        return price >= expandedMin && price <= expandedMax;
-      });
-
-      if (expandedCandidates.length > 0) {
-        const selectedCard = expandedCandidates[Math.floor(Math.random() * expandedCandidates.length)];
-        const selectedPrice = selectedCard.marketPrice || pokemonApi.extractCardPrice(selectedCard);
-        console.log(`✅ Selected (expanded range): ${selectedCard.name} - $${selectedPrice.toFixed(2)}`);
-        return selectedCard;
-      }
-
-      // Last resort: find closest card to range midpoint
-      const targetMidpoint = (rolledRange.min + rolledRange.max) / 2;
-      const sorted = [...cardPool].sort((a, b) => {
-        const priceA = a.marketPrice || pokemonApi.extractCardPrice(a);
-        const priceB = b.marketPrice || pokemonApi.extractCardPrice(b);
-        const diffA = Math.abs(priceA - targetMidpoint);
-        const diffB = Math.abs(priceB - targetMidpoint);
-        return diffA - diffB;
-      });
-
-      const closest = sorted[0];
-      if (closest) {
-        const closestPrice = closest.marketPrice || pokemonApi.extractCardPrice(closest);
-        console.log(`⚠️ Selected closest card: ${closest.name} - $${closestPrice.toFixed(2)}`);
-      }
-      return closest || null;
+      console.error('❌ No cards found in this range');
+      return null;
     }
 
-    // Pick a random card from the candidates in this range
-    const selectedCard = candidates[Math.floor(Math.random() * candidates.length)];
+    // Shuffle candidates array to ensure pure randomness
+    const shuffledCandidates = this.shuffleArray(candidates);
+
+    // Pick a truly random card from the shuffled candidates
+    // Use crypto.getRandomValues for better randomness if available, otherwise Math.random
+    const randomIndex = typeof crypto !== 'undefined' && crypto.getRandomValues
+      ? crypto.getRandomValues(new Uint32Array(1))[0] % shuffledCandidates.length
+      : Math.floor(Math.random() * shuffledCandidates.length);
+    
+    const selectedCard = shuffledCandidates[randomIndex];
     const selectedPrice = selectedCard.marketPrice || pokemonApi.extractCardPrice(selectedCard);
     console.log(`✅ Selected: ${selectedCard.name} - $${selectedPrice.toFixed(2)}`);
     

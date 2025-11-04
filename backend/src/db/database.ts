@@ -59,21 +59,6 @@ export const initializeDatabase = () => {
     )
   `;
 
-  // Price alerts table
-  const createPriceAlertsTable = `
-    CREATE TABLE IF NOT EXISTS price_alerts (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      cardId TEXT,
-      productId INTEGER,
-      targetPrice REAL,
-      alertType TEXT, -- 'above', 'below', 'change_percent'
-      threshold REAL,
-      isActive INTEGER DEFAULT 1,
-      createdAt TEXT DEFAULT (datetime('now')),
-      lastTriggered TEXT
-    )
-  `;
-
   // Historical snapshots for analytics
   const createSnapshotsTable = `
     CREATE TABLE IF NOT EXISTS price_snapshots (
@@ -92,7 +77,6 @@ export const initializeDatabase = () => {
   const tables = [
     createCardMappingsTable,
     createPriceHistoryTable,
-    createPriceAlertsTable,
     createSnapshotsTable
   ];
 
@@ -126,7 +110,6 @@ export const initializeDatabase = () => {
       'CREATE INDEX IF NOT EXISTS idx_price_history_date ON price_history(date)',
       'CREATE INDEX IF NOT EXISTS idx_price_history_product ON price_history(productId)',
       'CREATE INDEX IF NOT EXISTS idx_price_history_identifier ON price_history(uniqueIdentifier)',
-      'CREATE INDEX IF NOT EXISTS idx_price_alerts_active ON price_alerts(isActive)',
       'CREATE INDEX IF NOT EXISTS idx_card_mappings_identifier ON card_mappings(uniqueIdentifier)',
       'CREATE INDEX IF NOT EXISTS idx_card_mappings_card_set ON card_mappings(cardName, setId, cardNumber)'
     ];
