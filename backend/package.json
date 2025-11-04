@@ -30,7 +30,7 @@
     "jsonwebtoken": "^9.0.2",
     "bcryptjs": "^2.4.3",
     "sqlite3": "^5.1.7",
-    "node-cron": "^3.0.3",
+    "node-cron": "^4.2.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.0",
     "winston": "^3.11.0",
