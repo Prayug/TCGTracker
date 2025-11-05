@@ -4,10 +4,7 @@ import { pokemonApi } from './pokemonApi';
 const PACK_HISTORY_KEY = 'tcg_tiered_pack_history';
 
 class TieredPackService {
-  // Cache for card pool to avoid refetching same cards
-  private cardPoolCache: PokemonCard[] = [];
-  private lastFetchTime: number = 0;
-  private CACHE_DURATION = 2 * 60 * 60 * 1000; // 2 hours - longer cache to reduce API calls
+  // No caching - always fetch fresh from DB
 
   // Define tiered packs with GameStop-style odds
   private tieredPacks: Pack[] = [
@@ -136,12 +133,47 @@ class TieredPackService {
       // If selected from local DB pool, enrich with actual images from Pokemon API (no fallback)
       // Narrow type to local DB enriched shape when present
       const maybeLocal = selectedCard as PokemonCard & { isLocalDbCard?: boolean };
-      if (maybeLocal.isLocalDbCard && selectedCard.id) {
-        const apiCard = await pokemonApi.getCardById(selectedCard.id);
-        if (!apiCard || !apiCard.images?.large || !apiCard.images?.small) {
-          throw new Error('Failed to load actual card images for selected card');
+      if (maybeLocal.isLocalDbCard) {
+        const cardName = selectedCard.name;
+        const setId = selectedCard.set?.id;
+        const cardNumber = selectedCard.number;
+        
+        if (!cardName || !setId) {
+          throw new Error('Missing card name or set ID for image lookup');
         }
-        selectedCard.images = apiCard.images;
+        
+        // Search via backend proxy to avoid CORS
+        console.log(`🔍 Searching Pokemon API via backend for: "${cardName}" in set "${setId}"`);
+        const backendBase = window.location.origin.replace(':5173', ':3001');
+        const searchUrl = new URL(`${backendBase}/api/cards/search-pokemon`);
+        searchUrl.searchParams.append('cardName', cardName);
+        searchUrl.searchParams.append('setId', setId);
+        if (cardNumber) {
+          searchUrl.searchParams.append('cardNumber', cardNumber);
+        }
+        
+        const response = await fetch(searchUrl.toString());
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(
+            `Failed to load card images: ${response.status} ${response.statusText}. ` +
+            `Details: ${errorData.error || 'Unknown error'}`
+          );
+        }
+        
+        const result = await response.json();
+        
+        if (!result.images?.large || !result.images?.small) {
+          throw new Error(`Card found but missing images for "${cardName}"`);
+        }
+        
+        console.log(`✅ Successfully loaded images for ${cardName}`);
+        
+        // Replace images with actual ones from API
+        selectedCard.images = result.images;
+        // Also update the card ID to the real Pokemon API ID
+        selectedCard.id = result.id;
       }
 
       const pulledCards = [selectedCard];
@@ -193,83 +225,40 @@ class TieredPackService {
 
   // Fetch a large pool of cards from various sets
   private async fetchCardPool(): Promise<PokemonCard[]> {
-    try {
-      // Check if we have a valid cache
-      const now = Date.now();
-      if (this.cardPoolCache.length > 0 && (now - this.lastFetchTime) < this.CACHE_DURATION) {
-        console.log(`♻️ Using cached card pool (${this.cardPoolCache.length} cards)`);
-        // Shuffle cache to get variety
-        return this.shuffleArray([...this.cardPoolCache]);
-      }
-
-      console.log('🔍 Fetching fresh card pool from local DB (backend)...');
-      
-      let allCards: PokemonCard[] = [];
-      
-      try {
-        // Prefer local DB pool via backend to avoid CORS and timeouts
-        const backendBase = window.location.origin.replace(':5173', ':3001');
-        const resp = await fetch(`${backendBase}/api/cards/pool?limit=250`);
-        if (!resp.ok) throw new Error(`Backend pool fetch failed: ${resp.status}`);
-        const json = await resp.json();
-        allCards = json.data || [];
-        console.log(`📦 Successfully fetched ${allCards.length} cards from local DB`);
-      } catch (err) {
-        console.warn('⚠️ Local DB pool fetch failed, falling back to Pokemon TCG API...', err);
-        try {
-          // Fallback: Pokemon TCG API single-page fetch
-          allCards = await pokemonApi.searchCards(undefined, undefined, 250, false);
-          console.log(`📦 Successfully fetched ${allCards.length} cards from API`);
-        } catch (error) {
-          console.error('Failed to fetch cards from API:', error);
-          // If fetch fails, use cache if available
-          if (this.cardPoolCache.length > 0) {
-            console.log('⚠️ API failed, using cached card pool as fallback');
-            return this.shuffleArray([...this.cardPoolCache]);
-          }
-          // If no cache, return empty array (caller should handle this)
-          console.error('❌ No cached data available');
-          return [];
-        }
-      }
-      
-      if (allCards.length === 0) {
-        console.error('❌ No cards returned from API');
-        // Return cache if available
-        if (this.cardPoolCache.length > 0) {
-          console.log('⚠️ Using cached card pool as fallback');
-          return this.shuffleArray([...this.cardPoolCache]);
-        }
-        return [];
-      }
-      
-      // Filter out cards with no price
-      const cardsWithPrices = allCards.filter(card => {
-        const price = card.marketPrice || pokemonApi.extractCardPrice(card);
-        return price > 0 && price < 10000; // Filter out invalid prices
-      });
-
-      console.log(`💰 ${cardsWithPrices.length} cards have valid prices`);
-      
-      if (cardsWithPrices.length < 20) {
-        console.warn('⚠️ Very few cards with prices. Pack quality will be limited.');
-      }
-      
-      // Update cache
-      this.cardPoolCache = cardsWithPrices;
-      this.lastFetchTime = now;
-      
-      // Shuffle for variety
-      return this.shuffleArray([...cardsWithPrices]);
-    } catch (error) {
-      console.error('Error fetching card pool:', error);
-      // Return cache if available
-      if (this.cardPoolCache.length > 0) {
-        console.log('⚠️ Using stale cache due to error');
-        return this.shuffleArray([...this.cardPoolCache]);
-      }
-      return [];
+    console.log('🔍 Fetching fresh card pool from local DB (backend)...');
+    
+    // Always fetch fresh from DB - no caching
+    // Fetch very large pool (2000 cards) to ensure coverage across all price ranges
+    const backendBase = window.location.origin.replace(':5173', ':3001');
+    const resp = await fetch(`${backendBase}/api/cards/pool?limit=2000`);
+    
+    if (!resp.ok) {
+      throw new Error(`Failed to fetch card pool: ${resp.status} ${resp.statusText}`);
     }
+    
+    const json = await resp.json();
+    const allCards = json.data || [];
+    
+    if (allCards.length === 0) {
+      throw new Error('No cards returned from database');
+    }
+    
+    console.log(`📦 Successfully fetched ${allCards.length} cards from local DB`);
+    
+    // Filter out cards with no price
+    const cardsWithPrices = allCards.filter((card: PokemonCard) => {
+      const price = card.marketPrice || pokemonApi.extractCardPrice(card);
+      return price > 0 && price < 10000; // Filter out invalid prices
+    });
+
+    console.log(`💰 ${cardsWithPrices.length} cards have valid prices`);
+    
+    if (cardsWithPrices.length === 0) {
+      throw new Error('No cards with valid prices found');
+    }
+
+    // Shuffle for variety
+    return this.shuffleArray([...cardsWithPrices]);
   }
 
   // Shuffle array for randomness
@@ -294,15 +283,70 @@ class TieredPackService {
     console.log(`🎯 Looking for cards between $${rolledRange.min.toFixed(2)} and $${rolledRange.max.toFixed(2)}`);
 
     // Filter cards to ONLY this specific range
-    const candidates = cardPool.filter(card => {
+    let candidates = cardPool.filter(card => {
       const price = card.marketPrice || pokemonApi.extractCardPrice(card);
       return price >= rolledRange.min && price <= rolledRange.max;
     });
 
     console.log(`📋 Found ${candidates.length} cards in this range`);
 
+    // Fallback logic if no cards in exact range
     if (candidates.length === 0) {
-      console.error('❌ No cards found in this range');
+      console.warn(`⚠️ No cards in exact range $${rolledRange.min}-${rolledRange.max}. Trying fallback...`);
+      
+      // Strategy 1: Try broader range (expand by 20%)
+      const expandedMin = rolledRange.min * 0.8;
+      const expandedMax = rolledRange.max * 1.2;
+      candidates = cardPool.filter(card => {
+        const price = card.marketPrice || pokemonApi.extractCardPrice(card);
+        return price >= expandedMin && price <= expandedMax;
+      });
+      
+      if (candidates.length > 0) {
+        console.log(`✅ Found ${candidates.length} cards in expanded range $${expandedMin.toFixed(2)}-${expandedMax.toFixed(2)}`);
+      } else {
+        // Strategy 2: Find closest card below the range
+        const lowerCards = cardPool.filter(card => {
+          const price = card.marketPrice || pokemonApi.extractCardPrice(card);
+          return price < rolledRange.min && price > 0;
+        });
+        
+        if (lowerCards.length > 0) {
+          // Get the most expensive card below the range
+          lowerCards.sort((a, b) => {
+            const priceA = a.marketPrice || pokemonApi.extractCardPrice(a);
+            const priceB = b.marketPrice || pokemonApi.extractCardPrice(b);
+            return priceB - priceA;
+          });
+          candidates = [lowerCards[0]];
+          console.log(`✅ Using closest card below range: $${(candidates[0].marketPrice || pokemonApi.extractCardPrice(candidates[0])).toFixed(2)}`);
+        } else {
+          // Strategy 3: Find closest card above the range
+          const higherCards = cardPool.filter(card => {
+            const price = card.marketPrice || pokemonApi.extractCardPrice(card);
+            return price > rolledRange.max;
+          });
+          
+          if (higherCards.length > 0) {
+            // Get the cheapest card above the range
+            higherCards.sort((a, b) => {
+              const priceA = a.marketPrice || pokemonApi.extractCardPrice(a);
+              const priceB = b.marketPrice || pokemonApi.extractCardPrice(b);
+              return priceA - priceB;
+            });
+            candidates = [higherCards[0]];
+            console.log(`✅ Using closest card above range: $${(candidates[0].marketPrice || pokemonApi.extractCardPrice(candidates[0])).toFixed(2)}`);
+          } else {
+            // Strategy 4: Last resort - pick random card from pool
+            console.warn(`⚠️ No suitable cards found, using random card from pool`);
+            candidates = [cardPool[Math.floor(Math.random() * cardPool.length)]];
+          }
+        }
+      }
+    }
+
+    if (candidates.length === 0) {
+      console.error('❌ No cards available in pool at all');
       return null;
     }
 
@@ -383,11 +427,9 @@ class TieredPackService {
     console.log('🗑️ Pack opening history cleared');
   }
 
-  // Clear card pool cache to force refresh
+  // Clear card pool cache (no-op since we don't cache anymore)
   clearCache(): void {
-    this.cardPoolCache = [];
-    this.lastFetchTime = 0;
-    console.log('🔄 Card pool cache cleared');
+    console.log('🔄 Cache clear requested (no cache in use)');
   }
 }
 

@@ -216,7 +216,7 @@ router.get('/pool', async (req, res) => {
     const db = getDb();
 
     const { limit = '250', minPrice = '1', maxPrice = '20000' } = req.query;
-    const poolLimit = Math.min(parseInt(limit as string) || 250, 1000);
+    const poolLimit = Math.min(parseInt(limit as string) || 250, 5000); // Increased max to 5000
 
     // Select random cards with their latest market price from price_history
     const sql = `
@@ -244,7 +244,8 @@ router.get('/pool', async (req, res) => {
         WHERE ph1.marketPrice IS NOT NULL
       ) ph ON cm.uniqueIdentifier = ph.uniqueIdentifier
       WHERE ph.marketPrice >= ? AND ph.marketPrice <= ?
-        AND cm.cardId IS NOT NULL
+        AND cm.cardName IS NOT NULL AND TRIM(cm.cardName) <> ''
+        AND cm.setId IS NOT NULL AND TRIM(cm.setId) <> ''
         AND cm.cardNumber IS NOT NULL AND TRIM(cm.cardNumber) <> ''
       ORDER BY RANDOM()
       LIMIT ?
@@ -299,6 +300,142 @@ router.get('/pool', async (req, res) => {
     });
   } catch (error) {
     console.error('Error building card pool:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: (error as Error).message 
+    });
+  }
+});
+
+/**
+ * Search Pokemon API for card images (proxy endpoint to avoid CORS)
+ */
+router.get('/search-pokemon', async (req, res) => {
+  try {
+    const { cardName, setId, cardNumber } = req.query;
+    
+    if (!cardName || typeof cardName !== 'string') {
+      return res.status(400).json({ 
+        error: 'cardName query parameter is required' 
+      });
+    }
+
+    if (!setId || typeof setId !== 'string') {
+      return res.status(400).json({ 
+        error: 'setId query parameter is required' 
+      });
+    }
+
+    const pokemonApiUrl = 'https://api.pokemontcg.io/v2/cards';
+    const apiKey = process.env.POKEMON_TCG_API_KEY;
+    const headers: HeadersInit = {
+      'Accept': 'application/json',
+    };
+    if (apiKey) {
+      headers['X-Api-Key'] = apiKey;
+    }
+
+    // Try multiple search strategies
+    let cards: any[] = [];
+    let searchAttempts = [];
+
+    // Strategy 1: Exact name + set ID
+    try {
+      const queryParts = [`name:"${cardName.replace(/"/g, '\\"')}"`, `set.id:${setId}`];
+      const queryString = queryParts.join(' ');
+      const url = new URL(pokemonApiUrl);
+      url.searchParams.append('q', queryString);
+      url.searchParams.append('pageSize', '50');
+      
+      const response = await fetch(url.toString(), { headers });
+      if (response.ok) {
+        const data = await response.json();
+        cards = data.data || [];
+        searchAttempts.push(`exact name + set: ${cards.length} results`);
+      }
+    } catch (e) {
+      searchAttempts.push(`exact name + set: failed`);
+    }
+
+    // Strategy 2: If no results, try wildcard name + set ID
+    if (cards.length === 0) {
+      try {
+        const queryParts = [`name:*${cardName.replace(/"/g, '\\"')}*`, `set.id:${setId}`];
+        const queryString = queryParts.join(' ');
+        const url = new URL(pokemonApiUrl);
+        url.searchParams.append('q', queryString);
+        url.searchParams.append('pageSize', '50');
+        
+        const response = await fetch(url.toString(), { headers });
+        if (response.ok) {
+          const data = await response.json();
+          cards = data.data || [];
+          searchAttempts.push(`wildcard name + set: ${cards.length} results`);
+        }
+      } catch (e) {
+        searchAttempts.push(`wildcard name + set: failed`);
+      }
+    }
+
+    // Strategy 3: If still no results, try exact name only (no set filter)
+    if (cards.length === 0) {
+      try {
+        const queryParts = [`name:"${cardName.replace(/"/g, '\\"')}"`];
+        const queryString = queryParts.join(' ');
+        const url = new URL(pokemonApiUrl);
+        url.searchParams.append('q', queryString);
+        url.searchParams.append('pageSize', '50');
+        
+        const response = await fetch(url.toString(), { headers });
+        if (response.ok) {
+          const data = await response.json();
+          cards = data.data || [];
+          searchAttempts.push(`exact name only: ${cards.length} results`);
+        }
+      } catch (e) {
+        searchAttempts.push(`exact name only: failed`);
+      }
+    }
+
+    // Filter to exact matches by name (set ID might differ)
+    const exactMatches = cards.filter((card: any) => 
+      card.name === cardName
+    );
+
+    // If cardNumber provided, prefer that match
+    let matchedCard = null;
+    if (cardNumber && exactMatches.length > 0) {
+      matchedCard = exactMatches.find((card: any) => 
+        card.number === cardNumber
+      ) || null;
+    }
+
+    // Fallback to first exact match
+    if (!matchedCard && exactMatches.length > 0) {
+      matchedCard = exactMatches[0];
+    }
+
+    if (!matchedCard || !matchedCard.images?.large || !matchedCard.images?.small) {
+      return res.status(404).json({
+        error: `Card not found or missing images`,
+        searched: { cardName, setId, cardNumber },
+        totalResults: cards.length,
+        exactMatches: exactMatches.length,
+        searchAttempts: searchAttempts
+      });
+    }
+
+    res.json({
+      card: matchedCard,
+      images: {
+        small: matchedCard.images.small,
+        large: matchedCard.images.large
+      },
+      id: matchedCard.id
+    });
+
+  } catch (error) {
+    console.error('Error searching Pokemon API:', error);
     res.status(500).json({ 
       error: 'Internal server error',
       message: (error as Error).message 
