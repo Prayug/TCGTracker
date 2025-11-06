@@ -13,134 +13,177 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
-const cors_1 = __importDefault(require("cors"));
 const node_cron_1 = __importDefault(require("node-cron"));
+const swagger_ui_express_1 = __importDefault(require("swagger-ui-express"));
 const priceHistory_1 = __importDefault(require("./routes/priceHistory"));
 const cardSearch_1 = __importDefault(require("./routes/cardSearch"));
 const database_1 = require("./db/database");
+const migrations_1 = require("./db/migrations");
 const dataFetcher_1 = require("./services/dataFetcher");
+const env_1 = require("./config/env");
+const swagger_1 = require("./config/swagger");
+const security_1 = require("./middleware/security");
+const rateLimiter_1 = require("./middleware/rateLimiter");
+const errorHandler_1 = require("./middleware/errorHandler");
+const logger_1 = require("./utils/logger");
+const authService_1 = require("./services/authService");
 const alertService_1 = require("./services/alertService");
+const portfolioService_1 = require("./services/portfolioService");
+const auth_1 = require("./routes/auth");
+const alerts_1 = require("./routes/alerts");
+const portfolio_1 = require("./routes/portfolio");
 const app = (0, express_1.default)();
-const port = 3001;
-app.use((0, cors_1.default)());
+const port = env_1.env.port;
+// Security middleware
+app.use((0, security_1.securityMiddleware)());
+app.use((0, security_1.corsMiddleware)());
 app.use(express_1.default.json());
-// Initialize the database
-console.log('Initializing database...');
+app.use(express_1.default.urlencoded({ extended: true }));
+// Request logging
+app.use(logger_1.requestLogger);
+// Rate limiting
+app.use('/api/', rateLimiter_1.apiLimiter);
+// Initialize the database and services
+logger_1.logger.info('Initializing database...');
 (0, database_1.initializeDatabase)();
-// Schedule daily data updates at 2 AM
-node_cron_1.default.schedule('0 2 * * *', () => __awaiter(void 0, void 0, void 0, function* () {
-    console.log('Running scheduled daily price data update...');
-    yield (0, dataFetcher_1.updatePriceData)();
-}), {
-    timezone: "America/New_York"
+const db = (0, database_1.getDb)();
+// Run database migrations before creating services
+(0, migrations_1.runMigrations)(db)
+    .then(() => {
+    // Services are created after migrations complete
+    const authService = new authService_1.AuthService(db);
+    const alertService = new alertService_1.AlertService(db);
+    const portfolioService = new portfolioService_1.PortfolioService(db);
+    // Set up routes after services are ready
+    setupRoutes(authService, alertService, portfolioService);
+})
+    .catch((error) => {
+    logger_1.logger.error('Failed to run migrations', { error });
+    process.exit(1);
 });
-// Schedule price alert checks every 30 minutes
-node_cron_1.default.schedule('*/30 * * * *', () => __awaiter(void 0, void 0, void 0, function* () {
-    console.log('Running scheduled price alert check...');
-    yield alertService_1.alertService.checkPriceAlerts();
-}));
-// Run initial data update on startup (after a short delay)
-setTimeout(() => __awaiter(void 0, void 0, void 0, function* () {
-    console.log('Running initial price data update...');
-    yield (0, dataFetcher_1.updatePriceData)();
-}), 5000);
-// Run initial alert check on startup
-setTimeout(() => __awaiter(void 0, void 0, void 0, function* () {
-    console.log('Running initial price alert check...');
-    yield alertService_1.alertService.checkPriceAlerts();
-}), 10000);
-app.use('/api/prices', priceHistory_1.default);
-app.use('/api/cards', cardSearch_1.default);
-// Manual update endpoint
-app.post('/api/update', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    try {
-        console.log('Manual price data update requested...');
-        (0, dataFetcher_1.updatePriceData)(); // Don't await - let it run in background
-        res.status(202).json({
-            success: true,
-            message: 'Data update process started in background.'
-        });
-    }
-    catch (error) {
-        console.error('Error starting manual update:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to start update process'
-        });
-    }
-}));
-// Manual alert check endpoint
-app.post('/api/check-alerts', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    try {
-        console.log('Manual alert check requested...');
-        yield alertService_1.alertService.checkPriceAlerts();
-        res.json({
-            success: true,
-            message: 'Price alerts checked successfully.'
-        });
-    }
-    catch (error) {
-        console.error('Error checking alerts:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to check alerts'
-        });
-    }
-}));
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-    res.json({
-        status: 'healthy',
-        timestamp: new Date().toISOString(),
-        version: '1.0.0'
+// Move route setup to a function that gets called after migrations
+function setupRoutes(authService, alertService, portfolioService) {
+    // API Documentation
+    app.use('/api-docs', swagger_ui_express_1.default.serve, swagger_ui_express_1.default.setup(swagger_1.swaggerSpec));
+    logger_1.logger.info(`API Documentation available at http://${env_1.env.host}:${port}/api-docs`);
+    // Schedule daily data updates at 2 AM
+    node_cron_1.default.schedule('0 2 * * *', () => __awaiter(this, void 0, void 0, function* () {
+        logger_1.logger.info('Running scheduled daily price data update...');
+        try {
+            yield (0, dataFetcher_1.updatePriceData)();
+            logger_1.logger.info('Daily price data update completed');
+        }
+        catch (error) {
+            logger_1.logger.error('Failed to update price data', { error: error.message });
+        }
+    }), {
+        timezone: "America/New_York"
     });
-});
-// Get server status
-app.get('/api/status', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    try {
-        const alertHistory = yield alertService_1.alertService.getAlertHistory(1); // Last 24 hours
-        res.json({
-            status: 'running',
+    // Run initial data update on startup (after a short delay)
+    if (env_1.env.isProduction) {
+        setTimeout(() => __awaiter(this, void 0, void 0, function* () {
+            logger_1.logger.info('Running initial price data update...');
+            try {
+                yield (0, dataFetcher_1.updatePriceData)();
+            }
+            catch (error) {
+                logger_1.logger.error('Failed initial price update', { error: error.message });
+            }
+        }), 5000);
+    }
+    // API Routes
+    app.use('/api/auth', rateLimiter_1.authLimiter, (0, auth_1.createAuthRouter)(authService));
+    app.use('/api/alerts', (0, alerts_1.createAlertsRouter)(alertService));
+    app.use('/api/portfolio', (0, portfolio_1.createPortfolioRouter)(portfolioService));
+    app.use('/api/prices', priceHistory_1.default);
+    app.use('/api/cards', cardSearch_1.default);
+    // Manual update endpoint (admin only in production)
+    app.post('/api/update', (req, res) => __awaiter(this, void 0, void 0, function* () {
+        try {
+            logger_1.logger.info('Manual price data update requested');
+            (0, dataFetcher_1.updatePriceData)(); // Don't await - let it run in background
+            res.status(202).json({
+                success: true,
+                message: 'Data update process started in background.'
+            });
+        }
+        catch (error) {
+            logger_1.logger.error('Error starting manual update', { error: error.message });
+            res.status(500).json({
+                success: false,
+                error: 'Failed to start update process'
+            });
+        }
+    }));
+    // Health check endpoint (for Docker)
+    app.get('/health', (req, res) => {
+        res.status(200).json({
+            status: 'healthy',
             timestamp: new Date().toISOString(),
-            scheduledTasks: {
-                dataUpdate: 'Daily at 2:00 AM EST',
-                alertCheck: 'Every 30 minutes'
-            },
-            recentAlerts: alertHistory.length,
+            version: '1.0.0'
+        });
+    });
+    app.get('/api/health', (req, res) => {
+        res.json({
+            status: 'healthy',
+            timestamp: new Date().toISOString(),
+            version: '1.0.0',
+            environment: env_1.env.nodeEnv
+        });
+    });
+    // Get server status
+    app.get('/api/status', (req, res) => __awaiter(this, void 0, void 0, function* () {
+        try {
+            res.json({
+                status: 'running',
+                timestamp: new Date().toISOString(),
+                environment: env_1.env.nodeEnv,
+                version: '1.0.0',
+                scheduledTasks: {
+                    dataUpdate: 'Daily at 2:00 AM EST'
+                },
+                endpoints: {
+                    auth: '/api/auth',
+                    alerts: '/api/alerts',
+                    prices: '/api/prices',
+                    cards: '/api/cards',
+                    docs: '/api-docs',
+                    health: '/api/health'
+                }
+            });
+        }
+        catch (error) {
+            logger_1.logger.error('Error getting status', { error: error.message });
+            res.status(500).json({
+                status: 'error',
+                error: 'Failed to get status'
+            });
+        }
+    }));
+    app.get('/', (req, res) => {
+        res.json({
+            message: 'TCGTracker Backend API',
+            version: '1.0.0',
+            documentation: '/api-docs',
             endpoints: {
+                auth: '/api/auth',
+                alerts: '/api/alerts',
                 prices: '/api/prices',
                 cards: '/api/cards',
-                manualUpdate: '/api/update',
-                alertCheck: '/api/check-alerts',
+                status: '/api/status',
                 health: '/api/health'
             }
         });
-    }
-    catch (error) {
-        console.error('Error getting status:', error);
-        res.status(500).json({
-            status: 'error',
-            error: 'Failed to get status'
-        });
-    }
-}));
-app.get('/', (req, res) => {
-    res.json({
-        message: 'TCGTracker Backend is running!',
-        version: '1.0.0',
-        endpoints: {
-            prices: '/api/prices',
-            cards: '/api/cards/search?query=pikachu',
-            sets: '/api/cards/sets',
-            stats: '/api/cards/stats',
-            status: '/api/status',
-            health: '/api/health'
-        }
     });
-});
-app.listen(port, () => {
-    console.log(`🚀 TCGTracker Backend server running on http://localhost:${port}`);
-    console.log(`📈 Price data updates scheduled daily at 2:00 AM EST`);
-    console.log(`🚨 Price alerts checked every 30 minutes`);
-    console.log(`📊 API documentation available at http://localhost:${port}/api/status`);
-});
+    // 404 handler
+    app.use(errorHandler_1.notFoundHandler);
+    // Global error handler
+    app.use(errorHandler_1.errorHandler);
+    app.listen(port, () => {
+        logger_1.logger.info(`🚀 TCGTracker Backend server running on http://${env_1.env.host}:${port}`);
+        logger_1.logger.info(`📈 Price data updates scheduled daily at 2:00 AM EST`);
+        logger_1.logger.info(`📚 API documentation available at http://${env_1.env.host}:${port}/api-docs`);
+        logger_1.logger.info(`🔒 Security features enabled: Helmet, CORS, Rate Limiting`);
+        logger_1.logger.info(`Environment: ${env_1.env.nodeEnv}`);
+    });
+}

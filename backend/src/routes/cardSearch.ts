@@ -3,6 +3,25 @@ import { getDb } from '../db/database';
 
 const router = Router();
 
+// In-memory cache for Pokemon TCG API card searches
+// This prevents repeated API calls for the same card
+interface CachedCard {
+  card: any;
+  images: { small: string; large: string };
+  id: string;
+  matchedSet: string;
+  matchedNumber: string;
+  timestamp: number;
+}
+
+const cardImageCache = new Map<string, CachedCard>();
+const CACHE_TTL = 1000 * 60 * 60 * 24; // 24 hours
+
+// Helper to generate cache key
+const getCacheKey = (cardName: string, setId: string, cardNumber?: string): string => {
+  return `${cardName}|${setId}|${cardNumber || 'none'}`.toLowerCase();
+};
+
 /**
  * Search cards from local database
  * Much faster and more reliable than Pokemon TCG API
@@ -326,6 +345,22 @@ router.get('/search-pokemon', async (req, res) => {
       });
     }
 
+    // Check cache first
+    const cacheKey = getCacheKey(cardName, setId, cardNumber as string | undefined);
+    const cached = cardImageCache.get(cacheKey);
+    
+    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+      console.log(`💾 Cache hit for ${cardName} from ${setId}`);
+      return res.json({
+        card: cached.card,
+        images: cached.images,
+        id: cached.id,
+        matchedSet: cached.matchedSet,
+        matchedNumber: cached.matchedNumber,
+        cached: true
+      });
+    }
+
     const pokemonApiUrl = 'https://api.pokemontcg.io/v2/cards';
     const apiKey = process.env.POKEMON_TCG_API_KEY;
     const headers: HeadersInit = {
@@ -335,29 +370,67 @@ router.get('/search-pokemon', async (req, res) => {
       headers['X-Api-Key'] = apiKey;
     }
 
+    // Normalize the card number for better matching
+    const normalizeCardNumber = (num: string | undefined): string => {
+      if (!num) return '';
+      // Remove leading zeros, convert to lowercase, remove special chars except letters and numbers
+      return num.toLowerCase().replace(/^0+/, '').replace(/[^a-z0-9]/g, '');
+    };
+
+    const normalizedRequestNumber = normalizeCardNumber(cardNumber as string | undefined);
+
     // Try multiple search strategies
     let cards: any[] = [];
     let searchAttempts = [];
 
-    // Strategy 1: Exact name + set ID
-    try {
-      const queryParts = [`name:"${cardName.replace(/"/g, '\\"')}"`, `set.id:${setId}`];
-      const queryString = queryParts.join(' ');
-      const url = new URL(pokemonApiUrl);
-      url.searchParams.append('q', queryString);
-      url.searchParams.append('pageSize', '50');
-      
-      const response = await fetch(url.toString(), { headers });
-      if (response.ok) {
-        const data = await response.json();
-        cards = data.data || [];
-        searchAttempts.push(`exact name + set: ${cards.length} results`);
+    // Strategy 1: Exact name + set ID + card number (most specific)
+    if (cardNumber) {
+      try {
+        const queryParts = [
+          `name:"${cardName.replace(/"/g, '\\"')}"`, 
+          `set.id:${setId}`,
+          `number:${cardNumber}`
+        ];
+        const queryString = queryParts.join(' ');
+        const url = new URL(pokemonApiUrl);
+        url.searchParams.append('q', queryString);
+        url.searchParams.append('pageSize', '50');
+        
+        const response = await fetch(url.toString(), { headers });
+        if (response.ok) {
+          const data = await response.json();
+          cards = data.data || [];
+          searchAttempts.push(`exact name + set + number: ${cards.length} results`);
+          if (cards.length > 0) {
+            console.log(`✅ Found exact match for ${cardName} #${cardNumber} in set ${setId}`);
+          }
+        }
+      } catch (e) {
+        searchAttempts.push(`exact name + set + number: failed`);
       }
-    } catch (e) {
-      searchAttempts.push(`exact name + set: failed`);
     }
 
-    // Strategy 2: If no results, try wildcard name + set ID
+    // Strategy 2: Exact name + set ID (without card number)
+    if (cards.length === 0) {
+      try {
+        const queryParts = [`name:"${cardName.replace(/"/g, '\\"')}"`, `set.id:${setId}`];
+        const queryString = queryParts.join(' ');
+        const url = new URL(pokemonApiUrl);
+        url.searchParams.append('q', queryString);
+        url.searchParams.append('pageSize', '50');
+        
+        const response = await fetch(url.toString(), { headers });
+        if (response.ok) {
+          const data = await response.json();
+          cards = data.data || [];
+          searchAttempts.push(`exact name + set: ${cards.length} results`);
+        }
+      } catch (e) {
+        searchAttempts.push(`exact name + set: failed`);
+      }
+    }
+
+    // Strategy 3: If no results, try wildcard name + set ID
     if (cards.length === 0) {
       try {
         const queryParts = [`name:*${cardName.replace(/"/g, '\\"')}*`, `set.id:${setId}`];
@@ -377,14 +450,14 @@ router.get('/search-pokemon', async (req, res) => {
       }
     }
 
-    // Strategy 3: If still no results, try exact name only (no set filter)
+    // Strategy 4: If still no results, try exact name only (no set filter)
     if (cards.length === 0) {
       try {
         const queryParts = [`name:"${cardName.replace(/"/g, '\\"')}"`];
         const queryString = queryParts.join(' ');
         const url = new URL(pokemonApiUrl);
         url.searchParams.append('q', queryString);
-        url.searchParams.append('pageSize', '50');
+        url.searchParams.append('pageSize', '100');
         
         const response = await fetch(url.toString(), { headers });
         if (response.ok) {
@@ -397,22 +470,99 @@ router.get('/search-pokemon', async (req, res) => {
       }
     }
 
-    // Filter to exact matches by name (set ID might differ)
-    const exactMatches = cards.filter((card: any) => 
-      card.name === cardName
-    );
-
-    // If cardNumber provided, prefer that match
-    let matchedCard = null;
-    if (cardNumber && exactMatches.length > 0) {
-      matchedCard = exactMatches.find((card: any) => 
-        card.number === cardNumber
-      ) || null;
+    if (cards.length === 0) {
+      return res.status(404).json({
+        error: `No cards found matching "${cardName}"`,
+        searched: { cardName, setId, cardNumber },
+        searchAttempts: searchAttempts
+      });
     }
 
-    // Fallback to first exact match
-    if (!matchedCard && exactMatches.length > 0) {
+    // Filter to exact matches by name
+    let exactMatches = cards.filter((card: any) => 
+      card.name.toLowerCase() === cardName.toLowerCase()
+    );
+
+    // If we have a card number, prioritize matches with that number
+    let matchedCard = null;
+    if (cardNumber && exactMatches.length > 0) {
+      // First, try exact card number match
+      matchedCard = exactMatches.find((card: any) => 
+        card.number === cardNumber
+      );
+
+      // If no exact match, try normalized comparison (handles "01" vs "1", etc.)
+      if (!matchedCard && normalizedRequestNumber) {
+        matchedCard = exactMatches.find((card: any) => 
+          normalizeCardNumber(card.number) === normalizedRequestNumber
+        );
+      }
+
+      // STRICT MODE: If a card number was requested but we can't find an exact match,
+      // DO NOT fallback to other variants. This prevents matching wrong variants of cards
+      // like different "Mega Lucario ex" cards (#077 vs #188 etc.)
+      if (!matchedCard) {
+        console.warn(`⚠️ Card number mismatch: Requested ${cardNumber} for "${cardName}" but no exact match found`);
+        console.log(`📋 Available variants: ${exactMatches.map((c: any) => `#${c.number}`).join(', ')}`);
+        
+        // Only fallback if the card number difference is very small (like "1" vs "01")
+        if (normalizedRequestNumber && /^\d+$/.test(normalizedRequestNumber)) {
+          const requestedNum = parseInt(normalizedRequestNumber);
+          const closeMatches = exactMatches.filter((card: any) => {
+            const cardNum = parseInt(normalizeCardNumber(card.number));
+            return !isNaN(cardNum) && Math.abs(cardNum - requestedNum) <= 1;
+          });
+          
+          if (closeMatches.length === 1) {
+            matchedCard = closeMatches[0];
+            console.log(`✅ Using close match: #${matchedCard.number} (requested #${cardNumber})`);
+          }
+        }
+      }
+    }
+
+    // Fallback 1: If NO card number was provided, use set-based matching
+    if (!matchedCard && !cardNumber && exactMatches.length > 0) {
+      const sameSetMatches = exactMatches.filter((card: any) => 
+        card.set.id.toLowerCase() === setId.toLowerCase()
+      );
+      if (sameSetMatches.length > 0) {
+        matchedCard = sameSetMatches[0];
+        console.log(`✅ Matched by set: ${matchedCard.name} #${matchedCard.number}`);
+      }
+    }
+
+    // Fallback 2: Use first exact name match (ONLY if no card number was requested)
+    if (!matchedCard && !cardNumber && exactMatches.length > 0) {
       matchedCard = exactMatches[0];
+      console.warn(`⚠️ Using fallback match for ${cardName} #${matchedCard.number} - may not be the exact variant`);
+    }
+
+    // Fallback 3: If no exact matches and NO card number, try fuzzy matching on name
+    if (!matchedCard && !cardNumber && cards.length > 0) {
+      const fuzzyMatches = cards.filter((card: any) => 
+        card.name.toLowerCase().includes(cardName.toLowerCase()) ||
+        cardName.toLowerCase().includes(card.name.toLowerCase())
+      );
+      if (fuzzyMatches.length > 0) {
+        matchedCard = fuzzyMatches[0];
+        console.warn(`⚠️ Using fuzzy match for ${cardName}: ${matchedCard.name} #${matchedCard.number}`);
+      }
+    }
+    
+    // If a card number was provided but we still don't have a match, return error
+    if (!matchedCard && cardNumber) {
+      return res.status(404).json({
+        error: `Card number ${cardNumber} not found for "${cardName}" in set ${setId}`,
+        searched: { cardName, setId, cardNumber },
+        message: `Please check that the card number is correct. Found ${exactMatches.length} variants with this name.`,
+        availableVariants: exactMatches.map((c: any) => ({ 
+          name: c.name, 
+          set: c.set.id, 
+          number: c.number,
+          rarity: c.rarity 
+        }))
+      });
     }
 
     if (!matchedCard || !matchedCard.images?.large || !matchedCard.images?.small) {
@@ -421,18 +571,36 @@ router.get('/search-pokemon', async (req, res) => {
         searched: { cardName, setId, cardNumber },
         totalResults: cards.length,
         exactMatches: exactMatches.length,
-        searchAttempts: searchAttempts
+        searchAttempts: searchAttempts,
+        availableCards: cards.slice(0, 5).map((c: any) => ({ 
+          name: c.name, 
+          set: c.set.id, 
+          number: c.number 
+        }))
       });
     }
 
-    res.json({
+    console.log(`✅ Matched card: ${matchedCard.name} from ${matchedCard.set.name} (#${matchedCard.number})`);
+
+    // Store in cache
+    const result = {
       card: matchedCard,
       images: {
         small: matchedCard.images.small,
         large: matchedCard.images.large
       },
-      id: matchedCard.id
-    });
+      id: matchedCard.id,
+      matchedSet: matchedCard.set.name,
+      matchedNumber: matchedCard.number,
+      timestamp: Date.now()
+    };
+    
+    cardImageCache.set(cacheKey, result);
+    console.log(`💾 Cached result for ${cardName} (cache size: ${cardImageCache.size})`);
+
+    // Return without the timestamp
+    const { timestamp, ...response } = result;
+    res.json(response);
 
   } catch (error) {
     console.error('Error searching Pokemon API:', error);

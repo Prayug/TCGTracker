@@ -9,203 +9,144 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.alertService = exports.AlertService = void 0;
-const database_1 = require("../db/database");
+exports.AlertService = void 0;
+const logger_1 = require("../utils/logger");
 class AlertService {
-    checkPriceAlerts() {
+    constructor(db) {
+        this.db = db;
+        this.initializeDatabase();
+    }
+    initializeDatabase() {
+        this.db.run(`
+      CREATE TABLE IF NOT EXISTS price_alerts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        card_id TEXT NOT NULL,
+        card_name TEXT NOT NULL,
+        target_price REAL NOT NULL,
+        condition TEXT CHECK(condition IN ('above', 'below')) NOT NULL,
+        is_active BOOLEAN DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        triggered_at DATETIME,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+        this.db.run(`
+      CREATE INDEX IF NOT EXISTS idx_alerts_user ON price_alerts(user_id)
+    `);
+        this.db.run(`
+      CREATE INDEX IF NOT EXISTS idx_alerts_card ON price_alerts(card_id)
+    `);
+        this.db.run(`
+      CREATE INDEX IF NOT EXISTS idx_alerts_active ON price_alerts(is_active)
+    `);
+    }
+    createAlert(userId, cardId, cardName, targetPrice, condition) {
         return __awaiter(this, void 0, void 0, function* () {
-            try {
-                console.log('Checking price alerts...');
-                const alerts = yield this.getActiveAlerts();
-                if (alerts.length === 0) {
-                    console.log('No active alerts to check');
-                    return;
-                }
-                for (const alert of alerts) {
-                    yield this.processAlert(alert);
-                }
-                console.log(`Checked ${alerts.length} price alerts`);
-            }
-            catch (error) {
-                console.error('Error checking price alerts:', error);
-            }
+            return new Promise((resolve, reject) => {
+                this.db.run(`INSERT INTO price_alerts (user_id, card_id, card_name, target_price, condition) 
+         VALUES (?, ?, ?, ?, ?)`, [userId, cardId, cardName, targetPrice, condition], function (err) {
+                    if (err)
+                        return reject(err);
+                    const alertId = this.lastID;
+                    resolve({
+                        id: alertId,
+                        user_id: userId,
+                        card_id: cardId,
+                        card_name: cardName,
+                        target_price: targetPrice,
+                        condition,
+                        is_active: true,
+                        created_at: new Date().toISOString(),
+                    });
+                });
+            });
+        });
+    }
+    getAlertsByUser(userId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return new Promise((resolve, reject) => {
+                this.db.all('SELECT * FROM price_alerts WHERE user_id = ? ORDER BY created_at DESC', [userId], (err, rows) => {
+                    if (err)
+                        return reject(err);
+                    resolve(rows || []);
+                });
+            });
         });
     }
     getActiveAlerts() {
         return __awaiter(this, void 0, void 0, function* () {
-            const db = (0, database_1.getDb)();
             return new Promise((resolve, reject) => {
-                const sql = 'SELECT * FROM price_alerts WHERE isActive = 1';
-                db.all(sql, [], (err, rows) => {
-                    if (err) {
-                        reject(err);
-                    }
-                    else {
-                        resolve(rows || []);
-                    }
+                this.db.all('SELECT * FROM price_alerts WHERE is_active = 1', [], (err, rows) => {
+                    if (err)
+                        return reject(err);
+                    resolve(rows || []);
                 });
             });
         });
     }
-    processAlert(alert) {
+    deleteAlert(alertId, userId) {
         return __awaiter(this, void 0, void 0, function* () {
-            try {
-                let priceData = null;
-                if (alert.productId) {
-                    priceData = yield this.getCurrentPrice(alert.productId);
-                }
-                else if (alert.cardId) {
-                    priceData = yield this.getCurrentPriceByCardId(alert.cardId);
-                }
-                if (!priceData) {
-                    console.log(`No price data found for alert ${alert.id}`);
-                    return;
-                }
-                const shouldTrigger = this.shouldTriggerAlert(alert, priceData);
-                if (shouldTrigger) {
-                    yield this.triggerAlert(alert, priceData);
-                }
-            }
-            catch (error) {
-                console.error(`Error processing alert ${alert.id}:`, error);
-            }
-        });
-    }
-    getCurrentPrice(productId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const db = (0, database_1.getDb)();
             return new Promise((resolve, reject) => {
-                const sql = `
-        SELECT 
-          productId,
-          price as currentPrice,
-          productName,
-          date
-        FROM price_history 
-        WHERE productId = ? 
-        ORDER BY date DESC 
-        LIMIT 1
-      `;
-                db.get(sql, [productId], (err, row) => {
-                    if (err) {
-                        reject(err);
-                    }
-                    else {
-                        resolve(row ? {
-                            productId: row.productId,
-                            currentPrice: row.currentPrice,
-                            productName: row.productName
-                        } : null);
-                    }
+                this.db.run('DELETE FROM price_alerts WHERE id = ? AND user_id = ?', [alertId, userId], (err) => {
+                    if (err)
+                        return reject(err);
+                    resolve();
                 });
             });
         });
     }
-    getCurrentPriceByCardId(cardId) {
+    toggleAlert(alertId, userId, isActive) {
         return __awaiter(this, void 0, void 0, function* () {
-            const db = (0, database_1.getDb)();
             return new Promise((resolve, reject) => {
-                const sql = `
-        SELECT 
-          cardId,
-          marketPrice as currentPrice,
-          date
-        FROM rolling_averages 
-        WHERE cardId = ? 
-        ORDER BY date DESC 
-        LIMIT 1
-      `;
-                db.get(sql, [cardId], (err, row) => {
-                    if (err) {
-                        reject(err);
-                    }
-                    else {
-                        resolve(row ? {
-                            productId: 0,
-                            cardId: row.cardId,
-                            currentPrice: row.currentPrice,
-                            productName: cardId
-                        } : null);
-                    }
+                this.db.run('UPDATE price_alerts SET is_active = ? WHERE id = ? AND user_id = ?', [isActive ? 1 : 0, alertId, userId], (err) => {
+                    if (err)
+                        return reject(err);
+                    resolve();
                 });
             });
         });
     }
-    shouldTriggerAlert(alert, priceData) {
-        const { currentPrice } = priceData;
-        // Check if alert was recently triggered (within last hour)
-        if (alert.lastTriggered) {
-            const lastTriggeredTime = new Date(alert.lastTriggered).getTime();
-            const oneHourAgo = Date.now() - (60 * 60 * 1000);
-            if (lastTriggeredTime > oneHourAgo) {
-                return false; // Don't spam alerts
-            }
-        }
-        switch (alert.alertType) {
-            case 'above':
-                return currentPrice >= alert.targetPrice;
-            case 'below':
-                return currentPrice <= alert.targetPrice;
-            case 'change_percent':
-                if (priceData.previousPrice) {
-                    const changePercent = ((currentPrice - priceData.previousPrice) / priceData.previousPrice) * 100;
-                    return Math.abs(changePercent) >= alert.threshold;
-                }
-                return false;
-            default:
-                return false;
-        }
-    }
-    triggerAlert(alert, priceData) {
+    triggerAlert(alertId) {
         return __awaiter(this, void 0, void 0, function* () {
-            console.log(`🚨 PRICE ALERT TRIGGERED!`);
-            console.log(`Alert ID: ${alert.id}`);
-            console.log(`Card/Product: ${priceData.productName || priceData.cardId}`);
-            console.log(`Current Price: $${priceData.currentPrice.toFixed(2)}`);
-            console.log(`Alert Type: ${alert.alertType}`);
-            console.log(`Target/Threshold: ${alert.alertType === 'change_percent' ? alert.threshold + '%' : '$' + alert.targetPrice}`);
-            // Update last triggered timestamp
-            const db = (0, database_1.getDb)();
-            const updateSql = 'UPDATE price_alerts SET lastTriggered = datetime("now") WHERE id = ?';
             return new Promise((resolve, reject) => {
-                db.run(updateSql, [alert.id], (err) => {
-                    if (err) {
-                        reject(err);
-                    }
-                    else {
-                        resolve();
-                    }
+                this.db.run('UPDATE price_alerts SET is_active = 0, triggered_at = CURRENT_TIMESTAMP WHERE id = ?', [alertId], (err) => {
+                    if (err)
+                        return reject(err);
+                    resolve();
                 });
             });
-            // Here you could add:
-            // - Email notifications
-            // - Push notifications  
-            // - Webhook calls
-            // - Discord/Slack notifications
-            // etc.
         });
     }
-    getAlertHistory() {
-        return __awaiter(this, arguments, void 0, function* (days = 7) {
-            const db = (0, database_1.getDb)();
+    checkAlerts(cardId, currentPrice) {
+        return __awaiter(this, void 0, void 0, function* () {
             return new Promise((resolve, reject) => {
-                const sql = `
-        SELECT * FROM price_alerts 
-        WHERE lastTriggered IS NOT NULL 
-          AND lastTriggered >= datetime('now', '-${days} days')
-        ORDER BY lastTriggered DESC
-      `;
-                db.all(sql, [], (err, rows) => {
-                    if (err) {
-                        reject(err);
-                    }
-                    else {
-                        resolve(rows || []);
-                    }
+                this.db.all(`SELECT * FROM price_alerts 
+         WHERE card_id = ? AND is_active = 1 AND (
+           (condition = 'above' AND target_price <= ?) OR
+           (condition = 'below' AND target_price >= ?)
+         )`, [cardId, currentPrice, currentPrice], (err, rows) => {
+                    if (err)
+                        return reject(err);
+                    // Trigger all matched alerts
+                    rows.forEach((alert) => {
+                        this.triggerAlert(alert.id)
+                            .then(() => {
+                            logger_1.logger.info('Price alert triggered', {
+                                alertId: alert.id,
+                                cardId: alert.card_id,
+                                targetPrice: alert.target_price,
+                                currentPrice,
+                            });
+                        })
+                            .catch((err) => {
+                            logger_1.logger.error('Failed to trigger alert', { error: err.message });
+                        });
+                    });
+                    resolve(rows || []);
                 });
             });
         });
     }
 }
 exports.AlertService = AlertService;
-exports.alertService = new AlertService();

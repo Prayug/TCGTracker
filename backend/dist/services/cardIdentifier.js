@@ -109,49 +109,118 @@ const findCardByDetails = (cardName, setId, cardNumber, rarity, productId) => __
         }
         function findWithOtherDetails() {
             const isPromo = (rarity === 'Promo' || setId.toLowerCase().includes('promo'));
-            let sql = 'SELECT * FROM card_mappings';
-            const params = [];
-            const conditions = [];
-            // Card Name is always required
-            conditions.push('cardName = ?');
-            params.push(cardName);
-            // Set matching logic
-            if (isPromo) {
-                // For promos, be more lenient with the set name
-                conditions.push("setName LIKE '%Promo%'");
-            }
-            else {
-                // For standard sets, be stricter
-                conditions.push('(setId = ? OR setName LIKE ?)');
-                params.push(setId, `%${setId}%`);
-            }
-            // Number matching logic
-            if (cardNumber) {
-                // Normalize both numbers by removing non-alphanumeric chars for a better match
-                const normalizedCardNumber = cardNumber.replace(/[^a-zA-Z0-9]/g, '');
-                conditions.push("(REPLACE(LOWER(cardNumber), '-', '') = ? OR REPLACE(LOWER(cardNumber), ' ', '') = ?)");
-                params.push(normalizedCardNumber.toLowerCase(), normalizedCardNumber.toLowerCase());
-            }
-            // Rarity matching
-            if (rarity) {
-                conditions.push('rarity = ?');
-                params.push(rarity);
-            }
-            sql += ' WHERE ' + conditions.join(' AND ');
-            sql += ' ORDER BY length(cardNumber) ASC, createdAt DESC LIMIT 1';
-            db.get(sql, params, (err, row) => {
-                if (err) {
-                    reject(err);
+            // Try multiple matching strategies
+            tryExactMatch()
+                .then(result => {
+                if (result) {
+                    resolve(result);
+                    return null; // Stop the chain
                 }
-                else if (row) {
-                    resolve(row);
+                return tryLenientMatch();
+            })
+                .then(result => {
+                if (result) {
+                    resolve(result);
+                    return null; // Stop the chain
+                }
+                return tryFuzzyMatch();
+            })
+                .then(result => {
+                if (result) {
+                    resolve(result);
                 }
                 else {
-                    // If no match, try generating a unique identifier as a fallback
-                    const uniqueIdentifier = (0, exports.generateUniqueIdentifier)(setId, cardNumber, cardName);
-                    (0, exports.findCardByIdentifier)(uniqueIdentifier).then(resolve).catch(reject);
+                    resolve(null);
                 }
-            });
+            })
+                .catch(reject);
+            // Strategy 1: Exact match
+            function tryExactMatch() {
+                return new Promise((res, rej) => {
+                    let sql = 'SELECT * FROM card_mappings';
+                    const params = [];
+                    const conditions = [];
+                    // Exact card name match
+                    conditions.push('cardName = ?');
+                    params.push(cardName);
+                    // Set matching
+                    if (isPromo) {
+                        conditions.push("setName LIKE '%Promo%'");
+                    }
+                    else {
+                        conditions.push('(setId = ? OR setName LIKE ?)');
+                        params.push(setId, `%${setId}%`);
+                    }
+                    // Card number matching
+                    if (cardNumber) {
+                        const normalizedCardNumber = cardNumber.replace(/[^a-zA-Z0-9]/g, '');
+                        conditions.push("REPLACE(LOWER(cardNumber), '-', '') = ?");
+                        params.push(normalizedCardNumber.toLowerCase());
+                    }
+                    sql += ' WHERE ' + conditions.join(' AND ');
+                    sql += ' ORDER BY length(cardNumber) ASC, createdAt DESC LIMIT 1';
+                    db.get(sql, params, (err, row) => {
+                        if (err)
+                            rej(err);
+                        else
+                            res(row || null);
+                    });
+                });
+            }
+            // Strategy 2: Lenient match (ignore special characters in name)
+            function tryLenientMatch() {
+                return new Promise((res, rej) => {
+                    // Normalize the card name by removing special characters
+                    const normalizedName = cardName.replace(/[^a-zA-Z0-9\s]/g, '').trim();
+                    let sql = `SELECT * FROM card_mappings WHERE 
+            REPLACE(REPLACE(REPLACE(cardName, '-', ''), ' ', ''), '★', '') = 
+            REPLACE(REPLACE(REPLACE(?, '-', ''), ' ', ''), '★', '')`;
+                    const params = [cardName];
+                    // Set matching
+                    if (isPromo) {
+                        sql += " AND setName LIKE '%Promo%'";
+                    }
+                    else {
+                        sql += ' AND (setId = ? OR setName LIKE ?)';
+                        params.push(setId, `%${setId}%`);
+                    }
+                    // Card number matching (optional, less strict)
+                    if (cardNumber) {
+                        const normalizedCardNumber = cardNumber.replace(/[^a-zA-Z0-9]/g, '');
+                        sql += " AND (REPLACE(LOWER(cardNumber), '-', '') = ? OR cardNumber IS NULL)";
+                        params.push(normalizedCardNumber.toLowerCase());
+                    }
+                    sql += ' ORDER BY length(cardNumber) ASC, createdAt DESC LIMIT 1';
+                    db.get(sql, params, (err, row) => {
+                        if (err)
+                            rej(err);
+                        else
+                            res(row || null);
+                    });
+                });
+            }
+            // Strategy 3: Fuzzy match (case-insensitive LIKE)
+            function tryFuzzyMatch() {
+                return new Promise((res, rej) => {
+                    let sql = 'SELECT * FROM card_mappings WHERE LOWER(cardName) LIKE ?';
+                    const params = [`%${cardName.toLowerCase()}%`];
+                    // Set matching
+                    if (isPromo) {
+                        sql += " AND setName LIKE '%Promo%'";
+                    }
+                    else {
+                        sql += ' AND (setId = ? OR setName LIKE ?)';
+                        params.push(setId, `%${setId}%`);
+                    }
+                    sql += ' ORDER BY length(cardNumber) ASC, createdAt DESC LIMIT 1';
+                    db.get(sql, params, (err, row) => {
+                        if (err)
+                            rej(err);
+                        else
+                            res(row || null);
+                    });
+                });
+            }
         }
     });
 });
