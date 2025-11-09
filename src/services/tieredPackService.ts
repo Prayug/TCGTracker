@@ -142,7 +142,7 @@ class TieredPackService {
           throw new Error('Missing card name or set ID for image lookup');
         }
         
-        // Search via backend proxy to avoid CORS
+        // Search via backend proxy to avoid CORS (with 15s timeout)
         console.log(`🔍 Searching Pokemon API via backend for: "${cardName}" in set "${setId}"`);
         const backendBase = window.location.origin.replace(':5173', ':3001');
         const searchUrl = new URL(`${backendBase}/api/cards/search-pokemon`);
@@ -152,28 +152,47 @@ class TieredPackService {
           searchUrl.searchParams.append('cardNumber', cardNumber);
         }
         
-        const response = await fetch(searchUrl.toString());
+        // Add timeout to prevent forever-waiting (reduced to 8s since backend is now parallel)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
         
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(
-            `Failed to load card images: ${response.status} ${response.statusText}. ` +
-            `Details: ${errorData.error || 'Unknown error'}`
-          );
+        let response;
+        try {
+          response = await fetch(searchUrl.toString(), {
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+          
+          if (response.ok) {
+            const result = await response.json();
+            
+            if (result.images?.large && result.images?.small) {
+              console.log(`✅ Successfully loaded images for ${cardName}`);
+              
+              // Replace images with actual ones from API
+              selectedCard.images = result.images;
+              // Also update the card ID to the real Pokemon API ID
+              selectedCard.id = result.id;
+            } else {
+              console.warn(`⚠️ Card found but missing images for "${cardName}" - using placeholder`);
+            }
+          } else {
+            // If it's a 404 and the set doesn't exist, just use placeholder
+            if (response.status === 404) {
+              console.warn(`⚠️ Set "${setId}" not in Pokemon API - using placeholder image`);
+            } else {
+              console.warn(`⚠️ Failed to load images (${response.status}) - using placeholder`);
+            }
+          }
+        } catch (error) {
+          clearTimeout(timeoutId);
+          if ((error as Error).name === 'AbortError') {
+            console.warn(`⏱️ Image search timed out for ${cardName} - using placeholder`);
+          } else {
+            console.warn(`⚠️ Error loading images for ${cardName} - using placeholder:`, error);
+          }
+          // Continue with placeholder image, don't throw
         }
-        
-        const result = await response.json();
-        
-        if (!result.images?.large || !result.images?.small) {
-          throw new Error(`Card found but missing images for "${cardName}"`);
-        }
-        
-        console.log(`✅ Successfully loaded images for ${cardName}`);
-        
-        // Replace images with actual ones from API
-        selectedCard.images = result.images;
-        // Also update the card ID to the real Pokemon API ID
-        selectedCard.id = result.id;
       }
 
       const pulledCards = [selectedCard];

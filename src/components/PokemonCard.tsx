@@ -10,74 +10,110 @@ interface PokemonCardProps {
 export const PokemonCard: React.FC<PokemonCardProps> = ({ card, onClick }) => {
   const price = card.marketPrice || pokemonApi.extractCardPrice(card);
 
+  const getRarityGradient = (rarity?: string) => {
+    if (!rarity) return 'from-gray-100 to-gray-200';
+    if (rarity.toLowerCase().includes('rare')) return 'from-accent-100 to-pink-100';
+    if (rarity.toLowerCase().includes('holo')) return 'from-purple-100 to-pink-100';
+    if (rarity.toLowerCase().includes('ultra')) return 'from-yellow-100 to-orange-100';
+    return 'from-primary-100 to-accent-100';
+  };
+
   return (
     <div 
-      className="group relative bg-white rounded-2xl shadow-md hover:shadow-2xl transition-all duration-500 cursor-pointer overflow-hidden border border-gray-100"
+      className="group relative bg-white rounded-2xl shadow-card hover:shadow-card-hover transition-all duration-500 cursor-pointer overflow-hidden border-2 border-gray-100 hover:border-primary-300 shine"
       onClick={onClick}
     >
-      {/* Glow effect on hover */}
-      <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl opacity-0 group-hover:opacity-20 blur transition-opacity duration-500" />
+      {/* Enhanced Glow effect on hover */}
+      <div className="absolute -inset-1 bg-gradient-to-r from-primary-600 via-accent-600 to-pink-600 rounded-2xl opacity-0 group-hover:opacity-30 blur-xl transition-all duration-500" />
       
-      <div className="relative">
-        {/* Card Image Section */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 rounded-t-2xl">
-          <img
-            src={card.images.small}
-            alt={card.name}
-            className="w-full h-auto object-contain transition-all duration-500 group-hover:scale-110 aspect-[63/88]"
-            loading="lazy"
-          />
-          {/* Shimmer effect on hover */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+      <div className="relative bg-white rounded-2xl">
+        {/* Card Image Section with enhanced background */}
+        <div className={`relative overflow-hidden bg-gradient-to-br ${getRarityGradient(card.rarity)} rounded-t-2xl p-4`}>
+          <div className="relative">
+            <img
+              src={card.images.small}
+              alt={card.name}
+              className="w-full h-auto object-contain transition-all duration-700 group-hover:scale-110 group-hover:rotate-2 aspect-[63/88] rounded-lg shadow-lg"
+              loading="lazy"
+            />
+            
+            {/* Enhanced Shimmer effect */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 rounded-lg" />
+          </div>
           
-          {/* Price badge overlay */}
+          {/* Enhanced Price badge with animation */}
           {price > 0 && (
-            <div className="absolute top-3 right-3 bg-gradient-to-br from-emerald-500 to-green-600 text-white px-3 py-1.5 rounded-full text-sm font-bold shadow-lg transform group-hover:scale-110 transition-transform duration-300">
+            <div className="absolute top-6 right-6 bg-gradient-to-br from-emerald-500 via-green-500 to-teal-600 text-white px-4 py-2 rounded-full text-sm font-black shadow-lg shadow-green-500/50 transform group-hover:scale-110 group-hover:-rotate-6 transition-all duration-300 border-2 border-white">
               ${price.toFixed(2)}
             </div>
           )}
         </div>
         
-        {/* Card Info Section */}
-        <div className="p-5 space-y-3">
+        {/* Card Info Section - More Dense Like TCGPlayer */}
+        <div className="p-4 space-y-2.5 bg-gradient-to-b from-white to-gray-50/30">
           <div>
-            <h3 className="font-bold text-gray-900 text-lg leading-tight line-clamp-2 mb-1.5 group-hover:text-blue-600 transition-colors duration-300">
+            <h3 className="font-bold text-gray-900 text-base leading-tight line-clamp-2 mb-1 group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-primary-600 group-hover:to-accent-600 group-hover:bg-clip-text transition-all duration-300">
               {card.name}
             </h3>
-            <p className="text-gray-500 text-sm font-medium">{card.set.name}</p>
+            <p className="text-gray-500 text-xs font-semibold line-clamp-1">
+              {card.set.name}
+            </p>
           </div>
           
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Rarity Badge */}
+          {/* Card Number and Release Year */}
+          <div className="flex items-center justify-between text-xs">
+            {card.number && (
+              <span className="text-gray-500 font-semibold">
+                #{card.number}
+              </span>
+            )}
+            {card.set.releaseDate && (
+              <span className="text-gray-500 font-semibold">
+                {new Date(card.set.releaseDate).getFullYear()}
+              </span>
+            )}
+          </div>
+          
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {/* Enhanced Rarity Badge - Compact */}
             {card.rarity && (
-              <span className="inline-flex items-center px-3 py-1.5 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-800 rounded-full text-xs font-semibold shadow-sm">
-                ✨ {card.rarity}
+              <span className={`inline-flex items-center px-2 py-0.5 bg-gradient-to-r ${getRarityGradient(card.rarity)} text-accent-800 rounded-md text-[10px] font-black shadow-sm border border-accent-200 group-hover:shadow-md transition-shadow uppercase`}>
+                {card.rarity}
               </span>
             )}
             
-            {/* Type Badges */}
-            {card.types && card.types.slice(0, 2).map((type) => (
+            {/* Type Badge - Compact */}
+            {card.types && card.types.slice(0, 1).map((type) => (
               <span
                 key={type}
-                className="inline-flex items-center px-3 py-1.5 bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800 rounded-full text-xs font-semibold shadow-sm"
+                className="inline-flex items-center px-2 py-0.5 bg-gradient-to-r from-primary-100 to-accent-100 text-primary-800 rounded-md text-[10px] font-black shadow-sm border border-primary-200 group-hover:shadow-md transition-shadow uppercase"
               >
                 {type}
               </span>
             ))}
           </div>
 
-          {/* Artist info */}
-          {card.artist && (
-            <div className="pt-3 border-t border-gray-100">
-              <p className="text-xs text-gray-500">
-                <span className="font-semibold text-gray-700">Artist:</span> {card.artist}
-              </p>
+          {/* Market Stats - Dense Info */}
+          <div className="pt-2.5 border-t border-gray-200 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-gray-500 font-bold uppercase">Market</span>
+              <span className="text-xs font-black text-green-600">${price.toFixed(2)}</span>
             </div>
-          )}
+            {card.set.printedTotal && (
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-gray-500 font-bold uppercase">Set Size</span>
+                <span className="text-xs font-semibold text-gray-700">{card.set.printedTotal} cards</span>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Hover indicator */}
-        <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-600 to-purple-600 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left" />
+        {/* Enhanced Hover indicator with gradient animation */}
+        <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-gradient-to-r from-primary-600 via-accent-600 to-pink-600 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left rounded-b-2xl" />
+        
+        {/* Corner accent */}
+        <div className="absolute top-3 left-3 w-3 h-3 border-t-2 border-l-2 border-transparent group-hover:border-primary-400 transition-colors duration-300 rounded-tl-lg" />
+        <div className="absolute bottom-3 right-3 w-3 h-3 border-b-2 border-r-2 border-transparent group-hover:border-accent-400 transition-colors duration-300 rounded-br-lg" />
       </div>
     </div>
   );

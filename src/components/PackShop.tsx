@@ -54,68 +54,71 @@ export const PackShop: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-start">
-        <div className="flex items-center gap-3">
-          <div className="p-3 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl shadow-lg">
-            <Package className="w-8 h-8 text-white" />
+      {/* Enhanced Header */}
+      <div className="flex justify-between items-start animate-slide-up">
+        <div className="flex items-center gap-4">
+          <div className="relative group">
+            <div className="absolute -inset-1 bg-gradient-to-r from-primary-600 to-accent-600 rounded-2xl blur opacity-60 group-hover:opacity-100 transition duration-500 animate-glow" />
+            <div className="relative p-4 bg-gradient-to-br from-primary-600 to-accent-600 rounded-2xl shadow-xl">
+              <Package className="w-10 h-10 text-white" />
+            </div>
           </div>
           <div>
-            <h2 className="text-3xl font-black bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            <h2 className="text-4xl font-black gradient-text tracking-tight">
               Pack Shop
             </h2>
-            <p className="text-gray-600 text-sm">Open packs and add cards to your collection!</p>
+            <p className="text-gray-600 text-base font-medium mt-1">Open packs and discover amazing cards!</p>
           </div>
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Enhanced Stats */}
       {history.packsOpened > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-white rounded-xl p-6 shadow-lg border border-gray-200">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Package className="w-5 h-5 text-blue-600" />
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 animate-slide-up">
+          <div className="group card hover:border-primary-300 border-2 border-transparent p-6">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-3 bg-gradient-to-br from-primary-100 to-primary-200 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                <Package className="w-6 h-6 text-primary-600" />
               </div>
-              <p className="text-sm font-medium text-gray-600">Packs Opened</p>
+              <p className="text-sm font-semibold text-gray-600">Packs Opened</p>
             </div>
-            <p className="text-3xl font-bold text-gray-900">{history.packsOpened}</p>
+            <p className="text-4xl font-black text-gray-900">{history.packsOpened}</p>
           </div>
 
-          <div className="bg-white rounded-xl p-6 shadow-lg border border-gray-200">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <Sparkles className="w-5 h-5 text-purple-600" />
+          <div className="group card hover:border-accent-300 border-2 border-transparent p-6">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-3 bg-gradient-to-br from-accent-100 to-accent-200 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                <Sparkles className="w-6 h-6 text-accent-600" />
               </div>
-              <p className="text-sm font-medium text-gray-600">Total Spent</p>
+              <p className="text-sm font-semibold text-gray-600">Total Spent</p>
             </div>
-            <p className="text-3xl font-bold text-gray-900">${history.totalSpent.toFixed(2)}</p>
+            <p className="text-4xl font-black text-gray-900">${history.totalSpent.toFixed(2)}</p>
           </div>
 
-          <div className="bg-white rounded-xl p-6 shadow-lg border border-gray-200">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <TrendingUp className="w-5 h-5 text-green-600" />
+          <div className="group card hover:border-green-300 border-2 border-transparent p-6">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-3 bg-gradient-to-br from-green-100 to-emerald-200 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                <TrendingUp className="w-6 h-6 text-green-600" />
               </div>
-              <p className="text-sm font-medium text-gray-600">Total Value</p>
+              <p className="text-sm font-semibold text-gray-600">Total Value</p>
             </div>
-            <p className="text-3xl font-bold text-gray-900">${history.totalValue.toFixed(2)}</p>
+            <p className="text-4xl font-black text-gray-900">${history.totalValue.toFixed(2)}</p>
           </div>
 
-          <div className={`rounded-xl p-6 shadow-lg border-2 ${
+          <div className={`group rounded-2xl p-6 shadow-card hover:shadow-card-hover transition-all duration-300 border-2 ${
             history.totalProfit >= 0 
-              ? 'bg-gradient-to-br from-green-50 to-green-100 border-green-300' 
-              : 'bg-gradient-to-br from-red-50 to-red-100 border-red-300'
+              ? 'bg-gradient-to-br from-green-50 via-green-50 to-emerald-100 border-green-300 hover:border-green-400' 
+              : 'bg-gradient-to-br from-red-50 via-red-50 to-rose-100 border-red-300 hover:border-red-400'
           }`}>
-            <div className="flex items-center gap-3 mb-2">
-              <div className={`p-2 rounded-lg ${history.totalProfit >= 0 ? 'bg-green-200' : 'bg-red-200'}`}>
-                <TrendingUp className={`w-5 h-5 ${history.totalProfit >= 0 ? 'text-green-700' : 'text-red-700'}`} />
+            <div className="flex items-center gap-3 mb-3">
+              <div className={`p-3 rounded-xl group-hover:scale-110 transition-transform duration-300 ${history.totalProfit >= 0 ? 'bg-green-200/80' : 'bg-red-200/80'}`}>
+                <TrendingUp className={`w-6 h-6 ${history.totalProfit >= 0 ? 'text-green-700' : 'text-red-700'}`} />
               </div>
-              <p className={`text-sm font-medium ${history.totalProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+              <p className={`text-sm font-semibold ${history.totalProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                 {history.totalProfit >= 0 ? 'Total Profit' : 'Total Loss'}
               </p>
             </div>
-            <p className={`text-3xl font-bold ${history.totalProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+            <p className={`text-4xl font-black ${history.totalProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
               {history.totalProfit >= 0 ? '+' : ''}${history.totalProfit.toFixed(2)}
             </p>
           </div>
@@ -130,17 +133,19 @@ export const PackShop: React.FC = () => {
         </h3>
         
         {packs.length === 0 ? (
-          <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-12 text-center shadow-lg border border-white/20">
-            <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-gray-900 mb-2">No Packs Available</h3>
-            <p className="text-gray-600">Check back later for new packs!</p>
+          <div className="glass rounded-3xl p-12 text-center shadow-xl border animate-scale-in">
+            <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-primary-100 to-accent-100 rounded-full mb-6">
+              <Package className="w-12 h-12 text-primary-600" />
+            </div>
+            <h3 className="text-2xl font-black text-gray-900 mb-3">No Packs Available</h3>
+            <p className="text-gray-600 font-medium">Check back later for new packs!</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
             {packs.map((pack) => (
               <div
                 key={pack.id}
-                className="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border-2 border-gray-200 hover:border-purple-400"
+                className="group card border-2 border-gray-200 hover:border-primary-400 overflow-hidden shine"
               >
                 {/* Pack Header with Gradient */}
                 <div className={`relative overflow-hidden bg-gradient-to-br ${getTierColor(pack.tier)} p-6 text-white`}>
@@ -198,13 +203,13 @@ export const PackShop: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Open Button */}
+                  {/* Enhanced Open Button */}
                   <button
-                    className={`w-full py-3 bg-gradient-to-r ${getTierColor(pack.tier)} hover:opacity-90 text-white font-bold rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2`}
+                    className={`w-full py-4 bg-gradient-to-r ${getTierColor(pack.tier)} hover:opacity-90 text-white font-black rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl flex items-center justify-center gap-2 hover:scale-105 active:scale-95 group/btn`}
                     onClick={() => handleOpenPack(pack)}
                   >
-                    <Sparkles className="w-5 h-5" />
-                    Open Pack
+                    <Sparkles className="w-5 h-5 group-hover/btn:rotate-180 transition-transform duration-500" />
+                    <span>Open Pack</span>
                   </button>
                 </div>
               </div>

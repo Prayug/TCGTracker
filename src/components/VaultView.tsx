@@ -78,110 +78,113 @@ export const VaultView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div className="flex items-center gap-3">
-          <div className="p-3 bg-gradient-to-br from-purple-600 to-blue-600 rounded-xl shadow-lg">
-            <Vault className="w-8 h-8 text-white" />
+      {/* Enhanced Header */}
+      <div className="flex justify-between items-center flex-wrap gap-4 animate-slide-up">
+        <div className="flex items-center gap-4">
+          <div className="relative group">
+            <div className="absolute -inset-1 bg-gradient-to-r from-accent-600 to-pink-600 rounded-2xl blur opacity-60 group-hover:opacity-100 transition duration-500 animate-glow" />
+            <div className="relative p-4 bg-gradient-to-br from-accent-600 to-pink-600 rounded-2xl shadow-xl">
+              <Vault className="w-10 h-10 text-white" />
+            </div>
           </div>
           <div>
-            <h2 className="text-3xl font-black bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+            <h2 className="text-4xl font-black gradient-text tracking-tight">
               My Vault
             </h2>
-            <p className="text-gray-600 text-sm">Your personal card collection</p>
+            <p className="text-gray-600 text-base font-medium mt-1">Your personal card collection</p>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex gap-2">
+        {/* Enhanced Action Buttons */}
+        <div className="flex gap-3">
           <button
             onClick={handleExport}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors shadow-md"
+            className="group flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 font-semibold transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
             disabled={vaultCards.length === 0}
           >
-            <Download className="w-4 h-4" />
+            <Download className="w-4 h-4 group-hover:animate-bounce" />
             Export
           </button>
           <button
             onClick={handleImport}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors shadow-md"
+            className="group flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-primary-600 to-accent-600 text-white rounded-xl hover:from-primary-700 hover:to-accent-700 font-semibold transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
           >
-            <Upload className="w-4 h-4" />
+            <Upload className="w-4 h-4 group-hover:animate-bounce" />
             Import
           </button>
           {vaultCards.length > 0 && (
             <button
               onClick={handleClearVault}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium transition-colors shadow-md"
+              className="group flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-red-600 to-rose-600 text-white rounded-xl hover:from-red-700 hover:to-rose-700 font-semibold transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
             >
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="w-4 h-4 group-hover:rotate-12 transition-transform" />
               Clear
             </button>
           )}
         </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Enhanced Stats Cards */}
       {vaultCards.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-slide-up">
           {/* Total Cards */}
-          <div className="bg-white rounded-xl p-6 shadow-lg border border-gray-200">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Package className="w-5 h-5 text-blue-600" />
+          <div className="group card hover:border-primary-300 border-2 border-transparent p-6">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-3 bg-gradient-to-br from-primary-100 to-primary-200 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                <Package className="w-6 h-6 text-primary-600" />
               </div>
-              <p className="text-sm font-medium text-gray-600">Total Cards</p>
+              <p className="text-sm font-semibold text-gray-600">Total Cards</p>
             </div>
-            <p className="text-3xl font-bold text-gray-900">{stats.totalCards}</p>
-            <p className="text-xs text-gray-500 mt-1">{vaultCards.length} unique entries</p>
+            <p className="text-4xl font-black text-gray-900 mb-2">{stats.totalCards}</p>
+            <p className="text-sm text-gray-500 font-medium">{vaultCards.length} unique entries</p>
           </div>
 
           {/* Total Investment */}
-          <div className="bg-white rounded-xl p-6 shadow-lg border border-gray-200">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <DollarSign className="w-5 h-5 text-purple-600" />
+          <div className="group card hover:border-accent-300 border-2 border-transparent p-6">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-3 bg-gradient-to-br from-accent-100 to-accent-200 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                <DollarSign className="w-6 h-6 text-accent-600" />
               </div>
-              <p className="text-sm font-medium text-gray-600">Total Invested</p>
+              <p className="text-sm font-semibold text-gray-600">Total Invested</p>
             </div>
-            <p className="text-3xl font-bold text-gray-900">${stats.totalValue.toFixed(2)}</p>
-            <p className="text-xs text-gray-500 mt-1">Purchase value</p>
+            <p className="text-4xl font-black text-gray-900 mb-2">${stats.totalValue.toFixed(2)}</p>
+            <p className="text-sm text-gray-500 font-medium">Purchase value</p>
           </div>
 
           {/* Current Value */}
-          <div className="bg-white rounded-xl p-6 shadow-lg border border-gray-200">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <TrendingUp className="w-5 h-5 text-green-600" />
+          <div className="group card hover:border-green-300 border-2 border-transparent p-6">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-3 bg-gradient-to-br from-green-100 to-emerald-200 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                <TrendingUp className="w-6 h-6 text-green-600" />
               </div>
-              <p className="text-sm font-medium text-gray-600">Current Value</p>
+              <p className="text-sm font-semibold text-gray-600">Current Value</p>
             </div>
-            <p className="text-3xl font-bold text-gray-900">${stats.currentValue.toFixed(2)}</p>
-            <p className="text-xs text-gray-500 mt-1">Market value</p>
+            <p className="text-4xl font-black text-gray-900 mb-2">${stats.currentValue.toFixed(2)}</p>
+            <p className="text-sm text-gray-500 font-medium">Market value</p>
           </div>
 
           {/* Profit/Loss */}
-          <div className={`rounded-xl p-6 shadow-lg border-2 ${
+          <div className={`group rounded-2xl p-6 shadow-card hover:shadow-card-hover transition-all duration-300 border-2 ${
             stats.profit >= 0 
-              ? 'bg-gradient-to-br from-green-50 to-green-100 border-green-300' 
-              : 'bg-gradient-to-br from-red-50 to-red-100 border-red-300'
+              ? 'bg-gradient-to-br from-green-50 via-green-50 to-emerald-100 border-green-300 hover:border-green-400' 
+              : 'bg-gradient-to-br from-red-50 via-red-50 to-rose-100 border-red-300 hover:border-red-400'
           }`}>
-            <div className="flex items-center gap-3 mb-2">
-              <div className={`p-2 rounded-lg ${stats.profit >= 0 ? 'bg-green-200' : 'bg-red-200'}`}>
+            <div className="flex items-center gap-3 mb-3">
+              <div className={`p-3 rounded-xl group-hover:scale-110 transition-transform duration-300 ${stats.profit >= 0 ? 'bg-green-200/80' : 'bg-red-200/80'}`}>
                 {stats.profit >= 0 ? (
-                  <TrendingUp className="w-5 h-5 text-green-700" />
+                  <TrendingUp className="w-6 h-6 text-green-700" />
                 ) : (
-                  <TrendingDown className="w-5 h-5 text-red-700" />
+                  <TrendingDown className="w-6 h-6 text-red-700" />
                 )}
               </div>
-              <p className={`text-sm font-medium ${stats.profit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+              <p className={`text-sm font-semibold ${stats.profit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                 {stats.profit >= 0 ? 'Total Profit' : 'Total Loss'}
               </p>
             </div>
-            <p className={`text-3xl font-bold ${stats.profit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+            <p className={`text-4xl font-black mb-2 ${stats.profit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
               {stats.profit >= 0 ? '+' : ''}${stats.profit.toFixed(2)}
             </p>
-            <p className={`text-xs font-semibold mt-1 ${stats.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <p className={`text-sm font-bold ${stats.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
               {stats.profitPercentage >= 0 ? '+' : ''}{stats.profitPercentage.toFixed(1)}%
             </p>
           </div>
