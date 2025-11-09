@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@sentry/react": "^7.91.0",
-    "axios": "^1.6.0",
+    "axios": "^1.13.2",
     "cheerio": "^1.1.0",
     "cors-anywhere": "^0.4.4",
     "framer-motion": "^12.23.24",
