@@ -43,7 +43,7 @@ export const SearchAndSort: React.FC<SearchAndSortProps> = ({
       if (inputValue !== searchQuery) {
         onSearchChange(inputValue);
       }
-    }, 500); // Debounce search input
+    }, 300); // Reduced debounce to 300ms for faster response
 
     return () => clearTimeout(timer);
   }, [inputValue, searchQuery, onSearchChange]);

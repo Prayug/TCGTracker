@@ -1,4 +1,5 @@
 import { PokemonCard, PokemonSet, ApiResponse } from '../types/pokemon';
+import { cacheService } from './cacheService';
 
 // Official Pokemon TCG API v2 - Documentation: https://docs.pokemontcg.io/
 // Pokemon TCG API supports CORS, so we can call it directly without a proxy
@@ -10,6 +11,7 @@ const API_BASE_URL = 'https://api.pokemontcg.io/v2';
 const API_KEY = import.meta.env.VITE_POKEMON_TCG_API_KEY || '';
 
 class PokemonApiService {
+  private pendingRequests: Map<string, Promise<PokemonCard[]>> = new Map();
   private async fetchApi<T>(
     endpoint: string, 
     params?: Record<string, string>, 
@@ -91,129 +93,128 @@ class PokemonApiService {
     query?: string, 
     setId?: string, 
     pageSize: number = 250, 
-    fetchAll: boolean = true,
-    language?: string
+    fetchAll: boolean = true
   ): Promise<PokemonCard[]> {
-    // Official API Documentation: https://docs.pokemontcg.io/api-reference/cards/search-cards
-    // Query syntax follows Lucene-like format
+    // Create cache key
+    const cacheKey = `cards_${query || 'all'}_${setId || 'all'}_${fetchAll}_${pageSize}`;
     
+    // Check cache first
+    const cached = cacheService.get<PokemonCard[]>(cacheKey);
+    if (cached) {
+      console.log(`✅ Returning ${cached.length} cards from cache`);
+      return cached;
+    }
+
+    // Check if request is already pending (deduplication)
+    if (this.pendingRequests.has(cacheKey)) {
+      console.log('⏳ Request already pending, waiting...');
+      return this.pendingRequests.get(cacheKey)!;
+    }
+
     const queryParts: string[] = [];
     
-    // Name search with wildcard (Lucene syntax: name:"*query*")
     if (query && query.trim()) {
-      // Escape special Lucene characters if needed
       const escapedQuery = query.trim();
       queryParts.push(`name:*${escapedQuery}*`);
     }
     
-    // Filter by set ID
     if (setId) {
       queryParts.push(`set.id:${setId}`);
     }
 
     const queryString = queryParts.length > 0 ? queryParts.join(' ') : undefined;
     
-    // Note: Pokemon TCG API includes cards in all languages by default
-    // Language filtering would need to be done post-fetch based on set information
-    // or by filtering specific sets known to be in certain languages
-    if (language && language !== 'en') {
-      console.log(`🌍 Searching for ${language} cards...`);
-    }
-
-    try {
-      if (!fetchAll) {
-        // Single page fetch (for pack opening, etc.)
-        const params: Record<string, string> = {
-          pageSize: pageSize.toString(),
-        };
-        if (queryString) {
-          params.q = queryString;
-        }
-        
-        const response = await this.fetchApi<PokemonCard>('/cards', params);
-        const cards = response.data || [];
-        console.log(`✅ Fetched ${cards.length} cards (single page)`);
-        return cards;
-      }
-
-      // Fetch multiple pages of results (up to a reasonable limit)
-      console.log('🔍 Fetching cards from Pokemon TCG API...');
-      const allCards: PokemonCard[] = [];
-      let currentPage = 1;
-      let hasMorePages = true;
-      const maxPages = 3; // Reasonable limit: 3 pages × 250 = 750 cards max
-      
-      while (hasMorePages && currentPage <= maxPages) {
-        try {
+    const requestPromise = (async () => {
+      try {
+        if (!fetchAll) {
           const params: Record<string, string> = {
-            page: currentPage.toString(),
-            pageSize: '250', // Max allowed by API
+            pageSize: pageSize.toString(),
+          };
+          if (queryString) {
+            params.q = queryString;
+          }
+          
+          const response = await this.fetchApi<PokemonCard>('/cards', params);
+          const cards = response.data || [];
+          console.log(`✅ Fetched ${cards.length} cards (single page)`);
+          
+          // Cache result
+          cacheService.set(cacheKey, cards, 10 * 60 * 1000); // 10 minutes
+          return cards;
+        }
+
+        // OPTIMIZED: Fetch multiple pages in PARALLEL for speed
+        console.log('🚀 Fetching cards in parallel...');
+        const maxPages = 6; // Increased: 6 pages × 250 = 1500 cards max
+        
+        // Create all requests upfront
+        const pageRequests = Array.from({ length: maxPages }, (_, i) => {
+          const params: Record<string, string> = {
+            page: (i + 1).toString(),
+            pageSize: '250',
           };
           
           if (queryString) {
             params.q = queryString;
           }
 
-          const response = await this.fetchApi<PokemonCard>('/cards', params);
-          const cards = response.data || [];
-          
-          if (cards.length > 0) {
-            allCards.push(...cards);
-            console.log(`📄 Page ${currentPage}: ${cards.length} cards (Total: ${allCards.length})`);
-          }
+          return this.fetchApi<PokemonCard>('/cards', params)
+            .then(response => response.data || [])
+            .catch(error => {
+              console.warn(`Page ${i + 1} failed:`, error);
+              return [];
+            });
+        });
 
-          // Check if there are more pages
-          // API returns fewer cards than pageSize when on last page
-          hasMorePages = cards.length === 250 && currentPage < maxPages;
-          
-          if (!hasMorePages) {
-            console.log(`✅ Fetched all available cards (${allCards.length} total)`);
-          }
-          
-          currentPage++;
+        // Execute all requests in parallel
+        const results = await Promise.all(pageRequests);
+        
+        // Flatten and filter out empty results
+        const allCards = results.flat().filter(card => card && card.id);
+        
+        console.log(`✅ Fetched ${allCards.length} total cards in parallel`);
+        
+        // Cache result for 10 minutes
+        cacheService.set(cacheKey, allCards, 10 * 60 * 1000);
+        
+        return allCards;
+      } catch (error) {
+        console.error('Error searching cards:', error);
+        return [];
+      } finally {
+        // Remove from pending requests
+        this.pendingRequests.delete(cacheKey);
+      }
+    })();
 
-          // Small delay between pages to avoid rate limiting
-          if (hasMorePages && currentPage <= maxPages) {
-            await new Promise(resolve => setTimeout(resolve, 500));
-          }
-        } catch (error) {
-          // If a page fails, stop fetching more pages but return what we have
-          console.warn(`Failed to fetch page ${currentPage}, stopping pagination:`, error);
-          break;
-        }
-      }
-      
-      if (allCards.length === 0) {
-        console.log('No cards found for query');
-      } else {
-        console.log(`✅ Successfully fetched ${allCards.length} total cards`);
-      }
-      
-      return allCards;
-    } catch (error) {
-      console.error('Error searching cards:', error);
-      const errorMessage = (error as Error).message;
-      
-      // Provide helpful error message
-      if (errorMessage.includes('504') || errorMessage.includes('Gateway Timeout')) {
-        console.error('💡 Pokemon TCG API is experiencing high load. Try again in a moment.');
-      } else if (errorMessage.includes('AbortError')) {
-        console.error('💡 Request timed out. The API might be down.');
-      }
-      
-      return [];
-    }
+    // Store pending request
+    this.pendingRequests.set(cacheKey, requestPromise);
+
+    return requestPromise;
   }
 
   async getSets(): Promise<PokemonSet[]> {
-    // Official API Documentation: https://docs.pokemontcg.io/api-reference/sets/get-sets
+    const cacheKey = 'sets_all';
+    
+    // Check cache first
+    const cached = cacheService.get<PokemonSet[]>(cacheKey);
+    if (cached) {
+      console.log(`✅ Returning ${cached.length} sets from cache`);
+      return cached;
+    }
+
     try {
       const params = {
-        orderBy: '-releaseDate', // Order by release date, newest first
-        pageSize: '250' // Get all sets (there are ~200 sets total)
+        orderBy: '-releaseDate',
+        pageSize: '250'
       };
       const response = await this.fetchApi<PokemonSet>('/sets', params);
-      return response.data || [];
+      const sets = response.data || [];
+      
+      // Cache for 1 hour (sets don't change often)
+      cacheService.set(cacheKey, sets, 60 * 60 * 1000);
+      
+      return sets;
     } catch (error) {
       console.error('Error fetching sets:', error);
       return [];
@@ -221,10 +222,22 @@ class PokemonApiService {
   }
 
   async getCardById(id: string): Promise<PokemonCard | null> {
-    // Official API Documentation: https://docs.pokemontcg.io/api-reference/cards/get-card
+    const cacheKey = `card_${id}`;
+    
+    // Check cache first
+    const cached = cacheService.get<PokemonCard>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     try {
       const response = await this.fetchApi<PokemonCard>(`/cards/${id}`);
-      return response.data as unknown as PokemonCard;
+      const card = response.data as unknown as PokemonCard;
+      
+      // Cache for 30 minutes
+      cacheService.set(cacheKey, card, 30 * 60 * 1000);
+      
+      return card;
     } catch (error) {
       console.error(`Error fetching card ${id}:`, error);
       return null;

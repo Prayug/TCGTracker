@@ -34,7 +34,10 @@ export const LoadingSpinner: React.FC = () => {
       {/* Loading text with animation */}
       <div className="text-center space-y-3">
         <p className="text-lg font-bold gradient-text animate-pulse">
-          Loading Cards...
+          Fetching Cards in Parallel...
+        </p>
+        <p className="text-sm text-gray-600 font-medium">
+          Loading up to 1,500 cards at lightning speed ⚡
         </p>
         <div className="flex items-center justify-center space-x-2">
           <div className="w-2 h-2 bg-primary-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />

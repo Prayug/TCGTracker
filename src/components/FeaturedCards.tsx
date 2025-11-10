@@ -15,11 +15,21 @@ export const FeaturedCards: React.FC<FeaturedCardsProps> = ({ onCardClick }) => 
   useEffect(() => {
     const fetchFeatured = async () => {
       try {
-        // Fetch some popular Pokemon cards
-        const searches = ['Charizard', 'Pikachu', 'Mewtwo'];
-        const randomSearch = searches[Math.floor(Math.random() * searches.length)];
-        const response = await pokemonApi.searchCards(randomSearch);
-        setFeaturedCards(response.slice(0, 6));
+        // Fetch multiple popular Pokemon in parallel for speed
+        const searches = ['Charizard', 'Pikachu', 'Mewtwo', 'Lugia', 'Rayquaza', 'Gyarados'];
+        
+        // Fetch all in parallel and take first 2 from each
+        const results = await Promise.all(
+          searches.map(search => 
+            pokemonApi.searchCards(search, undefined, 250, false).then(cards => cards.slice(0, 2))
+          )
+        );
+        
+        // Flatten and shuffle for variety
+        const allCards = results.flat();
+        const shuffled = allCards.sort(() => Math.random() - 0.5);
+        
+        setFeaturedCards(shuffled.slice(0, 12)); // Show 12 cards
       } catch (error) {
         console.error('Error fetching featured cards:', error);
       } finally {
@@ -75,8 +85,8 @@ export const FeaturedCards: React.FC<FeaturedCardsProps> = ({ onCardClick }) => 
           </button>
         </div>
 
-        {/* Cards Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+        {/* Cards Grid - More cards visible */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
           {featuredCards.map((card, index) => {
             const price = getCardPrice(card);
             return (

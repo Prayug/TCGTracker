@@ -4,9 +4,10 @@ import { Modal } from './Modal';
 import { PriceChart } from './PriceChart';
 import { PriceHistoryApi } from '../services/priceHistoryApi';
 import { AddToVaultModal } from './AddToVaultModal';
-import { Database, Vault } from 'lucide-react';
+import { Database, Vault, TrendingUp } from 'lucide-react';
 import { vaultService } from '../services/vaultService';
 import { pokemonApi } from '../services/pokemonApi';
+import { priceTrackingService } from '../services/priceTrackingService';
 
 interface InvestmentModalProps {
   card: PokemonCard | null;
@@ -20,17 +21,32 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
   const [hasRealData, setHasRealData] = useState(false);
   const [isVaultModalOpen, setIsVaultModalOpen] = useState(false);
   const [isInVault, setIsInVault] = useState(false);
+  const [isTracked, setIsTracked] = useState(false);
 
   useEffect(() => {
     if (card && isOpen) {
       fetchPriceHistory();
       checkIfInVault();
+      checkIfTracked();
     }
   }, [card, isOpen]);
 
   const checkIfInVault = () => {
     if (card) {
       setIsInVault(vaultService.isInVault(card.id));
+    }
+  };
+
+  const checkIfTracked = () => {
+    if (card) {
+      setIsTracked(priceTrackingService.isTracked(card.id));
+    }
+  };
+
+  const handleTrack = () => {
+    if (card) {
+      priceTrackingService.trackCard(card);
+      checkIfTracked();
     }
   };
 
@@ -97,19 +113,33 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
             
             <div className="flex-1 space-y-4">
               <div>
-                <div className="flex items-start justify-between mb-2">
+                <div className="flex items-start justify-between mb-2 flex-wrap gap-2">
                   <h2 className="text-3xl font-bold text-gray-900">{card.name}</h2>
-                  <button
-                    onClick={() => setIsVaultModalOpen(true)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg ${
-                      isInVault
-                        ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                        : 'bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700'
-                    }`}
-                  >
-                    <Vault className="w-4 h-4" />
-                    {isInVault ? 'In Vault' : 'Add to Vault'}
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleTrack}
+                      disabled={isTracked}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg ${
+                        isTracked
+                          ? 'bg-gray-200 text-gray-600 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-primary-600 to-accent-600 text-white hover:from-primary-700 hover:to-accent-700'
+                      }`}
+                    >
+                      <TrendingUp className="w-4 h-4" />
+                      {isTracked ? 'Tracking' : 'Track Price'}
+                    </button>
+                    <button
+                      onClick={() => setIsVaultModalOpen(true)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg ${
+                        isInVault
+                          ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                          : 'bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700'
+                      }`}
+                    >
+                      <Vault className="w-4 h-4" />
+                      {isInVault ? 'In Vault' : 'Add to Vault'}
+                    </button>
+                  </div>
                 </div>
                 <p className="text-lg text-gray-600">{card.set.name} • {formattedDate}</p>
                 {card.types && card.types.length > 0 && (
