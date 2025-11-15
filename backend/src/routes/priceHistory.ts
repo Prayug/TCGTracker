@@ -56,18 +56,6 @@ interface TrendAnalysisRow {
   groupName: string;
 }
 
-interface PriceAlertRow {
-  id: number;
-  cardId?: string;
-  productId?: number;
-  targetPrice: number;
-  alertType: string;
-  threshold: number;
-  isActive: number;
-  createdAt: string;
-  lastTriggered?: string;
-}
-
 const router = Router();
 
 // Get price history for a specific card using card details
@@ -450,56 +438,6 @@ router.get('/analytics/trends', (req: Request, res: Response) => {
       return;
     }
     res.json({ data: rows as TrendAnalysisRow[] });
-  });
-});
-
-// Price alerts management
-router.post('/alerts', (req: Request, res: Response) => {
-  const { cardId, productId, targetPrice, alertType, threshold } = req.body;
-  const db = getDb();
-
-  const sql = 'INSERT INTO price_alerts (cardId, productId, targetPrice, alertType, threshold) VALUES (?, ?, ?, ?, ?)';
-  
-  db.run(sql, [cardId, productId, targetPrice, alertType, threshold], function(err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    res.status(201).json({ id: this.lastID });
-  });
-});
-
-router.get('/alerts', (req: Request, res: Response) => {
-  const { isActive = 1 } = req.query;
-  const db = getDb();
-
-  const sql = 'SELECT * FROM price_alerts WHERE isActive = ?';
-
-  db.all(sql, [isActive], (err, rows) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    res.json({ data: rows as PriceAlertRow[] });
-  });
-});
-
-router.delete('/alerts/:alertId', (req: Request, res: Response) => {
-  const { alertId } = req.params;
-  const db = getDb();
-
-  const sql = 'DELETE FROM price_alerts WHERE id = ?';
-
-  db.run(sql, [alertId], function(err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    if (this.changes === 0) {
-      res.status(404).json({ message: "Alert not found or already deleted." });
-      return;
-    }
-    res.status(200).json({ message: 'Alert deleted successfully.' });
   });
 });
 

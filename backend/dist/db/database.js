@@ -5,7 +5,17 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.initializeDatabase = exports.getDb = void 0;
 const sqlite3_1 = __importDefault(require("sqlite3"));
-const DB_SOURCE = 'tcg-prices.db';
+const path_1 = __importDefault(require("path"));
+const fs_1 = __importDefault(require("fs"));
+const env_1 = require("../config/env");
+const DB_SOURCE = (() => {
+    const resolvedPath = path_1.default.resolve(env_1.env.databasePath);
+    const directory = path_1.default.dirname(resolvedPath);
+    if (!fs_1.default.existsSync(directory)) {
+        fs_1.default.mkdirSync(directory, { recursive: true });
+    }
+    return resolvedPath;
+})();
 let db;
 const getDb = () => {
     if (!db) {
@@ -72,10 +82,25 @@ const initializeDatabase = () => {
       createdAt TEXT DEFAULT (datetime('now'))
     )
   `;
+    const createPokemonCacheTable = `
+    CREATE TABLE IF NOT EXISTS pokemon_cache (
+      cacheKey TEXT PRIMARY KEY,
+      query TEXT,
+      setId TEXT,
+      pageSize INTEGER,
+      fetchAll INTEGER,
+      maxPages INTEGER,
+      data TEXT NOT NULL,
+      totalCount INTEGER,
+      pagesFetched INTEGER,
+      fetchedAt INTEGER
+    )
+  `;
     const tables = [
         createCardMappingsTable,
         createPriceHistoryTable,
-        createSnapshotsTable
+        createSnapshotsTable,
+        createPokemonCacheTable
     ];
     // Create tables sequentially to avoid conflicts
     let tableIndex = 0;
@@ -99,6 +124,7 @@ const initializeDatabase = () => {
     };
     // Start creating tables
     createNext(); // No delay needed since we're not dropping tables
+    console.log(`Using database at ${DB_SOURCE}`);
     function createIndexes() {
         // Create indexes for better query performance
         const indexes = [
@@ -106,7 +132,8 @@ const initializeDatabase = () => {
             'CREATE INDEX IF NOT EXISTS idx_price_history_product ON price_history(productId)',
             'CREATE INDEX IF NOT EXISTS idx_price_history_identifier ON price_history(uniqueIdentifier)',
             'CREATE INDEX IF NOT EXISTS idx_card_mappings_identifier ON card_mappings(uniqueIdentifier)',
-            'CREATE INDEX IF NOT EXISTS idx_card_mappings_card_set ON card_mappings(cardName, setId, cardNumber)'
+            'CREATE INDEX IF NOT EXISTS idx_card_mappings_card_set ON card_mappings(cardName, setId, cardNumber)',
+            'CREATE INDEX IF NOT EXISTS idx_pokemon_cache_fetched_at ON pokemon_cache(fetchedAt)'
         ];
         indexes.forEach((indexSql, index) => {
             db.run(indexSql, (err) => {

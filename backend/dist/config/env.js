@@ -2,19 +2,21 @@
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
+var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.env = void 0;
 const dotenv_1 = __importDefault(require("dotenv"));
 const zod_1 = require("zod");
 // Load environment variables
 dotenv_1.default.config();
+const DEFAULT_DEV_JWT_SECRET = 'dev-secret-change-me-please-1234567890';
 // Define environment schema with validation
 const envSchema = zod_1.z.object({
     NODE_ENV: zod_1.z.enum(['development', 'production', 'test']).default('development'),
     PORT: zod_1.z.string().default('3001'),
     HOST: zod_1.z.string().default('localhost'),
     DATABASE_PATH: zod_1.z.string().default('./tcg-prices.db'),
-    JWT_SECRET: zod_1.z.string().min(32),
+    JWT_SECRET: zod_1.z.string().min(32).optional(),
     JWT_EXPIRES_IN: zod_1.z.string().default('7d'),
     BCRYPT_ROUNDS: zod_1.z.string().default('10'),
     CORS_ORIGIN: zod_1.z.string().default('http://localhost:5173'),
@@ -33,11 +35,23 @@ const envSchema = zod_1.z.object({
     SENTRY_ENVIRONMENT: zod_1.z.string().default('development'),
 });
 // Parse and validate environment variables
-const parsedEnv = envSchema.safeParse(process.env);
+const parsedEnv = envSchema.superRefine((data, ctx) => {
+    if (!data.JWT_SECRET && data.NODE_ENV === 'production') {
+        ctx.addIssue({
+            path: ['JWT_SECRET'],
+            code: zod_1.z.ZodIssueCode.custom,
+            message: 'JWT_SECRET must be provided in production.',
+        });
+    }
+}).safeParse(process.env);
 if (!parsedEnv.success) {
     console.error('❌ Invalid environment variables:');
     console.error(parsedEnv.error.format());
     process.exit(1);
+}
+const jwtSecret = (_a = parsedEnv.data.JWT_SECRET) !== null && _a !== void 0 ? _a : DEFAULT_DEV_JWT_SECRET;
+if (!parsedEnv.data.JWT_SECRET) {
+    console.warn('Warning: JWT_SECRET not provided. Using default development secret. Set JWT_SECRET in production.');
 }
 exports.env = {
     nodeEnv: parsedEnv.data.NODE_ENV,
@@ -45,7 +59,7 @@ exports.env = {
     host: parsedEnv.data.HOST,
     databasePath: parsedEnv.data.DATABASE_PATH,
     jwt: {
-        secret: parsedEnv.data.JWT_SECRET,
+        secret: jwtSecret,
         expiresIn: parsedEnv.data.JWT_EXPIRES_IN,
     },
     bcrypt: {

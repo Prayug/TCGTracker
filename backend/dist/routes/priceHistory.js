@@ -342,47 +342,6 @@ router.get('/analytics/trends', (req, res) => {
         res.json({ data: rows });
     });
 });
-// Price alerts management
-router.post('/alerts', (req, res) => {
-    const { cardId, productId, targetPrice, alertType, threshold } = req.body;
-    const db = (0, database_1.getDb)();
-    const sql = 'INSERT INTO price_alerts (cardId, productId, targetPrice, alertType, threshold) VALUES (?, ?, ?, ?, ?)';
-    db.run(sql, [cardId, productId, targetPrice, alertType, threshold], function (err) {
-        if (err) {
-            res.status(500).json({ error: err.message });
-            return;
-        }
-        res.status(201).json({ id: this.lastID });
-    });
-});
-router.get('/alerts', (req, res) => {
-    const { isActive = 1 } = req.query;
-    const db = (0, database_1.getDb)();
-    const sql = 'SELECT * FROM price_alerts WHERE isActive = ?';
-    db.all(sql, [isActive], (err, rows) => {
-        if (err) {
-            res.status(500).json({ error: err.message });
-            return;
-        }
-        res.json({ data: rows });
-    });
-});
-router.delete('/alerts/:alertId', (req, res) => {
-    const { alertId } = req.params;
-    const db = (0, database_1.getDb)();
-    const sql = 'DELETE FROM price_alerts WHERE id = ?';
-    db.run(sql, [alertId], function (err) {
-        if (err) {
-            res.status(500).json({ error: err.message });
-            return;
-        }
-        if (this.changes === 0) {
-            res.status(404).json({ message: "Alert not found or already deleted." });
-            return;
-        }
-        res.status(200).json({ message: 'Alert deleted successfully.' });
-    });
-});
 // Export price data
 router.get('/export/:productId', (req, res) => {
     const { productId } = req.params;

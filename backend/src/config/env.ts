@@ -4,13 +4,15 @@ import { z } from 'zod';
 // Load environment variables
 dotenv.config();
 
+const DEFAULT_DEV_JWT_SECRET = 'dev-secret-change-me-please-1234567890';
+
 // Define environment schema with validation
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.string().default('3001'),
   HOST: z.string().default('localhost'),
   DATABASE_PATH: z.string().default('./tcg-prices.db'),
-  JWT_SECRET: z.string().min(32),
+  JWT_SECRET: z.string().min(32).optional(),
   JWT_EXPIRES_IN: z.string().default('7d'),
   BCRYPT_ROUNDS: z.string().default('10'),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
@@ -30,12 +32,26 @@ const envSchema = z.object({
 });
 
 // Parse and validate environment variables
-const parsedEnv = envSchema.safeParse(process.env);
+const parsedEnv = envSchema.superRefine((data, ctx) => {
+  if (!data.JWT_SECRET && data.NODE_ENV === 'production') {
+    ctx.addIssue({
+      path: ['JWT_SECRET'],
+      code: z.ZodIssueCode.custom,
+      message: 'JWT_SECRET must be provided in production.',
+    });
+  }
+}).safeParse(process.env);
 
 if (!parsedEnv.success) {
   console.error('❌ Invalid environment variables:');
   console.error(parsedEnv.error.format());
   process.exit(1);
+}
+
+const jwtSecret = parsedEnv.data.JWT_SECRET ?? DEFAULT_DEV_JWT_SECRET;
+
+if (!parsedEnv.data.JWT_SECRET) {
+  console.warn('Warning: JWT_SECRET not provided. Using default development secret. Set JWT_SECRET in production.');
 }
 
 export const env = {
@@ -44,7 +60,7 @@ export const env = {
   host: parsedEnv.data.HOST,
   databasePath: parsedEnv.data.DATABASE_PATH,
   jwt: {
-    secret: parsedEnv.data.JWT_SECRET,
+    secret: jwtSecret,
     expiresIn: parsedEnv.data.JWT_EXPIRES_IN,
   },
   bcrypt: {

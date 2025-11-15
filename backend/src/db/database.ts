@@ -1,6 +1,18 @@
 import sqlite3 from 'sqlite3';
+import path from 'path';
+import fs from 'fs';
+import { env } from '../config/env';
 
-const DB_SOURCE = 'tcg-prices.db';
+const DB_SOURCE = (() => {
+  const resolvedPath = path.resolve(env.databasePath);
+  const directory = path.dirname(resolvedPath);
+
+  if (!fs.existsSync(directory)) {
+    fs.mkdirSync(directory, { recursive: true });
+  }
+
+  return resolvedPath;
+})();
 
 let db: sqlite3.Database;
 
@@ -74,10 +86,26 @@ export const initializeDatabase = () => {
     )
   `;
 
+  const createPokemonCacheTable = `
+    CREATE TABLE IF NOT EXISTS pokemon_cache (
+      cacheKey TEXT PRIMARY KEY,
+      query TEXT,
+      setId TEXT,
+      pageSize INTEGER,
+      fetchAll INTEGER,
+      maxPages INTEGER,
+      data TEXT NOT NULL,
+      totalCount INTEGER,
+      pagesFetched INTEGER,
+      fetchedAt INTEGER
+    )
+  `;
+
   const tables = [
     createCardMappingsTable,
     createPriceHistoryTable,
-    createSnapshotsTable
+    createSnapshotsTable,
+    createPokemonCacheTable
   ];
 
   // Create tables sequentially to avoid conflicts
@@ -104,6 +132,8 @@ export const initializeDatabase = () => {
   // Start creating tables
   createNext(); // No delay needed since we're not dropping tables
 
+  console.log(`Using database at ${DB_SOURCE}`);
+
   function createIndexes() {
     // Create indexes for better query performance
     const indexes = [
@@ -111,7 +141,8 @@ export const initializeDatabase = () => {
       'CREATE INDEX IF NOT EXISTS idx_price_history_product ON price_history(productId)',
       'CREATE INDEX IF NOT EXISTS idx_price_history_identifier ON price_history(uniqueIdentifier)',
       'CREATE INDEX IF NOT EXISTS idx_card_mappings_identifier ON card_mappings(uniqueIdentifier)',
-      'CREATE INDEX IF NOT EXISTS idx_card_mappings_card_set ON card_mappings(cardName, setId, cardNumber)'
+      'CREATE INDEX IF NOT EXISTS idx_card_mappings_card_set ON card_mappings(cardName, setId, cardNumber)',
+      'CREATE INDEX IF NOT EXISTS idx_pokemon_cache_fetched_at ON pokemon_cache(fetchedAt)'
     ];
 
     indexes.forEach((indexSql, index) => {
