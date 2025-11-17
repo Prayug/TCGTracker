@@ -229,6 +229,22 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
                           src={card.images.large}
                           alt={card.name}
                           className="w-80 h-auto rounded-xl"
+                          onError={(e) => {
+                            // Fallback: try small image first, then simple gray placeholder
+                            const target = e.target as HTMLImageElement;
+                            const currentSrc = target.src;
+                            console.error(`❌ Image load failed: ${currentSrc}`);
+                            
+                            if (!currentSrc.includes('data:image/svg') && card.images.small !== currentSrc) {
+                              console.log(`🔄 Trying small image fallback`);
+                              target.src = card.images.small;
+                            } else if (!currentSrc.includes('fallback-placeholder')) {
+                              console.log(`🔄 Using final fallback placeholder`);
+                              const escapedName = card.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                              const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="245" height="342"><rect width="245" height="342" fill="#e5e7eb"/><text x="122.5" y="171" font-family="Arial" font-size="16" fill="#374151" text-anchor="middle">${escapedName}</text></svg>`;
+                              target.src = `data:image/svg+xml,${encodeURIComponent(svg)}#fallback-placeholder`;
+                            }
+                          }}
                         />
                         
                         {/* Sparkle effects for rare cards */}
@@ -308,6 +324,22 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
                         src={card.images.large}
                         alt={card.name}
                         className="w-72 h-auto rounded-xl"
+                        onError={(e) => {
+                          // Fallback: try small image first, then simple gray placeholder
+                          const target = e.target as HTMLImageElement;
+                          const currentSrc = target.src;
+                          console.error(`❌ Image load failed: ${currentSrc}`);
+                          
+                          if (!currentSrc.includes('data:image/svg') && card.images.small !== currentSrc) {
+                            console.log(`🔄 Trying small image fallback`);
+                            target.src = card.images.small;
+                          } else if (!currentSrc.includes('fallback-placeholder')) {
+                            console.log(`🔄 Using final fallback placeholder`);
+                            const escapedName = card.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="245" height="342"><rect width="245" height="342" fill="#e5e7eb"/><text x="122.5" y="171" font-family="Arial" font-size="16" fill="#374151" text-anchor="middle">${escapedName}</text></svg>`;
+                            target.src = `data:image/svg+xml,${encodeURIComponent(svg)}#fallback-placeholder`;
+                          }
+                        }}
                       />
                     </div>
                     <div className="mt-4 text-center">

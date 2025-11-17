@@ -65,6 +65,16 @@ export const VaultCard: React.FC<VaultCardProps> = ({ vaultCard, onRemove, onUpd
             src={card.images.small}
             alt={card.name}
             className="w-full h-auto rounded-lg shadow-md hover:scale-105 transition-transform duration-300"
+            onError={(e) => {
+              // Fallback to large image if small image fails
+              const target = e.target as HTMLImageElement;
+              if (target.src !== card.images.large && card.images.large) {
+                target.src = card.images.large;
+              } else if (!target.src.startsWith('data:')) {
+                // Create a simple placeholder
+                target.src = `data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="245" height="342" viewBox="0 0 245 342"%3E%3Crect width="245" height="342" fill="%23f3f4f6" rx="12"/%3E%3Ctext x="50%25" y="50%25" font-family="Arial,sans-serif" font-size="14" fill="%239ca3af" text-anchor="middle"%3E${encodeURIComponent(card.name)}%3C/text%3E%3C/svg%3E`;
+              }
+            }}
           />
           <div className="mt-2 flex items-center justify-center gap-1 text-xs text-gray-600">
             <Package className="w-3 h-3" />

@@ -104,6 +104,12 @@ export const AddToVaultModal: React.FC<AddToVaultModalProps> = ({
             src={card.images.small}
             alt={card.name}
             className="w-24 h-auto rounded-lg shadow-md"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              if (target.src !== card.images.large) {
+                target.src = card.images.large;
+              }
+            }}
           />
           <div className="flex-1">
             <h3 className="font-bold text-lg text-gray-900">{card.name}</h3>

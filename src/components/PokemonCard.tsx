@@ -35,6 +35,16 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({ card, onClick }) => {
               alt={card.name}
               className="w-full h-auto object-contain transition-all duration-700 group-hover:scale-110 group-hover:rotate-2 aspect-[63/88] rounded-lg shadow-lg"
               loading="lazy"
+              onError={(e) => {
+                // Fallback to large image if small image fails, or use a data URI placeholder
+                const target = e.target as HTMLImageElement;
+                if (target.src !== card.images.large && card.images.large) {
+                  target.src = card.images.large;
+                } else if (!target.src.startsWith('data:')) {
+                  // Create a simple placeholder
+                  target.src = `data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="245" height="342" viewBox="0 0 245 342"%3E%3Crect width="245" height="342" fill="%23f3f4f6" rx="12"/%3E%3Ctext x="50%25" y="50%25" font-family="Arial,sans-serif" font-size="14" fill="%239ca3af" text-anchor="middle"%3E${encodeURIComponent(card.name)}%3C/text%3E%3C/svg%3E`;
+                }
+              }}
             />
             
             {/* Enhanced Shimmer effect */}

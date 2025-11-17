@@ -195,6 +195,12 @@ export const PriceTrackingDashboard: React.FC = () => {
                     src={card.images.small}
                     alt={card.name}
                     className="w-16 h-22 object-contain rounded-lg"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      if (target.src !== card.images.large) {
+                        target.src = card.images.large;
+                      }
+                    }}
                   />
                   <div className="flex-1">
                     <h4 className="font-bold text-gray-900">{card.name}</h4>
@@ -246,6 +252,12 @@ export const PriceTrackingDashboard: React.FC = () => {
                       src={mover.card.images.small}
                       alt={mover.card.name}
                       className="w-12 h-16 object-contain rounded"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        if (target.src !== mover.card.images.large) {
+                          target.src = mover.card.images.large;
+                        }
+                      }}
                     />
                     <div className="flex-1">
                       <h4 className="font-bold text-gray-900 text-sm line-clamp-1">
@@ -283,6 +295,12 @@ export const PriceTrackingDashboard: React.FC = () => {
                       src={mover.card.images.small}
                       alt={mover.card.name}
                       className="w-12 h-16 object-contain rounded"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        if (target.src !== mover.card.images.large) {
+                          target.src = mover.card.images.large;
+                        }
+                      }}
                     />
                     <div className="flex-1">
                       <h4 className="font-bold text-gray-900 text-sm line-clamp-1">
@@ -331,6 +349,12 @@ export const PriceTrackingDashboard: React.FC = () => {
                       src={tracked.card.images.small}
                       alt={tracked.card.name}
                       className="w-20 h-28 object-contain rounded-lg"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        if (target.src !== tracked.card.images.large) {
+                          target.src = tracked.card.images.large;
+                        }
+                      }}
                     />
                     
                     <div className="flex-1">

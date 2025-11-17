@@ -142,6 +142,30 @@ class TieredPackService {
           throw new Error('Missing card name or set ID for image lookup');
         }
         
+        // Helper function to create a placeholder image using URL encoding (more reliable than base64)
+        const createPlaceholder = (name: string, setName: string) => {
+          // Escape special characters for SVG
+          const escapeName = name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+          const escapeSet = setName.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+          
+          // Create SVG with proper formatting
+          const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="245" height="342" viewBox="0 0 245 342">
+  <rect width="245" height="342" fill="#e5e7eb" rx="12"/>
+  <text x="122.5" y="140" font-family="Arial,sans-serif" font-size="16" fill="#374151" text-anchor="middle" dominant-baseline="middle">${escapeName}</text>
+  <text x="122.5" y="170" font-family="Arial,sans-serif" font-size="12" fill="#6b7280" text-anchor="middle" dominant-baseline="middle">${escapeSet}</text>
+  <text x="122.5" y="200" font-family="Arial,sans-serif" font-size="10" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">Card Image Unavailable</text>
+</svg>`;
+          
+          // Use URL encoding instead of base64 (more reliable)
+          const encoded = encodeURIComponent(svg)
+            .replace(/'/g, '%27')
+            .replace(/\(/g, '%28')
+            .replace(/\)/g, '%29');
+          
+          const placeholder = `data:image/svg+xml,${encoded}`;
+          return { small: placeholder, large: placeholder };
+        };
+        
         // Search via backend proxy to avoid CORS (with 15s timeout)
         console.log(`🔍 Searching Pokemon API via backend for: "${cardName}" in set "${setId}"`);
         const backendBase = window.location.origin.replace(':5173', ':3001');
@@ -157,6 +181,8 @@ class TieredPackService {
         const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
         
         let response;
+        let imagesFetched = false;
+        
         try {
           response = await fetch(searchUrl.toString(), {
             signal: controller.signal
@@ -167,31 +193,92 @@ class TieredPackService {
             const result = await response.json();
             
             if (result.images?.large && result.images?.small) {
-              console.log(`✅ Successfully loaded images for ${cardName}`);
+              console.log(`✅ Successfully loaded images for ${cardName} with set ID`);
               
               // Replace images with actual ones from API
               selectedCard.images = result.images;
               // Also update the card ID to the real Pokemon API ID
               selectedCard.id = result.id;
+              imagesFetched = true;
             } else {
-              console.warn(`⚠️ Card found but missing images for "${cardName}" - using placeholder`);
+              console.warn(`⚠️ Card found but missing images for "${cardName}"`);
+            }
+          } else if (response.status === 404) {
+            // Set doesn't exist - try searching by NAME ONLY as fallback
+            console.log(`🔍 Set "${setId}" not in Pokemon API - trying name-only search across all sets`);
+            
+            const nameOnlyUrl = new URL(`${backendBase}/api/cards/search-pokemon`);
+            nameOnlyUrl.searchParams.append('cardName', cardName);
+            // Include card number for better matching if available
+            if (cardNumber) {
+              nameOnlyUrl.searchParams.append('cardNumber', cardNumber);
+            }
+            // Don't include setId - search across ALL sets
+            
+            try {
+              const nameController = new AbortController();
+              const nameTimeout = setTimeout(() => nameController.abort(), 5000);
+              
+              const nameResponse = await fetch(nameOnlyUrl.toString(), {
+                signal: nameController.signal
+              });
+              clearTimeout(nameTimeout);
+              
+              if (nameResponse.ok) {
+                const nameResult = await nameResponse.json();
+                if (nameResult.images?.large && nameResult.images?.small) {
+                  console.log(`✅ Found ${cardName} by name-only search! Set: ${nameResult.matchedSet || 'unknown'}, #${nameResult.matchedNumber || 'unknown'}`);
+                  selectedCard.images = nameResult.images;
+                  selectedCard.id = nameResult.id;
+                  imagesFetched = true;
+                } else {
+                  console.warn(`⚠️ Name-only search returned card but no images for ${cardName}`);
+                }
+              } else {
+                console.warn(`⚠️ Name-only search failed with status ${nameResponse.status}`);
+              }
+            } catch (fallbackError) {
+              console.warn(`⚠️ Name-only search error for ${cardName}:`, fallbackError);
             }
           } else {
-            // If it's a 404 and the set doesn't exist, just use placeholder
-            if (response.status === 404) {
-              console.warn(`⚠️ Set "${setId}" not in Pokemon API - using placeholder image`);
-            } else {
-              console.warn(`⚠️ Failed to load images (${response.status}) - using placeholder`);
-            }
+            console.warn(`⚠️ Failed to load images (${response.status})`);
           }
         } catch (error) {
           clearTimeout(timeoutId);
           if ((error as Error).name === 'AbortError') {
-            console.warn(`⏱️ Image search timed out for ${cardName} - using placeholder`);
+            console.warn(`⏱️ Image search timed out for ${cardName}`);
           } else {
-            console.warn(`⚠️ Error loading images for ${cardName} - using placeholder:`, error);
+            console.warn(`⚠️ Error loading images for ${cardName}:`, error);
           }
-          // Continue with placeholder image, don't throw
+        }
+        
+        // If we didn't successfully fetch images, try deterministic URLs
+        if (!imagesFetched) {
+          // Try to construct deterministic Pokemon TCG image URLs
+          // Format: https://images.pokemontcg.io/{setId}/{cardNumber}.png
+          const setIdNormalized = setId.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const cardNumberNormalized = cardNumber ? cardNumber.split('/')[0].trim() : '';
+          
+          if (setIdNormalized && cardNumberNormalized) {
+            // Try deterministic URL pattern (works even when API is down!)
+            const deterministicSmall = `https://images.pokemontcg.io/${setIdNormalized}/${cardNumberNormalized}.png`;
+            const deterministicLarge = `https://images.pokemontcg.io/${setIdNormalized}/${cardNumberNormalized}_hires.png`;
+            
+            console.log(`🔗 Trying deterministic image URL: ${deterministicSmall}`);
+            selectedCard.images = {
+              small: deterministicSmall,
+              large: deterministicLarge
+            };
+            // The onError handlers in the components will show placeholder if these fail
+          } else {
+            // Last resort: use placeholder
+            const placeholderImages = createPlaceholder(cardName, selectedCard.set.name);
+            selectedCard.images = placeholderImages;
+            console.log(`🖼️ Using placeholder image for ${cardName}`);
+          }
+        } else {
+          console.log(`✅ Real images loaded for ${cardName}`);
+          console.log(`📸 Image URL: ${selectedCard.images.large}`);
         }
       }
 

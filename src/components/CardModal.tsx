@@ -27,6 +27,12 @@ export const CardModal: React.FC<CardModalProps> = ({ card, isOpen, onClose }) =
           alt={card.name}
           className="w-full max-w-xs mx-auto rounded-xl shadow-lg mb-6"
           loading="lazy"
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            if (target.src !== card.images.small) {
+              target.src = card.images.small;
+            }
+          }}
         />
         
         <div className="space-y-4">

@@ -109,6 +109,12 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
               alt={card.name}
               className="w-48 rounded-xl shadow-lg flex-shrink-0"
               loading="lazy"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                if (target.src !== card.images.small) {
+                  target.src = card.images.small;
+                }
+              }}
             />
             
             <div className="flex-1 space-y-4">

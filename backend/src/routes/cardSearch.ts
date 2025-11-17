@@ -830,11 +830,8 @@ router.get('/search-pokemon', async (req, res) => {
     const hasSetId = typeof setId === 'string' && setId.trim().length > 0;
     const hasSetName = typeof setName === 'string' && setName.trim().length > 0;
 
-    if (!hasSetId && !hasSetName) {
-      return res.status(400).json({ 
-        error: 'Either setId or setName query parameter is required' 
-      });
-    }
+    // setId/setName is optional now - if not provided, search across all sets
+    // This is useful when the database has incorrect set IDs
 
     // Check cache first
     const cacheKey = getCacheKey(
