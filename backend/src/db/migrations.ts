@@ -212,6 +212,93 @@ export const migrations: Migration[] = [
       });
     },
   },
+  {
+    id: 5,
+    name: 'add_image_fields_to_card_mappings',
+    up: async (db: Database) => {
+      // Add image URL columns to card_mappings table (snake_case - will be fixed in migration 6)
+      const columns = [
+        'ALTER TABLE card_mappings ADD COLUMN image_small TEXT',
+        'ALTER TABLE card_mappings ADD COLUMN image_large TEXT',
+      ];
+
+      for (const sql of columns) {
+        await new Promise<void>((resolve, reject) => {
+          db.run(sql, (err) => {
+            if (err && !err.message.includes('duplicate column')) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          });
+        });
+      }
+
+      logger.info('Added image fields to card_mappings table');
+    },
+    down: async (db: Database) => {
+      logger.info('Skipping rollback of image columns (SQLite limitation)');
+    },
+  },
+  {
+    id: 6,
+    name: 'fix_image_column_names_camelCase',
+    up: async (db: Database) => {
+      // Add properly named camelCase columns
+      const columns = [
+        'ALTER TABLE card_mappings ADD COLUMN imageSmall TEXT',
+        'ALTER TABLE card_mappings ADD COLUMN imageLarge TEXT',
+        'ALTER TABLE card_mappings ADD COLUMN imageSource TEXT',
+        'ALTER TABLE card_mappings ADD COLUMN imageLastUpdated TEXT',
+      ];
+
+      for (const sql of columns) {
+        await new Promise<void>((resolve, reject) => {
+          db.run(sql, (err) => {
+            if (err && !err.message.includes('duplicate column')) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          });
+        });
+      }
+
+      // Copy data from old snake_case columns if they exist
+      const existingColumns: string[] = await new Promise((resolve) => {
+        db.all('PRAGMA table_info(card_mappings)', [], (err, rows: any[]) => {
+          if (err || !rows) {
+            resolve([]);
+          } else {
+            resolve(rows.map((r: any) => r.name));
+          }
+        });
+      });
+
+      if (existingColumns.includes('image_small')) {
+        await new Promise<void>((resolve) => {
+          db.run(
+            `UPDATE card_mappings 
+             SET imageSmall = image_small, 
+                 imageLarge = image_large 
+             WHERE image_small IS NOT NULL`,
+            (err) => {
+              if (err) {
+                logger.warn('Could not copy data from old columns', { error: err });
+              }
+              resolve();
+            }
+          );
+        });
+        logger.info('Copied data from snake_case to camelCase columns');
+      }
+
+      logger.info('Fixed image column names to camelCase');
+    },
+    down: async (db: Database) => {
+      logger.info('Skipping rollback (SQLite limitation)');
+    },
+  },
 ];
 
 // Run pending migrations

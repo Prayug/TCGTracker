@@ -141,6 +141,22 @@ const getLocalCardsForQuery = async (query: string, setId?: string, limit: numbe
     params.push(setId, `%${setId}%`);
   }
 
+  // Check if image columns exist (migration may not have run yet)
+  const hasImageColumns = await new Promise<boolean>((resolve) => {
+    db.all("PRAGMA table_info(card_mappings)", [], (err, rows: any[]) => {
+      if (err || !rows) {
+        resolve(false);
+      } else {
+        const hasImages = rows.some(r => r.name === 'imageSmall');
+        resolve(hasImages);
+      }
+    });
+  });
+
+  const imageColumns = hasImageColumns 
+    ? 'cm.imageSmall, cm.imageLarge, cm.imageSource, cm.imageLastUpdated,' 
+    : '';
+
   const sql = `
     SELECT 
       cm.cardId,
@@ -151,6 +167,7 @@ const getLocalCardsForQuery = async (query: string, setId?: string, limit: numbe
       cm.rarity,
       cm.tcgplayerProductId,
       cm.uniqueIdentifier,
+      ${imageColumns}
       ph.marketPrice as latestPrice,
       ph.date as priceDate
     FROM card_mappings cm
@@ -182,9 +199,24 @@ const getLocalCardsForQuery = async (query: string, setId?: string, limit: numbe
 
 const mapLocalRowsToPokemonCards = (rows: any[]) => {
   return rows.map(row => {
-    const deterministicImages = buildDeterministicImageUrls(row.setId, row.cardNumber);
-    const placeholder = buildPlaceholderImage(row.cardName, row.setName);
-    const images = deterministicImages || { small: placeholder, large: placeholder };
+    // PRIORITY ORDER for images:
+    // 1. Stored images from database (most reliable)
+    // 2. Deterministic Pokemon TCG API URLs
+    // 3. Placeholder SVG
+    
+    let images;
+    if (row.imageSmall && row.imageLarge) {
+      // Use stored images (best option)
+      images = {
+        small: row.imageSmall,
+        large: row.imageLarge
+      };
+    } else {
+      // Fallback to deterministic URLs or placeholder
+      const deterministicImages = buildDeterministicImageUrls(row.setId, row.cardNumber);
+      const placeholder = buildPlaceholderImage(row.cardName, row.setName);
+      images = deterministicImages || { small: placeholder, large: placeholder };
+    }
 
     return {
       id: row.cardId || `${row.setId}-${row.cardNumber || 'na'}`,
@@ -198,6 +230,7 @@ const mapLocalRowsToPokemonCards = (rows: any[]) => {
         total: 100
       },
       images,
+      imageSource: row.imageSource || (row.imageSmall ? 'stored' : 'generated'),
       tcgplayer: row.latestPrice ? {
         productId: row.tcgplayerProductId,
         prices: {
@@ -234,6 +267,22 @@ router.get('/search', async (req, res) => {
     const db = getDb();
     const searchLimit = Math.min(parseInt(limit as string) || 100, 250);
 
+    // Check if image columns exist (migration may not have run yet)
+    const hasImageColumns = await new Promise<boolean>((resolve) => {
+      db.all("PRAGMA table_info(card_mappings)", [], (err, rows: any[]) => {
+        if (err || !rows) {
+          resolve(false);
+        } else {
+          const hasImages = rows.some((r: any) => r.name === 'imageSmall');
+          resolve(hasImages);
+        }
+      });
+    });
+
+    const imageColumns = hasImageColumns 
+      ? 'cm.imageSmall, cm.imageLarge, cm.imageSource, cm.imageLastUpdated,' 
+      : '';
+
     let sql = `
       SELECT DISTINCT
         cm.cardId,
@@ -244,6 +293,7 @@ router.get('/search', async (req, res) => {
         cm.rarity,
         cm.tcgplayerProductId,
         cm.uniqueIdentifier,
+        ${imageColumns}
         ph.marketPrice as latestPrice,
         ph.date as priceDate
       FROM card_mappings cm
@@ -278,37 +328,8 @@ router.get('/search', async (req, res) => {
         });
       }
 
-      // Transform to Pokemon TCG API compatible format
-      const cards = rows.map(row => {
-        // Use a placeholder image for local database cards (no Pokemon TCG API images)
-        const placeholderImage = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="245" height="342" viewBox="0 0 245 342"%3E%3Crect width="245" height="342" fill="%23f3f4f6" rx="12"/%3E%3Ctext x="50%25" y="45%25" font-family="Arial,sans-serif" font-size="16" fill="%239ca3af" text-anchor="middle"%3E' + encodeURIComponent(row.cardName) + '%3C/text%3E%3Ctext x="50%25" y="55%25" font-family="Arial,sans-serif" font-size="14" fill="%23d1d5db" text-anchor="middle"%3E' + encodeURIComponent(row.setName) + '%3C/text%3E%3Ctext x="50%25" y="65%25" font-family="Arial,sans-serif" font-size="12" fill="%23e5e7eb" text-anchor="middle"%3ENo Image%3C/text%3E%3C/svg%3E';
-        
-        return {
-          id: row.cardId || `${row.setId}-${row.cardNumber}`,
-          name: row.cardName,
-          number: row.cardNumber,
-          rarity: row.rarity,
-          set: {
-            id: row.setId,
-            name: row.setName,
-            releaseDate: '2020-01-01', // Default date
-            total: 100
-          },
-          images: {
-            small: placeholderImage,
-            large: placeholderImage
-          },
-          tcgplayer: {
-            productId: row.tcgplayerProductId,
-            prices: row.latestPrice ? {
-              normal: { market: row.latestPrice }
-            } : undefined
-          },
-          marketPrice: row.latestPrice || 0,
-          uniqueIdentifier: row.uniqueIdentifier,
-          isLocalDbCard: true // Flag to indicate this is from local DB
-        };
-      });
+      // Transform to Pokemon TCG API compatible format using the helper function
+      const cards = mapLocalRowsToPokemonCards(rows);
 
       console.log(`✅ Found ${cards.length} cards matching "${query}" from local database`);
 
@@ -432,6 +453,22 @@ router.get('/pool', async (req, res) => {
     const { limit = '250', minPrice = '1', maxPrice = '20000' } = req.query;
     const poolLimit = Math.min(parseInt(limit as string) || 250, 5000); // Increased max to 5000
 
+    // Check if image columns exist (migration may not have run yet)
+    const hasImageColumns = await new Promise<boolean>((resolve) => {
+      db.all("PRAGMA table_info(card_mappings)", [], (err, rows: any[]) => {
+        if (err || !rows) {
+          resolve(false);
+        } else {
+          const hasImages = rows.some((r: any) => r.name === 'imageSmall');
+          resolve(hasImages);
+        }
+      });
+    });
+
+    const imageColumns = hasImageColumns 
+      ? 'cm.imageSmall, cm.imageLarge, cm.imageSource, cm.imageLastUpdated,' 
+      : '';
+
     // Select random cards with their latest market price from price_history
     const sql = `
       SELECT 
@@ -443,6 +480,7 @@ router.get('/pool', async (req, res) => {
         cm.rarity,
         cm.tcgplayerProductId,
         cm.uniqueIdentifier,
+        ${imageColumns}
         ph.marketPrice as latestPrice,
         ph.date as priceDate
       FROM card_mappings cm
@@ -474,37 +512,8 @@ router.get('/pool', async (req, res) => {
         });
       }
 
-      const placeholder = (name: string, set: string) => (
-        'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="245" height="342" viewBox="0 0 245 342"%3E%3Crect width="245" height="342" fill="%23f3f4f6" rx="12"/%3E%3Ctext x="50%25" y="45%25" font-family="Arial,sans-serif" font-size="16" fill="%239ca3af" text-anchor="middle"%3E' +
-        encodeURIComponent(name) + '%3C/text%3E%3Ctext x="50%25" y="55%25" font-family="Arial,sans-serif" font-size="14" fill="%23d1d5db" text-anchor="middle"%3E' +
-        encodeURIComponent(set) + '%3C/text%3E%3Ctext x="50%25" y="65%25" font-family="Arial,sans-serif" font-size="12" fill="%23e5e7eb" text-anchor="middle"%3ENo Image%3C/text%3E%3C/svg%3E'
-      );
-
-      const cards = rows.map(row => ({
-        id: row.cardId || `${row.setId}-${row.cardNumber}`,
-        name: row.cardName,
-        number: row.cardNumber,
-        rarity: row.rarity,
-        set: {
-          id: row.setId,
-          name: row.setName,
-          releaseDate: '2020-01-01',
-          total: 100
-        },
-        images: {
-          small: placeholder(row.cardName, row.setName),
-          large: placeholder(row.cardName, row.setName)
-        },
-        tcgplayer: {
-          productId: row.tcgplayerProductId,
-          prices: row.latestPrice ? {
-            normal: { market: row.latestPrice }
-          } : undefined
-        },
-        marketPrice: row.latestPrice || 0,
-        uniqueIdentifier: row.uniqueIdentifier,
-        isLocalDbCard: true
-      }));
+      // Use the helper function to properly map cards with stored images
+      const cards = mapLocalRowsToPokemonCards(rows);
 
       res.json({
         data: cards,
