@@ -211,6 +211,87 @@ exports.migrations = [
             });
         }),
     },
+    {
+        id: 5,
+        name: 'add_image_fields_to_card_mappings',
+        up: (db) => __awaiter(void 0, void 0, void 0, function* () {
+            // Add image URL columns to card_mappings table (snake_case - will be fixed in migration 6)
+            const columns = [
+                'ALTER TABLE card_mappings ADD COLUMN image_small TEXT',
+                'ALTER TABLE card_mappings ADD COLUMN image_large TEXT',
+            ];
+            for (const sql of columns) {
+                yield new Promise((resolve, reject) => {
+                    db.run(sql, (err) => {
+                        if (err && !err.message.includes('duplicate column')) {
+                            reject(err);
+                        }
+                        else {
+                            resolve();
+                        }
+                    });
+                });
+            }
+            logger_1.logger.info('Added image fields to card_mappings table');
+        }),
+        down: (db) => __awaiter(void 0, void 0, void 0, function* () {
+            logger_1.logger.info('Skipping rollback of image columns (SQLite limitation)');
+        }),
+    },
+    {
+        id: 6,
+        name: 'fix_image_column_names_camelCase',
+        up: (db) => __awaiter(void 0, void 0, void 0, function* () {
+            // Add properly named camelCase columns
+            const columns = [
+                'ALTER TABLE card_mappings ADD COLUMN imageSmall TEXT',
+                'ALTER TABLE card_mappings ADD COLUMN imageLarge TEXT',
+                'ALTER TABLE card_mappings ADD COLUMN imageSource TEXT',
+                'ALTER TABLE card_mappings ADD COLUMN imageLastUpdated TEXT',
+            ];
+            for (const sql of columns) {
+                yield new Promise((resolve, reject) => {
+                    db.run(sql, (err) => {
+                        if (err && !err.message.includes('duplicate column')) {
+                            reject(err);
+                        }
+                        else {
+                            resolve();
+                        }
+                    });
+                });
+            }
+            // Copy data from old snake_case columns if they exist
+            const existingColumns = yield new Promise((resolve) => {
+                db.all('PRAGMA table_info(card_mappings)', [], (err, rows) => {
+                    if (err || !rows) {
+                        resolve([]);
+                    }
+                    else {
+                        resolve(rows.map((r) => r.name));
+                    }
+                });
+            });
+            if (existingColumns.includes('image_small')) {
+                yield new Promise((resolve) => {
+                    db.run(`UPDATE card_mappings 
+             SET imageSmall = image_small, 
+                 imageLarge = image_large 
+             WHERE image_small IS NOT NULL`, (err) => {
+                        if (err) {
+                            logger_1.logger.warn('Could not copy data from old columns', { error: err });
+                        }
+                        resolve();
+                    });
+                });
+                logger_1.logger.info('Copied data from snake_case to camelCase columns');
+            }
+            logger_1.logger.info('Fixed image column names to camelCase');
+        }),
+        down: (db) => __awaiter(void 0, void 0, void 0, function* () {
+            logger_1.logger.info('Skipping rollback (SQLite limitation)');
+        }),
+    },
 ];
 // Run pending migrations
 const runMigrations = (db) => __awaiter(void 0, void 0, void 0, function* () {

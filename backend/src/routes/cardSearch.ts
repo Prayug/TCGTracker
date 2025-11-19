@@ -1,6 +1,11 @@
 import { Router } from 'express';
 import { getDb } from '../db/database';
 import { env } from '../config/env';
+import {
+  pokemonApiClient,
+  CardImageMatchResult,
+  CardSearchAttempt,
+} from '../services/pokemonApiClient';
 
 const router = Router();
 
@@ -13,6 +18,8 @@ interface CachedCard {
   matchedSet: string;
   matchedNumber: string;
   timestamp: number;
+  usedFallback?: boolean;
+  attempts?: CardSearchAttempt[];
 }
 
 const cardImageCache = new Map<string, CachedCard>();
@@ -130,6 +137,38 @@ const buildDeterministicImageUrls = (setId?: string | null, cardNumber?: string 
   };
 };
 
+const IMAGE_COLUMN_FRAGMENT =
+  'cm.imageSmall, cm.imageLarge, cm.imageSource, cm.imageLastUpdated,';
+const IMAGE_COLUMN_CACHE_TTL = 1000 * 60 * 5; // 5 minutes
+let imageColumnCache: { hasColumns: boolean; checkedAt: number } | null = null;
+
+const hasImageMetadataColumns = async (): Promise<boolean> => {
+  if (
+    imageColumnCache &&
+    Date.now() - imageColumnCache.checkedAt < IMAGE_COLUMN_CACHE_TTL
+  ) {
+    return imageColumnCache.hasColumns;
+  }
+
+  const db = getDb();
+  const hasColumns = await new Promise<boolean>((resolve) => {
+    db.all("PRAGMA table_info(card_mappings)", [], (err, rows: any[]) => {
+      if (err || !rows) {
+        resolve(false);
+      } else {
+        resolve(rows.some((row: any) => row.name === 'imageSmall'));
+      }
+    });
+  });
+
+  imageColumnCache = { hasColumns, checkedAt: Date.now() };
+  return hasColumns;
+};
+
+const getImageColumnSelectFragment = async () => {
+  return (await hasImageMetadataColumns()) ? IMAGE_COLUMN_FRAGMENT : '';
+};
+
 const getLocalCardsForQuery = async (query: string, setId?: string, limit: number = 250) => {
   const db = getDb();
   const likeQuery = `%${query}%`;
@@ -141,21 +180,7 @@ const getLocalCardsForQuery = async (query: string, setId?: string, limit: numbe
     params.push(setId, `%${setId}%`);
   }
 
-  // Check if image columns exist (migration may not have run yet)
-  const hasImageColumns = await new Promise<boolean>((resolve) => {
-    db.all("PRAGMA table_info(card_mappings)", [], (err, rows: any[]) => {
-      if (err || !rows) {
-        resolve(false);
-      } else {
-        const hasImages = rows.some(r => r.name === 'imageSmall');
-        resolve(hasImages);
-      }
-    });
-  });
-
-  const imageColumns = hasImageColumns 
-    ? 'cm.imageSmall, cm.imageLarge, cm.imageSource, cm.imageLastUpdated,' 
-    : '';
+  const imageColumns = await getImageColumnSelectFragment();
 
   const sql = `
     SELECT 
@@ -267,21 +292,7 @@ router.get('/search', async (req, res) => {
     const db = getDb();
     const searchLimit = Math.min(parseInt(limit as string) || 100, 250);
 
-    // Check if image columns exist (migration may not have run yet)
-    const hasImageColumns = await new Promise<boolean>((resolve) => {
-      db.all("PRAGMA table_info(card_mappings)", [], (err, rows: any[]) => {
-        if (err || !rows) {
-          resolve(false);
-        } else {
-          const hasImages = rows.some((r: any) => r.name === 'imageSmall');
-          resolve(hasImages);
-        }
-      });
-    });
-
-    const imageColumns = hasImageColumns 
-      ? 'cm.imageSmall, cm.imageLarge, cm.imageSource, cm.imageLastUpdated,' 
-      : '';
+    const imageColumns = await getImageColumnSelectFragment();
 
     let sql = `
       SELECT DISTINCT
@@ -453,23 +464,37 @@ router.get('/pool', async (req, res) => {
     const { limit = '250', minPrice = '1', maxPrice = '20000' } = req.query;
     const poolLimit = Math.min(parseInt(limit as string) || 250, 5000); // Increased max to 5000
 
-    // Check if image columns exist (migration may not have run yet)
-    const hasImageColumns = await new Promise<boolean>((resolve) => {
-      db.all("PRAGMA table_info(card_mappings)", [], (err, rows: any[]) => {
-        if (err || !rows) {
-          resolve(false);
-        } else {
-          const hasImages = rows.some((r: any) => r.name === 'imageSmall');
-          resolve(hasImages);
-        }
-      });
-    });
+    const imageColumns = await getImageColumnSelectFragment();
 
-    const imageColumns = hasImageColumns 
-      ? 'cm.imageSmall, cm.imageLarge, cm.imageSource, cm.imageLastUpdated,' 
-      : '';
+    // Exclude fake "sets" that are actually TCGPlayer product categories
+    // These will NEVER have images in the Pokemon API
+    const EXCLUDED_FAKE_SETS = [
+      'World Championship Decks',
+      'Miscellaneous Cards & Products',
+      'Prize Pack Series Cards',
+      'Deck Exclusives',
+      'League & Championship Cards',
+      'Jumbo Cards',
+      'Blister Exclusives',
+      'McDonald%',  // McDonald's promos
+      'Burger King Promos',
+      'Countdown Calendar Promos',
+      'Professor Program Promos',
+      'Best of Promos',
+      'Pikachu World Collection Promos',
+      'ME01: Mega Evolution',
+      'ME: Mega Evolution Promo',
+      'MEE: Mega Evolution Energies',
+      'SVE: Scarlet & Violet Energies',
+    ];
+
+    // Build exclusion clauses
+    const exclusionClauses = EXCLUDED_FAKE_SETS.map(set => 
+      set.includes('%') ? `cm.setName NOT LIKE '${set}'` : `cm.setName != '${set}'`
+    ).join(' AND ');
 
     // Select random cards with their latest market price from price_history
+    // ONLY from REAL Pokemon TCG sets (excludes product categories)
     const sql = `
       SELECT 
         cm.cardId,
@@ -499,6 +524,7 @@ router.get('/pool', async (req, res) => {
         AND cm.cardName IS NOT NULL AND TRIM(cm.cardName) <> ''
         AND cm.setId IS NOT NULL AND TRIM(cm.setId) <> ''
         AND cm.cardNumber IS NOT NULL AND TRIM(cm.cardNumber) <> ''
+        AND ${exclusionClauses}
       ORDER BY RANDOM()
       LIMIT ?
     `;
@@ -534,7 +560,8 @@ router.get('/pool', async (req, res) => {
 router.get('/pokemon', async (req, res) => {
   let persistentCacheEntry: PokemonPersistentCacheRow | null = null;
   let buildLocalFallbackResponse: (() => Promise<any | null>) | null = null;
-  const respondWithPersistent = (entry: PokemonPersistentCacheRow, stale: boolean = false) => {
+
+  const respondWithPersistent = (entry: PokemonPersistentCacheRow, stale = false) => {
     try {
       const parsedData = JSON.parse(entry.data || '[]');
       return {
@@ -545,7 +572,7 @@ router.get('/pokemon', async (req, res) => {
         cached: true,
         source: 'pokemon_cache',
         persistent: true,
-        stale
+        stale,
       };
     } catch (parseError) {
       console.error('Failed to parse cached pokemon data', parseError);
@@ -558,21 +585,24 @@ router.get('/pokemon', async (req, res) => {
 
     if (!query || typeof query !== 'string' || query.trim().length < 2) {
       return res.status(400).json({
-        error: 'Query parameter with at least 2 characters is required.'
+        error: 'Query parameter with at least 2 characters is required.',
       });
     }
 
     const sanitizedQuery = query.trim();
+    const normalizedSetId =
+      typeof setId === 'string' && setId.trim().length > 0 ? setId.trim() : undefined;
     const limit = Math.min(Math.max(parseInt(pageSize as string, 10) || 100, 1), 250);
     const shouldFetchAll = String(fetchAll).toLowerCase() !== 'false';
     const maxPagesToFetch = Math.min(Math.max(parseInt(maxPages as string, 10) || 4, 1), 10);
-    const normalizedSetId = typeof setId === 'string' ? setId.trim() : undefined;
 
     buildLocalFallbackResponse = async () => {
-      const rows = await getLocalCardsForQuery(sanitizedQuery, normalizedSetId, limit).catch((err) => {
-        console.error('Local fallback query failed', err);
-        return [] as any[];
-      });
+      const rows = await getLocalCardsForQuery(sanitizedQuery, normalizedSetId, limit).catch(
+        (err) => {
+          console.error('Local fallback query failed', err);
+          return [] as any[];
+        }
+      );
       if (!rows || rows.length === 0) {
         return null;
       }
@@ -590,14 +620,14 @@ router.get('/pokemon', async (req, res) => {
 
     const cacheKey = [
       sanitizedQuery.toLowerCase(),
-      typeof setId === 'string' ? setId.toLowerCase() : '',
+      normalizedSetId ? normalizedSetId.toLowerCase() : '',
       shouldFetchAll ? 'all' : 'page',
       limit,
-      maxPagesToFetch
+      maxPagesToFetch,
     ].join('|');
 
-    const inMemory = pokemonApiCache.get(cacheKey);
     const now = Date.now();
+    const inMemory = pokemonApiCache.get(cacheKey);
     if (inMemory && now - inMemory.fetchedAt < POKEMON_CACHE_TTL) {
       return res.json({
         data: inMemory.data,
@@ -605,7 +635,7 @@ router.get('/pokemon', async (req, res) => {
         pageSize: inMemory.pageSize,
         pagesFetched: inMemory.pagesFetched,
         cached: true,
-        source: 'pokemon_tcg_api'
+        source: 'pokemon_tcg_api',
       });
     }
 
@@ -614,8 +644,14 @@ router.get('/pokemon', async (req, res) => {
       return null;
     });
 
-    if (persistentCacheEntry && now - (persistentCacheEntry.fetchedAt || 0) < POKEMON_PERSISTENT_CACHE_TTL) {
-      const payload = respondWithPersistent({ ...persistentCacheEntry, pageSize: persistentCacheEntry.pageSize || limit });
+    if (
+      persistentCacheEntry &&
+      now - (persistentCacheEntry.fetchedAt || 0) < POKEMON_PERSISTENT_CACHE_TTL
+    ) {
+      const payload = respondWithPersistent({
+        ...persistentCacheEntry,
+        pageSize: persistentCacheEntry.pageSize || limit,
+      });
       if (payload) {
         pokemonApiCache.set(cacheKey, {
           data: payload.data,
@@ -628,109 +664,21 @@ router.get('/pokemon', async (req, res) => {
       }
     }
 
-    const headers: HeadersInit = {
-      'Accept': 'application/json',
-    };
+    const apiResult = await pokemonApiClient.searchCardsBulk({
+      nameQuery: sanitizedQuery,
+      setId: normalizedSetId,
+      pageSize: limit,
+      fetchAll: shouldFetchAll,
+      maxPages: maxPagesToFetch,
+    });
 
-    if (env.apis.pokemonTcg) {
-      headers['X-Api-Key'] = env.apis.pokemonTcg;
-    }
-
-    const buildQuery = () => {
-      const parts = [`name:*${sanitizedQuery}*`];
-      if (setId && typeof setId === 'string' && setId.trim().length > 0) {
-        parts.push(`set.id:${setId.trim()}`);
-      }
-      return parts.join(' ');
-    };
-
-    const fetchPage = async (page: number): Promise<{ cards: any[]; totalCount: number }> => {
-      const url = new URL('https://api.pokemontcg.io/v2/cards');
-      url.searchParams.append('page', page.toString());
-      url.searchParams.append('pageSize', limit.toString());
-      url.searchParams.append('q', buildQuery());
-
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000); // Increased to 30 seconds
-
-      try {
-        const response = await fetch(url.toString(), {
-          headers,
-          signal: controller.signal,
-        });
-
-        clearTimeout(timeout);
-
-        if (!response.ok) {
-          const retryable = [429, 500, 502, 503, 504].includes(response.status);
-          if (retryable) {
-            throw new Error(`Retryable error ${response.status}`);
-          }
-          throw new Error(`Pokemon API request failed: ${response.status} ${response.statusText}`);
-        }
-
-        const json = await response.json();
-        return {
-          cards: Array.isArray(json?.data) ? json.data : [],
-          totalCount: typeof json?.totalCount === 'number' ? json.totalCount : json?.total ?? 0,
-        };
-      } catch (error) {
-        clearTimeout(timeout);
-        throw error;
-      }
-    };
-
-    const results: any[] = [];
-    let totalCount = 0;
-    let currentPage = 1;
-    let pagesFetched = 0;
-    let consecutiveErrors = 0;
-
-    while (true) {
-      try {
-        const { cards, totalCount: countFromApi } = await fetchPage(currentPage);
-        pagesFetched += 1;
-        consecutiveErrors = 0;
-
-        if (cards.length > 0) {
-          results.push(...cards);
-        }
-
-        if (totalCount === 0 && countFromApi > 0) {
-          totalCount = countFromApi;
-        }
-
-        if (!shouldFetchAll || cards.length < limit || pagesFetched >= maxPagesToFetch) {
-          break;
-        }
-
-        currentPage += 1;
-      } catch (error) {
-        consecutiveErrors += 1;
-        const errorMsg = (error as Error).message;
-        
-        console.warn(`⚠️ Pokemon API page ${currentPage} failed (attempt ${consecutiveErrors}/3):`, errorMsg);
-        
-        if (consecutiveErrors > 2) {
-          console.error('❌ Failed to fetch Pokemon API after 3 attempts', {
-            query: sanitizedQuery,
-            page: currentPage,
-            error: errorMsg,
-          });
-          break;
-        }
-
-        const backoff = 2000 * consecutiveErrors; // 2s, 4s
-        console.log(`⏳ Retrying in ${backoff}ms...`);
-        await new Promise(resolve => setTimeout(resolve, backoff));
-      }
-    }
-
-    const uniqueCards = Array.from(new Map(results.map(card => [card.id, card])).values());
+    const uniqueCards = apiResult.cards;
 
     if (uniqueCards.length === 0) {
-      console.warn(`⚠️ No cards from Pokemon API for query "${sanitizedQuery}", trying fallbacks...`);
-      
+      console.warn(
+        `⚠️ No cards from Pokemon API for query "${sanitizedQuery}", trying fallbacks...`
+      );
+
       if (buildLocalFallbackResponse) {
         const localPayload = await buildLocalFallbackResponse();
         if (localPayload) {
@@ -740,28 +688,33 @@ router.get('/pokemon', async (req, res) => {
       }
 
       if (persistentCacheEntry) {
-        const payload = respondWithPersistent({ ...persistentCacheEntry, pageSize: persistentCacheEntry.pageSize || limit }, true);
+        const payload = respondWithPersistent(
+          {
+            ...persistentCacheEntry,
+            pageSize: persistentCacheEntry.pageSize || limit,
+          },
+          true
+        );
         if (payload) {
           console.log(`✅ Serving ${payload.data.length} stale cached cards as fallback`);
           return res.json(payload);
         }
       }
-      
-      console.error(`❌ No cards found for query "${sanitizedQuery}" from any source`);
+
       return res.status(404).json({
         error: 'No cards found',
         query: sanitizedQuery,
-        source: 'none'
+        source: 'none',
       });
     }
 
     const payload = {
       data: uniqueCards,
-      totalCount: totalCount || uniqueCards.length,
+      totalCount: apiResult.totalCount || uniqueCards.length,
       pageSize: limit,
-      pagesFetched,
+      pagesFetched: apiResult.pagesFetched,
       cached: false,
-      source: 'pokemon_tcg_api'
+      source: 'pokemon_tcg_api',
     };
 
     pokemonApiCache.set(cacheKey, {
@@ -769,44 +722,46 @@ router.get('/pokemon', async (req, res) => {
       totalCount: payload.totalCount,
       fetchedAt: Date.now(),
       pageSize: limit,
-      pagesFetched,
+      pagesFetched: apiResult.pagesFetched,
     });
 
     try {
       await savePersistentPokemonCache(cacheKey, {
         query: sanitizedQuery,
-        setId: typeof setId === 'string' ? setId.trim() : undefined,
+        setId: normalizedSetId,
         pageSize: limit,
         fetchAll: shouldFetchAll,
         maxPages: maxPagesToFetch,
         data: uniqueCards,
         totalCount: payload.totalCount,
-        pagesFetched,
+        pagesFetched: apiResult.pagesFetched,
         fetchedAt: Date.now(),
       });
     } catch (cacheError) {
       console.warn('Failed to persist pokemon search cache', cacheError);
     }
 
-    console.log(`✅ Successfully fetched ${uniqueCards.length} cards for "${sanitizedQuery}" from Pokemon API`);
+    console.log(
+      `✅ Successfully fetched ${uniqueCards.length} cards for "${sanitizedQuery}" from Pokemon API`
+    );
     res.json(payload);
   } catch (error) {
     console.error('❌ Error proxying Pokemon API search:', error);
-    
-    // Try local database fallback first
+
     if (buildLocalFallbackResponse) {
       try {
         const localPayload = await buildLocalFallbackResponse();
         if (localPayload) {
-          console.log(`✅ Serving ${localPayload.data.length} cards from local database (error fallback)`);
+          console.log(
+            `✅ Serving ${localPayload.data.length} cards from local database (error fallback)`
+          );
           return res.status(200).json(localPayload);
         }
       } catch (fallbackErr) {
         console.warn('Local fallback also failed:', fallbackErr);
       }
     }
-    
-    // Try stale cache as last resort
+
     if (persistentCacheEntry) {
       const payload = respondWithPersistent(persistentCacheEntry, true);
       if (payload) {
@@ -814,8 +769,7 @@ router.get('/pokemon', async (req, res) => {
         return res.status(200).json(payload);
       }
     }
-    
-    console.error('❌ All fallback options exhausted');
+
     res.status(502).json({
       error: 'Failed to fetch results from Pokemon TCG API',
       message: (error as Error).message,
@@ -829,28 +783,23 @@ router.get('/pokemon', async (req, res) => {
 router.get('/search-pokemon', async (req, res) => {
   try {
     const { cardName, setId, cardNumber, setName } = req.query;
-    
+
     if (!cardName || typeof cardName !== 'string') {
-      return res.status(400).json({ 
-        error: 'cardName query parameter is required' 
+      return res.status(400).json({
+        error: 'cardName query parameter is required',
       });
     }
 
-    const hasSetId = typeof setId === 'string' && setId.trim().length > 0;
-    const hasSetName = typeof setName === 'string' && setName.trim().length > 0;
-
-    // setId/setName is optional now - if not provided, search across all sets
-    // This is useful when the database has incorrect set IDs
-
-    // Check cache first
     const cacheKey = getCacheKey(
       cardName,
-      hasSetId ? (setId as string) : ((setName as string) || 'unknown'),
+      typeof setId === 'string' && setId.trim().length > 0
+        ? setId
+        : (setName as string) || 'unknown',
       cardNumber as string | undefined
     );
+
     const cached = cardImageCache.get(cacheKey);
-    
-    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
       console.log(`💾 Cache hit for ${cardName} from ${setId || setName || 'unknown set'}`);
       return res.json({
         card: cached.card,
@@ -858,294 +807,58 @@ router.get('/search-pokemon', async (req, res) => {
         id: cached.id,
         matchedSet: cached.matchedSet,
         matchedNumber: cached.matchedNumber,
-        cached: true
+        cached: true,
       });
     }
 
-    const pokemonApiUrl = 'https://api.pokemontcg.io/v2/cards';
-    const apiKey = env.apis.pokemonTcg;
-    const headers: HeadersInit = {
-      'Accept': 'application/json',
-    };
-    if (apiKey) {
-      headers['X-Api-Key'] = apiKey;
-    }
-    
-    // Helper to fetch with timeout
-    const fetchWithTimeout = async (url: string, timeoutMs: number = 10000): Promise<Response> => {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), timeoutMs);
-      
-      try {
-        const response = await fetch(url, { 
-          headers,
-          signal: controller.signal 
-        });
-        clearTimeout(timeout);
-        return response;
-      } catch (error) {
-        clearTimeout(timeout);
-        throw error;
-      }
-    };
+    const searchResult: CardImageMatchResult = await pokemonApiClient.findBestImageMatch({
+      cardName,
+      setId: typeof setId === 'string' ? setId.trim() : undefined,
+      setName: typeof setName === 'string' ? setName.trim() : undefined,
+      cardNumber: typeof cardNumber === 'string' ? cardNumber.trim() : undefined,
+    });
 
-    // Normalize the card number for better matching
-    const normalizeCardNumber = (num: string | undefined): string => {
-      if (!num) return '';
-      // Take only the part before the slash (e.g., "188/132" → "188")
-      const beforeSlash = num.split('/')[0].trim();
-      // Remove leading zeros, convert to lowercase, remove special chars except letters and numbers
-      return beforeSlash.toLowerCase().replace(/^0+/, '').replace(/[^a-z0-9]/g, '');
-    };
-
-    const normalizedRequestNumber = normalizeCardNumber(cardNumber as string | undefined);
-    const effectiveSetId = hasSetId ? (setId as string) : '';
-    const effectiveSetName = hasSetName ? (setName as string) : '';
-
-    // AGGRESSIVE PARALLEL SEARCH - Try ALL strategies at once with SHORT timeouts!
-    let cards: any[] = [];
-    let searchAttempts: string[] = [];
-
-    try {
-      const searchPromises: Promise<any>[] = [];
-      
-      // STRATEGY 1: Exact name + set + number (if we have number)
-      if (cardNumber) {
-        const beforeSlash = String(cardNumber).split('/')[0].trim();
-        const url1 = new URL(pokemonApiUrl);
-        // DON'T use quotes around name - Pokemon API doesn't like them!
-        const setFilterExact = hasSetId ? ` set.id:${effectiveSetId}` : '';
-        url1.searchParams.append('q', `name:${cardName}${setFilterExact} number:${beforeSlash}`);
-        url1.searchParams.append('pageSize', '5');
-        
-        searchPromises.push(
-          fetchWithTimeout(url1.toString(), 3000)
-            .then(r => r.ok ? r.json() : null)
-            .then(data => ({ strategy: 'exact+set+num', data: data?.data || [] }))
-            .catch(() => ({ strategy: 'exact+set+num', data: [] }))
-        );
-        
-        // STRATEGY 2: Name + number ONLY (ignore set - for when set ID is wrong!)
-        const url2 = new URL(pokemonApiUrl);
-        url2.searchParams.append('q', `name:${cardName} number:${beforeSlash}`);
-        url2.searchParams.append('pageSize', '10');
-        
-        searchPromises.push(
-          fetchWithTimeout(url2.toString(), 3000)
-            .then(r => r.ok ? r.json() : null)
-            .then(data => ({ strategy: 'name+num', data: data?.data || [] }))
-            .catch(() => ({ strategy: 'name+num', data: [] }))
-        );
-      }
-      
-      // STRATEGY 3: Name + set (no number)
-      if (hasSetId) {
-        const url3 = new URL(pokemonApiUrl);
-        url3.searchParams.append('q', `name:${cardName} set.id:${effectiveSetId}`);
-        url3.searchParams.append('pageSize', '10');
-        
-        searchPromises.push(
-          fetchWithTimeout(url3.toString(), 3000)
-            .then(r => r.ok ? r.json() : null)
-            .then(data => ({ strategy: 'name+set', data: data?.data || [] }))
-            .catch(() => ({ strategy: 'name+set', data: [] }))
-        );
-      }
-
-      if (effectiveSetName) {
-        const urlSetName = new URL(pokemonApiUrl);
-        const sanitizedSetName = effectiveSetName.replace(/"/g, '');
-        urlSetName.searchParams.append('q', `name:${cardName} set.name:"${sanitizedSetName}"`);
-        urlSetName.searchParams.append('pageSize', '10');
-
-        searchPromises.push(
-          fetchWithTimeout(urlSetName.toString(), 3000)
-            .then(r => r.ok ? r.json() : null)
-            .then(data => ({ strategy: 'name+set.name', data: data?.data || [] }))
-            .catch(() => ({ strategy: 'name+set.name', data: [] }))
-        );
-      }
-
-      // STRATEGY 4: Name ONLY (broadest search - always works!)
-      const url4 = new URL(pokemonApiUrl);
-      url4.searchParams.append('q', `name:${cardName}`);
-      url4.searchParams.append('pageSize', '20');
-      
-      searchPromises.push(
-        fetchWithTimeout(url4.toString(), 3000)
-          .then(r => r.ok ? r.json() : null)
-          .then(data => ({ strategy: 'name-only', data: data?.data || [] }))
-          .catch(() => ({ strategy: 'name-only', data: [] }))
-      );
-      
-      // Wait for ALL searches to complete (in parallel!)
-      const results = await Promise.all(searchPromises);
-      
-      // Use the first result that found cards (priority order)
-      for (const result of results) {
-        searchAttempts.push(`${result.strategy}: ${result.data.length}`);
-        if (result.data.length > 0 && cards.length === 0) {
-          cards = result.data;
-          console.log(`✅ Found ${cards.length} cards using ${result.strategy} strategy`);
-        }
-      }
-      
-    } catch (error) {
-      console.error('Search error:', error);
-    }
-
-    if (cards.length === 0) {
-      return res.status(404).json({
-        error: `No cards found matching "${cardName}"`,
-        searched: { cardName, setId, setName, cardNumber },
-        searchAttempts: searchAttempts,
-        hint: 'Card may not exist in Pokemon TCG API database'
-      });
-    }
-
-    // Filter to exact matches by name
-    let exactMatches = cards.filter((card: any) => 
-      card.name.toLowerCase() === cardName.toLowerCase()
-    );
-
-    // If we have a card number, prioritize matches with that number
-    let matchedCard = null;
-    if (cardNumber && exactMatches.length > 0) {
-      // First, try exact card number match
-      matchedCard = exactMatches.find((card: any) => 
-        card.number === cardNumber || 
-        card.number === normalizedRequestNumber ||
-        normalizeCardNumber(card.number) === normalizedRequestNumber
-      );
-
-      // If no exact match, try both with and without the slash part
-      // (handles "188/132" vs "188" and "01" vs "1", etc.)
-      if (!matchedCard && normalizedRequestNumber) {
-        const requestedNumberOnly = String(cardNumber).split('/')[0].trim();
-        matchedCard = exactMatches.find((card: any) => {
-          const cardNormalized = normalizeCardNumber(card.number);
-          const cardWithoutSlash = card.number.split('/')[0].trim();
-          return cardNormalized === normalizedRequestNumber ||
-                 cardWithoutSlash === requestedNumberOnly;
-        });
-      }
-
-      // STRICT MODE: If a card number was requested but we can't find an exact match,
-      // DO NOT fallback to other variants. This prevents matching wrong variants of cards
-      // like different "Mega Lucario ex" cards (#077 vs #188 etc.)
-      if (!matchedCard) {
-        console.warn(`⚠️ Card number mismatch: Requested ${cardNumber} for "${cardName}" but no exact match found`);
-        console.log(`📋 Available variants: ${exactMatches.map((c: any) => `#${c.number}`).join(', ')}`);
-        
-        // Only fallback if the card number difference is very small (like "1" vs "01")
-        if (normalizedRequestNumber && /^\d+$/.test(normalizedRequestNumber)) {
-          const requestedNum = parseInt(normalizedRequestNumber);
-          const closeMatches = exactMatches.filter((card: any) => {
-            const cardNum = parseInt(normalizeCardNumber(card.number));
-            return !isNaN(cardNum) && Math.abs(cardNum - requestedNum) <= 1;
-          });
-          
-          if (closeMatches.length === 1) {
-            matchedCard = closeMatches[0];
-            console.log(`✅ Using close match: #${matchedCard.number} (requested #${cardNumber})`);
-          }
-        }
-      }
-    }
-
-    // Fallback 1: If NO card number was provided, use set-based matching
-    if (!matchedCard && !cardNumber && exactMatches.length > 0) {
-      const sameSetMatches = exactMatches.filter((card: any) => 
-        card.set.id.toLowerCase() === effectiveSetId.toLowerCase()
-      );
-      if (sameSetMatches.length > 0) {
-        matchedCard = sameSetMatches[0];
-        console.log(`✅ Matched by set: ${matchedCard.name} #${matchedCard.number}`);
-      }
-    }
-
-    // Fallback 2: Use first exact name match (ONLY if no card number was requested)
-    if (!matchedCard && !cardNumber && exactMatches.length > 0) {
-      matchedCard = exactMatches[0];
-      console.warn(`⚠️ Using fallback match for ${cardName} #${matchedCard.number} - may not be the exact variant`);
-    }
-
-    // Fallback 3: If no exact matches and NO card number, try fuzzy matching on name
-    if (!matchedCard && !cardNumber && cards.length > 0) {
-      const fuzzyMatches = cards.filter((card: any) => 
-        card.name.toLowerCase().includes(cardName.toLowerCase()) ||
-        cardName.toLowerCase().includes(card.name.toLowerCase())
-      );
-      if (fuzzyMatches.length > 0) {
-        matchedCard = fuzzyMatches[0];
-        console.warn(`⚠️ Using fuzzy match for ${cardName}: ${matchedCard.name} #${matchedCard.number}`);
-      }
-    }
-    
-    // If a card number was provided but we still don't have a match, return error
-    if (!matchedCard && cardNumber) {
-      const relaxedFallback = exactMatches[0] || cards[0];
-
-      if (relaxedFallback) {
-        matchedCard = relaxedFallback;
-        console.warn(`⚠️ Using relaxed fallback for ${cardName} - variant may differ (requested #${cardNumber})`);
-      } else {
-        return res.status(404).json({
-          error: `Card number ${cardNumber} not found for "${cardName}" in set ${effectiveSetId || setName}`,
-          searched: { cardName, setId, setName, cardNumber },
-          message: `Please check that the card number is correct. Found ${exactMatches.length} variants with this name.`,
-          availableVariants: exactMatches.map((c: any) => ({ 
-            name: c.name, 
-            set: c.set.id, 
-            number: c.number,
-            rarity: c.rarity 
-          }))
-        });
-      }
-    }
-
-    if (!matchedCard || !matchedCard.images?.large || !matchedCard.images?.small) {
+    if (!searchResult.card || !searchResult.card.images?.small || !searchResult.card.images?.large) {
       return res.status(404).json({
         error: `Card not found or missing images`,
         searched: { cardName, setId, setName, cardNumber },
-        totalResults: cards.length,
-        exactMatches: exactMatches.length,
-        searchAttempts: searchAttempts,
-        availableCards: cards.slice(0, 5).map((c: any) => ({ 
-          name: c.name, 
-          set: c.set.id, 
-          number: c.number 
-        }))
+        attempts: searchResult.attempts,
+        availableCards: searchResult.candidates.slice(0, 5).map((card) => ({
+          name: card.name,
+          set: card.set?.id,
+          number: card.number,
+        })),
       });
     }
 
-    console.log(`✅ Matched card: ${matchedCard.name} from ${matchedCard.set.name} (#${matchedCard.number})`);
-
-    // Store in cache
-    const result = {
-      card: matchedCard,
+    const responsePayload = {
+      card: searchResult.card,
       images: {
-        small: matchedCard.images.small,
-        large: matchedCard.images.large
+        small: searchResult.card.images.small,
+        large: searchResult.card.images.large,
       },
-      id: matchedCard.id,
-      matchedSet: matchedCard.set.name,
-      matchedNumber: matchedCard.number,
-      timestamp: Date.now()
+      id: searchResult.card.id,
+      matchedSet: searchResult.card.set?.name,
+      matchedNumber: searchResult.card.number,
+      cached: false,
+      attempts: searchResult.attempts,
+      usedFallback: searchResult.usedFallback,
     };
-    
-    cardImageCache.set(cacheKey, result);
-    console.log(`💾 Cached result for ${cardName} (cache size: ${cardImageCache.size})`);
 
-    // Return without the timestamp
-    const { timestamp, ...response } = result;
-    res.json(response);
+    cardImageCache.set(cacheKey, {
+      ...responsePayload,
+      timestamp: Date.now(),
+    });
 
+    console.log(
+      `✅ Matched card: ${searchResult.card.name} from ${searchResult.card.set?.name} (#${searchResult.card.number})`
+    );
+    res.json(responsePayload);
   } catch (error) {
     console.error('Error searching Pokemon API:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Internal server error',
-      message: (error as Error).message 
+      message: (error as Error).message,
     });
   }
 });

@@ -13,6 +13,7 @@ const express_1 = require("express");
 const database_1 = require("../db/database");
 const cardIdentifier_1 = require("../services/cardIdentifier");
 const router = (0, express_1.Router)();
+const clampNumber = (value, min, max) => Math.min(Math.max(value, min), max);
 // Get price history for a specific card using card details
 router.get('/card', (req, res) => {
     const { cardName, setId, cardNumber } = req.query;
@@ -247,6 +248,9 @@ router.get('/compare/:productId', (req, res) => {
     const { productId } = req.params;
     const { period1, period2 } = req.query; // e.g., "30", "90" for days ago
     const db = (0, database_1.getDb)();
+    const period1Days = clampNumber(parseInt(period1, 10) || 30, 1, 365);
+    const period2Days = clampNumber(parseInt(period2, 10) || 7, 1, 365);
+    const comparisonBoundary = clampNumber(Math.min(period1Days, period2Days), 1, Math.max(period1Days, period2Days));
     const sql = `
     SELECT 
       'period1' as period,
@@ -256,8 +260,8 @@ router.get('/compare/:productId', (req, res) => {
       COUNT(*) as dataPoints
     FROM price_history 
     WHERE productId = ? 
-      AND date >= date('now', '-${period1} days')
-      AND date < date('now', '-${Math.min(parseInt(period1 || '30'), parseInt(period2 || '7'))} days')
+      AND date >= date('now', ?)
+      AND date < date('now', ?)
     
     UNION ALL
     
@@ -269,9 +273,16 @@ router.get('/compare/:productId', (req, res) => {
       COUNT(*) as dataPoints
     FROM price_history 
     WHERE productId = ? 
-      AND date >= date('now', '-${period2} days')
+      AND date >= date('now', ?)
   `;
-    db.all(sql, [productId, productId], (err, rows) => {
+    const params = [
+        productId,
+        `-${period1Days} days`,
+        `-${comparisonBoundary} days`,
+        productId,
+        `-${period2Days} days`,
+    ];
+    db.all(sql, params, (err, rows) => {
         if (err) {
             res.status(500).json({ error: err.message });
             return;
@@ -295,7 +306,8 @@ router.get('/compare/:productId', (req, res) => {
 });
 // Get daily market snapshot
 router.get('/snapshots/daily', (req, res) => {
-    const { days = 30 } = req.query;
+    const requestedDays = parseInt(req.query.days, 10) || 30;
+    const days = clampNumber(requestedDays, 1, 365);
     const db = (0, database_1.getDb)();
     const sql = `
     SELECT 
@@ -304,11 +316,11 @@ router.get('/snapshots/daily', (req, res) => {
       AVG(marketPrice) as avgPrice,
       SUM(volume) as totalVolume
     FROM price_history
-    WHERE date >= date('now', '-${days} days')
+    WHERE date >= date('now', ?)
     GROUP BY date
     ORDER BY date ASC
   `;
-    db.all(sql, [], (err, rows) => {
+    db.all(sql, [`-${days} days`], (err, rows) => {
         if (err) {
             res.status(500).json({ error: err.message });
             return;
@@ -318,7 +330,9 @@ router.get('/snapshots/daily', (req, res) => {
 });
 // Get market trends and analytics
 router.get('/analytics/trends', (req, res) => {
-    const { days = 30, groupName } = req.query;
+    const requestedDays = parseInt(req.query.days, 10) || 30;
+    const days = clampNumber(requestedDays, 1, 365);
+    const { groupName } = req.query;
     const db = (0, database_1.getDb)();
     let sql = `
     SELECT 
@@ -326,9 +340,9 @@ router.get('/analytics/trends', (req, res) => {
       COUNT(DISTINCT productId) as totalCards,
       AVG(price) as avgPrice
     FROM price_history
-    WHERE date >= date('now', '-${days} days')
+    WHERE date >= date('now', ?)
   `;
-    const params = [];
+    const params = [`-${days} days`];
     if (groupName) {
         sql += ' AND groupName LIKE ?';
         params.push(`%${groupName}%`);

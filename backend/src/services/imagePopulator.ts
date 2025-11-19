@@ -279,6 +279,8 @@ class ImagePopulatorService {
     }
 
     return new Promise((resolve, reject) => {
+      // EXCLUDE fake "sets" that are actually TCGPlayer product categories
+      // These will NEVER have images in the Pokemon API - don't waste time!
       const sql = `
         SELECT 
           id,
@@ -308,6 +310,25 @@ class ImagePopulatorService {
           AND cardName NOT LIKE '%Binder%'
           AND cardName NOT LIKE '%Booster Box%'
           AND cardName NOT LIKE '%Elite Trainer%'
+          AND setName NOT IN (
+            'World Championship Decks',
+            'Miscellaneous Cards & Products',
+            'Prize Pack Series Cards',
+            'Deck Exclusives',
+            'League & Championship Cards',
+            'Jumbo Cards',
+            'Blister Exclusives',
+            'Burger King Promos',
+            'Countdown Calendar Promos',
+            'Professor Program Promos',
+            'Best of Promos',
+            'Pikachu World Collection Promos',
+            'ME01: Mega Evolution',
+            'ME: Mega Evolution Promo',
+            'MEE: Mega Evolution Energies',
+            'SVE: Scarlet & Violet Energies'
+          )
+          AND setName NOT LIKE 'McDonald%'
         ORDER BY cardName ASC
         LIMIT 1000
       `;
@@ -423,6 +444,7 @@ class ImagePopulatorService {
     }
 
     return new Promise((resolve, reject) => {
+      // Only count REAL cards from real Pokemon TCG sets (exclude fake sets)
       const sql = `
         SELECT 
           COUNT(*) as total,
@@ -430,6 +452,25 @@ class ImagePopulatorService {
           SUM(CASE WHEN imageSmall IS NULL OR imageLarge IS NULL THEN 1 ELSE 0 END) as withoutImages
         FROM card_mappings
         WHERE cardName IS NOT NULL AND TRIM(cardName) <> ''
+          AND setName NOT IN (
+            'World Championship Decks',
+            'Miscellaneous Cards & Products',
+            'Prize Pack Series Cards',
+            'Deck Exclusives',
+            'League & Championship Cards',
+            'Jumbo Cards',
+            'Blister Exclusives',
+            'Burger King Promos',
+            'Countdown Calendar Promos',
+            'Professor Program Promos',
+            'Best of Promos',
+            'Pikachu World Collection Promos',
+            'ME01: Mega Evolution',
+            'ME: Mega Evolution Promo',
+            'MEE: Mega Evolution Energies',
+            'SVE: Scarlet & Violet Energies'
+          )
+          AND setName NOT LIKE 'McDonald%'
       `;
 
       db.get(sql, [], (err, row: any) => {
