@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { PokemonCard } from '../types/pokemon';
-import { Modal } from './Modal';
+import { PokemonCard } from '../../../types/pokemon';
+import { Modal } from '../../../components/common/Modal';
 import { PriceChart } from './PriceChart';
-import { PriceHistoryApi } from '../services/priceHistoryApi';
-import { AddToVaultModal } from './AddToVaultModal';
+import { PriceHistoryApi } from '../../../services/priceHistoryApi';
+import { AddToVaultModal } from '../../../features/vault/components/AddToVaultModal';
 import { Database, Vault, TrendingUp } from 'lucide-react';
-import { vaultService } from '../services/vaultService';
-import { pokemonApi } from '../services/pokemonApi';
-import { priceTrackingService } from '../services/priceTrackingService';
+import { vaultService } from '../../../services/vaultService';
+import { pokemonApi } from '../../../services/pokemonApi';
+import { priceTrackingService } from '../../../services/priceTrackingService';
 
 interface InvestmentModalProps {
   card: PokemonCard | null;

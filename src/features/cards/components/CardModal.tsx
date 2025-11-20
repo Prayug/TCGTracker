@@ -1,7 +1,7 @@
 import React from 'react';
-import { PokemonCard } from '../types/pokemon';
-import { pokemonApi } from '../services/pokemonApi';
-import { Modal } from './Modal';
+import { PokemonCard } from '../../../types/pokemon';
+import { pokemonApi } from '../../../services/pokemonApi';
+import { Modal } from '../../../components/common/Modal';
 
 interface CardModalProps {
   card: PokemonCard | null;

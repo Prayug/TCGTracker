@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, Flame, Star, ArrowRight } from 'lucide-react';
-import { PokemonCard } from '../types/pokemon';
-import { pokemonApi } from '../services/pokemonApi';
+import { PokemonCard } from '../../../types/pokemon';
+import { pokemonApi } from '../../../services/pokemonApi';
 
 interface FeaturedCardsProps {
   onCardClick: (card: PokemonCard) => void;
@@ -15,14 +15,25 @@ export const FeaturedCards: React.FC<FeaturedCardsProps> = ({ onCardClick }) => 
   useEffect(() => {
     const fetchFeatured = async () => {
       try {
+        // Use backend API instead of direct Pokemon API (avoids CORS)
+        const backendBase = window.location.origin.replace(':5173', ':3001');
+        
         // Fetch multiple popular Pokemon in parallel for speed
         const searches = ['Charizard', 'Pikachu', 'Mewtwo', 'Lugia', 'Rayquaza', 'Gyarados'];
         
         // Fetch all in parallel and take first 2 from each
         const results = await Promise.all(
-          searches.map(search => 
-            pokemonApi.searchCards(search, undefined, 250, false).then(cards => cards.slice(0, 2))
-          )
+          searches.map(async search => {
+            try {
+              const response = await fetch(`${backendBase}/api/cards/search?query=${encodeURIComponent(search)}&limit=10`);
+              if (!response.ok) return [];
+              const data = await response.json();
+              return (data.data || []).slice(0, 2);
+            } catch (error) {
+              console.warn(`Failed to fetch ${search}:`, error);
+              return [];
+            }
+          })
         );
         
         // Flatten and shuffle for variety

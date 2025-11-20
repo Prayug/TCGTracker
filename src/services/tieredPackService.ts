@@ -132,7 +132,7 @@ class TieredPackService {
 
       // If selected from local DB pool, enrich with actual images from Pokemon API (no fallback)
       // Narrow type to local DB enriched shape when present
-      const maybeLocal = selectedCard as PokemonCard & { isLocalDbCard?: boolean };
+      const maybeLocal = selectedCard as PokemonCard & { isLocalDbCard?: boolean; imageSource?: string };
       if (maybeLocal.isLocalDbCard) {
         const cardName = selectedCard.name;
         const setId = selectedCard.set?.id;
@@ -141,6 +141,17 @@ class TieredPackService {
         if (!cardName || !setId) {
           throw new Error('Missing card name or set ID for image lookup');
         }
+        
+        // CHECK IF WE ALREADY HAVE REAL STORED IMAGES
+        // If imageSource is 'stored' or 'pokemon_api' or 'manual', we have real images - don't fetch again!
+        const hasStoredImages = maybeLocal.imageSource && 
+          ['stored', 'pokemon_api', 'manual', 'manual_mcdonalds_2014', 'tcgplayer'].includes(maybeLocal.imageSource);
+        
+        if (hasStoredImages && selectedCard.images?.large && !selectedCard.images.large.includes('placeholder')) {
+          console.log(`✅ Using pre-stored image for ${cardName} (source: ${maybeLocal.imageSource})`);
+          // Image is already good - no need to fetch
+        } else {
+          // Only fetch from API if we don't have stored images
         
         // Helper function to create a placeholder image using URL encoding (more reliable than base64)
         const createPlaceholder = (name: string, setName: string) => {
@@ -279,6 +290,7 @@ class TieredPackService {
         } else {
           console.log(`✅ Real images loaded for ${cardName}`);
           console.log(`📸 Image URL: ${selectedCard.images.large}`);
+        }
         }
       }
 

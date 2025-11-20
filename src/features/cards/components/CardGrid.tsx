@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { PokemonCard } from './PokemonCard';
-import { PokemonCard as PokemonCardType } from '../types/pokemon';
+import { PokemonCard as PokemonCardType } from '../../../types/pokemon';
 
 interface CardGridProps {
   cards: PokemonCardType[];

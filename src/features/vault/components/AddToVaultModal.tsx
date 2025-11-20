@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { PokemonCard, CardCondition } from '../types/pokemon';
-import { vaultService } from '../services/vaultService';
-import { Modal } from './Modal';
+import { PokemonCard, CardCondition } from '../../../types/pokemon';
+import { vaultService } from '../../../services/vaultService';
+import { Modal } from '../../../components/common/Modal';
 import { Vault, DollarSign, Package, FileText } from 'lucide-react';
-import { pokemonApi } from '../services/pokemonApi';
+import { pokemonApi } from '../../../services/pokemonApi';
 
 interface AddToVaultModalProps {
   card: PokemonCard | null;
@@ -241,4 +241,3 @@ export const AddToVaultModal: React.FC<AddToVaultModalProps> = ({
     </Modal>
   );
 };
-

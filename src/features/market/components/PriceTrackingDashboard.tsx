@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { TrendingUp, TrendingDown, AlertCircle, Plus, Trash2, Search, Star, Target, Bell, Package } from 'lucide-react';
-import { priceTrackingService, TrackedCard, PriceAlert } from '../services/priceTrackingService';
-import { pokemonApi } from '../services/pokemonApi';
-import { PokemonCard } from '../types/pokemon';
+import { priceTrackingService, TrackedCard, PriceAlert } from '../../../services/priceTrackingService';
+import { pokemonApi } from '../../../services/pokemonApi';
+import { PokemonCard } from '../../../types/pokemon';
 
 export const PriceTrackingDashboard: React.FC = () => {
   const [trackedCards, setTrackedCards] = useState<TrackedCard[]>([]);

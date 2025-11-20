@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { VaultCard as VaultCardType } from '../types/pokemon';
-import { vaultService } from '../services/vaultService';
+import { VaultCard as VaultCardType } from '../../../types/pokemon';
+import { vaultService } from '../../../services/vaultService';
 import { VaultCard } from './VaultCard';
 import { Vault, TrendingUp, TrendingDown, Package, DollarSign, Download, Upload, Trash2 } from 'lucide-react';
 

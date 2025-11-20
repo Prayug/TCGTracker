@@ -1,6 +1,6 @@
 import React from 'react';
 import { TrendingUp, TrendingDown, Minus, AlertTriangle, Target, Award } from 'lucide-react';
-import { CardInvestmentData } from '../types/pokemon';
+import { CardInvestmentData } from '../../../types/pokemon';
 
 interface InvestmentBadgeProps {
   investmentData: CardInvestmentData;

@@ -1,6 +1,6 @@
 import React from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
-import { PricePoint } from '../types/pokemon';
+import { PricePoint } from '../../../types/pokemon';
 
 interface PriceChartProps {
   priceHistory: PricePoint[];

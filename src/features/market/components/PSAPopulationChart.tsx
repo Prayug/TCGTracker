@@ -1,6 +1,6 @@
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { PSAData } from '../types/pokemon';
+import { PSAData } from '../../../types/pokemon';
 
 interface PSAPopulationChartProps {
   psaData: PSAData;

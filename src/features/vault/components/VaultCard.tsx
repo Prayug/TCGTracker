@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { VaultCard as VaultCardType } from '../types/pokemon';
+import { VaultCard as VaultCardType } from '../../../types/pokemon';
 import { TrendingUp, TrendingDown, Trash2, Edit, Package } from 'lucide-react';
-import { vaultService } from '../services/vaultService';
+import { vaultService } from '../../../services/vaultService';
 
 interface VaultCardProps {
   vaultCard: VaultCardType;

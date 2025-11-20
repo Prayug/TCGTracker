@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, SortAsc, Filter } from 'lucide-react';
-import { SortOption, FilterOption } from '../types/pokemon';
-import { getSortOptions } from '../utils/sorting';
+import { SortOption, FilterOption } from '../../../types/pokemon';
+import { getSortOptions } from '../../../utils/sorting';
 
 interface SearchAndSortProps {
   searchQuery: string;

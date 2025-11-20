@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Pack, PackPull, PokemonCard } from '../types/pokemon';
-import { Modal } from './Modal';
-import { tieredPackService } from '../services/tieredPackService';
-import { vaultService } from '../services/vaultService';
+import { Pack, PackPull, PokemonCard } from '../../../types/pokemon';
+import { Modal } from '../../../components/common/Modal';
+import { tieredPackService } from '../../../services/tieredPackService';
+import { vaultService } from '../../../services/vaultService';
 import { Sparkles, TrendingUp, TrendingDown, Vault, X } from 'lucide-react';
-import { pokemonApi } from '../services/pokemonApi';
+import { pokemonApi } from '../../../services/pokemonApi';
 
 interface PackOpeningModalProps {
   pack: Pack | null;
@@ -382,4 +382,3 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
     </Modal>
   );
 };
-

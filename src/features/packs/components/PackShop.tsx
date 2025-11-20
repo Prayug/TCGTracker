@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Pack } from '../types/pokemon';
-import { tieredPackService } from '../services/tieredPackService';
+import { Pack } from '../../../types/pokemon';
+import { tieredPackService } from '../../../services/tieredPackService';
 import { PackOpeningModal } from './PackOpeningModal';
 import { Package, Sparkles, TrendingUp, History, Zap } from 'lucide-react';
 

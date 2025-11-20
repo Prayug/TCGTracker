@@ -1,6 +1,6 @@
 import React from 'react';
-import { PokemonCard as PokemonCardType } from '../types/pokemon';
-import { pokemonApi } from '../services/pokemonApi';
+import { PokemonCard as PokemonCardType } from '../../../types/pokemon';
+import { pokemonApi } from '../../../services/pokemonApi';
 
 interface PokemonCardProps {
   card: PokemonCardType;
