@@ -211,11 +211,62 @@ class PokemonApiClient {
     getSets() {
         return __awaiter(this, arguments, void 0, function* (limit = 250) {
             var _a;
-            const response = yield this.request('/sets', {
-                orderBy: '-releaseDate',
-                pageSize: String(limit),
-            });
-            return (_a = response.data) !== null && _a !== void 0 ? _a : [];
+            try {
+                const response = yield this.request('/sets', {
+                    orderBy: '-releaseDate',
+                    pageSize: String(limit),
+                });
+                return (_a = response.data) !== null && _a !== void 0 ? _a : [];
+            }
+            catch (error) {
+                logger_1.logger.warn('Pokemon API failed, falling back to cached/empty data', { error: error.message });
+                // Return empty array to allow fallback logic to handle this
+                return [];
+            }
+        });
+    }
+    /**
+     * Get all sets and return them as a map of set codes to set data
+     */
+    getSetCodeMap() {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const sets = yield this.getSets(1000); // Get many sets
+                const setMap = new Map();
+                sets.forEach(set => {
+                    if (set.id && set.name) {
+                        setMap.set(set.id.toLowerCase(), set);
+                        // Also map by name for fuzzy matching
+                        setMap.set(set.name.toLowerCase().replace(/[^a-z0-9]/g, ''), set);
+                    }
+                });
+                logger_1.logger.info(`Loaded ${setMap.size} sets into code map`);
+                return setMap;
+            }
+            catch (error) {
+                logger_1.logger.error('Failed to load set code map', { error: error.message });
+                return new Map();
+            }
+        });
+    }
+    /**
+     * Get cards from a specific set with improved error handling
+     */
+    getCardsFromSet(setId_1) {
+        return __awaiter(this, arguments, void 0, function* (setId, pageSize = 250) {
+            var _a;
+            try {
+                const response = yield this.request('/cards', {
+                    q: `set.id:${setId}`,
+                    pageSize: String(pageSize),
+                    orderBy: 'number'
+                });
+                return (_a = response.data) !== null && _a !== void 0 ? _a : [];
+            }
+            catch (error) {
+                logger_1.logger.warn(`Failed to fetch cards for set ${setId}`, { error: error.message });
+                return [];
+            }
         });
     }
     uniqueCards(cards) {

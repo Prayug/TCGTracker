@@ -17,6 +17,7 @@ const node_cron_1 = __importDefault(require("node-cron"));
 const swagger_ui_express_1 = __importDefault(require("swagger-ui-express"));
 const priceHistory_1 = __importDefault(require("./routes/priceHistory"));
 const cardSearch_1 = __importDefault(require("./routes/cardSearch"));
+const enhancedPacks_1 = __importDefault(require("./routes/enhancedPacks"));
 const database_1 = require("./db/database");
 const migrations_1 = require("./db/migrations");
 const dataFetcher_1 = require("./services/dataFetcher");
@@ -97,6 +98,7 @@ function setupRoutes(authService, alertService, portfolioService) {
     app.use('/api/portfolio', (0, portfolio_1.createPortfolioRouter)(portfolioService));
     app.use('/api/prices', priceHistory_1.default);
     app.use('/api/cards', cardSearch_1.default);
+    app.use('/api/packs', enhancedPacks_1.default);
     // Manual update endpoint (admin only in production)
     app.post('/api/update', (req, res) => __awaiter(this, void 0, void 0, function* () {
         try {
@@ -147,6 +149,7 @@ function setupRoutes(authService, alertService, portfolioService) {
                     alerts: '/api/alerts',
                     prices: '/api/prices',
                     cards: '/api/cards',
+                    packs: '/api/packs',
                     docs: '/api-docs',
                     health: '/api/health'
                 }
@@ -170,6 +173,7 @@ function setupRoutes(authService, alertService, portfolioService) {
                 alerts: '/api/alerts',
                 prices: '/api/prices',
                 cards: '/api/cards',
+                packs: '/api/packs',
                 status: '/api/status',
                 health: '/api/health'
             }

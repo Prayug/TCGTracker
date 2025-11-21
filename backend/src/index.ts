@@ -3,6 +3,7 @@ import cron from 'node-cron';
 import swaggerUi from 'swagger-ui-express';
 import priceHistoryRouter from './routes/priceHistory';
 import cardSearchRouter from './routes/cardSearch';
+import enhancedPacksRouter from './routes/enhancedPacks';
 import { initializeDatabase, getDb } from './db/database';
 import { runMigrations } from './db/migrations';
 import { updatePriceData } from './services/dataFetcher';
@@ -96,6 +97,7 @@ function setupRoutes(
   app.use('/api/portfolio', createPortfolioRouter(portfolioService));
   app.use('/api/prices', priceHistoryRouter);
   app.use('/api/cards', cardSearchRouter);
+  app.use('/api/packs', enhancedPacksRouter);
 
   // Manual update endpoint (admin only in production)
   app.post('/api/update', async (req, res) => {
@@ -149,6 +151,7 @@ function setupRoutes(
           alerts: '/api/alerts',
           prices: '/api/prices',
           cards: '/api/cards',
+          packs: '/api/packs',
           docs: '/api-docs',
           health: '/api/health'
         }
@@ -172,6 +175,7 @@ function setupRoutes(
         alerts: '/api/alerts',
         prices: '/api/prices',
         cards: '/api/cards',
+        packs: '/api/packs',
         status: '/api/status',
         health: '/api/health'
       }

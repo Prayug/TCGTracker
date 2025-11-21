@@ -318,11 +318,58 @@ class PokemonApiClient {
   }
 
   async getSets(limit = 250): Promise<PokemonApiSet[]> {
-    const response = await this.request<PokemonSetsResponse>('/sets', {
-      orderBy: '-releaseDate',
-      pageSize: String(limit),
-    });
-    return response.data ?? [];
+    try {
+      const response = await this.request<PokemonSetsResponse>('/sets', {
+        orderBy: '-releaseDate',
+        pageSize: String(limit),
+      });
+      return response.data ?? [];
+    } catch (error) {
+      logger.warn('Pokemon API failed, falling back to cached/empty data', { error: (error as Error).message });
+      // Return empty array to allow fallback logic to handle this
+      return [];
+    }
+  }
+
+  /**
+   * Get all sets and return them as a map of set codes to set data
+   */
+  async getSetCodeMap(): Promise<Map<string, PokemonApiSet>> {
+    try {
+      const sets = await this.getSets(1000); // Get many sets
+      const setMap = new Map<string, PokemonApiSet>();
+
+      sets.forEach(set => {
+        if (set.id && set.name) {
+          setMap.set(set.id.toLowerCase(), set);
+          // Also map by name for fuzzy matching
+          setMap.set(set.name.toLowerCase().replace(/[^a-z0-9]/g, ''), set);
+        }
+      });
+
+      logger.info(`Loaded ${setMap.size} sets into code map`);
+      return setMap;
+    } catch (error) {
+      logger.error('Failed to load set code map', { error: (error as Error).message });
+      return new Map();
+    }
+  }
+
+  /**
+   * Get cards from a specific set with improved error handling
+   */
+  async getCardsFromSet(setId: string, pageSize = 250): Promise<PokemonApiCard[]> {
+    try {
+      const response = await this.request<PokemonCardsResponse>('/cards', {
+        q: `set.id:${setId}`,
+        pageSize: String(pageSize),
+        orderBy: 'number'
+      });
+      return response.data ?? [];
+    } catch (error) {
+      logger.warn(`Failed to fetch cards for set ${setId}`, { error: (error as Error).message });
+      return [];
+    }
   }
 
   private uniqueCards(cards: PokemonApiCard[]): PokemonApiCard[] {

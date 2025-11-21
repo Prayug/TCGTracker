@@ -1,0 +1,155 @@
+"use strict";
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const enhancedPackService_1 = require("../services/enhancedPackService");
+const setCodeService_1 = require("../services/setCodeService");
+const logger_1 = require("../utils/logger");
+const router = (0, express_1.Router)();
+/**
+ * Get available sets for pack opening
+ */
+router.get('/sets', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const sets = yield enhancedPackService_1.enhancedPackService.getAvailableSets();
+        res.json({
+            data: sets,
+            count: sets.length,
+            source: 'enhanced_pack_service'
+        });
+    }
+    catch (error) {
+        logger_1.logger.error('Error fetching available sets:', error);
+        res.status(500).json({
+            error: 'Failed to fetch available sets',
+            message: error.message
+        });
+    }
+}));
+/**
+ * Open a pack from a specific set
+ */
+router.post('/open/:setId', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { setId } = req.params;
+        const { packPrice, packName } = req.body;
+        if (!setId) {
+            return res.status(400).json({
+                error: 'Set ID is required'
+            });
+        }
+        // Custom pack configuration if provided
+        const packConfig = packPrice || packName ? {
+            price: packPrice || 4.99,
+            name: packName || 'Custom Pack'
+        } : {};
+        const result = yield enhancedPackService_1.enhancedPackService.openPack(setId, packConfig);
+        res.json({
+            success: true,
+            data: result,
+            message: `Successfully opened ${result.cards.length} cards from ${setId}`
+        });
+    }
+    catch (error) {
+        logger_1.logger.error(`Error opening pack for set ${req.params.setId}:`, error);
+        res.status(500).json({
+            error: 'Failed to open pack',
+            message: error.message
+        });
+    }
+}));
+/**
+ * Resolve database set ID to Pokemon TCG API set code
+ */
+router.get('/resolve-set-code/:setId', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { setId } = req.params;
+        if (!setId) {
+            return res.status(400).json({
+                error: 'Set ID is required'
+            });
+        }
+        const apiSetCode = yield setCodeService_1.setCodeService.getApiSetCode(setId);
+        if (!apiSetCode) {
+            return res.status(404).json({
+                error: 'Could not resolve set code',
+                databaseSetId: setId
+            });
+        }
+        res.json({
+            databaseSetId: setId,
+            apiSetCode,
+            resolved: true
+        });
+    }
+    catch (error) {
+        logger_1.logger.error(`Error resolving set code for ${req.params.setId}:`, error);
+        res.status(500).json({
+            error: 'Failed to resolve set code',
+            message: error.message
+        });
+    }
+}));
+/**
+ * Get pack statistics for a set
+ */
+router.get('/stats/:setId', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { setId } = req.params;
+        if (!setId) {
+            return res.status(400).json({
+                error: 'Set ID is required'
+            });
+        }
+        const db = require('../db/database').getDb();
+        // Get card count and average price for the set
+        const stats = yield new Promise((resolve, reject) => {
+            const sql = `
+        SELECT
+          COUNT(DISTINCT cm.cardName) as totalCards,
+          AVG(ph.marketPrice) as avgPrice,
+          COUNT(DISTINCT cm.rarity) as rarityCount
+        FROM card_mappings cm
+        LEFT JOIN (
+          SELECT uniqueIdentifier, marketPrice
+          FROM price_history
+          WHERE (uniqueIdentifier, date) IN (
+            SELECT uniqueIdentifier, MAX(date)
+            FROM price_history
+            GROUP BY uniqueIdentifier
+          )
+        ) ph ON cm.uniqueIdentifier = ph.uniqueIdentifier
+        WHERE cm.setId = ? OR cm.setName LIKE ?
+      `;
+            db.get(sql, [setId, `%${setId}%`], (err, row) => {
+                if (err) {
+                    reject(err);
+                }
+                else {
+                    resolve(row);
+                }
+            });
+        });
+        res.json({
+            setId,
+            stats,
+            source: 'enhanced_pack_service'
+        });
+    }
+    catch (error) {
+        logger_1.logger.error(`Error getting stats for set ${req.params.setId}:`, error);
+        res.status(500).json({
+            error: 'Failed to get set statistics',
+            message: error.message
+        });
+    }
+}));
+exports.default = router;
