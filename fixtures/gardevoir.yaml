@@ -1,0 +1,41 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Host:
+      - api.pokemontcg.io
+      User-Agent:
+      - Mozilla/5.0
+    method: GET
+    uri: https://api.pokemontcg.io/v2/cards/xy7-54
+  response:
+    body:
+      string: ''
+    headers:
+      CF-RAY:
+      - 9a1af46d68b630b3-SEA
+      Connection:
+      - close
+      Content-Length:
+      - '0'
+      Date:
+      - Thu, 20 Nov 2025 21:14:03 GMT
+      Nel:
+      - '{"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}'
+      Report-To:
+      - '{"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=V6EaJiUDT%2FKYK22V17lwK7ThrZlzuEf5v5seT6IBpO9V5nI%2Bs8jSnb8woirXnNP9eg7zK1dz6Akml070JPjXmbRa5EHMfiA6UwI1n%2F8l%2BA%3D%3D"}]}'
+      Server:
+      - cloudflare
+      Server-Timing:
+      - cfCacheStatus;desc="DYNAMIC"
+      - cfEdge;dur=11,cfOrigin;dur=130
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+    status:
+      code: 404
+      message: Not Found
+version: 1

@@ -143,15 +143,24 @@ class TieredPackService {
         }
         
         // CHECK IF WE ALREADY HAVE REAL STORED IMAGES
-        // If imageSource is 'stored' or 'pokemon_api' or 'manual', we have real images - don't fetch again!
-        const hasStoredImages = maybeLocal.imageSource && 
-          ['stored', 'pokemon_api', 'manual', 'manual_mcdonalds_2014', 'tcgplayer'].includes(maybeLocal.imageSource);
+        // Only trust images we KNOW came from Pokemon API or manual curation.
+        // Do NOT trust generic "stored"/"tcgplayer" images, since many of those are card backs.
+        const imageSource = maybeLocal.imageSource;
+        const isTrustedSource = imageSource && ['pokemon_api', 'manual', 'manual_mcdonalds_2014'].includes(imageSource);
+        const largeUrl = selectedCard.images?.large || '';
+        const looksLikeGenericBack = /\/back\//i.test(largeUrl) || /cardback/i.test(largeUrl) || /\/back\./i.test(largeUrl);
         
-        if (hasStoredImages && selectedCard.images?.large && !selectedCard.images.large.includes('placeholder')) {
+        const hasGoodStoredImages =
+          isTrustedSource &&
+          !!largeUrl &&
+          !largeUrl.includes('placeholder') &&
+          !looksLikeGenericBack;
+
+        if (hasGoodStoredImages) {
           console.log(`✅ Using pre-stored image for ${cardName} (source: ${maybeLocal.imageSource})`);
           // Image is already good - no need to fetch
         } else {
-          // Only fetch from API if we don't have stored images
+          // Only fetch from API if we don't have *good* stored images
         
         // Helper function to create a placeholder image using URL encoding (more reliable than base64)
         const createPlaceholder = (name: string, setName: string) => {
