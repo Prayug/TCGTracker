@@ -572,6 +572,10 @@ class TieredPackService {
 
     // Comprehensive mapping from database set IDs to Pokemon TCG API set codes
     const setMappings: Record<string, string> = {
+      // Mega Evolution sets
+      'me01megaevolution': 'me1',
+      'me02phantasmalflames': 'me2',
+      
       // Scarlet & Violet (SV) sets
       'sv01scarletvioletbaseset': 'sv1',
       'sv02paldeaevolved': 'sv2',
@@ -672,8 +676,6 @@ class TieredPackService {
       'burgerkingpromos': 'bkp',
       'professorprogrampromos': 'ppp',
       'memegaevolutionpromo': 'smp', // SM era
-      'me01megaevolution': 'xy01', // XY era
-      'me02phantasmalflames': 'sv01', // SV era
 
       // McDonald's Promos - differentiated by year
       'mcdonaldspromos2024': 'mcd24',
