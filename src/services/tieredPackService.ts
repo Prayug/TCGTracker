@@ -675,9 +675,8 @@ class TieredPackService {
       'countdowncalendarpromos': 'cdp',
       'burgerkingpromos': 'bkp',
       'professorprogrampromos': 'ppp',
-      'memegaevolutionpromo': 'smp', // SM era
+      'memegaevolutionpromo': 'smp', 
 
-      // McDonald's Promos - differentiated by year
       'mcdonaldspromos2024': 'mcd24',
       'mcdonaldspromos2023': 'mcd23',
       'mcdonaldspromos2022': 'mcd22',
