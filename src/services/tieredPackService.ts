@@ -148,7 +148,7 @@ class TieredPackService {
         // Only trust images we KNOW came from Pokemon API or manual curation.
         // Do NOT trust generic "stored"/"tcgplayer" images, since many of those are card backs.
         const imageSource = maybeLocal.imageSource;
-        const isTrustedSource = imageSource && ['pokemon_api', 'manual', 'manual_mcdonalds_2014'].includes(imageSource);
+        const isTrustedSource = imageSource && ['pokemon_api', 'manual', 'manual_mcdonalds_2014', 'stored'].includes(imageSource);
         const largeUrl = selectedCard.images?.large || '';
         const looksLikeGenericBack = /\/back\//i.test(largeUrl) || /cardback/i.test(largeUrl) || /\/back\./i.test(largeUrl);
         
@@ -216,11 +216,15 @@ class TieredPackService {
             
             if (result.images?.large && result.images?.small) {
               console.log(`✅ Successfully loaded images for ${cardName} with set ID`);
-              
+
               // Replace images with actual ones from API
               selectedCard.images = result.images;
               // Also update the card ID to the real Pokemon API ID
               selectedCard.id = result.id;
+              // Update rarity if available
+              if (result.rarity) {
+                selectedCard.rarity = result.rarity;
+              }
               imagesFetched = true;
             } else {
               console.warn(`⚠️ Card found but missing images for "${cardName}"`);
@@ -252,6 +256,10 @@ class TieredPackService {
                   console.log(`✅ Found ${cardName} by name-only search! Set: ${nameResult.matchedSet || 'unknown'}, #${nameResult.matchedNumber || 'unknown'}`);
                   selectedCard.images = nameResult.images;
                   selectedCard.id = nameResult.id;
+                  // Update rarity if available
+                  if (nameResult.rarity) {
+                    selectedCard.rarity = nameResult.rarity;
+                  }
                   imagesFetched = true;
                 } else {
                   console.warn(`⚠️ Name-only search returned card but no images for ${cardName}`);
@@ -417,6 +425,17 @@ class TieredPackService {
       return price >= rolledRange.min && price <= rolledRange.max;
     });
 
+    // Remove duplicates based on unique identifier to ensure fair distribution
+    const seenIdentifiers = new Set<string>();
+    candidates = candidates.filter(card => {
+      const identifier = card.uniqueIdentifier || `${card.set?.id || ''}|${card.number || ''}|${card.name || ''}`.toLowerCase().replace(/[^a-z0-9|]/g, '');
+      if (seenIdentifiers.has(identifier)) {
+        return false;
+      }
+      seenIdentifiers.add(identifier);
+      return true;
+    });
+
     console.log('LOOK HERE for candidates: ', candidates);
 
     console.log(`📋 Found ${candidates.length} cards in this range`);
@@ -431,6 +450,17 @@ class TieredPackService {
       candidates = cardPool.filter(card => {
         const price = card.marketPrice || pokemonApi.extractCardPrice(card);
         return price >= expandedMin && price <= expandedMax;
+      });
+
+      // Remove duplicates from expanded range candidates
+      const seenIdentifiersExpanded = new Set<string>();
+      candidates = candidates.filter(card => {
+        const identifier = card.uniqueIdentifier || `${card.set?.id || ''}|${card.number || ''}|${card.name || ''}`.toLowerCase().replace(/[^a-z0-9|]/g, '');
+        if (seenIdentifiersExpanded.has(identifier)) {
+          return false;
+        }
+        seenIdentifiersExpanded.add(identifier);
+        return true;
       });
       
       if (candidates.length > 0) {
@@ -614,6 +644,7 @@ class TieredPackService {
       'swsh11lostorigin': 'swsh11',
       'swsh11lostorigintrainergallery': 'swsh11tg',
       'swsh12silvertempest': 'swsh12',
+      'crownzenith': 'swsh12',
 
       // Sun & Moon (SM) sets
       'smbaseset': 'sm1',
@@ -664,6 +695,7 @@ class TieredPackService {
       'svpromos': 'svp',
       'smpromos': 'smp',
       'swshpromos': 'swshp',
+      'swshswordshieldpromocards': 'swshp',
       'xypromos': 'xyp',
       'bwpromos': 'bwp',
       'basepromos': 'bp',
@@ -735,6 +767,12 @@ class TieredPackService {
       'worldchampionshipdecks': 'wc',
       'trickortradebooosterbundle2024': 'tto24',
       'pokemongocards': 'pgo',
+
+      // Additional set mappings
+      'crownzenithgalariangallery': 'swsh12tg',
+      'championspath': 'swsh10tg',
+      'hiddenfates': 'sm115',
+      'shiningfates': 'swsh45',
     };
 
     if (setMappings[normalized]) {
@@ -746,13 +784,18 @@ class TieredPackService {
     const patterns = [
       /(sv|swsh|sm|xy|bw)(\d+)/,  // Standard format
       /(zsv)(\d+)(pt\d+)/,        // Special format like zsv10pt5
+      /(base|dp|ex|hgss|pop|bw)(\d+)/,  // Older format like base1, dp6, ex12
+      /(neo)(\d+)/,               // Neo series
+      /(pl)(\d+)/,                // Platinum series
+      /(col)(\d+)/,               // Call of Legends
+      /(mcd)(\d+)/,               // McDonald's series
     ];
 
     for (const pattern of patterns) {
       const match = normalized.match(pattern);
       if (match) {
         if (match.length === 3) {
-          // Standard format: sv06, swsh11, etc. - remove leading zeros
+          // Standard format: sv06, swsh11, base1, dp6, etc. - remove leading zeros
           const series = match[1];
           const number = parseInt(match[2], 10).toString(); // Remove leading zeros
           return `${series}${number}`;

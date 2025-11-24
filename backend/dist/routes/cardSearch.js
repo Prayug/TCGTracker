@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const database_1 = require("../db/database");
 const pokemonApiClient_1 = require("../services/pokemonApiClient");
+const cardIdentifier_1 = require("../services/cardIdentifier");
 const router = (0, express_1.Router)();
 const cardImageCache = new Map();
 const CACHE_TTL = 1000 * 60 * 60 * 24; // 24 hours
@@ -83,6 +84,7 @@ const normalizeSetIdForImageUrl = (setId) => {
         'svscarletviolet151': 'sv3pt5',
         'svscarletvioletbaseset': 'sv1', // Alternative name
         'svescarletvioletenergies': 'sve',
+        'svshroudedfable': 'sv6pt5',
         // Sword & Shield (SWSH) sets
         'swsh01swordshieldbaseset': 'swsh1',
         'swsh02rebelclash': 'swsh2',
@@ -99,6 +101,7 @@ const normalizeSetIdForImageUrl = (setId) => {
         'swsh11lostorigin': 'swsh11',
         'swsh11lostorigintrainergallery': 'swsh11tg',
         'swsh12silvertempest': 'swsh12',
+        'crownzenith': 'swsh12',
         // Sun & Moon (SM) sets
         'smbaseset': 'sm1',
         'smguardiansrising': 'sm2',
@@ -144,6 +147,7 @@ const normalizeSetIdForImageUrl = (setId) => {
         'svpromos': 'svp',
         'smpromos': 'smp',
         'swshpromos': 'swshp',
+        'swshswordshieldpromocards': 'swshp',
         'xypromos': 'xyp',
         'bwpromos': 'bwp',
         'basepromos': 'bp',
@@ -216,6 +220,11 @@ const normalizeSetIdForImageUrl = (setId) => {
         'worldchampionshipdecks': 'wc',
         'trickortradebooosterbundle2024': 'tto24',
         'pokemongocards': 'pgo',
+        // Additional set mappings
+        'crownzenithgalariangallery': 'swsh12tg',
+        'championspath': 'swsh10tg',
+        'hiddenfates': 'sm115',
+        'shiningfates': 'swsh45',
     };
     if (setMappings[normalized]) {
         return setMappings[normalized];
@@ -225,12 +234,17 @@ const normalizeSetIdForImageUrl = (setId) => {
     const patterns = [
         /(sv|swsh|sm|xy|bw)(\d+)/, // Standard format
         /(zsv)(\d+)(pt\d+)/, // Special format like zsv10pt5
+        /(base|dp|ex|hgss|pop|bw)(\d+)/, // Older format like base1, dp6, ex12
+        /(neo)(\d+)/, // Neo series
+        /(pl)(\d+)/, // Platinum series
+        /(col)(\d+)/, // Call of Legends
+        /(mcd)(\d+)/, // McDonald's series
     ];
     for (const pattern of patterns) {
         const match = normalized.match(pattern);
         if (match) {
             if (match.length === 3) {
-                // Standard format: sv06, swsh11, etc. - remove leading zeros
+                // Standard format: sv06, swsh11, base1, dp6, etc. - remove leading zeros
                 const series = match[1];
                 const number = parseInt(match[2], 10).toString(); // Remove leading zeros
                 return `${series}${number}`;
@@ -557,7 +571,7 @@ router.get('/pool', (req, res) => __awaiter(void 0, void 0, void 0, function* ()
         const imageColumns = yield getImageColumnSelectFragment();
         // Exclude fake "sets" that are actually TCGPlayer product categories
         // These will NEVER have images in the Pokemon API
-        const EXCLUDED_FAKE_SETS = [
+        const EXCLUDED_FAKE_SET_NAMES = [
             'World Championship Decks',
             'Miscellaneous Cards & Products',
             'Prize Pack Series Cards',
@@ -576,8 +590,19 @@ router.get('/pool', (req, res) => __awaiter(void 0, void 0, void 0, function* ()
             'MEE: Mega Evolution Energies',
             'SVE: Scarlet & Violet Energies',
         ];
+        const EXCLUDED_FAKE_SET_IDS = [
+            'worldchampionshipdecks',
+            'miscellaneouscardsproducts',
+            'prizepackseriescards',
+            'deckexclusives',
+            'leaguechampionshipcards',
+            'jumbocards',
+            'blisterexclusives',
+        ];
         // Build exclusion clauses
-        const exclusionClauses = EXCLUDED_FAKE_SETS.map(set => set.includes('%') ? `cm.setName NOT LIKE '${set}'` : `cm.setName != '${set}'`).join(' AND ');
+        const nameExclusionClauses = EXCLUDED_FAKE_SET_NAMES.map(set => set.includes('%') ? `cm.setName NOT LIKE '${set}'` : `cm.setName != '${set}'`);
+        const idExclusionClauses = EXCLUDED_FAKE_SET_IDS.map(setId => `cm.setId != '${setId}'`);
+        const exclusionClauses = [...nameExclusionClauses, ...idExclusionClauses].join(' AND ');
         // Select random cards with their latest market price from price_history
         // ONLY from REAL Pokemon TCG sets (excludes product categories)
         const sql = `
@@ -823,7 +848,7 @@ router.get('/pokemon', (req, res) => __awaiter(void 0, void 0, void 0, function*
  * Search Pokemon API for card images (proxy endpoint to avoid CORS)
  */
 router.get('/search-pokemon', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e, _f;
     try {
         const { cardName, setId, cardNumber, setName } = req.query;
         if (!cardName || typeof cardName !== 'string') {
@@ -876,12 +901,32 @@ router.get('/search-pokemon', (req, res) => __awaiter(void 0, void 0, void 0, fu
             id: searchResult.card.id,
             matchedSet: (_c = searchResult.card.set) === null || _c === void 0 ? void 0 : _c.name,
             matchedNumber: searchResult.card.number,
+            rarity: searchResult.card.rarity,
             cached: false,
             attempts: searchResult.attempts,
             usedFallback: searchResult.usedFallback,
         };
         cardImageCache.set(cacheKey, Object.assign(Object.assign({}, responsePayload), { timestamp: Date.now() }));
         console.log(`✅ Matched card: ${searchResult.card.name} from ${(_d = searchResult.card.set) === null || _d === void 0 ? void 0 : _d.name} (#${searchResult.card.number})`);
+        // Update rarity in database if available
+        if (((_e = searchResult.card) === null || _e === void 0 ? void 0 : _e.rarity) && searchResult.card.rarity.trim()) {
+            const card = searchResult.card; // Store reference to avoid null checks in callback
+            // We need to find the uniqueIdentifier for this card
+            // Since we don't have it directly, we'll construct it based on setId, cardNumber, and cardName
+            const db = (0, database_1.getDb)();
+            const setIdNormalized = ((_f = card.set) === null || _f === void 0 ? void 0 : _f.id) || '';
+            const cardNumber = card.number || '';
+            const cardName = card.name || '';
+            const uniqueIdentifier = (0, cardIdentifier_1.generateUniqueIdentifier)(setIdNormalized, cardNumber, cardName);
+            db.run('UPDATE card_mappings SET rarity = ? WHERE uniqueIdentifier = ?', [card.rarity, uniqueIdentifier], (err) => {
+                if (err) {
+                    console.warn(`Failed to update rarity for ${cardName}:`, err);
+                }
+                else {
+                    console.log(`✅ Updated rarity for ${cardName}: ${card.rarity}`);
+                }
+            });
+        }
         res.json(responsePayload);
     }
     catch (error) {

@@ -61,29 +61,28 @@ export const StatsCounter: React.FC = () => {
   const stats = [
     {
       icon: <Package className="w-6 h-6 text-white" />,
-      value: 52847,
-      label: 'Cards in Database',
-      suffix: '+',
+      value: 30000,
+      label: 'Cards Available',
       gradient: 'from-primary-500 to-primary-600'
     },
     {
       icon: <TrendingUp className="w-6 h-6 text-white" />,
-      value: 1250000,
-      label: 'Price Checks Today',
+      value: 500000,
+      label: 'Market Data Points',
       prefix: '$',
       gradient: 'from-green-500 to-emerald-600'
     },
     {
       icon: <Users className="w-6 h-6 text-white" />,
-      value: 15420,
-      label: 'Active Collectors',
+      value: 1000,
+      label: 'Active Users',
       suffix: '+',
       gradient: 'from-accent-500 to-accent-600'
     },
     {
       icon: <Zap className="w-6 h-6 text-white" />,
-      value: 98,
-      label: 'Market Accuracy',
+      value: 95,
+      label: 'TCGPlayer Accuracy',
       suffix: '%',
       gradient: 'from-yellow-500 to-orange-600'
     }
@@ -99,10 +98,10 @@ export const StatsCounter: React.FC = () => {
           className="text-center mb-12"
         >
           <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">
-            Trusted by Thousands of Collectors
+            TCGPlayer Integration
           </h2>
           <p className="text-xl text-gray-600 font-medium">
-            Real-time data you can rely on
+            Real market data • Live price tracking
           </p>
         </motion.div>
 

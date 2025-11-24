@@ -67,15 +67,15 @@ export const QuickCategories: React.FC<QuickCategoriesProps> = ({ onCategoryClic
   ];
 
   return (
-    <section className="py-16 bg-gradient-to-b from-white to-gray-50">
+    <section className="py-20 bg-gradient-to-b from-gray-50 to-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
-        <div className="text-center mb-12">
+        <div className="text-center mb-16">
           <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">
-            Browse by Category
+            Explore Collections
           </h2>
           <p className="text-xl text-gray-600 font-medium">
-            Find exactly what you're looking for
+            Discover cards by category and rarity
           </p>
         </div>
 

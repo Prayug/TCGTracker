@@ -226,18 +226,18 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
                       {/* Card */}
                       <div className={`relative rounded-2xl overflow-hidden shadow-2xl border-4 bg-gradient-to-br ${getRarityColor(card.rarity)} p-1 transform hover:scale-105 transition-transform`}>
                         <img
-                          src={card.images.large}
+                          src={card.images.small}
                           alt={card.name}
                           className="w-80 h-auto rounded-xl"
                           onError={(e) => {
-                            // Fallback: try small image first, then simple gray placeholder
+                            // Fallback: try large image, then simple gray placeholder
                             const target = e.target as HTMLImageElement;
                             const currentSrc = target.src;
                             console.error(`❌ Image load failed: ${currentSrc}`);
-                            
-                            if (!currentSrc.includes('data:image/svg') && card.images.small !== currentSrc) {
-                              console.log(`🔄 Trying small image fallback`);
-                              target.src = card.images.small;
+
+                            if (!currentSrc.includes('data:image/svg') && card.images.large !== currentSrc) {
+                              console.log(`🔄 Trying large image fallback`);
+                              target.src = card.images.large;
                             } else if (!currentSrc.includes('fallback-placeholder')) {
                               console.log(`🔄 Using final fallback placeholder`);
                               const escapedName = card.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -321,18 +321,18 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
                   <div key={index} className="relative group">
                     <div className={`rounded-2xl overflow-hidden shadow-2xl border-4 bg-gradient-to-br ${getRarityColor(card.rarity)} p-1 hover:scale-105 transition-transform`}>
                       <img
-                        src={card.images.large}
+                        src={card.images.small}
                         alt={card.name}
                         className="w-72 h-auto rounded-xl"
                         onError={(e) => {
-                          // Fallback: try small image first, then simple gray placeholder
+                          // Fallback: try large image, then simple gray placeholder
                           const target = e.target as HTMLImageElement;
                           const currentSrc = target.src;
                           console.error(`❌ Image load failed: ${currentSrc}`);
-                          
-                          if (!currentSrc.includes('data:image/svg') && card.images.small !== currentSrc) {
-                            console.log(`🔄 Trying small image fallback`);
-                            target.src = card.images.small;
+
+                          if (!currentSrc.includes('data:image/svg') && card.images.large !== currentSrc) {
+                            console.log(`🔄 Trying large image fallback`);
+                            target.src = card.images.large;
                           } else if (!currentSrc.includes('fallback-placeholder')) {
                             console.log(`🔄 Using final fallback placeholder`);
                             const escapedName = card.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

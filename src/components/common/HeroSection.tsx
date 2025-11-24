@@ -49,10 +49,10 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onStartSearch }) => {
             className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full mb-6"
           >
             <Sparkles className="w-4 h-4 text-yellow-400" />
-            <span className="text-white text-sm font-semibold">Live Market Data • Updated Daily</span>
+            <span className="text-white text-sm font-semibold">TCGPlayer Integration</span>
             <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-500/20 border border-green-500/30 rounded-full text-green-400 text-xs font-bold">
               <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-              LIVE
+              99% ACCURATE
             </span>
           </motion.div>
 
@@ -97,7 +97,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onStartSearch }) => {
                   type="text"
                   value={searchValue}
                   onChange={(e) => setSearchValue(e.target.value)}
-                  placeholder="Search 50,000+ Pokemon cards by name, set, or type..."
+                  placeholder="Search Pokemon cards by name, set, or type..."
                   className="flex-1 py-5 pr-4 bg-transparent text-gray-900 placeholder-gray-500 text-lg font-medium focus:outline-none"
                 />
                 <button

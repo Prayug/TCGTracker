@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { PokemonCard } from './types/pokemon';
 import { AppView } from './types/ui';
 import { HeroSection } from './components/common/HeroSection';
-import { FeaturedCards } from './features/cards/components/FeaturedCards';
-import { StatsCounter } from './features/market/components/StatsCounter';
+import { PopularCardsSection } from './features/cards/components/PopularCardsSection';
 import { QuickCategories } from './features/cards/components/QuickCategories';
 import { SearchAndSort } from './features/cards/components/SearchAndSort';
 import { CardGrid } from './features/cards/components/CardGrid';
@@ -52,7 +51,9 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-white relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 relative overflow-hidden">
+      {/* Subtle background pattern */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#f8fafc_1px,transparent_1px),linear-gradient(to_bottom,#f8fafc_1px,transparent_1px)] bg-[size:24px_24px] opacity-30" />
       <Header currentView={currentView} onViewChange={setCurrentView} />
 
       {/* Main Content */}
@@ -60,8 +61,7 @@ function App() {
         {currentView === 'home' ? (
           <>
             <HeroSection onStartSearch={handleHeroSearch} />
-            <StatsCounter />
-            <FeaturedCards onCardClick={handleCardClick} />
+            <PopularCardsSection onSearch={handleHeroSearch} />
             <QuickCategories onCategoryClick={handleHeroSearch} />
           </>
         ) : currentView === 'tracking' ? (
