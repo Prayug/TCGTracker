@@ -39,6 +39,9 @@ export interface PokemonApiSet {
   name: string;
   series?: string;
   releaseDate?: string;
+  total?: number;
+  printedTotal?: number;
+  ptcgoCode?: string;
   images?: {
     symbol?: string;
     logo?: string;
