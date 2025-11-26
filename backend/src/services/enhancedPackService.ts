@@ -1,6 +1,7 @@
 import { getDb } from '../db/database';
 import { pokemonApiClient, PokemonApiCard } from './pokemonApiClient';
 import { logger } from '../utils/logger';
+import { setCodeService } from './setCodeService';
 
 export interface PackCard {
   id: string;
@@ -143,30 +144,37 @@ export class EnhancedPackService {
         ORDER BY cm.cardNumber ASC
       `;
 
-      db.all(sql, [setId, `%${setId}%`], (err, rows: any[]) => {
+      db.all(sql, [setId, `%${setId}%`], async (err, rows: any[]) => {
         if (err) {
           reject(err);
           return;
         }
 
-        const cards: PokemonApiCard[] = rows.map(row => ({
-          id: row.id,
-          name: row.name,
-          number: row.number,
-          rarity: row.rarity,
-          set: {
-            id: row.setId,
-            name: row.setName
-          },
-          images: row.imageSmall || row.imageLarge ? {
+        const cards: PokemonApiCard[] = await Promise.all(rows.map(async (row) => {
+          const storedImages = row.imageSmall || row.imageLarge ? {
             small: row.imageSmall,
             large: row.imageLarge
-          } : this.buildDeterministicImageUrls(row.setId, row.cardNumber),
-          tcgplayer: row.marketPrice ? {
-            prices: {
-              normal: { market: row.marketPrice }
-            }
-          } : undefined
+          } : null;
+          const deterministicImages = storedImages
+            ? null
+            : await setCodeService.buildDeterministicImageUrls(row.setId, row.cardNumber);
+
+          return {
+            id: row.id,
+            name: row.name,
+            number: row.number,
+            rarity: row.rarity,
+            set: {
+              id: row.setId,
+              name: row.setName
+            },
+            images: storedImages || deterministicImages || undefined,
+            tcgplayer: row.marketPrice ? {
+              prices: {
+                normal: { market: row.marketPrice }
+              }
+            } : undefined
+          };
         }));
 
         resolve(cards);
@@ -369,238 +377,6 @@ export class EnhancedPackService {
     });
   }
 
-  /**
-   * Get the correct Pokemon TCG API set code for image URLs
-   * Maps database set IDs to their proper API set codes
-   */
-  private normalizeSetIdForImageUrl(setId: string): string {
-    const normalized = setId.toLowerCase();
-
-    // Comprehensive mapping from database set IDs to Pokemon TCG API set codes
-    const setMappings: Record<string, string> = {
-      // Scarlet & Violet (SV) sets
-      'sv01scarletvioletbaseset': 'sv1',
-      'sv02paldeaevolved': 'sv2',
-      'sv03obsidianflames': 'sv3',
-      'sv04paradoxrift': 'sv4',
-      'sv05temporalforces': 'sv5',
-      'sv06twilightmasquerade': 'sv6',
-      'sv07stellarcrown': 'sv7',
-      'sv08surgingsparks': 'sv8',
-      'sv09journeytogether': 'sv9',
-      'sv10destinedrivals': 'sv10',
-
-      // SV Special sets
-      'svblackbolt': 'zsv10pt5',
-      'svwhiteflare': 'rsv10pt5',
-      'svpaldeanfates': 'sv4pt5',
-      'svprismaticevolutions': 'sv8pt5',
-      'svscarletviolet151': 'sv3pt5',
-      'svscarletvioletbaseset': 'sv1', // Alternative name
-      'svescarletvioletenergies': 'sve',
-
-      // Sword & Shield (SWSH) sets
-      'swsh01swordshieldbaseset': 'swsh1',
-      'swsh02rebelclash': 'swsh2',
-      'swsh03darknessablaze': 'swsh3',
-      'swsh04vividvoltage': 'swsh4',
-      'swsh05battlestyles': 'swsh5',
-      'swsh06chillingreign': 'swsh6',
-      'swsh07evolvingskies': 'swsh7',
-      'swsh08fusionstrike': 'swsh8',
-      'swsh09brilliantstars': 'swsh9',
-      'swsh09brilliantstarstrainergallery': 'swsh9tg',
-      'swsh10astralradiance': 'swsh10',
-      'swsh10astralradiancetrainergallery': 'swsh10tg',
-      'swsh11lostorigin': 'swsh11',
-      'swsh11lostorigintrainergallery': 'swsh11tg',
-      'swsh12silvertempest': 'swsh12',
-
-      // Sun & Moon (SM) sets
-      'smbaseset': 'sm1',
-      'smguardiansrising': 'sm2',
-      'smburningshadows': 'sm3',
-      'smcrimsoninvasion': 'sm4',
-      'smultrasonicunleashed': 'sm5',
-      'smforbiddenlight': 'sm6',
-      'smcelestialstorm': 'sm7',
-      'smlostthunder': 'sm8',
-      'smteamup': 'sm9',
-      'smcosmiceclipse': 'sm10',
-      'smunifiedminds': 'sm11',
-      'smtrainerkitalolansandslashalolanninetales': 'smkit1',
-      'smtrainerkitlycanrocalolanmuk': 'smkit2',
-
-      // XY sets
-      'xykalosstarterset': 'xy0',
-      'xybreakthrough': 'xy8',
-      'xybreakpoint': 'xy9',
-      'xyfatescollide': 'xy10',
-      'xysteamsiege': 'xy11',
-      'xyevolutions': 'xy12',
-
-      // Black & White (BW) sets
-      'blackandwhite': 'bw1',
-      'bwemergingpowers': 'bw2',
-      'bwnoblevictories': 'bw3',
-      'bwnextdestinies': 'bw4',
-      'bwdarkexplorers': 'bw5',
-      'bwdragonsvault': 'bw6',
-      'bwboundariescrossed': 'bw7',
-      'bwplasmablast': 'bw8',
-      'bwplasmastorm': 'bw9',
-      'bwtrainerkitbisharpwigglytuff': 'bwkt1',
-      'bwtrainerkitexcadrillzoroark': 'bwkt2',
-
-      // Base sets and older
-      'baseset': 'base1',
-      'basesetshadowless': 'basep',
-      'baseset2': 'base2',
-      'basejungle': 'base3',
-      'basefossil': 'base4',
-      'base1stedition': 'base1-1stedition',
-
-      // Promo sets with proper era differentiation
-      'svscarletvioletpromocards': 'svp',
-      'svpromos': 'svp',
-      'smpromos': 'smp',
-      'swshpromos': 'swshp',
-      'xypromos': 'xyp',
-      'bwpromos': 'bwp',
-      'basepromos': 'bp',
-      'blackandwhitepromos': 'bwp',
-      'nintendopromos': 'np',
-      'alternateartpromos': 'svap',
-      'bestofpromos': 'svbp',
-      'pikachuworldcollectionpromos': 'pwc',
-      'countdowncalendarpromos': 'cdp',
-      'burgerkingpromos': 'bkp',
-      'professorprogrampromos': 'ppp',
-      'memegaevolutionpromo': 'smp', // SM era
-      'me01megaevolution': 'xy01', // XY era
-      'me02phantasmalflames': 'sv01', // SV era
-
-      // McDonald's Promos - differentiated by year
-      'mcdonaldspromos2024': 'mcd24',
-      'mcdonaldspromos2023': 'mcd23',
-      'mcdonaldspromos2022': 'mcd22',
-      'mcdonaldspromos2021': 'mcd21',
-      'mcdonaldspromos2020': 'mcd20',
-      'mcdonaldspromos2019': 'mcd19',
-      'mcdonaldspromos2018': 'mcd18',
-      'mcdonaldspromos2017': 'mcd17',
-      'mcdonaldspromos2016': 'mcd16',
-      'mcdonaldspromos2015': 'mcd15',
-      'mcdonaldspromos2014': 'mcd14',
-      'mcdonaldspromos2013': 'mcd13',
-      'mcdonaldspromos2012': 'mcd12',
-      'mcdonaldspromos2011': 'mcd11',
-      'mcdonaldspromos2010': 'mcd10',
-      'mcdonaldspromos2009': 'mcd09',
-      'mcdonaldspromos2008': 'mcd08',
-      'mcdonaldspromos2007': 'mcd07',
-      'mcdonaldspromos2006': 'mcd06',
-      'mcdonaldspromos2005': 'mcd05',
-      'mcdonaldspromos2004': 'mcd04',
-      'mcdonaldspromos2003': 'mcd03',
-      'mcdonaldspromos2002': 'mcd02',
-      'mcdonaldspromos2001': 'mcd01',
-      'mcdonaldspromos2000': 'mcd00',
-
-      // Special collections and other sets
-      'aquapolis': 'ecard1',
-      'skyridge': 'ecard2',
-      'exrubyandsapphire': 'ex1',
-      'exsandstorm': 'ex2',
-      'exdragon': 'ex3',
-      'exteamrocketreturns': 'ex4',
-      'exdeoxys': 'ex5',
-      'excityoflegends': 'ex6',
-      'expowerkeepers': 'ex7',
-      'arceus': 'pl1',
-      'suprememajestic': 'pl2',
-      'risingrivals': 'pl3',
-      'arceusmajesticdawn': 'pl4',
-      'calloflegends': 'col1',
-      'triumphant': 'hgss1',
-      'unleashed': 'hgss2',
-      'undefeated': 'hgss3',
-      'triumphantarceus': 'hgss4',
-      'celebrations': 'cel25',
-      'celebrationsclassiccollection': 'cel25c',
-      'battleacademy': 'bap1',
-      'battleacademy2022': 'bap2',
-      'battleacademy2024': 'bap3',
-      'trainerkitnoctowl': 'tk1a',
-      'trainerkitpikachu': 'tk2a',
-      'ashvsteamrocketdeckkitjpexclusive': 'tk-rocket',
-      'blisterexclusives': 'blisex',
-      'leaguechampionshipcards': 'lc',
-      'worldchampionshipdecks': 'wc',
-      'trickortradebooosterbundle2024': 'tto24',
-      'pokemongocards': 'pgo',
-    };
-
-    if (setMappings[normalized]) {
-      return setMappings[normalized];
-    }
-
-    // Extract pattern for sets that follow standard numbering
-    // Examples: sv06, swsh11, sm3, xy9, bw10
-    const patterns = [
-      /(sv|swsh|sm|xy|bw)(\d+)/,  // Standard format
-      /(zsv)(\d+)(pt\d+)/,        // Special format like zsv10pt5
-    ];
-
-    for (const pattern of patterns) {
-      const match = normalized.match(pattern);
-      if (match) {
-        if (match.length === 3) {
-          // Standard format: sv06, swsh11, etc. - remove leading zeros
-          const series = match[1];
-          const number = parseInt(match[2], 10).toString(); // Remove leading zeros
-          return `${series}${number}`;
-        } else if (match.length === 4) {
-          // Special format: zsv10pt5
-          return `${match[1]}${match[2]}${match[3]}`;
-        }
-      }
-    }
-
-    // Fallback: try to extract any alphanumeric sequence that looks like a set code
-    const fallbackMatch = normalized.match(/([a-z]+\d+)(?:[a-z]+\d+)*/);
-    if (fallbackMatch) {
-      return fallbackMatch[1];
-    }
-
-    // Last resort: return the original but cleaned
-    return normalized.replace(/[^a-z0-9]/g, '');
-  }
-
-  /**
-   * Build deterministic image URLs for fallback when images are missing
-   */
-  private buildDeterministicImageUrls(setId?: string, cardNumber?: string): { small: string; large: string } | undefined {
-    if (!setId || !cardNumber) {
-      return undefined;
-    }
-
-    const trimmedSet = setId.trim();
-    const baseNumber = cardNumber.split('/')[0].trim();
-
-    if (!trimmedSet || !baseNumber) {
-      return undefined;
-    }
-
-    const sanitizedNumber = baseNumber.replace(/\s+/g, '').toLowerCase();
-    const normalizedSet = this.normalizeSetIdForImageUrl(trimmedSet);
-    const baseUrl = `https://images.pokemontcg.io/${normalizedSet}/${sanitizedNumber}`;
-
-    return {
-      small: `${baseUrl}.png`,
-      large: `${baseUrl}.png`, // Use .png for both (no _hires.png as it shows card backs)
-    };
-  }
 }
 
 export const enhancedPackService = new EnhancedPackService();

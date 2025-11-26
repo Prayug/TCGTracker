@@ -4,9 +4,9 @@ import {
   pokemonApiClient,
   CardImageMatchResult,
   CardSearchAttempt,
-  PokemonApiSet,
 } from '../services/pokemonApiClient';
 import { generateUniqueIdentifier } from '../services/cardIdentifier';
+import { setCodeService } from '../services/setCodeService';
 
 const router = Router();
 
@@ -26,10 +26,6 @@ interface CachedCard {
 const cardImageCache = new Map<string, CachedCard>();
 const CACHE_TTL = 1000 * 60 * 60 * 24; // 24 hours
 
-// Dynamic set mapping cache
-let globalSetMap: Map<string, string> | null = null;
-let setMapLastRefreshed = 0;
-const SET_MAP_CACHE_TTL = 1000 * 60 * 60 * 24; // 24 hours
 
 interface PokemonApiCacheEntry {
   data: any[];
@@ -45,265 +41,6 @@ const POKEMON_CACHE_TTL = 1000 * 60 * 5; // 5 minutes
 
 const POKEMON_PERSISTENT_CACHE_TTL = 1000 * 60 * 60 * 6; // 6 hours
 
-// Helper functions for removing leading zeros
-const removeLeadingZeros = (str: string): string => {
-  // Remove leading zeros from numbers, but preserve zeros in the middle
-  return str.replace(/^0+/, '') || '0';
-};
-
-const normalizeSetIdWithZeroRemoval = (setId: string): string => {
-  // Handle patterns like sv01 -> sv1, swsh01 -> swsh1, etc.
-  const patterns = [
-    /(sv|swsh|sm|xy|bw)(\d+)/,  // Standard format
-    /(zsv)(\d+)(pt\d+)/,        // Special format like zsv10pt5
-    /(base|dp|ex|hgss|pop|bw)(\d+)/,  // Older format like base1, dp6, ex12
-    /(neo)(\d+)/,               // Neo series
-    /(pl)(\d+)/,                // Platinum series
-    /(col)(\d+)/,               // Call of Legends
-    /(mcd)(\d+)/,               // McDonald's series
-  ];
-
-  for (const pattern of patterns) {
-    const match = setId.match(pattern);
-    if (match) {
-      if (match.length === 3) {
-        // Standard format: sv06, swsh11, base1, dp6, etc. - remove leading zeros
-        const series = match[1];
-        const number = removeLeadingZeros(match[2]);
-        return `${series}${number}`;
-      } else if (match.length === 4) {
-        // Special format: zsv10pt5
-        return `${match[1]}${match[2]}${match[3]}`;
-      }
-    }
-  }
-
-  return setId; // Return as-is if no pattern matches
-};
-
-// Dynamic set mapping functions
-const loadSetMappingsFromDb = (): Promise<Map<string, string>> => {
-  const db = getDb();
-  return new Promise((resolve) => {
-    db.all('SELECT normalizedKey, apiSetId FROM set_mappings', [], (err, rows: any[]) => {
-      if (err) {
-        console.error('Error loading set mappings from DB:', err);
-        resolve(new Map());
-        return;
-      }
-
-      const map = new Map<string, string>();
-      rows.forEach(row => {
-        map.set(row.normalizedKey, row.apiSetId);
-      });
-
-      console.log(`✅ Loaded ${map.size} set mappings from database`);
-      resolve(map);
-    });
-  });
-};
-
-const saveSetMappingsToDb = async (mappings: Map<string, string>, sets: PokemonApiSet[]): Promise<void> => {
-  const db = getDb();
-
-  return new Promise<void>((resolve, reject) => {
-    db.serialize(() => {
-      db.run('BEGIN TRANSACTION');
-
-      // Clear existing mappings
-      db.run('DELETE FROM set_mappings', [], (err) => {
-        if (err) {
-          console.error('Error deleting set mappings:', err);
-          db.run('ROLLBACK');
-          reject(err);
-          return;
-        }
-
-        // Insert new mappings
-        const now = Date.now();
-        let inserted = 0;
-        let failed = 0;
-
-        const stmt = db.prepare(`
-          INSERT INTO set_mappings (normalizedKey, apiSetId, apiSetName, series, ptcgoCode, totalCards, updatedAt)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `);
-
-        for (const [key, apiSetId] of mappings.entries()) {
-          // Find the corresponding set data
-          const setData = sets.find(set => set.id === apiSetId);
-          if (!setData) {
-            console.warn(`No set data found for ${apiSetId}`);
-            continue;
-          }
-
-          try {
-            stmt.run([
-              key,
-              apiSetId,
-              setData.name,
-              setData.series || '',
-              (setData as any).ptcgoCode || '',
-              (setData as any).printedTotal || (setData as any).total || 0,
-              now
-            ]);
-            inserted++;
-          } catch (err) {
-            console.error(`Error inserting mapping for ${key}:`, err);
-            failed++;
-          }
-        }
-
-        stmt.finalize();
-
-        db.run('COMMIT', (err) => {
-          if (err) {
-            console.error('Error committing transaction:', err);
-            db.run('ROLLBACK');
-            reject(err);
-          } else {
-            console.log(`✅ Saved ${inserted} set mappings to database (${failed} failed)`);
-            resolve();
-          }
-        });
-      });
-    });
-  });
-};
-
-const generateNormalizedKeys = (set: PokemonApiSet): string[] => {
-  const keys: string[] = [];
-
-  // Basic variations
-  keys.push(set.id.toLowerCase());
-  keys.push(normalizeSetIdWithZeroRemoval(set.id.toLowerCase())); // Also add version with leading zeros removed
-  keys.push(set.name.toLowerCase().replace(/[^a-z0-9]/g, ''));
-
-  // Series + name combination
-  if (set.series) {
-    const seriesNormalized = set.series.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const nameNormalized = set.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-    keys.push(seriesNormalized + nameNormalized);
-  }
-
-  // PTCGO code if available
-  if ((set as any).ptcgoCode) {
-    keys.push((set as any).ptcgoCode.toLowerCase());
-  }
-
-  // Set ID with total cards
-  if ((set as any).total && (set as any).total > 0) {
-    const totalStr = (set as any).total.toString();
-    keys.push(`${set.id.toLowerCase()}${totalStr}`);
-    keys.push(`${set.id.toLowerCase()}${removeLeadingZeros(totalStr)}`); // Also with leading zeros removed
-  }
-
-  // Series with total
-  if (set.series && (set as any).total && (set as any).total > 0) {
-    const seriesNormalized = set.series.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const totalStr = (set as any).total.toString();
-    keys.push(`${seriesNormalized}${totalStr}`);
-    keys.push(`${seriesNormalized}${removeLeadingZeros(totalStr)}`); // Also with leading zeros removed
-  }
-
-  // Common variations from DB data
-  const nameVariations = [
-    set.name.toLowerCase().replace(/\s+/g, ''), // no spaces
-    set.name.toLowerCase().replace(/\s+/g, ''), // original with spaces removed
-    `${set.id.toLowerCase()}${set.name.toLowerCase().replace(/[^a-z0-9]/g, '')}`, // id + name
-  ];
-
-  // Add legacy DB-style names that might not match API exactly
-  if (set.id === 'smp') {
-    keys.push('smpromos', 'smspromos', 'sm-promos');
-  }
-  if (set.id === 'swshp') {
-    keys.push('swshpromos', 'swordshieldpromos');
-  }
-  if (set.id === 'xyp') {
-    keys.push('xypromos');
-  }
-  if (set.id === 'bwp') {
-    keys.push('bwblackwhitepromos', 'blackandwhitepromos');
-  }
-  if (set.id === 'base1') {
-    keys.push('baseset', 'base-set');
-  }
-
-  keys.push(...nameVariations);
-
-  // Remove duplicates
-  return [...new Set(keys)].filter(key => key.length > 0);
-};
-
-const refreshSetMappings = async (): Promise<Map<string, string>> => {
-  try {
-    console.log('🔄 Refreshing Pokemon TCG set mappings from API...');
-
-    const sets = await pokemonApiClient.getSets(1000);
-    if (sets.length === 0) {
-      console.warn('⚠️ No sets returned from Pokemon API, using cached mappings');
-      return globalSetMap || new Map();
-    }
-
-    const mappings = new Map<string, string>();
-
-    sets.forEach(set => {
-      const keys = generateNormalizedKeys(set);
-      keys.forEach(key => {
-        mappings.set(key, set.id);
-      });
-    });
-
-    // Save to database
-    await saveSetMappingsToDb(mappings, sets);
-
-    globalSetMap = mappings;
-    setMapLastRefreshed = Date.now();
-
-    console.log(`✅ Refreshed ${mappings.size} set mappings from ${sets.length} sets`);
-    return mappings;
-  } catch (error) {
-    console.error('❌ Failed to refresh set mappings:', error);
-    // Return cached version or empty map
-    return globalSetMap || new Map();
-  }
-};
-
-const getSetMappings = async (): Promise<Map<string, string>> => {
-  const now = Date.now();
-
-  // If we have a cached version and it's not expired, return it
-  if (globalSetMap && (now - setMapLastRefreshed) < SET_MAP_CACHE_TTL) {
-    return globalSetMap;
-  }
-
-  // Try to load from database first
-  if (!globalSetMap) {
-    globalSetMap = await loadSetMappingsFromDb();
-    if (globalSetMap.size > 0) {
-      setMapLastRefreshed = now; // Assume DB data is recent enough
-      return globalSetMap;
-    }
-  }
-
-  // Refresh from API
-  return await refreshSetMappings();
-};
-
-const normalizeSetIdDynamically = async (input: string): Promise<string | null> => {
-  if (!input || typeof input !== 'string') {
-    return null;
-  }
-
-  const normalizedInput = input.toLowerCase().replace(/[^a-z0-9]/g, '');
-  if (!normalizedInput) {
-    return null;
-  }
-
-  const mappings = await getSetMappings();
-  return mappings.get(normalizedInput) || null;
-};
 
 interface PokemonPersistentCacheRow {
   cacheKey: string;
@@ -385,32 +122,8 @@ const buildPlaceholderImage = (name: string, set: string) => (
   encodeURIComponent(set) + '%3C/text%3E%3Ctext x="50%25" y="65%25" font-family="Arial,sans-serif" font-size="12" fill="%23e5e7eb" text-anchor="middle"%3ENo Image%3C/text%3E%3C/svg%3E'
 );
 
-// Dynamic set normalization using live Pokemon TCG API data
-const normalizeSetIdForImageUrl = async (setId: string): Promise<string | null> => {
-  return await normalizeSetIdDynamically(setId);
-};
-
 const buildDeterministicImageUrls = async (setId?: string | null, cardNumber?: string | null) => {
-  if (!setId || !cardNumber) {
-    return null;
-  }
-  const trimmedSet = setId.trim();
-  const baseNumber = cardNumber.split('/')[0].trim();
-  if (!trimmedSet || !baseNumber) {
-    return null;
-  }
-  const sanitizedNumber = removeLeadingZeros(baseNumber.replace(/\s+/g, '').toLowerCase());
-  const normalizedSet = await normalizeSetIdForImageUrl(trimmedSet);
-
-  if (!normalizedSet) {
-    return null;
-  }
-
-  const baseUrl = `https://images.pokemontcg.io/${normalizedSet}/${sanitizedNumber}`;
-  return {
-    small: `${baseUrl}.png`,
-    large: `${baseUrl}.png`, // Use .png for both (no _hires.png as it shows card backs)
-  };
+  return setCodeService.buildDeterministicImageUrls(setId, cardNumber);
 };
 
 const IMAGE_COLUMN_FRAGMENT =
@@ -774,6 +487,9 @@ router.get('/pool', async (req, res) => {
       'blisterexclusives',
     ];
 
+    // Exclude all promo sets (any set with "promo" in name or ID)
+    const PROMO_EXCLUSION_CLAUSE = `cm.setName NOT LIKE '%promo%' AND cm.setName NOT LIKE '%Promo%' AND cm.setId NOT LIKE '%promo%' AND cm.setId NOT LIKE '%Promo%'`;
+
     // Build exclusion clauses
     const nameExclusionClauses = EXCLUDED_FAKE_SET_NAMES.map(set =>
       set.includes('%') ? `cm.setName NOT LIKE '${set}'` : `cm.setName != '${set}'`
@@ -783,10 +499,10 @@ router.get('/pool', async (req, res) => {
       `cm.setId != '${setId}'`
     );
 
-    const exclusionClauses = [...nameExclusionClauses, ...idExclusionClauses].join(' AND ');
+    const exclusionClauses = [...nameExclusionClauses, ...idExclusionClauses, PROMO_EXCLUSION_CLAUSE].join(' AND ');
 
     // Select random cards with their latest market price from price_history
-    // ONLY from REAL Pokemon TCG sets (excludes product categories)
+    // ONLY from REAL Pokemon TCG sets (excludes product categories and promo sets)
     const sql = `
       SELECT 
         cm.cardId,
@@ -1189,7 +905,7 @@ router.post('/refresh-set-mappings', async (req, res) => {
   try {
     console.log('🔄 Manual refresh of Pokemon TCG set mappings requested');
 
-    const mappings = await refreshSetMappings();
+    const mappings = await setCodeService.refreshSetMappings();
 
     res.json({
       success: true,
@@ -1211,27 +927,14 @@ router.post('/refresh-set-mappings', async (req, res) => {
  */
 router.get('/set-mappings/stats', async (req, res) => {
   try {
-    const db = getDb();
+    const stats = await setCodeService.getSetMappingStats();
 
-    db.get('SELECT COUNT(*) as totalMappings FROM set_mappings', [], (err, row: any) => {
-      if (err) {
-        console.error('Error fetching set mapping stats:', err);
-        return res.status(500).json({
-          error: 'Database error',
-          message: err.message
-        });
-      }
-
-      const mappings = globalSetMap ? globalSetMap.size : 0;
-      const lastRefreshed = setMapLastRefreshed || null;
-
-      res.json({
-        totalMappingsInDb: row.totalMappings || 0,
-        cachedMappings: mappings,
-        lastRefreshed: lastRefreshed ? new Date(lastRefreshed).toISOString() : null,
-        cacheAge: lastRefreshed ? Date.now() - lastRefreshed : null,
-        cacheTtl: SET_MAP_CACHE_TTL
-      });
+    res.json({
+      totalMappingsInDb: stats.databaseMappings,
+      cachedMappings: stats.cachedMappings,
+      lastRefreshed: stats.lastRefreshed ? new Date(stats.lastRefreshed).toISOString() : null,
+      cacheAge: stats.lastRefreshed ? Date.now() - stats.lastRefreshed : null,
+      cacheTtl: stats.cacheTtl
     });
   } catch (error) {
     console.error('Error fetching set mapping stats:', error);

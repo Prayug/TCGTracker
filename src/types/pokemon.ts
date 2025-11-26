@@ -1,6 +1,7 @@
 export interface PokemonCard {
   id: string;
   name: string;
+  uniqueIdentifier?: string;
   images: {
     small: string;
     large: string;
