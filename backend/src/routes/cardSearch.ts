@@ -219,17 +219,26 @@ const mapLocalRowsToPokemonCards = async (rows: any[]) => {
     // 3. Placeholder SVG
     
     let images;
+    let imageSource = row.imageSource;
+    
     if (row.imageSmall && row.imageLarge) {
       // Use stored images (best option)
       images = {
         small: row.imageSmall,
         large: row.imageLarge
       };
+      imageSource = imageSource || 'stored';
     } else {
       // Fallback to deterministic URLs or placeholder
       const deterministicImages = await buildDeterministicImageUrls(row.setId, row.cardNumber);
-      const placeholder = buildPlaceholderImage(row.cardName, row.setName);
-      images = deterministicImages || { small: placeholder, large: placeholder };
+      if (deterministicImages) {
+        images = deterministicImages;
+        imageSource = 'deterministic';
+      } else {
+        const placeholder = buildPlaceholderImage(row.cardName, row.setName);
+        images = { small: placeholder, large: placeholder };
+        imageSource = 'generated';
+      }
     }
 
     return {
@@ -244,7 +253,7 @@ const mapLocalRowsToPokemonCards = async (rows: any[]) => {
         total: 100
       },
       images,
-      imageSource: row.imageSource || (row.imageSmall ? 'stored' : 'generated'),
+      imageSource,
       tcgplayer: row.latestPrice ? {
         productId: row.tcgplayerProductId,
         prices: {

@@ -409,7 +409,31 @@ export class SetCodeService {
     }
 
     const sanitizedNumber = removeLeadingZeros(baseNumber.replace(/\s+/g, '').toLowerCase());
-    const normalizedSet = await this.normalizeSetId(trimmedSet);
+    
+    // Try normalized lookup first
+    let normalizedSet = await this.normalizeSetId(trimmedSet);
+    
+    // If normalized lookup fails, try pattern extraction as fallback
+    if (!normalizedSet) {
+      const normalizedInput = trimmedSet.toLowerCase().replace(/[^a-z0-9]/g, '');
+      normalizedSet = this.extractSetCodeFromPattern(normalizedInput);
+      
+      // Special handling for sets like "svblackbolt" -> try "zsv10pt5" or similar
+      if (!normalizedSet && normalizedInput.startsWith('sv')) {
+        // Try to extract SV series number if present
+        const svMatch = normalizedInput.match(/sv(\d+)/);
+        if (svMatch) {
+          normalizedSet = `sv${parseInt(svMatch[1], 10)}`;
+        } else if (normalizedInput.includes('blackbolt')) {
+          // Special case for Black Bolt set
+          normalizedSet = 'zsv10pt5';
+        } else if (normalizedInput.includes('whiteflare')) {
+          // Special case for White Flare set
+          normalizedSet = 'rsv10pt5';
+        }
+      }
+    }
+    
     if (!normalizedSet) {
       return null;
     }
@@ -462,7 +486,7 @@ export class SetCodeService {
    */
   private extractSetCodeFromPattern(normalizedDbId: string): string | null {
     const patterns = [
-      /(sv|swsh|sm|xy|bw|ex|pl|hgss|col|cel|ecard)(\d+)/,
+      /(sv|swsh|sm|xy|bw|ex|pl|hgss|col|cel|ecard|me)(\d+)/,
       /(base|p|bp|np)(\d*)/,
     ];
 
