@@ -1,5 +1,6 @@
 import { Pack, PackPull, PokemonCard, PackOpeningHistory, ValueRange } from '../types/pokemon';
 import { pokemonApi } from './pokemonApi';
+import { createPlaceholderImage, hasGoodStoredImages, fetchCardImagesFromBackend } from '../utils/imageHelpers';
 
 const PACK_HISTORY_KEY = 'tcg_tiered_pack_history';
 
@@ -128,8 +129,6 @@ class TieredPackService {
       // Select ONE card based on the rolled value range
       const selectedCard = this.selectCardFromRange(cardPool, pack.valueRanges);
       
-      console.log('LOOK HERE: ', selectedCard);
-      
       if (!selectedCard) {
         throw new Error('No suitable card found in the pool for this value range.');
       }
@@ -146,172 +145,41 @@ class TieredPackService {
           throw new Error('Missing card name or set ID for image lookup');
         }
         
-        // CHECK IF WE ALREADY HAVE REAL STORED IMAGES
-        // Only trust images we KNOW came from Pokemon API or manual curation.
-        // Do NOT trust generic "stored"/"tcgplayer" images, since many of those are card backs.
-        const imageSource = maybeLocal.imageSource;
-        const isTrustedSource = imageSource && ['pokemon_api', 'manual', 'manual_mcdonalds_2014', 'stored'].includes(imageSource);
-        const largeUrl = selectedCard.images?.large || '';
-        const looksLikeGenericBack = /\/back\//i.test(largeUrl) || /cardback/i.test(largeUrl) || /\/back\./i.test(largeUrl);
-        
-        const hasGoodStoredImages =
-          isTrustedSource &&
-          !!largeUrl &&
-          !largeUrl.includes('placeholder') &&
-          !looksLikeGenericBack;
-
-        if (hasGoodStoredImages) {
-          console.log(`✅ Using pre-stored image for ${cardName} (source: ${maybeLocal.imageSource})`);
-          // Image is already good - no need to fetch
-        } else {
-          // Only fetch from API if we don't have *good* stored images
-        
-        // Helper function to create a placeholder image using URL encoding (more reliable than base64)
-        const createPlaceholder = (name: string, setName: string) => {
-          // Escape special characters for SVG
-          const escapeName = name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
-          const escapeSet = setName.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+        // Check if we already have good stored images
+        if (!hasGoodStoredImages(maybeLocal.imageSource, selectedCard.images?.large)) {
+          // Try to fetch images from backend
+          console.log(`🔍 Searching Pokemon API via backend for: "${cardName}" in set "${setId}"`);
+          const imageResult = await fetchCardImagesFromBackend(cardName, setId, cardNumber);
           
-          // Create SVG with proper formatting
-          const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="245" height="342" viewBox="0 0 245 342">
-  <rect width="245" height="342" fill="#e5e7eb" rx="12"/>
-  <text x="122.5" y="140" font-family="Arial,sans-serif" font-size="16" fill="#374151" text-anchor="middle" dominant-baseline="middle">${escapeName}</text>
-  <text x="122.5" y="170" font-family="Arial,sans-serif" font-size="12" fill="#6b7280" text-anchor="middle" dominant-baseline="middle">${escapeSet}</text>
-  <text x="122.5" y="200" font-family="Arial,sans-serif" font-size="10" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">Card Image Unavailable</text>
-</svg>`;
-          
-          // Use URL encoding instead of base64 (more reliable)
-          const encoded = encodeURIComponent(svg)
-            .replace(/'/g, '%27')
-            .replace(/\(/g, '%28')
-            .replace(/\)/g, '%29');
-          
-          const placeholder = `data:image/svg+xml,${encoded}`;
-          return { small: placeholder, large: placeholder };
-        };
-        
-        // Search via backend proxy to avoid CORS (with 15s timeout)
-        console.log(`🔍 Searching Pokemon API via backend for: "${cardName}" in set "${setId}"`);
-        const backendBase = window.location.origin.replace(':5173', ':3001');
-        const searchUrl = new URL(`${backendBase}/api/cards/search-pokemon`);
-        searchUrl.searchParams.append('cardName', cardName);
-        searchUrl.searchParams.append('setId', setId);
-        if (cardNumber) {
-          searchUrl.searchParams.append('cardNumber', cardNumber);
-        }
-        
-        // Add timeout to prevent forever-waiting (reduced to 8s since backend is now parallel)
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
-        
-        let response;
-        let imagesFetched = false;
-        
-        try {
-          response = await fetch(searchUrl.toString(), {
-            signal: controller.signal
-          });
-          clearTimeout(timeoutId);
-          
-          if (response.ok) {
-            const result = await response.json();
+          if (imageResult?.images) {
+            selectedCard.images = imageResult.images;
+            if (imageResult.id) selectedCard.id = imageResult.id;
+            if (imageResult.rarity) selectedCard.rarity = imageResult.rarity;
+            console.log(`✅ Real images loaded for ${cardName}`);
+          } else {
+            // Try deterministic URLs as fallback
+            const setIdNormalized = await this.resolveSetIdForImageUrl(setId);
+            let cardNumberNormalized = cardNumber ? cardNumber.split('/')[0].trim() : '';
             
-            if (result.images?.large && result.images?.small) {
-              console.log(`✅ Successfully loaded images for ${cardName} with set ID`);
+            if (cardNumberNormalized) {
+              cardNumberNormalized = cardNumberNormalized.replace(/^0+/, '') || '0';
+              cardNumberNormalized = cardNumberNormalized.toLowerCase();
+            }
 
-              // Replace images with actual ones from API
-              selectedCard.images = result.images;
-              // Also update the card ID to the real Pokemon API ID
-              selectedCard.id = result.id;
-              // Update rarity if available
-              if (result.rarity) {
-                selectedCard.rarity = result.rarity;
-              }
-              imagesFetched = true;
+            if (setIdNormalized && cardNumberNormalized) {
+              const deterministicUrl = `https://images.pokemontcg.io/${setIdNormalized}/${cardNumberNormalized}.png`;
+              selectedCard.images = {
+                small: deterministicUrl,
+                large: deterministicUrl
+              };
             } else {
-              console.warn(`⚠️ Card found but missing images for "${cardName}"`);
+              // Last resort: use placeholder
+              selectedCard.images = createPlaceholderImage(cardName, selectedCard.set.name);
+              console.log(`🖼️ Using placeholder image for ${cardName}`);
             }
-          } else if (response.status === 404) {
-            // Set doesn't exist - try searching by NAME ONLY as fallback
-            console.log(`🔍 Set "${setId}" not in Pokemon API - trying name-only search across all sets`);
-            
-            const nameOnlyUrl = new URL(`${backendBase}/api/cards/search-pokemon`);
-            nameOnlyUrl.searchParams.append('cardName', cardName);
-            // Include card number for better matching if available
-            if (cardNumber) {
-              nameOnlyUrl.searchParams.append('cardNumber', cardNumber);
-            }
-            // Don't include setId - search across ALL sets
-            
-            try {
-              const nameController = new AbortController();
-              const nameTimeout = setTimeout(() => nameController.abort(), 5000);
-              
-              const nameResponse = await fetch(nameOnlyUrl.toString(), {
-                signal: nameController.signal
-              });
-              clearTimeout(nameTimeout);
-              
-              if (nameResponse.ok) {
-                const nameResult = await nameResponse.json();
-                if (nameResult.images?.large && nameResult.images?.small) {
-                  console.log(`✅ Found ${cardName} by name-only search! Set: ${nameResult.matchedSet || 'unknown'}, #${nameResult.matchedNumber || 'unknown'}`);
-                  selectedCard.images = nameResult.images;
-                  selectedCard.id = nameResult.id;
-                  // Update rarity if available
-                  if (nameResult.rarity) {
-                    selectedCard.rarity = nameResult.rarity;
-                  }
-                  imagesFetched = true;
-                } else {
-                  console.warn(`⚠️ Name-only search returned card but no images for ${cardName}`);
-                }
-              } else {
-                console.warn(`⚠️ Name-only search failed with status ${nameResponse.status}`);
-              }
-            } catch (fallbackError) {
-              console.warn(`⚠️ Name-only search error for ${cardName}:`, fallbackError);
-            }
-          } else {
-            console.warn(`⚠️ Failed to load images (${response.status})`);
-          }
-        } catch (error) {
-          clearTimeout(timeoutId);
-          if ((error as Error).name === 'AbortError') {
-            console.warn(`⏱️ Image search timed out for ${cardName}`);
-          } else {
-            console.warn(`⚠️ Error loading images for ${cardName}:`, error);
-          }
-        }
-        
-        // If we didn't successfully fetch images, try deterministic URLs
-        if (!imagesFetched) {
-          // Try to construct deterministic Pokemon TCG image URLs
-          // Format: https://images.pokemontcg.io/{setId}/{cardNumber}.png
-          const setIdNormalized = await this.resolveSetIdForImageUrl(setId);
-          const cardNumberNormalized = cardNumber ? cardNumber.split('/')[0].trim() : '';
-
-          if (setIdNormalized && cardNumberNormalized) {
-            // Use .png for both small and large (no _hires.png as it shows card backs)
-            const deterministicSmall = `https://images.pokemontcg.io/${setIdNormalized}/${cardNumberNormalized}.png`;
-            const deterministicLarge = `https://images.pokemontcg.io/${setIdNormalized}/${cardNumberNormalized}.png`;
-
-            console.log(`🔗 Trying deterministic image URL: ${deterministicSmall}`);
-            selectedCard.images = {
-              small: deterministicSmall,
-              large: deterministicLarge
-            };
-            // The onError handlers in the components will show placeholder if these fail
-          } else {
-            // Last resort: use placeholder
-            const placeholderImages = createPlaceholder(cardName, selectedCard.set.name);
-            selectedCard.images = placeholderImages;
-            console.log(`🖼️ Using placeholder image for ${cardName}`);
           }
         } else {
-          console.log(`✅ Real images loaded for ${cardName}`);
-          console.log(`📸 Image URL: ${selectedCard.images.large}`);
-        }
+          console.log(`✅ Using pre-stored image for ${cardName} (source: ${maybeLocal.imageSource})`);
         }
       }
 
@@ -439,8 +307,6 @@ class TieredPackService {
       seenIdentifiers.add(identifier);
       return true;
     });
-
-    console.log('LOOK HERE for candidates: ', candidates);
 
     console.log(`📋 Found ${candidates.length} cards in this range`);
 
@@ -612,7 +478,7 @@ class TieredPackService {
     const backendBase = window.location.origin.replace(':5173', ':3001');
     try {
       const response = await fetch(
-        `${backendBase}/api/enhanced-packs/resolve-set-code/${encodeURIComponent(setId)}`,
+        `${backendBase}/api/packs/resolve-set-code/${encodeURIComponent(setId)}`,
         { method: 'GET' }
       );
       if (response.ok) {
@@ -626,7 +492,23 @@ class TieredPackService {
       console.warn(`⚠️ Failed to resolve set code for ${setId}:`, error);
     }
 
-    const fallback = this.extractSetCodeFromPattern(cacheKey);
+    let fallback = this.extractSetCodeFromPattern(cacheKey);
+    
+    // Special handling for sets that don't match standard patterns
+    if (!fallback && cacheKey.startsWith('sv')) {
+      // Try to extract SV series number if present
+      const svMatch = cacheKey.match(/sv(\d+)/);
+      if (svMatch) {
+        fallback = `sv${parseInt(svMatch[1], 10)}`;
+      } else if (cacheKey.includes('blackbolt')) {
+        // Special case for Black Bolt set
+        fallback = 'zsv10pt5';
+      } else if (cacheKey.includes('whiteflare')) {
+        // Special case for White Flare set
+        fallback = 'rsv10pt5';
+      }
+    }
+    
     if (fallback) {
       this.setCodeCache.set(cacheKey, fallback);
     }
@@ -635,7 +517,7 @@ class TieredPackService {
 
   private extractSetCodeFromPattern(value: string): string | null {
     const patterns = [
-      /(sv|swsh|sm|xy|bw|ex|pl|hgss|col|cel|ecard)(\d+)/,
+      /(sv|swsh|sm|xy|bw|ex|pl|hgss|col|cel|ecard|me)(\d+)/,
       /(base|dp|hgss|neo|mcd)(\d+)/,
     ];
 
