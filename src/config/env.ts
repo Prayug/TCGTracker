@@ -1,90 +1,72 @@
-/**
- * Environment configuration
- * Centralized access to environment variables with validation
- */
+import { z } from 'zod';
 
-interface EnvConfig {
-  appName: string;
-  appVersion: string;
-  apiUrl: string;
-  pokemonTcgApiKey: string;
-  enableAuth: boolean;
-  enableAnalytics: boolean;
-  sentryDsn: string;
-  sentryEnvironment: string;
-  gaTrackingId: string;
-  isDevelopment: boolean;
-  isProduction: boolean;
+const envSchema = z.object({
+  VITE_APP_NAME: z.string().default('Pokemon TCG Tracker'),
+  VITE_APP_VERSION: z.string().default('1.0.0'),
+  VITE_API_URL: z.string().default('http://localhost:3001'),
+  VITE_BACKEND_URL: z.string().optional(),
+  VITE_ENABLE_AUTH: z
+    .string()
+    .optional()
+    .transform((v) => v === 'true' || v === '1' || true),
+  VITE_ENABLE_ANALYTICS: z
+    .string()
+    .optional()
+    .transform((v) => v === 'true' || v === '1'),
+  VITE_SENTRY_DSN: z.string().optional(),
+  VITE_SENTRY_ENVIRONMENT: z.string().default('development'),
+  VITE_GA_TRACKING_ID: z.string().optional(),
+  VITE_CARD_SCANNER_API_URL: z.string().optional(),
+  VITE_POKEMON_TCG_API_BASE_URL: z.string().optional(),
+});
+
+const parsed = envSchema.safeParse(import.meta.env);
+
+if (!parsed.success) {
+  console.error('Invalid environment variables:', parsed.error.flatten());
 }
 
-const getEnvVar = (key: string, defaultValue: string = ''): string => {
-  return import.meta.env[key] || defaultValue;
-};
+const envVars = parsed.success ? parsed.data : envSchema.parse({});
 
-const getBooleanEnvVar = (key: string, defaultValue: boolean = false): boolean => {
-  const value = import.meta.env[key];
-  if (value === undefined) return defaultValue;
-  return value === 'true' || value === '1';
-};
-
-const isLocalhostUrl = (url: string): boolean => /localhost|127\.0\.0\.1/.test(url);
-
-/** VITE_API_URL is canonical; VITE_BACKEND_URL is supported for older Vercel configs. */
-const resolveConfiguredApiUrl = (): string => {
+const getApiUrl = (): string => {
   const configured =
-    getEnvVar('VITE_API_URL') ||
-    getEnvVar('VITE_BACKEND_URL') ||
+    envVars.VITE_API_URL ||
+    envVars.VITE_BACKEND_URL ||
     'http://localhost:3001';
-  return configured.replace(/\/$/, '');
-};
 
-/** Resolves backend base URL — in dev uses Vite origin so /api/* hits the proxy. */
-export function getApiUrl(): string {
-  const configuredApiUrl = resolveConfiguredApiUrl();
+  const cleanUrl = configured.replace(/\/$/, '');
 
   if (typeof window !== 'undefined' && window.location?.origin) {
     if (import.meta.env.DEV) {
       return window.location.origin;
     }
-    if (configuredApiUrl && !isLocalhostUrl(configuredApiUrl)) {
-      return configuredApiUrl;
+    const isLocalhost = /localhost|127\.0\.0\.1/.test(cleanUrl);
+    if (cleanUrl && !isLocalhost) {
+      return cleanUrl;
     }
-    // Same-origin fallback when nginx/Vercel proxies /api to the backend.
     return window.location.origin;
   }
-  return configuredApiUrl || 'http://localhost:3001';
-}
 
-/** Build an absolute API URL (safe for `new URL()` and `fetch`). */
+  return cleanUrl;
+};
+
 export function buildApiUrl(path: string): string {
   const base = getApiUrl().replace(/\/$/, '');
   const normalized = path.startsWith('/') ? path : `/${path}`;
   return `${base}${normalized}`;
 }
 
-export const env: EnvConfig = {
-  appName: getEnvVar('VITE_APP_NAME', 'Pokemon TCG Tracker'),
-  appVersion: getEnvVar('VITE_APP_VERSION', '1.0.0'),
+export const env = {
+  appName: envVars.VITE_APP_NAME,
+  appVersion: envVars.VITE_APP_VERSION,
   get apiUrl() {
     return getApiUrl();
   },
-  pokemonTcgApiKey: getEnvVar('VITE_POKEMON_TCG_API_KEY'),
-  enableAuth: getBooleanEnvVar('VITE_ENABLE_AUTH', true),
-  enableAnalytics: getBooleanEnvVar('VITE_ENABLE_ANALYTICS', false),
-  sentryDsn: getEnvVar('VITE_SENTRY_DSN'),
-  sentryEnvironment: getEnvVar('VITE_SENTRY_ENVIRONMENT', 'development'),
-  gaTrackingId: getEnvVar('VITE_GA_TRACKING_ID'),
+  enableAuth: envVars.VITE_ENABLE_AUTH as boolean,
+  enableAnalytics: envVars.VITE_ENABLE_ANALYTICS as boolean,
+  sentryDsn: envVars.VITE_SENTRY_DSN || '',
+  sentryEnvironment: envVars.VITE_SENTRY_ENVIRONMENT || 'development',
+  gaTrackingId: envVars.VITE_GA_TRACKING_ID || '',
   isDevelopment: import.meta.env.DEV,
   isProduction: import.meta.env.PROD,
 };
-
-// Validate required environment variables in production
-if (env.isProduction) {
-  const requiredVars: (keyof EnvConfig)[] = ['apiUrl'];
-  const missingVars = requiredVars.filter((key) => !env[key]);
-  
-  if (missingVars.length > 0) {
-    console.error('Missing required environment variables:', missingVars);
-  }
-}
-
