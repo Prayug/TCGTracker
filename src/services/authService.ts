@@ -1,8 +1,6 @@
 import axios from 'axios';
 import { buildApiUrl } from '../config/env';
 
-import '../config/apiClient';
-
 export interface User {
   id: number;
   username: string;
@@ -76,13 +74,14 @@ class AuthService {
     await axios.post(buildApiUrl('/api/auth/change-password'), { oldPassword, newPassword });
   }
 
-  getToken(): string | null {
-    return null;
-  }
-
   getUser(): User | null {
-    const userJson = localStorage.getItem(this.USER_KEY);
-    return userJson ? JSON.parse(userJson) : null;
+    try {
+      const userJson = localStorage.getItem(this.USER_KEY);
+      return userJson ? JSON.parse(userJson) : null;
+    } catch {
+      this.clearUser();
+      return null;
+    }
   }
 
   isAuthenticated(): boolean {
@@ -95,10 +94,6 @@ class AuthService {
 
   private clearUser(): void {
     localStorage.removeItem(this.USER_KEY);
-  }
-
-  getAuthHeaders(): Record<string, string> {
-    return {};
   }
 }
 

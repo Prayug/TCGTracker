@@ -1,6 +1,7 @@
 import { Suspense, lazy } from 'react';
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { HeroSection } from './components/common/HeroSection';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { Header } from './components/layout/Header';
 import { Sidebar } from './components/layout/Sidebar';
 import { Footer } from './components/layout/Footer';
@@ -101,46 +102,48 @@ function App() {
 
             <main id="main-content" className="min-w-0 flex-1 pb-20 md:pb-0">
               <Suspense fallback={<RouteFallback />}>
-                <Routes>
-                  <Route path="/" element={<HomePage />} />
-                  <Route path="/browse" element={<BrowsePage />} />
-                  <Route
-                    path="/prices"
-                    element={
-                      <div className={PAGE_CONTAINER}>
-                        <PriceTrackingDashboard />
-                      </div>
-                    }
-                  />
-                  <Route
-                    path="/market-insights"
-                    element={
-                      <div className={PAGE_CONTAINER}>
-                        <MarketInsightsDashboard />
-                      </div>
-                    }
-                  />
-                  <Route path="/vault" element={<VaultPage />} />
-                  <Route path="/sets" element={<SetsPage />} />
-                  <Route path="/sets/:setId" element={<SetsPage />} />
-                  <Route
-                    path="/packs"
-                    element={
-                      <div className={PAGE_CONTAINER}>
-                        <PackShop />
-                      </div>
-                    }
-                  />
-                  <Route
-                    path="/scanner"
-                    element={
-                      <div className={PAGE_CONTAINER}>
-                        <CardScanner />
-                      </div>
-                    }
-                  />
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
+                <ErrorBoundary>
+                  <Routes>
+                    <Route path="/" element={<HomePage />} />
+                    <Route path="/browse" element={<BrowsePage />} />
+                    <Route
+                      path="/prices"
+                      element={
+                        <div className={PAGE_CONTAINER}>
+                          <PriceTrackingDashboard />
+                        </div>
+                      }
+                    />
+                    <Route
+                      path="/market-insights"
+                      element={
+                        <div className={PAGE_CONTAINER}>
+                          <MarketInsightsDashboard />
+                        </div>
+                      }
+                    />
+                    <Route path="/vault" element={<VaultPage />} />
+                    <Route path="/sets" element={<SetsPage />} />
+                    <Route path="/sets/:setId" element={<SetsPage />} />
+                    <Route
+                      path="/packs"
+                      element={
+                        <div className={PAGE_CONTAINER}>
+                          <PackShop />
+                        </div>
+                      }
+                    />
+                    <Route
+                      path="/scanner"
+                      element={
+                        <div className={PAGE_CONTAINER}>
+                          <CardScanner />
+                        </div>
+                      }
+                    />
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Routes>
+                </ErrorBoundary>
               </Suspense>
             </main>
 
