@@ -1,5 +1,5 @@
 import { env } from '../config/env';
-import { CardPrediction, BacktestResult, ForwardTestStatus, CardPredictionDetail } from '../features/market-insights/types';
+import { CardPrediction, BacktestResult, ForwardTestStatus, CardPredictionDetail, PredictionFilters } from '../features/market-insights/types';
 
 const BASE_URL = `${env.apiUrl}/api/market-insights`;
 
@@ -35,10 +35,17 @@ export const marketInsightsApi = {
   async getPredictions(params?: {
     limit?: number;
     category?: string;
+    filters?: PredictionFilters;
   }): Promise<{ data: CardPrediction[]; count: number; modelVersion: string }> {
     const searchParams = new URLSearchParams();
     if (params?.limit) searchParams.set('limit', String(params.limit));
     if (params?.category) searchParams.set('category', params.category);
+    if (params?.filters?.minPrice !== undefined) searchParams.set('minPrice', String(params.filters.minPrice));
+    if (params?.filters?.maxPrice !== undefined) searchParams.set('maxPrice', String(params.filters.maxPrice));
+    if (params?.filters?.minConfidence !== undefined) searchParams.set('minConfidence', String(params.filters.minConfidence));
+    if (params?.filters?.rarities && params.filters.rarities.length > 0) {
+      searchParams.set('rarities', params.filters.rarities.join(','));
+    }
     const qs = searchParams.toString();
     return fetchJson(`${BASE_URL}/predictions${qs ? `?${qs}` : ''}`);
   },

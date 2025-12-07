@@ -32,6 +32,25 @@ export const PREDICTION_THRESHOLDS = {
   DOWNTREND_MAX_RETURN: -0.05,
 } as const;
 
+export interface PredictionFilters {
+  minPrice?: number;
+  maxPrice?: number;
+  rarities?: string[];
+  minConfidence?: number;
+}
+
+export const AVAILABLE_RARITIES = [
+  'Rare Holo',
+  'Rare Ultra',
+  'Rare Secret',
+  'Ultra Rare',
+  'Secret Rare',
+  'Double Rare',
+  'Illustration Rare',
+  'Special Illustration Rare',
+  'Hyper Rare',
+] as const;
+
 export interface PriceRange {
   low: number;
   mid: number;
@@ -64,6 +83,8 @@ export interface CardPrediction {
   expected90dReturn: number;
   confidenceScore: number;
   riskScore: number;
+  liquidityScore?: number;
+  dataQualityScore?: number;
   category: PredictionCategory;
   suggestedAction: string;
   explanation: string;
@@ -83,6 +104,10 @@ export interface BacktestResult {
   market_avg_return: number | null;
   strong_buy_false_positive_rate: number | null;
   avoid_avg_return: number | null;
+  sharpe_ratio: number | null;
+  max_drawdown: number | null;
+  win_rate: number | null;
+  profit_factor: number | null;
   category_performance: CategoryPerformance[];
   created_at: string;
 }
@@ -94,16 +119,33 @@ export interface CategoryPerformance {
   avgPredictedReturn: number;
 }
 
+export interface CategoryAccuracy {
+  category: string;
+  total: number;
+  hit: number;
+  missed: number;
+  partiallyCorrect: number;
+  accuracy: number | null;
+  avgError: number | null;
+}
+
 export interface ForwardTestStatus {
   totalPredictions: number;
   pending: number;
   hit: number;
   missed: number;
   partiallyCorrect: number;
+  overallAccuracy: number | null;
   byWindow: {
     _7d: { pending: number; hit: number; missed: number; accuracy: number | null };
     _30d: { pending: number; hit: number; missed: number; accuracy: number | null };
     _90d: { pending: number; hit: number; missed: number; accuracy: number | null };
+  };
+  byCategory: CategoryAccuracy[];
+  byPriceRange: {
+    under5: { total: number; hit: number; accuracy: number | null };
+    fiveToFifty: { total: number; hit: number; accuracy: number | null };
+    overFifty: { total: number; hit: number; accuracy: number | null };
   };
 }
 
