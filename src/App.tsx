@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import { PokemonCard } from './types/pokemon';
 import { AppView } from './types/ui';
 import { HeroSection } from './components/common/HeroSection';
-import { PopularCardsSection } from './features/cards/components/PopularCardsSection';
-import { QuickCategories } from './features/cards/components/QuickCategories';
 import { SearchAndSort } from './features/cards/components/SearchAndSort';
 import { CardGrid } from './features/cards/components/CardGrid';
 import { InvestmentModal } from './features/market/components/InvestmentModal';
@@ -61,8 +59,6 @@ function App() {
         {currentView === 'home' ? (
           <>
             <HeroSection onStartSearch={handleHeroSearch} />
-            <PopularCardsSection onSearch={handleHeroSearch} />
-            <QuickCategories onCategoryClick={handleHeroSearch} />
           </>
         ) : currentView === 'tracking' ? (
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
