@@ -157,7 +157,7 @@ export class EnhancedPackService {
           } : null;
           const deterministicImages = storedImages
             ? null
-            : await setCodeService.buildDeterministicImageUrls(row.setId, row.cardNumber);
+            : await setCodeService.buildDeterministicImageUrls(row.setId, row.cardNumber, row.setName);
 
           return {
             id: row.id,

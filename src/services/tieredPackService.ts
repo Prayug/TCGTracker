@@ -1,6 +1,5 @@
 import { Pack, PackPull, PokemonCard, PackOpeningHistory, ValueRange } from '../types/pokemon';
 import { pokemonApi } from './pokemonApi';
-import { createPlaceholderImage, hasGoodStoredImages, fetchCardImagesFromBackend } from '../utils/imageHelpers';
 
 const PACK_HISTORY_KEY = 'tcg_tiered_pack_history';
 
@@ -91,17 +90,16 @@ class TieredPackService {
       description: 'Ultimate gambling experience',
       imageUrl: 'https://images.pokemontcg.io/base1/logo.png',
       valueRanges: [
-        { min: 500, max: 750, probability: 35, label: '$500-750' },
-        { min: 750, max: 1000, probability: 35, label: '$750-1000' },
-        { min: 1000, max: 2000, probability: 25, label: '$1000-2000' },
-        { min: 2000, max: 5000, probability: 4, label: '$2000-5000' },
-        { min: 5000, max: 10000, probability: 0.8, label: '$5000-10000' },
-        { min: 10000, max: 20000, probability: 0.2, label: '$10000-20000' }
+        { min: 400, max: 600, probability: 35, label: '$400-600' },
+        { min: 600, max: 800, probability: 35, label: '$600-800' },
+        { min: 800, max: 1000, probability: 20, label: '$800-1000' },
+        { min: 1000, max: 1500, probability: 8, label: '$1000-1500' },
+        { min: 1500, max: 2500, probability: 1.5, label: '$1500-2500' },
+        { min: 2500, max: 5000, probability: 0.5, label: '$2500-5000' }
       ]
     }
   ];
 
-  private setCodeCache = new Map<string, string>();
 
   // Get all available tiered packs
   getAvailablePacks(): Pack[] {
@@ -110,103 +108,34 @@ class TieredPackService {
 
   // Open a tiered pack
   async openPack(pack: Pack): Promise<PackPull> {
-    console.log(`🎴 Opening ${pack.name} ($${pack.price})...`);
-
     try {
-      // Fetch a large pool of cards to select from
       const cardPool = await this.fetchCardPool();
-      
+      console.log("cardPool: ", cardPool);
       if (cardPool.length === 0) {
-        throw new Error('Unable to fetch cards from Pokemon TCG API. Please check your internet connection and try again.');
+        throw new Error('Unable to fetch cards. Please check your connection.');
       }
 
-      console.log(`✅ Card pool ready: ${cardPool.length} cards available`);
-      
-      if (cardPool.length < 10) {
-        console.warn(`⚠️ Card pool is small (${cardPool.length} cards). Pack quality may vary.`);
-      }
-
-      // Select ONE card based on the rolled value range
-      const selectedCard = this.selectCardFromRange(cardPool, pack.valueRanges);
-      
+      const selectedCard = this.selectCardFromRange(cardPool, pack.valueRanges, pack.price);
+      console.log("selectedCard: ", selectedCard);
       if (!selectedCard) {
         throw new Error('No suitable card found in the pool for this value range.');
       }
 
-      // If selected from local DB pool, enrich with actual images from Pokemon API (no fallback)
-      // Narrow type to local DB enriched shape when present
-      const maybeLocal = selectedCard as PokemonCard & { isLocalDbCard?: boolean; imageSource?: string };
-      if (maybeLocal.isLocalDbCard) {
-        const cardName = selectedCard.name;
-        const setId = selectedCard.set?.id;
-        const cardNumber = selectedCard.number;
-        
-        if (!cardName || !setId) {
-          throw new Error('Missing card name or set ID for image lookup');
-        }
-        
-        // Check if we already have good stored images
-        if (!hasGoodStoredImages(maybeLocal.imageSource, selectedCard.images?.large)) {
-          // Try to fetch images from backend
-          console.log(`🔍 Searching Pokemon API via backend for: "${cardName}" in set "${setId}"`);
-          const imageResult = await fetchCardImagesFromBackend(cardName, setId, cardNumber);
-          
-          if (imageResult?.images) {
-            selectedCard.images = imageResult.images;
-            if (imageResult.id) selectedCard.id = imageResult.id;
-            if (imageResult.rarity) selectedCard.rarity = imageResult.rarity;
-            console.log(`✅ Real images loaded for ${cardName}`);
-          } else {
-            // Try deterministic URLs as fallback
-            const setIdNormalized = await this.resolveSetIdForImageUrl(setId);
-            let cardNumberNormalized = cardNumber ? cardNumber.split('/')[0].trim() : '';
-            
-            if (cardNumberNormalized) {
-              cardNumberNormalized = cardNumberNormalized.replace(/^0+/, '') || '0';
-              cardNumberNormalized = cardNumberNormalized.toLowerCase();
-            }
+      // Backend handles images (stored -> deterministic)
+      // If no images available, card.images will be undefined
 
-            if (setIdNormalized && cardNumberNormalized) {
-              const deterministicUrl = `https://images.pokemontcg.io/${setIdNormalized}/${cardNumberNormalized}.png`;
-              selectedCard.images = {
-                small: deterministicUrl,
-                large: deterministicUrl
-              };
-            } else {
-              // Last resort: use placeholder
-              selectedCard.images = createPlaceholderImage(cardName, selectedCard.set.name);
-              console.log(`🖼️ Using placeholder image for ${cardName}`);
-            }
-          }
-        } else {
-          console.log(`✅ Using pre-stored image for ${cardName} (source: ${maybeLocal.imageSource})`);
-        }
-      }
-
-      const pulledCards = [selectedCard];
-
-      // Calculate actual total value
-      const totalValue = pulledCards.reduce((sum, card) => {
-        const price = card.marketPrice || pokemonApi.extractCardPrice(card);
-        return sum + price;
-      }, 0);
-
+      const totalValue = selectedCard.marketPrice || pokemonApi.extractCardPrice(selectedCard);
       const profit = totalValue - pack.price;
 
       const packPull: PackPull = {
         pack,
-        cards: pulledCards,
+        cards: [selectedCard],
         totalValue,
         profit,
         openedAt: new Date().toISOString()
       };
 
-      // Save to history
       this.addToHistory(packPull);
-
-      console.log(`✅ Pulled ${pulledCards.length} cards! Total value: $${totalValue.toFixed(2)}`);
-      console.log(`💰 Profit: ${profit >= 0 ? '+' : ''}$${profit.toFixed(2)}`);
-
       return packPull;
     } catch (error) {
       console.error('Error opening pack:', error);
@@ -232,15 +161,12 @@ class TieredPackService {
 
   // Fetch a large pool of cards from various sets
   private async fetchCardPool(): Promise<PokemonCard[]> {
-    console.log('🔍 Fetching fresh card pool from local DB (backend)...');
-    
-    // Always fetch fresh from DB - no caching
-    // Fetch very large pool (2000 cards) to ensure coverage across all price ranges
     const backendBase = window.location.origin.replace(':5173', ':3001');
-    const resp = await fetch(`${backendBase}/api/cards/pool?limit=2000`);
+    // Increased limit from 2000 to 10000 for better pool diversity
+    const resp = await fetch(`${backendBase}/api/cards/pool?limit=10000`);
     
     if (!resp.ok) {
-      throw new Error(`Failed to fetch card pool: ${resp.status} ${resp.statusText}`);
+      throw new Error(`Failed to fetch card pool: ${resp.status}`);
     }
     
     const json = await resp.json();
@@ -250,21 +176,22 @@ class TieredPackService {
       throw new Error('No cards returned from database');
     }
     
-    console.log(`📦 Successfully fetched ${allCards.length} cards from local DB`);
-    
     // Filter out cards with no price
     const cardsWithPrices = allCards.filter((card: PokemonCard) => {
       const price = card.marketPrice || pokemonApi.extractCardPrice(card);
-      return price > 0 && price < 10000; // Filter out invalid prices
+      return price > 0 && price < 10000;
     });
-
-    console.log(`💰 ${cardsWithPrices.length} cards have valid prices`);
     
     if (cardsWithPrices.length === 0) {
       throw new Error('No cards with valid prices found');
     }
 
-    // Shuffle for variety
+    // Debug: Log max price in pool
+    const prices = cardsWithPrices.map((card: PokemonCard) => card.marketPrice || pokemonApi.extractCardPrice(card));
+    const maxPrice = Math.max(...prices);
+    const minPrice = Math.min(...prices);
+    console.log(`📊 Card pool stats: ${cardsWithPrices.length} cards, price range: $${minPrice.toFixed(2)} - $${maxPrice.toFixed(2)}`);
+
     return this.shuffleArray([...cardsWithPrices]);
   }
 
@@ -281,122 +208,118 @@ class TieredPackService {
   // Select a random card from the pool based on rolled value range
   private selectCardFromRange(
     cardPool: PokemonCard[],
-    ranges: ValueRange[]
+    ranges: ValueRange[],
+    packPrice?: number
   ): PokemonCard | null {
-    // First, roll to see which VALUE RANGE we hit
     const rolledRange = this.selectValueRange(ranges);
     
-    console.log(`🎲 Rolled: ${rolledRange.label} (${rolledRange.probability}% chance)`);
-    console.log(`🎯 Looking for cards between $${rolledRange.min.toFixed(2)} and $${rolledRange.max.toFixed(2)}`);
+    // Calculate absolute minimum value based on pack price
+    // For expensive packs, enforce a minimum that's at least 30% of pack price
+    const absoluteMinimum = packPrice ? Math.max(rolledRange.min, packPrice * 0.3) : rolledRange.min;
 
-    // Filter cards to ONLY this specific range
+    // Filter cards to this specific range
     let candidates = cardPool.filter(card => {
       const price = card.marketPrice || pokemonApi.extractCardPrice(card);
       return price >= rolledRange.min && price <= rolledRange.max;
     });
 
-    // Remove duplicates based on unique identifier to ensure fair distribution
-    const seenIdentifiers = new Set<string>();
+    // Remove duplicates using card.id (not collapsed identifier)
+    // This prevents cards from different sets with same name/number from collapsing
+    const seenIds = new Set<string>();
     candidates = candidates.filter(card => {
-      const identifier =
+      // Use card.id if available, otherwise fallback to uniqueIdentifier, then construct one
+      const cardId = card.id || 
         (card as PokemonCard & { uniqueIdentifier?: string }).uniqueIdentifier ||
-        `${card.set?.id || ''}|${card.number || ''}|${card.name || ''}`.toLowerCase().replace(/[^a-z0-9|]/g, '');
-      if (seenIdentifiers.has(identifier)) {
-        return false;
-      }
-      seenIdentifiers.add(identifier);
+        `${card.set?.id || 'unknown'}-${card.number || 'unknown'}-${card.name || 'unknown'}`;
+      
+      if (seenIds.has(cardId)) return false;
+      seenIds.add(cardId);
       return true;
     });
 
-    console.log(`📋 Found ${candidates.length} cards in this range`);
-
-    // Fallback logic if no cards in exact range
+    // Fallback 1: expand range by 20% if no matches (but respect absolute minimum)
     if (candidates.length === 0) {
-      console.warn(`⚠️ No cards in exact range $${rolledRange.min}-${rolledRange.max}. Trying fallback...`);
-      
-      // Strategy 1: Try broader range (expand by 20%)
-      const expandedMin = rolledRange.min * 0.8;
+      const expandedMin = Math.max(rolledRange.min * 0.8, absoluteMinimum);
       const expandedMax = rolledRange.max * 1.2;
       candidates = cardPool.filter(card => {
         const price = card.marketPrice || pokemonApi.extractCardPrice(card);
         return price >= expandedMin && price <= expandedMax;
       });
-
-      // Remove duplicates from expanded range candidates
-      const seenIdentifiersExpanded = new Set<string>();
+      
+      const seenExpanded = new Set<string>();
       candidates = candidates.filter(card => {
-        const identifier =
+        const cardId = card.id || 
           (card as PokemonCard & { uniqueIdentifier?: string }).uniqueIdentifier ||
-          `${card.set?.id || ''}|${card.number || ''}|${card.name || ''}`.toLowerCase().replace(/[^a-z0-9|]/g, '');
-        if (seenIdentifiersExpanded.has(identifier)) {
-          return false;
-        }
-        seenIdentifiersExpanded.add(identifier);
+          `${card.set?.id || 'unknown'}-${card.number || 'unknown'}-${card.name || 'unknown'}`;
+        if (seenExpanded.has(cardId)) return false;
+        seenExpanded.add(cardId);
         return true;
       });
-      
-      if (candidates.length > 0) {
-        console.log(`✅ Found ${candidates.length} cards in expanded range $${expandedMin.toFixed(2)}-${expandedMax.toFixed(2)}`);
-      } else {
-        // Strategy 2: Find closest card below the range
-        const lowerCards = cardPool.filter(card => {
+    }
+
+    // Fallback 2: If still no matches, select from top N most expensive cards
+    // This handles cases where the requested range is above the database's max price
+    if (candidates.length === 0) {
+      // Sort cards by price descending and take top cards that are >= rolledRange.min * 0.5
+      const sortedByPrice = [...cardPool].sort((a, b) => {
+        const priceA = a.marketPrice || pokemonApi.extractCardPrice(a);
+        const priceB = b.marketPrice || pokemonApi.extractCardPrice(b);
+        return priceB - priceA;
+      });
+
+      // Take top cards that are at least the absolute minimum (or top 100, whichever is smaller)
+      // For expensive packs, this ensures we don't go below the pack's minimum threshold
+      const minPriceThreshold = Math.max(rolledRange.min * 0.5, absoluteMinimum);
+      candidates = sortedByPrice
+        .filter(card => {
           const price = card.marketPrice || pokemonApi.extractCardPrice(card);
-          return price < rolledRange.min && price > 0;
-        });
-        
-        if (lowerCards.length > 0) {
-          // Get the most expensive card below the range
-          lowerCards.sort((a, b) => {
-            const priceA = a.marketPrice || pokemonApi.extractCardPrice(a);
-            const priceB = b.marketPrice || pokemonApi.extractCardPrice(b);
-            return priceB - priceA;
-          });
-          candidates = [lowerCards[0]];
-          console.log(`✅ Using closest card below range: $${(candidates[0].marketPrice || pokemonApi.extractCardPrice(candidates[0])).toFixed(2)}`);
-        } else {
-          // Strategy 3: Find closest card above the range
-          const higherCards = cardPool.filter(card => {
-            const price = card.marketPrice || pokemonApi.extractCardPrice(card);
-            return price > rolledRange.max;
-          });
-          
-          if (higherCards.length > 0) {
-            // Get the cheapest card above the range
-            higherCards.sort((a, b) => {
-              const priceA = a.marketPrice || pokemonApi.extractCardPrice(a);
-              const priceB = b.marketPrice || pokemonApi.extractCardPrice(b);
-              return priceA - priceB;
-            });
-            candidates = [higherCards[0]];
-            console.log(`✅ Using closest card above range: $${(candidates[0].marketPrice || pokemonApi.extractCardPrice(candidates[0])).toFixed(2)}`);
-          } else {
-            // Strategy 4: Last resort - pick random card from pool
-            console.warn(`⚠️ No suitable cards found, using random card from pool`);
-            candidates = [cardPool[Math.floor(Math.random() * cardPool.length)]];
-          }
-        }
+          return price >= minPriceThreshold;
+        })
+        .slice(0, 100); // Top 100 most expensive cards
+
+      // Remove duplicates
+      const seenTop = new Set<string>();
+      candidates = candidates.filter(card => {
+        const cardId = card.id || 
+          (card as PokemonCard & { uniqueIdentifier?: string }).uniqueIdentifier ||
+          `${card.set?.id || 'unknown'}-${card.number || 'unknown'}-${card.name || 'unknown'}`;
+        if (seenTop.has(cardId)) return false;
+        seenTop.add(cardId);
+        return true;
+      });
+
+      if (candidates.length > 0) {
+        console.log(`⚠️ No cards in range $${rolledRange.min}-$${rolledRange.max}, selected from top ${candidates.length} expensive cards (min: $${minPriceThreshold.toFixed(2)})`);
       }
     }
 
+    // Last resort: pick from cards that meet the absolute minimum (never go below pack threshold)
     if (candidates.length === 0) {
-      console.error('❌ No cards available in pool at all');
-      return null;
+      candidates = cardPool.filter(card => {
+        const price = card.marketPrice || pokemonApi.extractCardPrice(card);
+        return price >= absoluteMinimum;
+      });
+      
+      if (candidates.length === 0) {
+        // If even this fails, we have a problem - log it and use top expensive cards
+        console.error(`❌ No cards found above minimum $${absoluteMinimum.toFixed(2)} for pack. Using top expensive cards.`);
+        const sortedByPrice = [...cardPool].sort((a, b) => {
+          const priceA = a.marketPrice || pokemonApi.extractCardPrice(a);
+          const priceB = b.marketPrice || pokemonApi.extractCardPrice(b);
+          return priceB - priceA;
+        });
+        candidates = sortedByPrice.slice(0, 50); // Top 50 as last resort
+      } else {
+        console.warn(`⚠️ No candidates found after all fallbacks, using cards above minimum $${absoluteMinimum.toFixed(2)} (${candidates.length} cards)`);
+      }
     }
 
-    // Shuffle candidates array to ensure pure randomness
-    const shuffledCandidates = this.shuffleArray(candidates);
-
-    // Pick a truly random card from the shuffled candidates
-    // Use crypto.getRandomValues for better randomness if available, otherwise Math.random
+    const shuffled = this.shuffleArray(candidates);
     const randomIndex = typeof crypto !== 'undefined' && crypto.getRandomValues
-      ? crypto.getRandomValues(new Uint32Array(1))[0] % shuffledCandidates.length
-      : Math.floor(Math.random() * shuffledCandidates.length);
+      ? crypto.getRandomValues(new Uint32Array(1))[0] % shuffled.length
+      : Math.floor(Math.random() * shuffled.length);
     
-    const selectedCard = shuffledCandidates[randomIndex];
-    const selectedPrice = selectedCard.marketPrice || pokemonApi.extractCardPrice(selectedCard);
-    console.log(`✅ Selected: ${selectedCard.name} - $${selectedPrice.toFixed(2)}`);
-    
-    return selectedCard;
+    return shuffled[randomIndex];
   }
 
   // Get pack opening history
@@ -457,80 +380,11 @@ class TieredPackService {
   // Clear history
   clearHistory(): void {
     localStorage.removeItem(PACK_HISTORY_KEY);
-    console.log('🗑️ Pack opening history cleared');
   }
 
   // Clear card pool cache (no-op since we don't cache anymore)
   clearCache(): void {
-    console.log('🔄 Cache clear requested (no cache in use)');
-  }
-
-  private async resolveSetIdForImageUrl(setId: string): Promise<string | null> {
-    if (!setId) {
-      return null;
-    }
-
-    const cacheKey = setId.toLowerCase();
-    if (this.setCodeCache.has(cacheKey)) {
-      return this.setCodeCache.get(cacheKey)!;
-    }
-
-    const backendBase = window.location.origin.replace(':5173', ':3001');
-    try {
-      const response = await fetch(
-        `${backendBase}/api/packs/resolve-set-code/${encodeURIComponent(setId)}`,
-        { method: 'GET' }
-      );
-      if (response.ok) {
-        const payload = await response.json();
-        if (payload.apiSetCode) {
-          this.setCodeCache.set(cacheKey, payload.apiSetCode);
-          return payload.apiSetCode;
-        }
-      }
-    } catch (error) {
-      console.warn(`⚠️ Failed to resolve set code for ${setId}:`, error);
-    }
-
-    let fallback = this.extractSetCodeFromPattern(cacheKey);
-    
-    // Special handling for sets that don't match standard patterns
-    if (!fallback && cacheKey.startsWith('sv')) {
-      // Try to extract SV series number if present
-      const svMatch = cacheKey.match(/sv(\d+)/);
-      if (svMatch) {
-        fallback = `sv${parseInt(svMatch[1], 10)}`;
-      } else if (cacheKey.includes('blackbolt')) {
-        // Special case for Black Bolt set
-        fallback = 'zsv10pt5';
-      } else if (cacheKey.includes('whiteflare')) {
-        // Special case for White Flare set
-        fallback = 'rsv10pt5';
-      }
-    }
-    
-    if (fallback) {
-      this.setCodeCache.set(cacheKey, fallback);
-    }
-    return fallback;
-  }
-
-  private extractSetCodeFromPattern(value: string): string | null {
-    const patterns = [
-      /(sv|swsh|sm|xy|bw|ex|pl|hgss|col|cel|ecard|me)(\d+)/,
-      /(base|dp|hgss|neo|mcd)(\d+)/,
-    ];
-
-    for (const pattern of patterns) {
-      const match = value.match(pattern);
-      if (match) {
-        const series = match[1];
-        const number = parseInt(match[2], 10).toString();
-        return `${series}${number}`;
-      }
-    }
-
-    return null;
+    // No-op
   }
 }
 

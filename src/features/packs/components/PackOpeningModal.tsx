@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Pack, PackPull, PokemonCard } from '../../../types/pokemon';
+import { Pack, PackPull } from '../../../types/pokemon';
 import { Modal } from '../../../components/common/Modal';
 import { tieredPackService } from '../../../services/tieredPackService';
 import { vaultService } from '../../../services/vaultService';
@@ -225,27 +225,38 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
                       
                       {/* Card */}
                       <div className={`relative rounded-2xl overflow-hidden shadow-2xl border-4 bg-gradient-to-br ${getRarityColor(card.rarity)} p-1 transform hover:scale-105 transition-transform`}>
-                        <img
-                          src={card.images.small}
-                          alt={card.name}
-                          className="w-80 h-auto rounded-xl"
-                          onError={(e) => {
-                            // Fallback: try large image, then simple gray placeholder
-                            const target = e.target as HTMLImageElement;
-                            const currentSrc = target.src;
-                            console.error(`❌ Image load failed: ${currentSrc}`);
-
-                            if (!currentSrc.includes('data:image/svg') && card.images.large !== currentSrc) {
-                              console.log(`🔄 Trying large image fallback`);
-                              target.src = card.images.large;
-                            } else if (!currentSrc.includes('fallback-placeholder')) {
-                              console.log(`🔄 Using final fallback placeholder`);
-                              const escapedName = card.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                              const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="245" height="342"><rect width="245" height="342" fill="#e5e7eb"/><text x="122.5" y="171" font-family="Arial" font-size="16" fill="#374151" text-anchor="middle">${escapedName}</text></svg>`;
-                              target.src = `data:image/svg+xml,${encodeURIComponent(svg)}#fallback-placeholder`;
-                            }
-                          }}
-                        />
+                        {card.images?.small ? (
+                          <img
+                            src={card.images.small}
+                            alt={card.name}
+                            className="w-80 h-auto rounded-xl"
+                            onError={(e) => {
+                              // Show placeholder if image fails to load
+                              const target = e.target as HTMLImageElement;
+                              const parent = target.parentElement;
+                              if (parent) {
+                                target.style.display = 'none';
+                                parent.innerHTML += `
+                                  <div class="w-80 h-[440px] bg-gradient-to-br from-gray-700 to-gray-900 rounded-xl flex flex-col items-center justify-center text-white p-6">
+                                    <div class="text-center">
+                                      <p class="text-xl font-bold mb-2">${card.name}</p>
+                                      <p class="text-sm text-gray-400 mb-2">${card.set.name}</p>
+                                      <p class="text-xs text-gray-500">Image not available</p>
+                                    </div>
+                                  </div>
+                                `;
+                              }
+                            }}
+                          />
+                        ) : (
+                          <div className="w-80 h-[440px] bg-gradient-to-br from-gray-700 to-gray-900 rounded-xl flex flex-col items-center justify-center text-white p-6">
+                            <div className="text-center">
+                              <p className="text-xl font-bold mb-2">{card.name}</p>
+                              <p className="text-sm text-gray-400 mb-2">{card.set.name}</p>
+                              <p className="text-xs text-gray-500">Image not available</p>
+                            </div>
+                          </div>
+                        )}
                         
                         {/* Sparkle effects for rare cards */}
                         {price > 100 && (
@@ -320,27 +331,38 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
                 return (
                   <div key={index} className="relative group">
                     <div className={`rounded-2xl overflow-hidden shadow-2xl border-4 bg-gradient-to-br ${getRarityColor(card.rarity)} p-1 hover:scale-105 transition-transform`}>
-                      <img
-                        src={card.images.small}
-                        alt={card.name}
-                        className="w-72 h-auto rounded-xl"
-                        onError={(e) => {
-                          // Fallback: try large image, then simple gray placeholder
-                          const target = e.target as HTMLImageElement;
-                          const currentSrc = target.src;
-                          console.error(`❌ Image load failed: ${currentSrc}`);
-
-                          if (!currentSrc.includes('data:image/svg') && card.images.large !== currentSrc) {
-                            console.log(`🔄 Trying large image fallback`);
-                            target.src = card.images.large;
-                          } else if (!currentSrc.includes('fallback-placeholder')) {
-                            console.log(`🔄 Using final fallback placeholder`);
-                            const escapedName = card.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="245" height="342"><rect width="245" height="342" fill="#e5e7eb"/><text x="122.5" y="171" font-family="Arial" font-size="16" fill="#374151" text-anchor="middle">${escapedName}</text></svg>`;
-                            target.src = `data:image/svg+xml,${encodeURIComponent(svg)}#fallback-placeholder`;
-                          }
-                        }}
-                      />
+                      {card.images?.small ? (
+                        <img
+                          src={card.images.small}
+                          alt={card.name}
+                          className="w-72 h-auto rounded-xl"
+                          onError={(e) => {
+                            // Show placeholder if image fails to load
+                            const target = e.target as HTMLImageElement;
+                            const parent = target.parentElement;
+                            if (parent) {
+                              target.style.display = 'none';
+                              parent.innerHTML += `
+                                <div class="w-72 h-[396px] bg-gradient-to-br from-gray-700 to-gray-900 rounded-xl flex flex-col items-center justify-center text-white p-6">
+                                  <div class="text-center">
+                                    <p class="text-lg font-bold mb-2">${card.name}</p>
+                                    <p class="text-xs text-gray-400 mb-2">${card.set.name}</p>
+                                    <p class="text-xs text-gray-500">Image not available</p>
+                                  </div>
+                                </div>
+                              `;
+                            }
+                          }}
+                        />
+                      ) : (
+                        <div className="w-72 h-[396px] bg-gradient-to-br from-gray-700 to-gray-900 rounded-xl flex flex-col items-center justify-center text-white p-6">
+                          <div className="text-center">
+                            <p className="text-lg font-bold mb-2">{card.name}</p>
+                            <p className="text-xs text-gray-400 mb-2">{card.set.name}</p>
+                            <p className="text-xs text-gray-500">Image not available</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div className="mt-4 text-center">
                       <p className="text-xl font-bold text-gray-900 mb-1">{card.name}</p>

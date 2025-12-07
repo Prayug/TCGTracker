@@ -40,6 +40,33 @@ logger.info('Initializing database...');
 initializeDatabase();
 const db = getDb();
 
+// Initialize set code service on startup (before migrations to ensure it's ready)
+import { setCodeService } from './services/setCodeService';
+logger.info('Initializing set code service...');
+
+// Initialize with retry logic
+const initializeSetCodeService = async (retries = 3) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      await setCodeService.initialize();
+      logger.info('✅ Set code service initialized successfully');
+      return;
+    } catch (error) {
+      logger.error(`Failed to initialize set code service (attempt ${i + 1}/${retries})`, { 
+        error: (error as Error).message 
+      });
+      if (i < retries - 1) {
+        const delay = (i + 1) * 2000; // 2s, 4s, 6s
+        logger.info(`Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  logger.error('❌ CRITICAL: Failed to initialize set code service after all retries. Image loading will be impaired.');
+};
+
+initializeSetCodeService();
+
 // Run database migrations before creating services
 runMigrations(db)
   .then(() => {

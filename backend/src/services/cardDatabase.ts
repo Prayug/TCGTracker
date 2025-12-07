@@ -1,6 +1,6 @@
 // Database query utilities for cards
 import { getDb } from '../db/database';
-import { buildPlaceholderImage, buildDeterministicImageUrls, getImageColumnSelectFragment } from './cardImageUtils';
+import { buildDeterministicImageUrls, getImageColumnSelectFragment } from './cardImageUtils';
 
 export const getLocalCardsForQuery = async (query: string, setId?: string, limit: number = 250) => {
   const db = getDb();
@@ -60,7 +60,7 @@ export const mapLocalRowsToPokemonCards = async (rows: any[]) => {
     // PRIORITY ORDER for images:
     // 1. Stored images from database (most reliable)
     // 2. Deterministic Pokemon TCG API URLs
-    // 3. Placeholder SVG
+    // No placeholder - only show real images
     
     let images;
     let imageSource = row.imageSource;
@@ -73,15 +73,15 @@ export const mapLocalRowsToPokemonCards = async (rows: any[]) => {
       };
       imageSource = imageSource || 'stored';
     } else {
-      // Fallback to deterministic URLs or placeholder
-      const deterministicImages = await buildDeterministicImageUrls(row.setId, row.cardNumber);
+      // Try deterministic URLs - if not available, return undefined (no image)
+      const deterministicImages = await buildDeterministicImageUrls(row.setId, row.cardNumber, row.setName);
       if (deterministicImages) {
         images = deterministicImages;
         imageSource = 'deterministic';
       } else {
-        const placeholder = buildPlaceholderImage(row.cardName, row.setName);
-        images = { small: placeholder, large: placeholder };
-        imageSource = 'generated';
+        // No image available - return undefined
+        images = undefined;
+        imageSource = undefined;
       }
     }
 

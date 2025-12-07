@@ -101,26 +101,13 @@ export const initializeDatabase = () => {
     )
   `;
 
-  // Set mappings table for dynamic Pokemon TCG API set code resolution
-  const createSetMappingsTable = `
-    CREATE TABLE IF NOT EXISTS set_mappings (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      normalizedKey TEXT NOT NULL UNIQUE,
-      apiSetId TEXT NOT NULL,
-      apiSetName TEXT NOT NULL,
-      series TEXT,
-      ptcgoCode TEXT,
-      totalCards INTEGER,
-      updatedAt INTEGER DEFAULT (strftime('%s', 'now') * 1000)
-    )
-  `;
+  // Set mappings are now loaded dynamically from Pokemon TCG API (no database table needed)
 
   const tables = [
     createCardMappingsTable,
     createPriceHistoryTable,
     createSnapshotsTable,
-    createPokemonCacheTable,
-    createSetMappingsTable
+    createPokemonCacheTable
   ];
 
   // Create tables sequentially to avoid conflicts
@@ -157,8 +144,7 @@ export const initializeDatabase = () => {
       'CREATE INDEX IF NOT EXISTS idx_price_history_identifier ON price_history(uniqueIdentifier)',
       'CREATE INDEX IF NOT EXISTS idx_card_mappings_identifier ON card_mappings(uniqueIdentifier)',
       'CREATE INDEX IF NOT EXISTS idx_card_mappings_card_set ON card_mappings(cardName, setId, cardNumber)',
-      'CREATE INDEX IF NOT EXISTS idx_pokemon_cache_fetched_at ON pokemon_cache(fetchedAt)',
-      'CREATE INDEX IF NOT EXISTS idx_set_mappings_key ON set_mappings(normalizedKey)'
+      'CREATE INDEX IF NOT EXISTS idx_pokemon_cache_fetched_at ON pokemon_cache(fetchedAt)'
     ];
 
     indexes.forEach((indexSql, index) => {

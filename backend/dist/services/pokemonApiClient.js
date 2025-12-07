@@ -18,7 +18,7 @@ class PokemonApiClient {
     constructor() {
         this.apiKey = env_1.env.apis.pokemonTcg || '';
         this.maxRetries = 2;
-        this.defaultTimeout = 20000;
+        this.defaultTimeout = 30000; // Increased to 30 seconds for large requests
     }
     buildHeaders() {
         const headers = {
@@ -212,10 +212,11 @@ class PokemonApiClient {
         return __awaiter(this, arguments, void 0, function* (limit = 250) {
             var _a;
             try {
+                // Use longer timeout for set fetching (can be a large request)
                 const response = yield this.request('/sets', {
                     orderBy: '-releaseDate',
                     pageSize: String(limit),
-                });
+                }, 45000); // 45 second timeout for large set lists
                 return (_a = response.data) !== null && _a !== void 0 ? _a : [];
             }
             catch (error) {

@@ -13,6 +13,7 @@ const express_1 = require("express");
 const enhancedPackService_1 = require("../services/enhancedPackService");
 const setCodeService_1 = require("../services/setCodeService");
 const logger_1 = require("../utils/logger");
+const pokemonApiClient_1 = require("../services/pokemonApiClient");
 const router = (0, express_1.Router)();
 /**
  * Get available sets for pack opening
@@ -148,6 +149,86 @@ router.get('/stats/:setId', (req, res) => __awaiter(void 0, void 0, void 0, func
         logger_1.logger.error(`Error getting stats for set ${req.params.setId}:`, error);
         res.status(500).json({
             error: 'Failed to get set statistics',
+            message: error.message
+        });
+    }
+}));
+/**
+ * Debug endpoint: Get set code service status
+ */
+router.get('/debug/set-codes', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const stats = setCodeService_1.setCodeService.getSetMappingStats();
+        const isInitialized = setCodeService_1.setCodeService.isInitialized();
+        res.json({
+            initialized: isInitialized,
+            stats,
+            message: isInitialized
+                ? '✅ Set code service is initialized and ready'
+                : '❌ Set code service is NOT initialized - images may not load'
+        });
+    }
+    catch (error) {
+        logger_1.logger.error('Error getting set code debug info:', error);
+        res.status(500).json({
+            error: 'Failed to get set code debug info',
+            message: error.message
+        });
+    }
+}));
+/**
+ * Debug endpoint: Test set normalization
+ */
+router.get('/debug/normalize-set/:setId', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { setId } = req.params;
+        const { setName } = req.query;
+        if (!setId) {
+            return res.status(400).json({
+                error: 'Set ID is required'
+            });
+        }
+        const normalizedSetId = yield setCodeService_1.setCodeService.normalizeSetIdForImageUrl(setId, setName);
+        const imageUrls = yield setCodeService_1.setCodeService.buildDeterministicImageUrls(setId, '1', setName);
+        res.json({
+            input: {
+                setId,
+                setName: setName || null
+            },
+            normalized: normalizedSetId,
+            exampleImageUrl: imageUrls,
+            success: !!normalizedSetId
+        });
+    }
+    catch (error) {
+        logger_1.logger.error('Error testing set normalization:', error);
+        res.status(500).json({
+            error: 'Failed to test set normalization',
+            message: error.message
+        });
+    }
+}));
+/**
+ * Debug endpoint: Get all Pokemon TCG API sets
+ */
+router.get('/debug/all-sets', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const sets = yield pokemonApiClient_1.pokemonApiClient.getSets(1000);
+        res.json({
+            count: sets.length,
+            sets: sets.map(s => ({
+                id: s.id,
+                name: s.name,
+                series: s.series,
+                ptcgoCode: s.ptcgoCode,
+                releaseDate: s.releaseDate
+            }))
+        });
+    }
+    catch (error) {
+        logger_1.logger.error('Error getting all sets:', error);
+        res.status(500).json({
+            error: 'Failed to get all sets',
             message: error.message
         });
     }

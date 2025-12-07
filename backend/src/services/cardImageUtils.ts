@@ -7,8 +7,8 @@ export const buildPlaceholderImage = (name: string, set: string) => (
   encodeURIComponent(set) + '%3C/text%3E%3Ctext x="50%25" y="65%25" font-family="Arial,sans-serif" font-size="12" fill="%23e5e7eb" text-anchor="middle"%3ENo Image%3C/text%3E%3C/svg%3E'
 );
 
-export const buildDeterministicImageUrls = async (setId?: string | null, cardNumber?: string | null) => {
-  return setCodeService.buildDeterministicImageUrls(setId, cardNumber);
+export const buildDeterministicImageUrls = async (setId?: string | null, cardNumber?: string | null, setName?: string | null) => {
+  return setCodeService.buildDeterministicImageUrls(setId, cardNumber, setName);
 };
 
 const IMAGE_COLUMN_FRAGMENT =

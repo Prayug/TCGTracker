@@ -1,549 +1,284 @@
-import { getDb } from '../db/database';
 import { pokemonApiClient, PokemonApiSet } from './pokemonApiClient';
 import { logger } from '../utils/logger';
 
-interface SetMappingStats {
-  databaseMappings: number;
-  cachedMappings: number;
-  lastRefreshed: number | null;
-  cacheTtl: number;
-}
-
-const SET_MAP_CACHE_TTL = 1000 * 60 * 60 * 24; // 24 hours
-
-const removeLeadingZeros = (value: string): string => {
-  return value.replace(/^0+/, '') || '0';
-};
-
-const normalizeSetIdWithZeroRemoval = (setId: string): string => {
-  const patterns = [
-    /(sv|swsh|sm|xy|bw)(\d+)/,
-    /(zsv)(\d+)(pt\d+)/,
-    /(base|dp|ex|hgss|pop|bw)(\d+)/,
-    /(neo)(\d+)/,
-    /(pl)(\d+)/,
-    /(col)(\d+)/,
-    /(mcd)(\d+)/,
-  ];
-
-  for (const pattern of patterns) {
-    const match = setId.match(pattern);
-    if (match) {
-      if (match.length === 3) {
-        const series = match[1];
-        const number = removeLeadingZeros(match[2]);
-        return `${series}${number}`;
-      } else if (match.length === 4) {
-        return `${match[1]}${match[2]}${match[3]}`;
-      }
-    }
-  }
-
-  return setId;
-};
-
 /**
- * Service for managing Pokemon TCG set codes and mappings
- * Eliminates the need for manual mapping by using actual API data
+ * Simple, dynamic set code service using Pokemon TCG API
+ * No hard-coded mappings - everything is loaded from the official API
  */
 export class SetCodeService {
-  private setCodeMap: Map<string, PokemonApiSet> = new Map();
+  private dynamicSetMap: Map<string, string> = new Map();
   private initialized = false;
   private initializationPromise: Promise<void> | null = null;
-
-  private normalizedSetMap: Map<string, string> | null = null;
-  private normalizedMapLoadedAt = 0;
-  private normalizedLoadPromise: Promise<Map<string, string>> | null = null;
-  private normalizedRefreshPromise: Promise<Map<string, string>> | null = null;
+  private lastRefresh = 0;
+  private readonly REFRESH_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
 
   /**
-   * Initialize the service by loading all set codes from Pokemon TCG API
+   * Initialize by loading all sets from Pokemon TCG API
    */
   async initialize(): Promise<void> {
-    if (this.initialized) return;
+    if (this.initialized && this.dynamicSetMap.size > 0) {
+      logger.info('SetCodeService already initialized with ' + this.dynamicSetMap.size + ' mappings');
+      return;
+    }
 
     if (this.initializationPromise) {
+      logger.info('SetCodeService initialization already in progress, waiting...');
       return this.initializationPromise;
     }
 
-    this.initializationPromise = this.loadSetCodes();
+    logger.info('Starting SetCodeService initialization...');
+    this.initializationPromise = this.loadSets();
     await this.initializationPromise;
+    this.initializationPromise = null; // Reset for future re-initializations
   }
 
   /**
-   * Load all set codes from Pokemon TCG API
+   * Load all sets from Pokemon TCG API and build dynamic mapping
    */
-  private async loadSetCodes(): Promise<void> {
+  private async loadSets(): Promise<void> {
     try {
-      logger.info('Loading Pokemon TCG set codes...');
-      this.setCodeMap = await pokemonApiClient.getSetCodeMap();
+      logger.info('Loading Pokemon TCG sets from API...');
+      const allSets = await pokemonApiClient.getSets(1000);
+      
+      if (allSets.length === 0) {
+        logger.error('❌ Pokemon TCG API returned 0 sets! This will cause image loading issues.');
+        throw new Error('Pokemon TCG API returned no sets');
+      }
+
+      this.dynamicSetMap.clear();
+
+      for (const set of allSets) {
+        if (!set.id || !set.name) {
+          logger.warn(`Skipping invalid set: ${JSON.stringify(set)}`);
+          continue;
+        }
+
+        // Map by normalized set name (multiple variations)
+        const normalizedName = set.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        this.dynamicSetMap.set(normalizedName, set.id);
+        
+        // Also map without common words
+        const nameWithoutCommon = normalizedName
+          .replace(/^pokemon/, '')
+          .replace(/pokemon$/, '')
+          .replace(/^tcg/, '')
+          .replace(/tcg$/, '')
+          .replace(/^set/, '')
+          .replace(/set$/, '');
+        if (nameWithoutCommon && nameWithoutCommon !== normalizedName) {
+          this.dynamicSetMap.set(nameWithoutCommon, set.id);
+        }
+
+        // Map by PTCGO code if available
+        if (set.ptcgoCode) {
+          this.dynamicSetMap.set(set.ptcgoCode.toLowerCase(), set.id);
+          // Also normalize PTCGO code
+          this.dynamicSetMap.set(set.ptcgoCode.toLowerCase().replace(/[^a-z0-9]/g, ''), set.id);
+        }
+
+        // Map by set ID itself (normalized and as-is)
+        const normalizedId = set.id.toLowerCase();
+        this.dynamicSetMap.set(normalizedId, set.id);
+        this.dynamicSetMap.set(normalizedId.replace(/[^a-z0-9]/g, ''), set.id);
+
+        // Map by series + name combination
+        if (set.series) {
+          const seriesNormalized = set.series.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const nameNormalized = set.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+          this.dynamicSetMap.set(seriesNormalized + nameNormalized, set.id);
+          this.dynamicSetMap.set(nameNormalized + seriesNormalized, set.id);
+        }
+      }
+
       this.initialized = true;
-      logger.info(`Successfully loaded ${this.setCodeMap.size} set codes`);
+      this.lastRefresh = Date.now();
+      logger.info(`✅ Loaded ${allSets.length} sets, created ${this.dynamicSetMap.size} mappings from Pokemon TCG API`);
+      
+      // Log first 10 mappings for debugging
+      const sampleMappings = Array.from(this.dynamicSetMap.entries()).slice(0, 10);
+      logger.info(`Sample mappings: ${JSON.stringify(sampleMappings)}`);
     } catch (error) {
-      logger.error('Failed to load set codes from API', { error: (error as Error).message });
-      // Continue with empty map - fallback will be used
-      this.setCodeMap = new Map();
-      this.initialized = true;
-    }
-  }
-
-  private async getNormalizedSetMap(): Promise<Map<string, string>> {
-    const now = Date.now();
-    if (this.normalizedSetMap && now - this.normalizedMapLoadedAt < SET_MAP_CACHE_TTL) {
-      return this.normalizedSetMap;
-    }
-
-    if (this.normalizedLoadPromise) {
-      return this.normalizedLoadPromise;
-    }
-
-    this.normalizedLoadPromise = (async () => {
-      if (this.normalizedSetMap && now - this.normalizedMapLoadedAt < SET_MAP_CACHE_TTL) {
-        return this.normalizedSetMap;
-      }
-
-      const dbMap = await this.loadMappingsFromDb();
-      if (dbMap.size > 0) {
-        this.normalizedSetMap = dbMap;
-        this.normalizedMapLoadedAt = Date.now();
-        return dbMap;
-      }
-
-      return await this.refreshSetMappingsInternal();
-    })();
-
-    const result = await this.normalizedLoadPromise;
-    this.normalizedLoadPromise = null;
-    return result;
-  }
-
-  private async refreshSetMappingsInternal(prefetchedSets?: PokemonApiSet[]): Promise<Map<string, string>> {
-    if (this.normalizedRefreshPromise) {
-      return this.normalizedRefreshPromise;
-    }
-
-    this.normalizedRefreshPromise = (async () => {
-      try {
-        const sets = prefetchedSets ?? (await pokemonApiClient.getSets(1000));
-        if (!sets || sets.length === 0) {
-          logger.warn('Pokemon API returned no sets while refreshing mappings');
-          if (this.normalizedSetMap?.size) {
-            return this.normalizedSetMap;
-          }
-          return await this.loadMappingsFromDb();
-        }
-
-        const mappings = new Map<string, string>();
-        sets.forEach((set) => {
-          const keys = this.generateNormalizedKeys(set);
-          keys.forEach((key) => {
-            if (key) {
-              mappings.set(key, set.id.toLowerCase());
-            }
-          });
-        });
-
-        await this.saveMappingsToDb(mappings, sets);
-        this.normalizedSetMap = mappings;
-        this.normalizedMapLoadedAt = Date.now();
-        logger.info(`Refreshed ${mappings.size} set mappings from Pokemon API`);
-        return mappings;
-      } catch (error) {
-        logger.error('Failed to refresh set mappings from API', { error: (error as Error).message });
-        if (this.normalizedSetMap?.size) {
-          return this.normalizedSetMap;
-        }
-        return await this.loadMappingsFromDb();
-      } finally {
-        this.normalizedRefreshPromise = null;
-      }
-    })();
-
-    return this.normalizedRefreshPromise;
-  }
-
-  private async loadMappingsFromDb(): Promise<Map<string, string>> {
-    const db = getDb();
-    return new Promise((resolve) => {
-      db.all('SELECT normalizedKey, apiSetId FROM set_mappings', [], (err, rows: any[]) => {
-        if (err) {
-          logger.error('Error loading set mappings from DB', { error: err.message });
-          resolve(new Map());
-          return;
-        }
-
-        const map = new Map<string, string>();
-        rows.forEach((row) => {
-          map.set(row.normalizedKey, row.apiSetId);
-        });
-
-        if (map.size > 0) {
-          logger.info(`Loaded ${map.size} set mappings from database cache`);
-        }
-        resolve(map);
+      logger.error('❌ CRITICAL: Failed to load sets from Pokemon TCG API', { 
+        error: (error as Error).message,
+        stack: (error as Error).stack
       });
-    });
-  }
-
-  private async saveMappingsToDb(mappings: Map<string, string>, sets: PokemonApiSet[]): Promise<void> {
-    const db = getDb();
-    await new Promise<void>((resolve, reject) => {
-      db.serialize(() => {
-        db.run('BEGIN TRANSACTION');
-
-        db.run('DELETE FROM set_mappings', [], (err) => {
-          if (err) {
-            logger.error('Failed to clear set_mappings table', { error: err.message });
-            db.run('ROLLBACK');
-            reject(err);
-            return;
-          }
-
-          const now = Date.now();
-          const stmt = db.prepare(`
-            INSERT INTO set_mappings (normalizedKey, apiSetId, apiSetName, series, ptcgoCode, totalCards, updatedAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-          `);
-
-          let inserted = 0;
-          let failed = 0;
-
-          for (const [key, apiSetId] of mappings.entries()) {
-            const setData = sets.find((set) => set.id.toLowerCase() === apiSetId.toLowerCase());
-            if (!setData) {
-              failed++;
-              continue;
-            }
-
-            stmt.run(
-              [
-                key,
-                apiSetId,
-                setData.name,
-                setData.series || '',
-                (setData as any).ptcgoCode || '',
-                (setData as any).printedTotal || (setData as any).total || 0,
-                now,
-              ],
-              (runErr) => {
-                if (runErr) {
-                  failed++;
-                  logger.warn(`Failed to insert set mapping for ${key}`, { error: runErr.message });
-                } else {
-                  inserted++;
-                }
-              }
-            );
-          }
-
-          stmt.finalize((finalizeErr) => {
-            if (finalizeErr) {
-              logger.error('Failed to finalize set mapping insert', { error: finalizeErr.message });
-              db.run('ROLLBACK');
-              reject(finalizeErr);
-              return;
-            }
-
-            db.run('COMMIT', (commitErr) => {
-              if (commitErr) {
-                logger.error('Failed to commit set mapping transaction', { error: commitErr.message });
-                db.run('ROLLBACK');
-                reject(commitErr);
-              } else {
-                logger.info(`Saved ${inserted} set mappings to database (${failed} failed)`);
-                resolve();
-              }
-            });
-          });
-        });
-      });
-    });
-  }
-
-  private generateNormalizedKeys(set: PokemonApiSet): string[] {
-    const keys: string[] = [];
-
-    keys.push(set.id.toLowerCase());
-    keys.push(normalizeSetIdWithZeroRemoval(set.id.toLowerCase()));
-    keys.push(set.name.toLowerCase().replace(/[^a-z0-9]/g, ''));
-
-    if (set.series) {
-      const seriesNormalized = set.series.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const nameNormalized = set.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-      keys.push(seriesNormalized + nameNormalized);
+      // Don't mark as initialized on error - allow retry
+      this.initialized = false;
+      throw error; // Re-throw to allow caller to handle
     }
-
-    if ((set as any).ptcgoCode) {
-      keys.push((set as any).ptcgoCode.toLowerCase());
-    }
-
-    if ((set as any).total && (set as any).total > 0) {
-      const totalStr = (set as any).total.toString();
-      keys.push(`${set.id.toLowerCase()}${totalStr}`);
-      keys.push(`${set.id.toLowerCase()}${removeLeadingZeros(totalStr)}`);
-    }
-
-    if (set.series && (set as any).total && (set as any).total > 0) {
-      const seriesNormalized = set.series.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const totalStr = (set as any).total.toString();
-      keys.push(`${seriesNormalized}${totalStr}`);
-      keys.push(`${seriesNormalized}${removeLeadingZeros(totalStr)}`);
-    }
-
-    keys.push(`${set.id.toLowerCase()}${set.name.toLowerCase().replace(/[^a-z0-9]/g, '')}`);
-    keys.push(set.name.toLowerCase().replace(/\s+/g, ''));
-
-    if (set.id === 'smp') {
-      keys.push('smpromos', 'smspromos', 'sm-promos');
-    }
-    if (set.id === 'swshp') {
-      keys.push('swshpromos', 'swordshieldpromos');
-    }
-    if (set.id === 'xyp') {
-      keys.push('xypromos');
-    }
-    if (set.id === 'bwp') {
-      keys.push('bwblackwhitepromos', 'blackandwhitepromos');
-    }
-    if (set.id === 'base1') {
-      keys.push('baseset', 'base-set');
-    }
-
-    return [...new Set(keys)].filter((key) => key.length > 0);
   }
 
   /**
-   * Refresh Pokemon set mappings from the API
+   * Refresh set mappings (called periodically)
    */
   async refreshSetMappings(): Promise<Map<string, string>> {
-    return await this.refreshSetMappingsInternal();
+    await this.loadSets();
+    return this.dynamicSetMap;
   }
 
   /**
-   * Get statistics about cached set mappings
+   * Normalize a set ID to the correct Pokemon TCG API set code
+   * Tries multiple strategies to find the correct mapping
    */
-  async getSetMappingStats(): Promise<SetMappingStats> {
-    const db = getDb();
-    const databaseMappings = await new Promise<number>((resolve) => {
-      db.get('SELECT COUNT(*) as totalMappings FROM set_mappings', [], (err, row: any) => {
-        if (err) {
-          logger.warn('Failed to read set mapping stats from DB', { error: err.message });
-          resolve(0);
-        } else {
-          resolve(row?.totalMappings || 0);
-        }
-      });
-    });
+  async normalizeSetIdForImageUrl(setId: string, setName?: string): Promise<string | null> {
+    // Ensure service is initialized
+    await this.initialize();
 
-    return {
-      databaseMappings,
-      cachedMappings: this.normalizedSetMap?.size || 0,
-      lastRefreshed: this.normalizedMapLoadedAt || null,
-      cacheTtl: SET_MAP_CACHE_TTL,
-    };
+    if (!setId) {
+      logger.warn('normalizeSetIdForImageUrl called with empty setId');
+      return null;
+    }
+
+    if (this.dynamicSetMap.size === 0) {
+      logger.error('❌ dynamicSetMap is empty! Cannot normalize set IDs. Images will not load.');
+      return null;
+    }
+
+    // Strategy 1: Try normalized setId directly
+    const normalizedId = setId.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const directMatch = this.dynamicSetMap.get(normalizedId);
+    if (directMatch) {
+      logger.debug(`✅ Direct match for ${setId} -> ${directMatch}`);
+      return directMatch;
+    }
+
+    // Strategy 2: Try setName if provided
+    if (setName) {
+      const normalizedName = setName.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const nameMatch = this.dynamicSetMap.get(normalizedName);
+      if (nameMatch) {
+        logger.debug(`✅ Name match for ${setName} -> ${nameMatch}`);
+        return nameMatch;
+      }
+    }
+
+    // Strategy 3: Try partial matches - check if any key contains the setId or vice versa
+    for (const [key, apiSetId] of this.dynamicSetMap.entries()) {
+      if (key.length >= 3 && normalizedId.length >= 3) {
+        if (key.includes(normalizedId) || normalizedId.includes(key)) {
+          logger.debug(`✅ Partial match for ${setId} (${normalizedId} matches ${key}) -> ${apiSetId}`);
+          return apiSetId;
+        }
+      }
+    }
+
+    // Strategy 4: Try with common variations (remove common prefixes/suffixes)
+    const variations = [
+      normalizedId.replace(/^set/, '').replace(/set$/, ''),
+      normalizedId.replace(/^pokemon/, '').replace(/pokemon$/, ''),
+      normalizedId.replace(/^tcg/, '').replace(/tcg$/, ''),
+    ];
+    
+    for (const variation of variations) {
+      if (variation && variation !== normalizedId) {
+        const match = this.dynamicSetMap.get(variation);
+        if (match) {
+          logger.debug(`✅ Variation match for ${setId} -> ${match}`);
+          return match;
+        }
+      }
+    }
+
+    logger.warn(`❌ Could not normalize set ID: "${setId}"${setName ? ` (setName: "${setName}")` : ''}. Tried ${this.dynamicSetMap.size} mappings.`);
+    return null;
   }
 
   /**
-   * Get the correct Pokemon TCG API set code for a database set ID
-   * This replaces the manual mapping with API-driven lookup
+   * Get API set code (alias for normalizeSetIdForImageUrl for compatibility)
    */
   async getApiSetCode(databaseSetId: string): Promise<string | null> {
-    await this.initialize();
-
-    if (!databaseSetId) return null;
-
-    const normalizedDbId = databaseSetId.toLowerCase();
-
-    if (this.setCodeMap.has(normalizedDbId)) {
-      const set = this.setCodeMap.get(normalizedDbId)!;
-      logger.debug(`Found exact match for ${databaseSetId}: ${set.id}`);
-      return set.id;
-    }
-
-    const normalizedKey = normalizedDbId.replace(/[^a-z0-9]/g, '');
-    const normalizedMap = await this.getNormalizedSetMap();
-    if (normalizedMap.has(normalizedKey)) {
-      const match = normalizedMap.get(normalizedKey)!;
-      logger.debug(`Resolved ${databaseSetId} via normalized map: ${match}`);
-      return match;
-    }
-
-    const apiCode = this.findBestMatch(normalizedDbId);
-    if (apiCode) {
-      logger.debug(`Found fuzzy match for ${databaseSetId}: ${apiCode}`);
-      return apiCode;
-    }
-
-    const fallbackCode = this.extractSetCodeFromPattern(normalizedDbId);
-    if (fallbackCode) {
-      logger.debug(`Using pattern fallback for ${databaseSetId}: ${fallbackCode}`);
-      return fallbackCode;
-    }
-
-    logger.warn(`Could not find API set code for database ID: ${databaseSetId}`);
-    return null;
+    return this.normalizeSetIdForImageUrl(databaseSetId);
   }
 
+  /**
+   * Normalize set ID (alias for compatibility)
+   */
   async normalizeSetId(input: string): Promise<string | null> {
-    const normalizedKey = input?.toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (!normalizedKey) {
-      return null;
-    }
-
-    const normalizedMap = await this.getNormalizedSetMap();
-    return normalizedMap.get(normalizedKey) || null;
+    return this.normalizeSetIdForImageUrl(input);
   }
 
+  /**
+   * Build deterministic image URLs using normalized set ID
+   */
   async buildDeterministicImageUrls(
     setId?: string | null,
-    cardNumber?: string | null
+    cardNumber?: string | null,
+    setName?: string | null
   ): Promise<{ small: string; large: string } | null> {
     if (!setId || !cardNumber) {
+      if (!setId) logger.debug('buildDeterministicImageUrls: missing setId');
+      if (!cardNumber) logger.debug('buildDeterministicImageUrls: missing cardNumber');
       return null;
     }
 
-    const trimmedSet = setId.trim();
+    const normalizedSet = await this.normalizeSetIdForImageUrl(setId, setName || undefined);
+    if (!normalizedSet) {
+      logger.warn(`Could not normalize set ID for image URL: "${setId}"${setName ? ` (setName: "${setName}")` : ''}`);
+      return null;
+    }
+
+    // Normalize card number: extract first part and remove leading zeros from numeric card numbers
+    // Format: https://images.pokemontcg.io/{setId}/{cardNumber}.png
     const baseNumber = cardNumber.split('/')[0].trim();
-    if (!trimmedSet || !baseNumber) {
+    if (!baseNumber) {
+      logger.warn(`Invalid card number format: "${cardNumber}"`);
       return null;
     }
 
-    const sanitizedNumber = removeLeadingZeros(baseNumber.replace(/\s+/g, '').toLowerCase());
-    
-    // Try normalized lookup first
-    let normalizedSet = await this.normalizeSetId(trimmedSet);
-    
-    // If normalized lookup fails, try pattern extraction as fallback
-    if (!normalizedSet) {
-      const normalizedInput = trimmedSet.toLowerCase().replace(/[^a-z0-9]/g, '');
-      normalizedSet = this.extractSetCodeFromPattern(normalizedInput);
-      
-      // Special handling for sets like "svblackbolt" -> try "zsv10pt5" or similar
-      if (!normalizedSet && normalizedInput.startsWith('sv')) {
-        // Try to extract SV series number if present
-        const svMatch = normalizedInput.match(/sv(\d+)/);
-        if (svMatch) {
-          normalizedSet = `sv${parseInt(svMatch[1], 10)}`;
-        } else if (normalizedInput.includes('blackbolt')) {
-          // Special case for Black Bolt set
-          normalizedSet = 'zsv10pt5';
-        } else if (normalizedInput.includes('whiteflare')) {
-          // Special case for White Flare set
-          normalizedSet = 'rsv10pt5';
-        }
-      }
-    }
-    
-    if (!normalizedSet) {
-      return null;
+    // Remove leading zeros from purely numeric card numbers
+    // Some sets (like ex13) don't use leading zeros, so "026" should become "26"
+    // But keep letters/special chars as-is (e.g., "001a" stays "001a")
+    let normalizedCardNumber = baseNumber;
+    if (/^\d+$/.test(baseNumber)) {
+      // Purely numeric - remove leading zeros by converting to int and back
+      normalizedCardNumber = parseInt(baseNumber, 10).toString();
     }
 
-    const baseUrl = `https://images.pokemontcg.io/${normalizedSet}/${sanitizedNumber}`;
+    const imageUrl = `https://images.pokemontcg.io/${normalizedSet}/${normalizedCardNumber}.png`;
+    logger.debug(`Built deterministic image URL: ${imageUrl} (from setId: ${setId}, cardNumber: ${cardNumber} -> normalized: ${normalizedCardNumber})`);
+    
     return {
-      small: `${baseUrl}.png`,
-      large: `${baseUrl}.png`,
+      small: imageUrl,
+      large: imageUrl, // Use same URL for both
     };
   }
 
   /**
-   * Find the best matching API set code using various strategies
+   * Get statistics about the set mappings
    */
-  private findBestMatch(normalizedDbId: string): string | null {
-    const suffixes = ['baseset', 'promocards', 'promos', 'trainerkit'];
-    for (const suffix of suffixes) {
-      if (normalizedDbId.endsWith(suffix)) {
-        const withoutSuffix = normalizedDbId.replace(new RegExp(`${suffix}$`), '');
-        if (this.setCodeMap.has(withoutSuffix)) {
-          return this.setCodeMap.get(withoutSuffix)!.id;
-        }
-      }
-    }
-
-    const seriesPatterns = [
-      /(sv|swsh|sm|xy|bw)(\d+)/,
-      /(base)(\d+)/,
-      /(ex|pl|hgss|col)(\d+)/,
-    ];
-
-    for (const pattern of seriesPatterns) {
-      const match = normalizedDbId.match(pattern);
-      if (match) {
-        const series = match[1];
-        const number = parseInt(match[2], 10);
-
-        const exactKey = `${series}${number}`;
-        if (this.setCodeMap.has(exactKey)) {
-          return this.setCodeMap.get(exactKey)!.id;
-        }
-      }
-    }
-
-    return null;
+  getSetMappingStats() {
+    return {
+      databaseMappings: 0, // No longer using database
+      cachedMappings: this.dynamicSetMap.size,
+      lastRefreshed: this.lastRefresh,
+      cacheTtl: this.REFRESH_INTERVAL,
+    };
   }
 
   /**
-   * Extract set code using pattern recognition as last resort
-   */
-  private extractSetCodeFromPattern(normalizedDbId: string): string | null {
-    const patterns = [
-      /(sv|swsh|sm|xy|bw|ex|pl|hgss|col|cel|ecard|me)(\d+)/,
-      /(base|p|bp|np)(\d*)/,
-    ];
-
-    for (const pattern of patterns) {
-      const match = normalizedDbId.match(pattern);
-      if (match) {
-        const series = match[1];
-        const number = match[2] || '';
-        const cleanNumber = number ? parseInt(number, 10).toString() : '';
-        return `${series}${cleanNumber}`;
-      }
-    }
-
-    return null;
-  }
-
-  /**
-   * Get all available set codes
-   */
-  async getAllSetCodes(): Promise<string[]> {
-    await this.initialize();
-    return Array.from(this.setCodeMap.keys());
-  }
-
-  /**
-   * Get set data by API set code
-   */
-  async getSetByCode(apiSetCode: string): Promise<PokemonApiSet | null> {
-    await this.initialize();
-
-    for (const [, set] of this.setCodeMap) {
-      if (set.id.toLowerCase() === apiSetCode.toLowerCase()) {
-        return set;
-      }
-    }
-
-    return null;
-  }
-
-  /**
-   * Check if service is ready
+   * Check if service is initialized
    */
   isInitialized(): boolean {
     return this.initialized;
   }
 
   /**
-   * Clear cache and reload (useful for testing)
+   * Auto-refresh if cache is stale
    */
-  async reload(): Promise<void> {
-    this.initialized = false;
-    this.initializationPromise = null;
-    this.setCodeMap.clear();
-    this.normalizedSetMap = null;
-    this.normalizedMapLoadedAt = 0;
-    await this.initialize();
+  async ensureFresh(): Promise<void> {
+    const now = Date.now();
+    if (now - this.lastRefresh > this.REFRESH_INTERVAL) {
+      logger.info('Set mappings cache expired, refreshing...');
+      await this.refreshSetMappings();
+    }
   }
 }
 
 export const setCodeService = new SetCodeService();
+
+// Auto-refresh every 24 hours
+setInterval(() => {
+  setCodeService.ensureFresh().catch((error) => {
+    logger.error('Failed to auto-refresh set mappings', { error: (error as Error).message });
+  });
+}, 24 * 60 * 60 * 1000);

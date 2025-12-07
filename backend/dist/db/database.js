@@ -96,6 +96,7 @@ const initializeDatabase = () => {
       fetchedAt INTEGER
     )
   `;
+    // Set mappings are now loaded dynamically from Pokemon TCG API (no database table needed)
     const tables = [
         createCardMappingsTable,
         createPriceHistoryTable,

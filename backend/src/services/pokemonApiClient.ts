@@ -110,7 +110,7 @@ export interface CardImageMatchResult {
 class PokemonApiClient {
   private readonly apiKey = env.apis.pokemonTcg || '';
   private readonly maxRetries = 2;
-  private readonly defaultTimeout = 20000;
+  private readonly defaultTimeout = 30000; // Increased to 30 seconds for large requests
 
   private buildHeaders(): HeadersInit {
     const headers: HeadersInit = {
@@ -322,10 +322,11 @@ class PokemonApiClient {
 
   async getSets(limit = 250): Promise<PokemonApiSet[]> {
     try {
+      // Use longer timeout for set fetching (can be a large request)
       const response = await this.request<PokemonSetsResponse>('/sets', {
         orderBy: '-releaseDate',
         pageSize: String(limit),
-      });
+      }, 45000); // 45 second timeout for large set lists
       return response.data ?? [];
     } catch (error) {
       logger.warn('Pokemon API failed, falling back to cached/empty data', { error: (error as Error).message });

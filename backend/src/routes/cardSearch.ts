@@ -212,7 +212,7 @@ router.get('/pool', async (req, res) => {
     const db = getDb();
 
     const { limit = '250', minPrice = '1', maxPrice = '20000' } = req.query;
-    const poolLimit = Math.min(parseInt(limit as string) || 250, 5000); // Increased max to 5000
+    const poolLimit = Math.min(parseInt(limit as string) || 250, 10000); // Increased max to 10000 for better pool diversity
 
     const imageColumns = await getImageColumnSelectFragment();
 
