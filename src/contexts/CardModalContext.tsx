@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -17,13 +18,16 @@ import { InvestmentModal } from '../features/market/components/InvestmentModal';
 import { PriceChart } from '../features/market/components/PriceChart';
 
 interface CardModalContextValue {
-  /** Open the card detail modal. Writes `?card=<id>` so the URL is shareable. */
   openCard: (card: PokemonCard | OnePieceCard) => void;
 }
 
 const CardModalContext = createContext<CardModalContextValue>({ openCard: () => {} });
 
 export const useCardModal = () => useContext(CardModalContext);
+
+function isPokemonCard(card: PokemonCard | OnePieceCard): card is PokemonCard {
+  return 'types' in card || 'tcgplayer' in card || 'hp' in card;
+}
 
 function OnePieceCardModal({
   card,
@@ -43,33 +47,47 @@ function OnePieceCardModal({
       return;
     }
 
+    const controller = new AbortController();
     const fetchHistory = async () => {
       setIsLoadingHistory(true);
       try {
-        const history = await onePieceApi.getPriceHistory(card.id);
-        setPriceHistory(history);
+        const history = await onePieceApi.getPriceHistory(card.id, card.marketPrice);
+        if (!controller.signal.aborted) setPriceHistory(history);
       } catch (err) {
-        console.error('Error fetching price history:', err);
+        if (!controller.signal.aborted) {
+          console.error('Error fetching price history:', err);
+        }
       } finally {
-        setIsLoadingHistory(false);
+        if (!controller.signal.aborted) setIsLoadingHistory(false);
       }
     };
 
     fetchHistory();
-  }, [isOpen, card]);
+    return () => controller.abort();
+  }, [isOpen, card, card?.id, card?.marketPrice]);
 
   if (!isOpen || !card) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4"
+      onClick={onClose}
+      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+      role="button"
+      tabIndex={0}
+      aria-label="Close modal"
+    >
       <div
         className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-border-default bg-surface-raised p-6 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={card.name}
       >
         <button
           type="button"
-          onClick={onClose}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
           className="absolute right-3 top-3 rounded-lg p-1 text-ink-muted hover:bg-surface-hover hover:text-ink-primary"
+          aria-label="Close"
         >
           &times;
         </button>
@@ -94,7 +112,7 @@ function OnePieceCardModal({
           )}
 
           <div className="w-full text-center">
-            <h2 className="text-xl font-bold text-white">{card.name}</h2>
+            <h2 className="text-xl font-bold text-ink-primary">{card.name}</h2>
             <p className="mt-1 text-sm text-ink-muted">{card.id}</p>
             <p className="text-xs text-ink-muted">{card.set.name}</p>
           </div>
@@ -103,48 +121,49 @@ function OnePieceCardModal({
             {card.cardColor && (
               <div className="rounded-lg bg-surface-inset p-3">
                 <p className="text-xs text-ink-muted">Color</p>
-                <p className="font-medium text-white">{card.cardColor}</p>
+                <p className="font-medium text-ink-primary">{card.cardColor}</p>
               </div>
             )}
             {card.cardType && (
               <div className="rounded-lg bg-surface-inset p-3">
                 <p className="text-xs text-ink-muted">Type</p>
-                <p className="font-medium text-white">{card.cardType}</p>
+                <p className="font-medium text-ink-primary">{card.cardType}</p>
               </div>
             )}
             {card.rarity && (
               <div className="rounded-lg bg-surface-inset p-3">
                 <p className="text-xs text-ink-muted">Rarity</p>
-                <p className="font-medium text-white">{card.rarity}</p>
+                <p className="font-medium text-ink-primary">{card.rarity}</p>
               </div>
             )}
             {card.cardCost && (
               <div className="rounded-lg bg-surface-inset p-3">
                 <p className="text-xs text-ink-muted">Cost</p>
-                <p className="font-medium text-white">{card.cardCost}</p>
+                <p className="font-medium text-ink-primary">{card.cardCost}</p>
               </div>
             )}
             {card.cardPower && (
               <div className="rounded-lg bg-surface-inset p-3">
                 <p className="text-xs text-ink-muted">Power</p>
-                <p className="font-medium text-white">{card.cardPower}</p>
+                <p className="font-medium text-ink-primary">{card.cardPower}</p>
               </div>
             )}
             {card.counterAmount != null && (
               <div className="rounded-lg bg-surface-inset p-3">
                 <p className="text-xs text-ink-muted">Counter</p>
-                <p className="font-medium text-white">{card.counterAmount}</p>
+                <p className="font-medium text-ink-primary">{card.counterAmount}</p>
               </div>
             )}
             {card.marketPrice != null && (
               <div className="col-span-2 rounded-lg bg-accent-muted p-3">
-                <p className="text-xs text-accent">Market Price</p>
-                <p className="text-lg font-bold text-white">${card.marketPrice.toFixed(2)}</p>
+                <p className="text-xs text-accent">
+                  {card.priceSource === 'tcgplayer' ? 'TCGPlayer Market Price' : 'Market Price'}
+                </p>
+                <p className="text-lg font-bold text-ink-primary">${card.marketPrice.toFixed(2)}</p>
               </div>
             )}
           </div>
 
-          {/* Price History */}
           <div className="w-full">
             {isLoadingHistory ? (
               <div className="flex items-center justify-center rounded-lg bg-surface-inset p-4">
@@ -183,51 +202,60 @@ function OnePieceCardModal({
   );
 }
 
-/**
- * Hosts the global card detail modal, driven by the `?card=` search param.
- * Opening from a tile seeds the card object directly; landing on a shared
- * link fetches the card by id. Browser back closes the modal naturally.
- */
 export function CardModalProvider({ children }: { children: ReactNode }) {
   const { isPokemon, isOnePiece } = useGame();
   const [searchParams, setSearchParams] = useSearchParams();
   const [pokemonCard, setPokemonCard] = useState<PokemonCard | null>(null);
   const [opCard, setOpCard] = useState<OnePieceCard | null>(null);
+  const fetchingRef = useRef<string | null>(null);
+  const loadedRef = useRef<string | null>(null);
   const cardId = searchParams.get('card');
 
   useEffect(() => {
     if (!cardId) return;
+    if (loadedRef.current === cardId) return;
+
+    const controller = new AbortController();
+    fetchingRef.current = cardId;
 
     if (isPokemon) {
-      if (pokemonCard?.id === cardId) return;
-      let cancelled = false;
       pokemonApi.getCardById(cardId).then((fetched) => {
-        if (!cancelled && fetched) setPokemonCard(fetched);
+        if (!controller.signal.aborted && fetchingRef.current === cardId && fetched) {
+          setPokemonCard(fetched);
+          loadedRef.current = cardId;
+        }
+      }).catch(() => {
+        if (!controller.signal.aborted) {
+          console.warn(`Failed to fetch Pokemon card: ${cardId}`);
+        }
       });
-      return () => {
-        cancelled = true;
-      };
     }
 
     if (isOnePiece) {
-      if (opCard?.id === cardId) return;
-      let cancelled = false;
       onePieceApi.getCardById(cardId).then((fetched) => {
-        if (!cancelled && fetched) setOpCard(fetched);
+        if (!controller.signal.aborted && fetchingRef.current === cardId && fetched) {
+          setOpCard(fetched);
+          loadedRef.current = cardId;
+        }
+      }).catch(() => {
+        if (!controller.signal.aborted) {
+          console.warn(`Failed to fetch One Piece card: ${cardId}`);
+        }
       });
-      return () => {
-        cancelled = true;
-      };
     }
-  }, [cardId, isPokemon, isOnePiece, pokemonCard, opCard]);
+
+    return () => {
+      controller.abort();
+    };
+  }, [cardId, isPokemon, isOnePiece]);
 
   const openCard = useCallback(
     (next: PokemonCard | OnePieceCard) => {
-      if ('tcgplayer' in next || 'types' in next) {
-        setPokemonCard(next as PokemonCard);
+      if (isPokemonCard(next)) {
+        setPokemonCard(next);
         setOpCard(null);
       } else {
-        setOpCard(next as OnePieceCard);
+        setOpCard(next);
         setPokemonCard(null);
       }
       setSearchParams(
