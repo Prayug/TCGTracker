@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { VaultCard as VaultCardType } from '../../../types/pokemon';
 import { vaultService } from '../../../services/vaultService';
@@ -7,6 +7,8 @@ import { VaultCard } from './VaultCard';
 import { VaultPortfolioBySet } from './VaultPortfolioBySet';
 import { VaultHeatmap } from './VaultHeatmap';
 import { SectionLabel } from '../../../components/common/SectionLabel';
+import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
+import { useToast } from '../../../components/common/Toast';
 import { formatCurrency, formatPercent } from '../../../utils/cardDisplay';
 import { Vault, TrendingUp, TrendingDown, Download, Upload, Trash2, Camera, Search } from 'lucide-react';
 
@@ -15,9 +17,18 @@ interface VaultViewProps {
 }
 
 export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
-  const { game, isPokemon, isOnePiece } = useGame();
+  const { game, isPokemon } = useGame();
+  const { showToast } = useToast();
   const [vaultCards, setVaultCards] = useState<VaultCardType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  const loadVaultCards = useCallback(() => {
+    setIsLoading(true);
+    const cards = vaultService.getVaultCards(game);
+    setVaultCards(cards);
+    setIsLoading(false);
+  }, [game]);
 
   useEffect(() => {
     loadVaultCards();
@@ -25,14 +36,7 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
     const onVaultUpdated = () => loadVaultCards();
     window.addEventListener('tcg:vault-updated', onVaultUpdated);
     return () => window.removeEventListener('tcg:vault-updated', onVaultUpdated);
-  }, [game]);
-
-  const loadVaultCards = () => {
-    setIsLoading(true);
-    const cards = vaultService.getVaultCards(game);
-    setVaultCards(cards);
-    setIsLoading(false);
-  };
+  }, [loadVaultCards]);
 
   const handleRemoveCard = (id: string) => {
     vaultService.removeFromVault(id, game);
@@ -63,9 +67,9 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
             const content = e.target?.result as string;
             vaultService.importVault(content, game);
             loadVaultCards();
-            alert('Vault imported successfully!');
-          } catch (error) {
-            alert('Error importing vault: Invalid file format');
+            showToast('Vault imported successfully!', 'success');
+          } catch {
+            showToast('Error importing vault: Invalid file format', 'error');
           }
         };
         reader.readAsText(file);
@@ -75,17 +79,21 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
   };
 
   const handleClearVault = () => {
-    if (window.confirm('Are you sure you want to clear your entire vault? This cannot be undone!')) {
-      vaultService.clearVault(game);
-      loadVaultCards();
-    }
+    setShowClearConfirm(true);
+  };
+
+  const handleClearConfirm = () => {
+    vaultService.clearVault(game);
+    loadVaultCards();
+    setShowClearConfirm(false);
+    showToast('Vault cleared successfully', 'info');
   };
 
   const stats = vaultService.getVaultStats(game);
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex items-center justify-center min-h-[400px]" role="status" aria-live="polite">
         <div className="h-12 w-12 animate-spin rounded-full border-2 border-border-subtle border-t-accent"></div>
       </div>
     );
@@ -95,7 +103,7 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
   const gameLabel = isPokemon ? 'Pokemon' : 'One Piece';
 
   return (
-    <div className="space-y-8">
+    <>
       {/* Portfolio header — the numbers are the design */}
       <div className="animate-slide-up">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -213,6 +221,16 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
           </div>
         </div>
       )}
-    </div>
+
+      <ConfirmDialog
+        isOpen={showClearConfirm}
+        onConfirm={handleClearConfirm}
+        onCancel={() => setShowClearConfirm(false)}
+        title="Clear vault?"
+        message="Are you sure you want to clear your entire vault? This cannot be undone!"
+        confirmLabel="Clear vault"
+        variant="destructive"
+      />
+    </>
   );
 };

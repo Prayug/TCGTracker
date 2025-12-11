@@ -2,7 +2,9 @@ import { VaultCard } from '../types/pokemon';
 import { authService } from './authService';
 import { fetchRemoteVault, pushVaultToRemote } from './portfolioApiService';
 
-const VAULT_STORAGE_KEY = 'tcg_vault_cards';
+const VAULT_STORAGE_KEY_LEGACY = 'tcg_vault_cards';
+const VAULT_STORAGE_KEY_POKEMON = 'tcg_vault_cards_pokemon';
+const VAULT_STORAGE_KEY_ONEPIECE = 'tcg_vault_cards_onepiece';
 const SYNC_FLAG_KEY = 'tcg_vault_synced';
 
 export async function syncVaultOnLogin(): Promise<void> {
@@ -38,15 +40,35 @@ export async function syncVaultToServer(cards: VaultCard[]): Promise<void> {
 }
 
 function readLocalVault(): VaultCard[] {
-  try {
-    const stored = localStorage.getItem(VAULT_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
+  const migrate = (key: string) => {
+    const stored = localStorage.getItem(key);
+    if (stored) {
+      try { return JSON.parse(stored); } catch { return []; }
+    }
     return [];
+  };
+
+  // Read from legacy key if newer keys are empty (migration path)
+  const pokemonCards = migrate(VAULT_STORAGE_KEY_POKEMON);
+  const onePieceCards = migrate(VAULT_STORAGE_KEY_ONEPIECE);
+
+  if (pokemonCards.length === 0 && onePieceCards.length === 0) {
+    const legacy = migrate(VAULT_STORAGE_KEY_LEGACY);
+    if (legacy.length > 0) {
+      // Migrate legacy data — assume Pokemon if no game field
+      localStorage.setItem(VAULT_STORAGE_KEY_POKEMON, JSON.stringify(legacy));
+      localStorage.removeItem(VAULT_STORAGE_KEY_LEGACY);
+      return legacy;
+    }
   }
+
+  return [...pokemonCards, ...onePieceCards];
 }
 
 function writeLocalVault(cards: VaultCard[]): void {
-  localStorage.setItem(VAULT_STORAGE_KEY, JSON.stringify(cards));
+  const pokemonCards = cards.filter((c) => !c.game || c.game === 'pokemon');
+  const onePieceCards = cards.filter((c) => c.game === 'onepiece');
+  localStorage.setItem(VAULT_STORAGE_KEY_POKEMON, JSON.stringify(pokemonCards));
+  localStorage.setItem(VAULT_STORAGE_KEY_ONEPIECE, JSON.stringify(onePieceCards));
   window.dispatchEvent(new CustomEvent('tcg:vault-updated'));
 }
