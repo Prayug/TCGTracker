@@ -1,10 +1,17 @@
 import axios from 'axios';
+import { env } from '../config/env';
 
-const API_BASE_URL = import.meta.env.VITE_CARD_SCANNER_API_URL || 'http://localhost:5001';
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
-// Scanner API uses its own axios instance to avoid inheriting withCredentials
-// from the global defaults (which is for Node backend auth cookies).
-const scannerAxios = axios.create({ withCredentials: false });
+const API_BASE_URL = env.apiUrl
+  ? `${env.apiUrl.replace(/\/+$/, '')}/api/scanner`
+  : import.meta.env.VITE_CARD_SCANNER_API_URL || 'http://localhost:5001';
+
+const scannerAxios = axios.create({
+  withCredentials: false,
+  timeout: 30000,
+});
 
 export interface ScanResult {
   success: boolean;
@@ -29,10 +36,22 @@ export interface AvailableSets {
   error?: string;
 }
 
-/**
- * Scan a Pokemon card from an uploaded file
- */
+function validateFile(file: File): string | null {
+  if (!ALLOWED_TYPES.includes(file.type)) {
+    return `Unsupported file type: ${file.type}. Allowed: JPEG, PNG, WebP.`;
+  }
+  if (file.size > MAX_FILE_SIZE) {
+    return `File too large: ${(file.size / 1024 / 1024).toFixed(1)}MB. Max: 10MB.`;
+  }
+  return null;
+}
+
 export async function scanCardFromFile(file: File): Promise<ScanResult> {
+  const validationError = validateFile(file);
+  if (validationError) {
+    return { success: false, error: validationError };
+  }
+
   const formData = new FormData();
   formData.append('image', file);
 
@@ -55,10 +74,11 @@ export async function scanCardFromFile(file: File): Promise<ScanResult> {
   }
 }
 
-/**
- * Scan a Pokemon card from base64 image data (for camera capture)
- */
 export async function scanCardFromBase64(base64Image: string): Promise<ScanResult> {
+  if (base64Image.length > MAX_FILE_SIZE * 1.37) {
+    return { success: false, error: 'Image data too large. Max: 10MB.' };
+  }
+
   try {
     const response = await scannerAxios.post<ScanResult>(
       `${API_BASE_URL}/api/scan-card`,
@@ -66,9 +86,7 @@ export async function scanCardFromBase64(base64Image: string): Promise<ScanResul
         image: base64Image,
       },
       {
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       }
     );
     return response.data;
@@ -80,9 +98,6 @@ export async function scanCardFromBase64(base64Image: string): Promise<ScanResul
   }
 }
 
-/**
- * Get list of available Pokemon card sets
- */
 export async function getAvailableSets(): Promise<AvailableSets> {
   try {
     const response = await scannerAxios.get<AvailableSets>(
@@ -97,16 +112,13 @@ export async function getAvailableSets(): Promise<AvailableSets> {
   }
 }
 
-/**
- * Check if the card scanner backend is available
- */
 export async function checkBackendHealth(): Promise<boolean> {
   try {
     const response = await scannerAxios.get(`${API_BASE_URL}/health`, {
       timeout: 5000,
     });
     return response.data.status === 'ok';
-  } catch (error) {
+  } catch {
     return false;
   }
 }

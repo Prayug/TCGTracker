@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { SortOption, FilterOption } from '../types/pokemon';
 import { OnePieceSortOption } from '../types/onepiece';
 import { pokemonApi } from '../services/pokemonApi';
@@ -41,9 +41,14 @@ export function useCards(): UseCardsReturn {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortOption | OnePieceSortOption>('price-high');
   const [filterBy, setFilterBy] = useState<FilterOption>('all');
+  const abortRef = useRef<AbortController | null>(null);
 
   const loadCards = useCallback(
     async (query?: string) => {
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+
       setIsLoading(true);
       setError(null);
 
@@ -56,14 +61,11 @@ export function useCards(): UseCardsReturn {
           result = await onePieceApi.searchCards(query);
         }
 
-        if (result.length === 0) {
-          setCards([]);
-          setIsLoading(false);
-          return;
-        }
+        if (controller.signal.aborted) return;
 
         setCards(result);
       } catch (err) {
+        if (controller.signal.aborted) return;
         const errorMessage = (err as Error).message;
         console.error('Error loading cards:', err);
 
@@ -77,7 +79,9 @@ export function useCards(): UseCardsReturn {
 
         setCards([]);
       } finally {
-        setIsLoading(false);
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
       }
     },
     [isPokemon, isOnePiece]
@@ -89,30 +93,39 @@ export function useCards(): UseCardsReturn {
     } else {
       setCards([]);
     }
+
+    return () => {
+      abortRef.current?.abort();
+    };
   }, [searchQuery, loadCards]);
 
-  const filteredCards = cards.filter((card) => {
-    if (filterBy === 'all') return true;
-    if (!isPokemonCard(card) || !card.investmentData) return false;
+  const filteredCards = useMemo(() => {
+    if (filterBy === 'all') return cards;
 
-    switch (filterBy) {
-      case 'undervalued':
-        return card.investmentData.marketAnalysis.isUndervalued;
-      case 'overvalued':
-        return card.investmentData.marketAnalysis.isOvervalued;
-      case 'low-pop':
-        return card.investmentData.psaData.popReport.lowPop;
-      case 'high-return':
-        return card.investmentData.psaData.returnRate > 60;
-      case 'bullish':
-        return card.investmentData.marketAnalysis.trend === 'BULLISH';
-      default:
-        return true;
-    }
-  });
+    if (isOnePiece) return cards;
+
+    return cards.filter((card) => {
+      if (!isPokemonCard(card) || !card.investmentData) return false;
+
+      switch (filterBy) {
+        case 'undervalued':
+          return card.investmentData.marketAnalysis.isUndervalued;
+        case 'overvalued':
+          return card.investmentData.marketAnalysis.isOvervalued;
+        case 'low-pop':
+          return card.investmentData.psaData.popReport.lowPop;
+        case 'high-return':
+          return card.investmentData.psaData.returnRate > 60;
+        case 'bullish':
+          return card.investmentData.marketAnalysis.trend === 'BULLISH';
+        default:
+          return true;
+      }
+    });
+  }, [cards, filterBy, isOnePiece]);
 
   const game = isOnePiece ? 'onepiece' : 'pokemon';
-  const sortedCards = sortCards(filteredCards, sortBy, game);
+  const sortedCards = useMemo(() => sortCards(filteredCards, sortBy, game), [filteredCards, sortBy, game]);
 
   const refetch = useCallback(() => {
     if (searchQuery.trim()) {

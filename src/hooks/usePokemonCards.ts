@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { PokemonCard, SortOption, FilterOption } from '../types/pokemon';
 import { pokemonApi } from '../services/pokemonApi';
 import { sortCards } from '../utils/sorting';
@@ -24,32 +24,24 @@ export const usePokemonCards = (): UsePokemonCardsReturn => {
   const [sortBy, setSortBy] = useState<SortOption>('price-high');
   const [filterBy, setFilterBy] = useState<FilterOption>('all');
 
-  const loadCards = async (query?: string, _setId?: string) => {
+  const loadCards = useCallback(async (query?: string, _setId?: string) => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
-      // Get cards from Pokemon TCG API (with built-in retry logic)
-      let pokemonCards = await pokemonApi.searchCards(query, _setId, 250);
-      
-      // If no cards returned, show helpful message
+      const pokemonCards = await pokemonApi.searchCards(query, _setId, 250);
+
       if (pokemonCards.length === 0) {
-        console.log(`No cards found for query: "${query}"`);
         setCards([]);
         setIsLoading(false);
         return;
       }
-      
-      // Use Pokemon TCG API prices directly (they're already accurate and card-specific)
-      // The local database matching can be imprecise and match to wrong card variants
-      console.log(`✅ Loaded ${pokemonCards.length} cards with Pokemon TCG API prices`);
-      
+
       setCards(pokemonCards);
     } catch (err) {
       const errorMessage = (err as Error).message;
       console.error('Error loading cards:', err);
-      
-      // Provide helpful error messages based on error type
+
       if (errorMessage.includes('504') || errorMessage.includes('Gateway Timeout')) {
         setError('Pokemon TCG API is slow to respond. Please try again in a moment.');
       } else if (errorMessage.includes('429')) {
@@ -59,12 +51,12 @@ export const usePokemonCards = (): UsePokemonCardsReturn => {
       } else {
         setError('Failed to load Pokemon cards. Please try again.');
       }
-      
+
       setCards([]);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (searchQuery.trim()) {
@@ -72,10 +64,9 @@ export const usePokemonCards = (): UsePokemonCardsReturn => {
     } else {
       setCards([]);
     }
-  }, [searchQuery]);
+  }, [searchQuery, loadCards]);
 
-  // Apply filters
-  const filteredCards = cards.filter(card => {
+  const filteredCards = useMemo(() => cards.filter(card => {
     if (filterBy === 'all') return true;
     if (!card.investmentData) return false;
 
@@ -93,15 +84,15 @@ export const usePokemonCards = (): UsePokemonCardsReturn => {
       default:
         return true;
     }
-  });
+  }), [cards, filterBy]);
 
-  const sortedCards = sortCards(filteredCards, sortBy);
+  const sortedCards = useMemo(() => sortCards(filteredCards, sortBy), [filteredCards, sortBy]);
 
   const refetch = useCallback(() => {
     if (searchQuery.trim()) {
       loadCards(searchQuery);
     }
-  }, [searchQuery]);
+  }, [searchQuery, loadCards]);
 
   return {
     cards: sortedCards,

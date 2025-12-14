@@ -4,6 +4,7 @@ import { Pack, PackPull } from '../../../types/pokemon';
 import { Modal } from '../../../components/common/Modal';
 import { tieredPackService } from '../../../services/tieredPackService';
 import { vaultService } from '../../../services/vaultService';
+import { useToast } from '../../../components/common/Toast';
 import { FastForward, Sparkles, Vault, X } from 'lucide-react';
 import { pokemonApi } from '../../../services/pokemonApi';
 import { markOnboardingStep } from '../../../components/common/OnboardingChecklist';
@@ -15,6 +16,7 @@ interface PackOpeningModalProps {
 }
 
 export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen, onClose }) => {
+  const { showToast } = useToast();
   const [isOpening, setIsOpening] = useState(false);
   const [packPull, setPackPull] = useState<PackPull | null>(null);
   const [revealedCards, setRevealedCards] = useState<number>(0);
@@ -75,9 +77,9 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
       
       // Show a more user-friendly error message
       if (errorMessage.includes('Unable to fetch cards') || errorMessage.includes('No suitable card')) {
-        alert(`⚠️ Unable to open pack right now. The Pokemon TCG API might be experiencing issues.\n\nPlease try again in a few moments.`);
+        showToast('Unable to open pack right now. The Pokemon TCG API might be experiencing issues. Please try again in a few moments.', 'error');
       } else {
-        alert(`⚠️ Error opening pack: ${errorMessage}\n\nPlease try again.`);
+        showToast(`Error opening pack: ${errorMessage}. Please try again.`, 'error');
       }
     } finally {
       setIsOpening(false);
@@ -93,7 +95,7 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
     });
     markOnboardingStep('vault');
 
-    alert(`✅ Added all ${packPull.cards.length} cards to your vault!`);
+    showToast(`Added all ${packPull.cards.length} cards to your vault!`, 'success');
   };
 
   const handleReset = () => {
