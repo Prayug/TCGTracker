@@ -22,6 +22,7 @@ import { setWishlistService } from '../../../services/setWishlistService';
 import { onePieceApi } from '../../../services/onepieceApi';
 import { OnePieceCard } from '../../../types/onepiece';
 import { useGame } from '../../../contexts/GameContext';
+import { useCardModal } from '../../../contexts/CardModalContext';
 import { PokemonSet } from '../../../types/pokemon';
 import { formatCurrency, formatPercent } from '../../../utils/cardDisplay';
 import { sortSetTrackerCards, SetCardSort } from '../../../utils/setCardSort';
@@ -88,6 +89,7 @@ function OnePieceSetBinderGrid({
 
 export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
   const { isPokemon, isOnePiece } = useGame();
+  const { openCard } = useCardModal();
   const [setMeta, setSetMeta] = useState<PokemonSet | null>(null);
   const [cards, setCards] = useState<SetTrackerCard[]>([]);
   const [opCards, setOpCards] = useState<OnePieceCard[]>([]);
@@ -161,11 +163,12 @@ export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
     reload();
   };
 
+  const handleCardClick = (card: SetTrackerCard) => {
+    openCard({ ...card, types: card.types ?? [] });
+  };
+
   const handleOPCardClick = (card: OnePieceCard) => {
-    // For now, just show the card image in a new tab
-    if (card.images?.large) {
-      window.open(card.images.large, '_blank');
-    }
+    openCard(card);
   };
 
   const filterButtons: { key: FilterMode; label: string }[] = [
@@ -415,6 +418,7 @@ export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
         filter={filter}
         onToggleWishlist={handleToggleWishlist}
         onAddToVault={handleAddToVault}
+        onCardClick={handleCardClick}
       />
 
       <AddToVaultModal

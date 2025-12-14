@@ -24,7 +24,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (!getStoredTheme()) {
         const next = getSystemTheme();
         setThemeState(next);
-        setThemePreference(next);
       }
     };
     media.addEventListener('change', onChange);
@@ -37,8 +36,12 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   const toggleTheme = useCallback(() => {
-    setTheme(theme === 'dark' ? 'light' : 'dark');
-  }, [theme, setTheme]);
+    setThemeState((prev) => {
+      const next = prev === 'dark' ? 'light' : 'dark';
+      setThemePreference(next);
+      return next;
+    });
+  }, []);
 
   const value = useMemo(
     () => ({ theme, setTheme, toggleTheme }),

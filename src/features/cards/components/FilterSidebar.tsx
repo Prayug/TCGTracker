@@ -109,6 +109,7 @@ function SidebarPanel({
           value={sortBy}
           onChange={(e) => onSortChange(e.target.value as SortOption | OnePieceSortOption)}
           className={selectClass}
+          aria-label="Sort cards"
         >
           {sortOptions.map((opt) => (
             <option key={opt.value} value={opt.value}>
@@ -119,7 +120,7 @@ function SidebarPanel({
       </FilterGroup>
 
       <FilterGroup title="Set">
-        <select value={filters.setName} onChange={(e) => setFilter('setName', e.target.value)} className={selectClass}>
+        <select value={filters.setName} onChange={(e) => setFilter('setName', e.target.value)} className={selectClass} aria-label="Filter by set">
           <option value="all">All Sets</option>
           {setOptions.map((setName) => (
             <option key={setName} value={setName}>
@@ -130,7 +131,7 @@ function SidebarPanel({
       </FilterGroup>
 
       <FilterGroup title="Rarity">
-        <select value={filters.rarity} onChange={(e) => setFilter('rarity', e.target.value)} className={selectClass}>
+        <select value={filters.rarity} onChange={(e) => setFilter('rarity', e.target.value)} className={selectClass} aria-label="Filter by rarity">
           <option value="all">All Rarities</option>
           {rarityOptions.map((rarity) => (
             <option key={rarity} value={rarity}>
@@ -145,6 +146,7 @@ function SidebarPanel({
           value={filters.priceRange}
           onChange={(e) => setFilter('priceRange', e.target.value)}
           className={selectClass}
+          aria-label="Filter by price range"
         >
           {priceRanges.map((range) => (
             <option key={range.value} value={range.value}>
@@ -155,7 +157,7 @@ function SidebarPanel({
       </FilterGroup>
 
       <FilterGroup title={isOnePiece ? 'Color' : 'Type'} defaultOpen={true}>
-        <select value={filters.cardType} onChange={(e) => setFilter('cardType', e.target.value)} className={selectClass}>
+        <select value={filters.cardType} onChange={(e) => setFilter('cardType', e.target.value)} className={selectClass} aria-label={`Filter by ${isOnePiece ? 'color' : 'type'}`}>
           <option value="all">All Types</option>
           {typeOptions.map((type) => (
             <option key={type} value={type}>

@@ -1,6 +1,6 @@
 import { PokemonCard, PokemonSet } from '../types/pokemon';
 import { cacheService } from './cacheService';
-import { env, buildApiUrl } from '../config/env';
+import { buildApiUrl } from '../config/env';
 
 function estimateResultVolume(query?: string): 'small' | 'large' {
   if (!query) return 'large';

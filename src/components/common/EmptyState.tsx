@@ -18,9 +18,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border-default bg-surface-raised px-6 py-16 text-center">
       <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-full border border-border-subtle bg-surface-inset">
         {hasSearchQuery ? (
-          <Search className="h-6 w-6 text-ink-muted" />
+          <Search className="h-6 w-6 text-ink-muted" aria-hidden="true" />
         ) : (
-          <LayoutGrid className="h-6 w-6 text-ink-muted" />
+          <LayoutGrid className="h-6 w-6 text-ink-muted" aria-hidden="true" />
         )}
       </div>
 
@@ -36,8 +36,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 
       {hasSearchQuery && onResetFilters ? (
         <div className="flex flex-col items-center gap-4">
-          <button onClick={onResetFilters} className="btn-secondary">
-            <RotateCcw className="h-4 w-4" />
+          <button type="button" onClick={onResetFilters} className="btn-secondary">
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
             Clear search and filters
           </button>
           <div className="flex flex-wrap justify-center gap-2">
