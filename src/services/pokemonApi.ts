@@ -1,6 +1,7 @@
 import { PokemonCard, PokemonSet } from '../types/pokemon';
 import { cacheService } from './cacheService';
 import { buildApiUrl } from '../config/env';
+import { dedupeCards } from '../utils/cardPrice';
 
 function estimateResultVolume(query?: string): 'small' | 'large' {
   if (!query) return 'large';
@@ -89,7 +90,7 @@ class PokemonApiService {
           maxPages: volume === 'large' ? '10' : '2',
         });
 
-        const cards = (response.data || []).filter((card) => card?.id);
+        const cards = dedupeCards((response.data || []).filter((card) => card?.id));
         cacheService.set(cacheKey, cards, 5 * 60 * 1000);
         return cards;
       } catch (err) {
