@@ -39,3 +39,22 @@ export function getCardRarity(card: AnyCard): string | undefined {
 export function getCardId(card: AnyCard): string {
   return card.id;
 }
+
+export function getCardDedupeKey(card: AnyCard): string {
+  if (card.uniqueIdentifier) return card.uniqueIdentifier;
+  return `${card.id}:${card.set?.id ?? ''}:${card.number ?? ''}`;
+}
+
+export function getCardReactKey(card: AnyCard, index: number): string {
+  return getCardDedupeKey(card) || `${card.id}:${index}`;
+}
+
+export function dedupeCards<T extends AnyCard>(cards: T[]): T[] {
+  const seen = new Set<string>();
+  return cards.filter((card) => {
+    const key = getCardDedupeKey(card);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
