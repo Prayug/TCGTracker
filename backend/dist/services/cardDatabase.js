@@ -63,7 +63,16 @@ const getLocalCardsForQuery = (query_1, setId_1, ...args_1) => __awaiter(void 0,
 exports.getLocalCardsForQuery = getLocalCardsForQuery;
 const mapLocalRowsToPokemonCards = (rows) => __awaiter(void 0, void 0, void 0, function* () {
     const buildFallbackImage = (cardName, setName) => `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='245' height='342' viewBox='0 0 245 342'%3E%3Crect width='245' height='342' fill='%23f1f5f9' rx='8'/%3E%3Ctext x='50%25' y='46%25' font-family='Inter,sans-serif' font-size='12' fill='%2364748b' text-anchor='middle'%3E${encodeURIComponent(cardName || 'Pokemon Card')}%3C/text%3E%3Ctext x='50%25' y='54%25' font-family='Inter,sans-serif' font-size='10' fill='%2394a3b8' text-anchor='middle'%3E${encodeURIComponent(setName || 'Unknown Set')}%3C/text%3E%3C/svg%3E`;
-    return yield Promise.all(rows.map((row) => __awaiter(void 0, void 0, void 0, function* () {
+    const seen = new Set();
+    const uniqueRows = rows.filter((row) => {
+        var _a, _b;
+        const key = (_b = (_a = row.uniqueIdentifier) !== null && _a !== void 0 ? _a : row.cardId) !== null && _b !== void 0 ? _b : `${row.setId}-${row.cardNumber}`;
+        if (seen.has(key))
+            return false;
+        seen.add(key);
+        return true;
+    });
+    return yield Promise.all(uniqueRows.map((row) => __awaiter(void 0, void 0, void 0, function* () {
         // PRIORITY ORDER for images:
         // 1. Stored images from database (most reliable)
         // 2. Deterministic Pokemon TCG API URLs
