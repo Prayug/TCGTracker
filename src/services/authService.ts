@@ -51,9 +51,14 @@ class AuthService {
 
   async getCurrentUser(): Promise<User | null> {
     try {
-      const response = await axios.get<{ user: User }>(buildApiUrl('/api/auth/me'));
-      this.setUser(response.data.user);
-      return response.data.user;
+      const response = await axios.get<{ user: User | null }>(buildApiUrl('/api/auth/me'));
+      const user = response.data.user;
+      if (!user) {
+        this.clearUser();
+        return null;
+      }
+      this.setUser(user);
+      return user;
     } catch {
       this.clearUser();
       return null;
