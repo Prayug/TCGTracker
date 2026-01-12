@@ -13,6 +13,8 @@
     "image-stats": "ts-node src/scripts/imageStats.ts",
     "debug-db": "ts-node src/scripts/debugDatabase.ts",
     "sample-cards": "ts-node src/scripts/sampleCards.ts",
+    "upload-db-to-cloud": "ts-node src/scripts/uploadDbToCloud.ts",
+    "restore-db-from-cloud": "ts-node src/scripts/restoreDbFromCloud.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
