@@ -7,7 +7,6 @@ export interface User {
   email: string;
   created_at: string;
   updated_at: string;
-  isAdmin?: boolean;
 }
 
 export interface AuthResponse {
