@@ -26,10 +26,24 @@ export const csrfProtection = (req: Request, res: Response, next: NextFunction) 
     .map((o) => o.trim())
     .filter(Boolean);
 
-  const requestOrigin = origin || referer || '';
-  const isAllowed = allowedOrigins.some(
-    (allowed) => requestOrigin === allowed || requestOrigin.startsWith(allowed + '/') || requestOrigin.startsWith(allowed + ':')
-  );
+  if (allowedOrigins.includes('*')) {
+    next();
+    return;
+  }
+
+  const matchesAllowedOrigin = (value: string): boolean =>
+    allowedOrigins.some(
+      (allowed) =>
+        value === allowed ||
+        value.startsWith(`${allowed}/`) ||
+        value.startsWith(`${allowed}:`)
+    );
+
+  // Vite dev proxy sets Origin to the backend target (changeOrigin: true) while Referer
+  // still points at the frontend — check both headers independently.
+  const isAllowed =
+    (origin ? matchesAllowedOrigin(origin) : false) ||
+    (referer ? matchesAllowedOrigin(referer) : false);
 
   if (!isAllowed) {
     res.status(403).json({ error: 'CSRF validation failed' });
