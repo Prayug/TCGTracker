@@ -1,6 +1,7 @@
 import { getDb } from '../db/database';
 import { logger } from '../utils/logger';
 import { allDbRows, runDb } from '../utils/dbAsync';
+import { isSkippedDbJob, withDbJobLock } from '../utils/dbJobLock';
 import { getAllOptcgCards } from './providers/onePieceOptcgClient';
 import { mapRawToCatalogFields } from './onePieceMapper';
 
@@ -73,20 +74,14 @@ const upsertPriceHistorySql = `
     inventoryPrice = excluded.inventoryPrice
 `;
 
-let isOnePieceSyncRunning = false;
-
 export const syncOnePieceData = async (): Promise<SyncOnePieceResult> => {
-  if (isOnePieceSyncRunning) {
-    logger.warn('One Piece sync already in progress, skipping duplicate');
-    return { setsProcessed: 0, cardsUpserted: 0, pricesRecorded: 0, runDate: getRunDateEst() };
-  }
+  const result = await withDbJobLock(
+    'onepiece_sync',
+    async () => {
+    const runDate = getRunDateEst();
+    let cardsUpserted = 0;
+    let pricesRecorded = 0;
 
-  isOnePieceSyncRunning = true;
-  const runDate = getRunDateEst();
-  let cardsUpserted = 0;
-  let pricesRecorded = 0;
-
-  try {
     const db = getDb();
     logger.info('One Piece sync: fetching full catalog (sets + ST + promos + Don!!)...');
     const rawCards = await getAllOptcgCards(true);
@@ -153,9 +148,15 @@ export const syncOnePieceData = async (): Promise<SyncOnePieceResult> => {
 
     logger.info('One Piece sync completed', { cardsUpserted, pricesRecorded, runDate });
     return { setsProcessed: 1, cardsUpserted, pricesRecorded, runDate };
-  } finally {
-    isOnePieceSyncRunning = false;
+    },
+    { skipIfBusy: true }
+  );
+
+  if (isSkippedDbJob(result)) {
+    return { setsProcessed: 0, cardsUpserted: 0, pricesRecorded: 0, runDate: getRunDateEst() };
   }
+
+  return result;
 };
 
 export const getOnePieceCatalogCount = async (): Promise<number> => {
