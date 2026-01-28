@@ -2,6 +2,7 @@ import { getDb } from '../db/database';
 import { CatalogCardSummary, CatalogProvider, CatalogSetSummary } from './providers/contracts';
 import { pokemonCatalogProvider } from './providers/pokemonCatalogProvider';
 import { logger } from '../utils/logger';
+import { isSkippedDbJob, withDbJobLock } from '../utils/dbJobLock';
 
 interface SyncCatalogResult {
   setsProcessed: number;
@@ -100,19 +101,12 @@ const YIELD_EVERY_N_SETS = 5;
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const yieldToEventLoop = () => new Promise<void>((resolve) => setImmediate(resolve));
 
-let isCatalogSyncRunning = false;
-
 export const syncCatalogData = async (
   provider: CatalogProvider = pokemonCatalogProvider
 ): Promise<SyncCatalogResult> => {
-  if (isCatalogSyncRunning) {
-    logger.warn('Catalog sync already in progress, skipping duplicate');
-    return { setsProcessed: 0, cardsUpserted: 0 };
-  }
-
-  isCatalogSyncRunning = true;
-
-  try {
+  const result = await withDbJobLock(
+    'catalog_sync',
+    async () => {
     const sets = await provider.getSets(250);
     let setsProcessed = 0;
     let cardsUpserted = 0;
@@ -152,7 +146,13 @@ export const syncCatalogData = async (
     }
 
     return { setsProcessed, cardsUpserted };
-  } finally {
-    isCatalogSyncRunning = false;
+    },
+    { skipIfBusy: true }
+  );
+
+  if (isSkippedDbJob(result)) {
+    return { setsProcessed: 0, cardsUpserted: 0 };
   }
+
+  return result;
 };
