@@ -95,6 +95,10 @@ function setupRoutes(
       logger.info('Running scheduled daily price data update...');
       try {
         const result = await updatePriceData();
+        if (result.skipped) {
+          logger.warn('Daily price data update skipped', { reason: (result as { reason?: string }).reason });
+          return;
+        }
         logger.info('Daily price data update completed', result);
         const imageResult = await backfillCardMappingImages();
         logger.info('Post-price-update image backfill completed', imageResult);
@@ -382,8 +386,13 @@ async function bootstrap() {
       alertService.init(),
     ]);
 
-    await initializeSetCodeService();
     setupRoutes(authService, alertService, portfolioService);
+
+    void initializeSetCodeService().catch((error) => {
+      logger.error('Background set code service initialization failed', {
+        error: (error as Error).message,
+      });
+    });
 
     (async () => {
       await new Promise((r) => setTimeout(r, 15_000));
