@@ -129,6 +129,10 @@ function setupRoutes(authService, alertService, portfolioService) {
         logger_1.logger.info('Running scheduled daily price data update...');
         try {
             const result = yield (0, dataFetcher_1.updatePriceData)();
+            if (result.skipped) {
+                logger_1.logger.warn('Daily price data update skipped', { reason: result.reason });
+                return;
+            }
             logger_1.logger.info('Daily price data update completed', result);
             const imageResult = yield (0, cardImageBackfillService_1.backfillCardMappingImages)();
             logger_1.logger.info('Post-price-update image backfill completed', imageResult);
@@ -392,8 +396,12 @@ function bootstrap() {
                 authService.init(),
                 alertService.init(),
             ]);
-            yield initializeSetCodeService();
             setupRoutes(authService, alertService, portfolioService);
+            void initializeSetCodeService().catch((error) => {
+                logger_1.logger.error('Background set code service initialization failed', {
+                    error: error.message,
+                });
+            });
             (() => __awaiter(this, void 0, void 0, function* () {
                 yield new Promise((r) => setTimeout(r, 15000));
                 try {
