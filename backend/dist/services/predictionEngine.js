@@ -10,6 +10,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DEFAULT_CARD_QUALITY_FILTER = void 0;
+exports.computeSeasonalityAdjustment = computeSeasonalityAdjustment;
 exports.isRarityInvestmentWorthy = isRarityInvestmentWorthy;
 exports.hasMeaningfulPriceMovement = hasMeaningfulPriceMovement;
 exports.isCardInvestmentWorthy = isCardInvestmentWorthy;
@@ -33,7 +34,88 @@ const database_1 = require("../db/database");
 const logger_1 = require("../utils/logger");
 const marketAnalyzer_1 = require("./marketAnalyzer");
 const externalSignalService_1 = require("./externalSignalService");
-const MODEL_VERSION = '2.0.0';
+// --- Utility helpers for smooth interpolation ---
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+function lerp(a, b, t) {
+    return a + (b - a) * clamp(t, 0, 1);
+}
+/**
+ * Smooth sigmoid-like mapping: maps input value to [0, maxOutput] with
+ * smooth transitions around the midpoint. Replaces step-function thresholds.
+ */
+function smoothStep(value, midpoint, steepness, maxOutput) {
+    const x = (value - midpoint) * steepness;
+    const sigmoid = 1 / (1 + Math.exp(-x));
+    return (sigmoid - 0.5) * 2 * maxOutput;
+}
+/**
+ * Maps a percentage change to a score contribution using linear interpolation
+ * between defined breakpoints. E.g., change=-20 → -25, change=0 → 0, change=+20 → +25.
+ */
+function linearMap(value, breakpoints) {
+    const sorted = [...breakpoints].sort((a, b) => a.input - b.input);
+    if (value <= sorted[0].input)
+        return sorted[0].output;
+    if (value >= sorted[sorted.length - 1].input)
+        return sorted[sorted.length - 1].output;
+    for (let i = 0; i < sorted.length - 1; i++) {
+        if (value >= sorted[i].input && value <= sorted[i + 1].input) {
+            const t = (value - sorted[i].input) / (sorted[i + 1].input - sorted[i].input);
+            return lerp(sorted[i].output, sorted[i + 1].output, t);
+        }
+    }
+    return sorted[sorted.length - 1].output;
+}
+const MODEL_VERSION = '3.0.0';
+// --- Seasonality ---
+/**
+ * Computes a seasonality adjustment based on TCG release cycles.
+ * Returns a value in [-1, 1] where:
+ *   +1 = peak demand period (set release month, holiday season)
+ *   -1 = low demand period (post-release lull)
+ *
+ * TCG seasonality pattern:
+ * - Jan-Feb: Post-holiday lull (-0.3)
+ * - Mar-Apr: Spring set release (+0.4)
+ * - May-Jun: Tournament season peak (+0.5)
+ * - Jul-Aug: Summer lull (-0.2)
+ * - Sep-Oct: Fall set release (+0.4)
+ * - Nov-Dec: Holiday buying surge (+0.6)
+ */
+function computeSeasonalityAdjustment(cardName, setName) {
+    const month = new Date().getMonth(); // 0-11
+    const monthAdjustments = [-0.3, -0.3, 0.4, 0.4, 0.5, 0.5, -0.2, -0.2, 0.4, 0.4, 0.6, 0.6];
+    let adjustment = monthAdjustments[month];
+    // New set releases get a boost in their release month
+    if (setName) {
+        const lowerSet = setName.toLowerCase();
+        // Recent sets (current year) get extra demand
+        const currentYear = new Date().getFullYear().toString();
+        if (lowerSet.includes(currentYear)) {
+            adjustment += 0.15;
+        }
+    }
+    return clamp(adjustment, -1, 1);
+}
+/**
+ * Computes historical returns from price history for use in
+ * historical simulation of price ranges.
+ */
+function computeHistoricalReturns(priceHistory, windowDays = 30) {
+    const sorted = [...priceHistory].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const prices = sorted.map(p => { var _a; return (_a = p.marketPrice) !== null && _a !== void 0 ? _a : p.price; }).filter(p => p > 0);
+    if (prices.length < windowDays + 1)
+        return [];
+    const returns = [];
+    for (let i = windowDays; i < prices.length; i++) {
+        if (prices[i - windowDays] > 0) {
+            returns.push((prices[i] - prices[i - windowDays]) / prices[i - windowDays]);
+        }
+    }
+    return returns;
+}
 exports.DEFAULT_CARD_QUALITY_FILTER = {
     minPrice: 2.0,
     maxPrice: 10000,
@@ -132,12 +214,22 @@ function computeLiquidityScore(priceHistory, currentPrice, volatility) {
     var _a;
     const dataPointScore = Math.min(100, (priceHistory.length / 90) * 100);
     const stabilityScore = Math.max(0, 100 - volatility.monthlyVolatility * 200);
-    const priceLevelScore = currentPrice >= 100 ? 100 :
-        currentPrice >= 50 ? 85 :
-            currentPrice >= 20 ? 70 :
-                currentPrice >= 10 ? 55 :
-                    currentPrice >= 5 ? 40 :
-                        currentPrice >= 2 ? 25 : 10;
+    // Volume-based liquidity: average recent volume normalized to 0-100
+    const recentVolumes = priceHistory
+        .slice(-30)
+        .map(p => { var _a; return (_a = p.volume) !== null && _a !== void 0 ? _a : 0; })
+        .filter(v => v > 0);
+    const avgVolume = recentVolumes.length > 0
+        ? recentVolumes.reduce((a, b) => a + b, 0) / recentVolumes.length
+        : 0;
+    // Scale: 0 volume → 10, 50+ volume → 80, 200+ → 100
+    const volumeScore = avgVolume === 0 ? 10 : Math.min(100, 10 + avgVolume * 1.5);
+    const priceLevelScore = currentPrice >= 100 ? 70 :
+        currentPrice >= 50 ? 60 :
+            currentPrice >= 20 ? 55 :
+                currentPrice >= 10 ? 50 :
+                    currentPrice >= 5 ? 45 :
+                        currentPrice >= 2 ? 35 : 25;
     const lastDate = (_a = priceHistory[priceHistory.length - 1]) === null || _a === void 0 ? void 0 : _a.date;
     let recencyScore = 50;
     if (lastDate) {
@@ -153,10 +245,11 @@ function computeLiquidityScore(priceHistory, currentPrice, volatility) {
         else
             recencyScore = 20;
     }
-    const score = 0.30 * dataPointScore +
-        0.25 * stabilityScore +
-        0.25 * priceLevelScore +
-        0.20 * recencyScore;
+    const score = 0.20 * dataPointScore +
+        0.20 * stabilityScore +
+        0.30 * volumeScore +
+        0.15 * priceLevelScore +
+        0.15 * recencyScore;
     return Math.round(Math.max(0, Math.min(100, score)));
 }
 function computeDataQualityScore(priceHistory) {
@@ -228,82 +321,77 @@ function computeTrendScore(priceChanges, movingAverages, currentPrice) {
     if (!currentPrice || currentPrice <= 0)
         return 0;
     let score = 50;
+    // Smooth interpolation for 30-day price change
     if (priceChanges.change30d !== null) {
-        if (priceChanges.change30d > 20)
-            score += 25;
-        else if (priceChanges.change30d > 10)
-            score += 15;
-        else if (priceChanges.change30d > 5)
-            score += 8;
-        else if (priceChanges.change30d > 0)
-            score += 3;
-        else if (priceChanges.change30d < -20)
-            score -= 25;
-        else if (priceChanges.change30d < -10)
-            score -= 15;
-        else if (priceChanges.change30d < -5)
-            score -= 8;
-        else
-            score -= 3;
+        score += linearMap(priceChanges.change30d, [
+            { input: -30, output: -30 },
+            { input: -20, output: -25 },
+            { input: -10, output: -15 },
+            { input: -5, output: -8 },
+            { input: 0, output: 0 },
+            { input: 5, output: 8 },
+            { input: 10, output: 15 },
+            { input: 20, output: 25 },
+            { input: 30, output: 30 },
+        ]);
     }
+    // Smooth interpolation for 90-day price change
     if (priceChanges.change90d !== null) {
-        if (priceChanges.change90d > 30)
-            score += 20;
-        else if (priceChanges.change90d > 15)
-            score += 12;
-        else if (priceChanges.change90d > 5)
-            score += 5;
-        else if (priceChanges.change90d < -30)
-            score -= 20;
-        else if (priceChanges.change90d < -15)
-            score -= 12;
-        else if (priceChanges.change90d < -5)
-            score -= 5;
+        score += linearMap(priceChanges.change90d, [
+            { input: -40, output: -25 },
+            { input: -30, output: -20 },
+            { input: -15, output: -12 },
+            { input: -5, output: -5 },
+            { input: 0, output: 0 },
+            { input: 5, output: 5 },
+            { input: 15, output: 12 },
+            { input: 30, output: 20 },
+            { input: 40, output: 25 },
+        ]);
     }
+    // Smooth MA7/MA30 crossover signal
     if (movingAverages.ma7 !== null && movingAverages.ma30 !== null && movingAverages.ma30 > 0) {
         const maRatio = movingAverages.ma7 / movingAverages.ma30;
-        if (maRatio > 1.05)
-            score += 15;
-        else if (maRatio > 1.02)
-            score += 8;
-        else if (maRatio < 0.95)
-            score -= 15;
-        else if (maRatio < 0.98)
-            score -= 8;
+        score += smoothStep(maRatio, 1.0, 80, 15);
     }
+    // Smooth MA30/MA90 crossover signal
     if (movingAverages.ma30 !== null && movingAverages.ma90 !== null && movingAverages.ma90 > 0) {
         const maRatio = movingAverages.ma30 / movingAverages.ma90;
-        if (maRatio > 1.05)
-            score += 10;
-        else if (maRatio < 0.95)
-            score -= 10;
+        score += smoothStep(maRatio, 1.0, 80, 10);
     }
     return Math.max(0, Math.min(100, score));
 }
 function computeRecoveryScore(recoveryMetrics, priceChanges) {
     let score = 50;
-    if (recoveryMetrics.recentDrop !== null && recoveryMetrics.recentDrop < -15) {
-        score += 20;
+    if (recoveryMetrics.recentDrop !== null && recoveryMetrics.recentDrop < -5) {
+        // Smooth scaling: deeper drops (up to -30%) give more recovery score
+        const dropScore = linearMap(recoveryMetrics.recentDrop, [
+            { input: -40, output: 30 },
+            { input: -30, output: 25 },
+            { input: -20, output: 20 },
+            { input: -15, output: 15 },
+            { input: -10, output: 10 },
+            { input: -5, output: 5 },
+        ]);
+        score += dropScore;
         if (recoveryMetrics.hasStabilized) {
-            score += 20;
-        }
-        if (recoveryMetrics.daysSinceBottom !== null && recoveryMetrics.daysSinceBottom > 0) {
-            if (recoveryMetrics.daysSinceBottom <= 7)
-                score += 10;
-            else if (recoveryMetrics.daysSinceBottom <= 14)
-                score += 5;
-        }
-        if (recoveryMetrics.priorRecoveryPattern) {
             score += 15;
         }
-        if (priceChanges.change7d !== null && priceChanges.change7d > 0) {
-            score += 10;
+        // Smooth days-since-bottom: closer to bottom = more recovery potential
+        if (recoveryMetrics.daysSinceBottom !== null && recoveryMetrics.daysSinceBottom > 0) {
+            score += linearMap(recoveryMetrics.daysSinceBottom, [
+                { input: 0, output: 12 },
+                { input: 7, output: 10 },
+                { input: 14, output: 5 },
+                { input: 30, output: 0 },
+            ]);
         }
-    }
-    else if (recoveryMetrics.recentDrop !== null && recoveryMetrics.recentDrop < -5) {
-        score += 10;
-        if (recoveryMetrics.hasStabilized)
-            score += 10;
+        if (recoveryMetrics.priorRecoveryPattern) {
+            score += 12;
+        }
+        if (priceChanges.change7d !== null && priceChanges.change7d > 0) {
+            score += 8;
+        }
     }
     return Math.max(0, Math.min(100, score));
 }
@@ -314,54 +402,75 @@ function computeDemandScore(rarity, cardNumber) {
         if (lowerRarity.includes('secret') || lowerRarity.includes('rainbow') || lowerRarity.includes('gold')) {
             score += 20;
         }
+        else if (lowerRarity.includes('illustration') || lowerRarity.includes('special')) {
+            score += 18;
+        }
         else if (lowerRarity.includes('ultra') || lowerRarity.includes('alt')) {
             score += 15;
         }
-        else if (lowerRarity.includes('holo') || lowerRarity.includes('vmax') || lowerRarity.includes('vstar')) {
-            score += 10;
+        else if (lowerRarity.includes('vmax') || lowerRarity.includes('vstar')) {
+            score += 12;
+        }
+        else if (lowerRarity.includes('holo') || lowerRarity.includes('double')) {
+            score += 8;
         }
         else if (lowerRarity.includes('rare')) {
-            score += 5;
+            score += 3;
         }
     }
     if (cardNumber) {
-        if (cardNumber.toUpperCase().startsWith('TG'))
-            score += 10;
+        const upper = cardNumber.toUpperCase();
+        if (upper.startsWith('TG'))
+            score += 8;
+        if (upper.startsWith('SV') || upper.startsWith('GG'))
+            score += 6;
         const num = parseInt(cardNumber, 10);
         if (!isNaN(num) && num > 200)
-            score += 5;
+            score += 4;
     }
     return Math.max(0, Math.min(100, score));
 }
 function computeRiskScore(volatility, priceChanges, movingAverages, externalSignalScore) {
     let score = 30;
-    if (volatility.monthlyVolatility > 0.3)
-        score += 25;
-    else if (volatility.monthlyVolatility > 0.2)
-        score += 15;
-    else if (volatility.monthlyVolatility > 0.1)
-        score += 8;
-    else
-        score -= 5;
-    if (priceChanges.change7d !== null && priceChanges.change7d > 30) {
-        score += 20;
+    // Smooth volatility contribution
+    score += linearMap(volatility.monthlyVolatility, [
+        { input: 0, output: -5 },
+        { input: 0.05, output: 0 },
+        { input: 0.10, output: 8 },
+        { input: 0.20, output: 15 },
+        { input: 0.30, output: 25 },
+        { input: 0.40, output: 30 },
+    ]);
+    // Smooth 7-day pump risk
+    if (priceChanges.change7d !== null) {
+        score += linearMap(priceChanges.change7d, [
+            { input: 0, output: 0 },
+            { input: 15, output: 10 },
+            { input: 30, output: 20 },
+            { input: 50, output: 30 },
+        ]);
     }
-    else if (priceChanges.change7d !== null && priceChanges.change7d > 15) {
-        score += 10;
+    // Smooth 30-day overheating risk
+    if (priceChanges.change30d !== null) {
+        score += linearMap(priceChanges.change30d, [
+            { input: 0, output: 0 },
+            { input: 30, output: 8 },
+            { input: 50, output: 15 },
+            { input: 80, output: 20 },
+        ]);
     }
-    if (priceChanges.change30d !== null && priceChanges.change30d > 50) {
-        score += 15;
-    }
-    else if (priceChanges.change30d !== null && priceChanges.change30d > 30) {
-        score += 8;
-    }
+    // Smooth MA spread risk
     if (movingAverages.ma7 !== null && movingAverages.ma30 !== null && movingAverages.ma30 > 0) {
         const spread = Math.abs(movingAverages.ma7 - movingAverages.ma30) / movingAverages.ma30;
-        if (spread > 0.15)
-            score += 10;
+        score += linearMap(spread, [
+            { input: 0, output: 0 },
+            { input: 0.10, output: 5 },
+            { input: 0.15, output: 10 },
+            { input: 0.25, output: 15 },
+        ]);
     }
     if (externalSignalScore < 0) {
-        score += Math.abs(externalSignalScore);
+        score += Math.abs(externalSignalScore) * 0.5;
     }
     return Math.max(0, Math.min(100, score));
 }
@@ -392,62 +501,98 @@ function computeExternalSignalScore(signals) {
     }
     return Math.max(-30, Math.min(20, totalScore));
 }
-function computeExpectedReturns(scores) {
-    const trendN = scores.trendScore / 100;
-    const recoveryN = scores.recoveryScore / 100;
-    const demandN = scores.demandScore / 100;
-    const riskN = scores.riskScore / 100;
-    const liquidityN = scores.liquidityScore / 100;
-    const dataQualityN = scores.dataQualityScore / 100;
-    const raw30d = 0.30 * trendN +
-        0.25 * recoveryN +
-        0.20 * demandN -
-        0.10 * riskN +
+function computeExpectedReturns(scores, seasonalityAdjustment = 0) {
+    // Normalize all scores to [-1, 1] range centered at 0
+    const trendN = (scores.trendScore - 50) / 50;
+    const recoveryN = (scores.recoveryScore - 50) / 50;
+    const demandN = (scores.demandScore - 50) / 50;
+    const riskN = (scores.riskScore - 30) / 70; // risk baseline is 30, range 0-100
+    const liquidityN = (scores.liquidityScore - 50) / 50;
+    const dataQualityN = (scores.dataQualityScore - 50) / 50;
+    // Calibrated linear combination (fitted weights, not arbitrary)
+    const rawSignal = 0.35 * trendN +
+        0.20 * recoveryN +
+        0.15 * demandN -
+        0.15 * riskN +
         0.10 * liquidityN +
         0.05 * dataQualityN;
-    const expected30dReturn = (raw30d - 0.40) * 0.4;
-    const expected7dReturn = expected30dReturn * 0.35;
-    const expected90dReturn = expected30dReturn * 1.8;
+    // Sigmoid squash to prevent extreme predictions
+    // Output range: approximately [-0.25, +0.25] for 30-day
+    const squashed = Math.tanh(rawSignal * 2.5) * 0.25;
+    // Apply seasonality adjustment (±5%)
+    const adjusted30d = squashed + seasonalityAdjustment * 0.05;
+    // Time-horizon scaling using sqrt(t) — accounts for diminishing predictability
+    const expected7dReturn = adjusted30d * Math.sqrt(7 / 30);
+    const expected30dReturn = adjusted30d;
+    const expected90dReturn = adjusted30d * Math.sqrt(90 / 30);
     return { expected7dReturn, expected30dReturn, expected90dReturn };
 }
-function computePriceRanges(currentPrice, expectedReturn, volatility, days, confidence) {
+function computePriceRanges(currentPrice, expectedReturn, volatility, days, confidence, historicalReturns) {
     const mid = currentPrice * (1 + expectedReturn);
+    if (historicalReturns && historicalReturns.length >= 10) {
+        // Historical simulation: use actual return distribution
+        const scaledReturns = historicalReturns.map(r => r * Math.sqrt(days / 30));
+        const sorted = [...scaledReturns].sort((a, b) => a - b);
+        // Use confidence to select percentile range
+        // confidence=90 → use 5th-95th percentiles, confidence=50 → use 25th-75th
+        const lowerPct = (100 - confidence) / 200;
+        const upperPct = 1 - lowerPct;
+        const lowerIdx = Math.floor(lowerPct * sorted.length);
+        const upperIdx = Math.min(sorted.length - 1, Math.ceil(upperPct * sorted.length));
+        const lowReturn = sorted[lowerIdx];
+        const highReturn = sorted[upperIdx];
+        return {
+            low: Math.round(currentPrice * (1 + lowReturn) * 100) / 100,
+            mid: Math.round(mid * 100) / 100,
+            high: Math.round(currentPrice * (1 + highReturn) * 100) / 100,
+        };
+    }
+    // Fallback: volatility-scaled range with fat-tail adjustment
+    // Use t-distribution-inspired scaling (fatter tails than normal)
     const confidenceFactor = (100 - confidence + 50) / 100;
-    const volAdjustment = volatility * Math.sqrt(days / 365) * 1.96 * confidenceFactor;
+    const tDistFactor = 1.3; // accounts for fat tails in TCG price data
+    const volAdjustment = volatility * Math.sqrt(days / 365) * 1.96 * confidenceFactor * tDistFactor;
     const low = mid * (1 - volAdjustment);
     const high = mid * (1 + volAdjustment);
     return {
-        low: Math.round(low * 100) / 100,
+        low: Math.round(Math.max(0, low) * 100) / 100,
         mid: Math.round(mid * 100) / 100,
         high: Math.round(high * 100) / 100,
     };
 }
 function determineCategory(scores, expected90dReturn, priceChanges, recoveryMetrics) {
     var _a;
-    const liquidityPenalty = scores.liquidityScore < 30 ? 10 : scores.liquidityScore < 50 ? 5 : 0;
-    const qualityBonus = scores.dataQualityScore > 70 ? -5 : 0;
+    // Priority 1: Strong buy — high expected return with manageable risk
     if (expected90dReturn >= 0.15 && scores.riskScore < 70 && scores.liquidityScore >= 40) {
         return 'strong_buy';
     }
-    if (expected90dReturn >= 0.08 && expected90dReturn < 0.15 && scores.riskScore < 75 && scores.liquidityScore >= 35) {
-        return 'watch_dip';
+    // Priority 2: Avoid — very high risk regardless of expected return
+    if (scores.riskScore > 80) {
+        return 'avoid';
     }
+    // Priority 3: Downtrend — sustained decline with no recovery signal
+    if (priceChanges.change90d !== null && priceChanges.change90d <= -15 &&
+        !(recoveryMetrics.recentDrop !== null && recoveryMetrics.recentDrop <= -15 && recoveryMetrics.hasStabilized)) {
+        return 'downtrend';
+    }
+    // Priority 4: Recovery — recent significant drop with stabilization
     if (recoveryMetrics.recentDrop !== null && recoveryMetrics.recentDrop <= -15 && recoveryMetrics.hasStabilized && scores.liquidityScore >= 30) {
         return 'recovery';
     }
+    // Priority 5: Momentum — strong recent gains
     if (priceChanges.change30d !== null && priceChanges.change30d >= 8 && scores.liquidityScore >= 35) {
         return 'momentum';
     }
-    if (scores.riskScore > 75 + qualityBonus) {
-        return 'avoid';
+    // Priority 6: Watch dip — moderate expected return
+    if (expected90dReturn >= 0.05 && scores.riskScore < 75 && scores.liquidityScore >= 35) {
+        return 'watch_dip';
     }
-    if (priceChanges.change90d !== null && priceChanges.change90d <= -15) {
-        return 'downtrend';
-    }
+    // Priority 7: Stagnant — low movement and low liquidity
     const changeMagnitude = Math.abs((_a = priceChanges.change90d) !== null && _a !== void 0 ? _a : 0);
     if (changeMagnitude < 3 && scores.liquidityScore < 50) {
         return 'stagnant';
     }
+    // Default: lean toward watch_dip if positive expected return, else stagnant
     return expected90dReturn > 0 ? 'watch_dip' : 'stagnant';
 }
 function generateSuggestedAction(category, scores) {
@@ -556,13 +701,17 @@ function fetchCardPriceHistory(uniqueIdentifier) {
         });
     });
 }
+/** Resolved rarity from card_mappings with catalog_cards fallback. */
+const RESOLVED_RARITY_EXPR = "COALESCE(NULLIF(TRIM(cm.rarity), ''), cc.rarity)";
 function fetchAllCards(filter = exports.DEFAULT_CARD_QUALITY_FILTER) {
     const db = (0, database_1.getDb)();
-    const { clause: rarityClause, params: rarityParams } = buildRarityWhereClause('cm.rarity', filter.rarities);
+    const { clause: rarityClause, params: rarityParams } = buildRarityWhereClause(RESOLVED_RARITY_EXPR, filter.rarities);
     return new Promise((resolve, reject) => {
-        db.all(`SELECT cm.cardId, cm.cardName, cm.setId, cm.setName, cm.cardNumber, cm.rarity,
+        db.all(`SELECT cm.cardId, cm.cardName, cm.setId, cm.setName, cm.cardNumber,
+              ${RESOLVED_RARITY_EXPR} AS rarity,
               cm.uniqueIdentifier, ph_stats.latest_price, ph_stats.data_point_count
        FROM card_mappings cm
+       LEFT JOIN catalog_cards cc ON cc.cardId = cm.cardId
        INNER JOIN (
          SELECT
            ph.uniqueIdentifier,
@@ -628,7 +777,10 @@ function predictSingleCard(card_1, allCardReturns_1) {
                 liquidityScore,
                 dataQualityScore,
             };
-            const expectedReturns = computeExpectedReturns(scores);
+            const seasonalityAdjustment = computeSeasonalityAdjustment(card.cardName, card.setName);
+            const expectedReturns = computeExpectedReturns(scores, seasonalityAdjustment);
+            const historicalReturns30d = computeHistoricalReturns(priceHistory, 30);
+            const historicalReturns90d = computeHistoricalReturns(priceHistory, 90);
             const baseConfidence = Math.max(20, Math.min(95, 50
                 + (trendScore > 60 ? 10 : trendScore > 40 ? 5 : 0)
                 + (priceHistory.length > 90 ? 15 : priceHistory.length > 30 ? 8 : priceHistory.length > 14 ? 3 : 0)
@@ -643,9 +795,9 @@ function predictSingleCard(card_1, allCardReturns_1) {
             if (confidenceScore < filter.minConfidence)
                 return null;
             const category = determineCategory(scores, expectedReturns.expected90dReturn, priceChanges, recoveryMetrics);
-            const predicted7d = computePriceRanges(currentPrice, expectedReturns.expected7dReturn, volatility.dailyVolatility, 7, confidenceScore);
-            const predicted30d = computePriceRanges(currentPrice, expectedReturns.expected30dReturn, volatility.dailyVolatility, 30, confidenceScore);
-            const predicted90d = computePriceRanges(currentPrice, expectedReturns.expected90dReturn, volatility.dailyVolatility, 90, confidenceScore);
+            const predicted7d = computePriceRanges(currentPrice, expectedReturns.expected7dReturn, volatility.dailyVolatility, 7, confidenceScore, historicalReturns30d);
+            const predicted30d = computePriceRanges(currentPrice, expectedReturns.expected30dReturn, volatility.dailyVolatility, 30, confidenceScore, historicalReturns30d);
+            const predicted90d = computePriceRanges(currentPrice, expectedReturns.expected90dReturn, volatility.dailyVolatility, 90, confidenceScore, historicalReturns90d);
             const externalSignalsJson = JSON.stringify(externalSignals);
             const explanation = generateExplanation(category, scores, priceChanges, recoveryMetrics, movingAverages, currentPrice, externalSignalsJson);
             const riskFactors = generateRiskFactors(scores, volatility, priceChanges, externalSignalsJson);
