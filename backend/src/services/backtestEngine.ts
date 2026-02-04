@@ -8,6 +8,7 @@ import {
   computeRecoveryMetrics,
   getLatestPrice,
   getPriceAtDate,
+  computeMarketBenchmark,
 } from './marketAnalyzer';
 import {
   computeTrendScore,
@@ -57,6 +58,8 @@ export interface BacktestResult {
   mape: number | null;
   top10AvgReturn: number | null;
   marketAvgReturn: number | null;
+  marketMedianReturn: number | null;
+  marketReturnStdDev: number | null;
   strongBuyFalsePositiveRate: number | null;
   avoidAvgReturn: number | null;
   sharpeRatio: number | null;
@@ -244,6 +247,22 @@ export async function runBacktest(
     ? withActualReturns.reduce((s, r) => s + (r.actual90dReturn ?? 0), 0) / withActualReturns.length
     : null;
 
+  // Compute market benchmark from all tested cards' price histories
+  const allHistories: PricePoint[][] = [];
+  for (const card of cards) {
+    try {
+      const uid = card.uniqueIdentifier;
+      if (!uid) continue;
+      const history = await fetchPriceHistoryUpToDate(uid, backtestDate);
+      if (history.length >= windowDays + 1) {
+        allHistories.push(history);
+      }
+    } catch {
+      // skip failed fetches
+    }
+  }
+  const benchmark = computeMarketBenchmark(allHistories, windowDays);
+
   const strongBuyCards = cardResults.filter(r => r.category === 'strong_buy');
   const strongBuyFalsePositive = strongBuyCards.filter(r => r.actual90dReturn !== null && r.actual90dReturn < 0);
   const strongBuyFalsePositiveRate = strongBuyCards.length > 0
@@ -269,7 +288,9 @@ export async function runBacktest(
     const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
     const variance = returns.reduce((a, r) => a + (r - mean) ** 2, 0) / returns.length;
     const stdDev = Math.sqrt(variance);
-    sharpeRatio = stdDev > 0 ? (mean / stdDev) * Math.sqrt(252) : null;
+    // Annualize based on the actual window period (default 90 days)
+    const annualizationFactor = Math.sqrt(365 / windowDays);
+    sharpeRatio = stdDev > 0 ? (mean / stdDev) * annualizationFactor : null;
 
     let peak = 0;
     let maxDd = 0;
@@ -302,6 +323,8 @@ export async function runBacktest(
     mape,
     top10AvgReturn,
     marketAvgReturn,
+    marketMedianReturn: benchmark.medianReturn,
+    marketReturnStdDev: benchmark.returnStdDev,
     strongBuyFalsePositiveRate,
     avoidAvgReturn,
     sharpeRatio,
@@ -325,8 +348,8 @@ async function saveBacktestResult(result: BacktestResult): Promise<void> {
        (backtest_date, window_days, cards_tested, directional_accuracy, mape,
         top10_avg_return, market_avg_return, strong_buy_false_positive_rate,
         avoid_avg_return, sharpe_ratio, max_drawdown, win_rate, profit_factor,
-        category_performance)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        category_performance, market_median_return, market_return_std_dev)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         result.backtestDate,
         result.windowDays,
@@ -342,6 +365,8 @@ async function saveBacktestResult(result: BacktestResult): Promise<void> {
         result.winRate,
         result.profitFactor,
         JSON.stringify(result.categoryPerformance),
+        result.marketMedianReturn,
+        result.marketReturnStdDev,
       ],
       function (err) {
         if (err) reject(err);
@@ -372,4 +397,117 @@ export async function getBacktestResults(): Promise<any[]> {
       }
     );
   });
+}
+
+export interface WalkForwardResult {
+  windows: Array<{
+    cutoffDate: string;
+    directionalAccuracy: number | null;
+    mape: number | null;
+    top10AvgReturn: number | null;
+    marketAvgReturn: number | null;
+    cardsTested: number;
+  }>;
+  aggregateMetrics: {
+    avgDirectionalAccuracy: number | null;
+    avgMape: number | null;
+    avgTop10Return: number | null;
+    consistencyScore: number | null; // % of windows with positive directional accuracy
+  };
+}
+
+/**
+ * Walk-forward validation: runs backtests at multiple historical cutoff dates
+ * to measure model consistency across different market regimes.
+ * Returns rolling metrics for each window and aggregate statistics.
+ */
+export async function runWalkForwardValidation(
+  windowDays: number = 90,
+  numWindows: number = 6,
+  windowSpacingDays: number = 30,
+  filter: CardQualityFilter = DEFAULT_CARD_QUALITY_FILTER
+): Promise<WalkForwardResult> {
+  const db = getDb();
+
+  // Determine date range from available data
+  const dateRange: { minDate: string; maxDate: string } = await new Promise((resolve, reject) => {
+    db.get(
+      `SELECT MIN(date) as minDate, MAX(date) as maxDate FROM price_history
+       WHERE source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')`,
+      [],
+      (err, row: any) => {
+        if (err) return reject(err);
+        resolve({ minDate: row?.minDate || '2023-01-01', maxDate: row?.maxDate || new Date().toISOString().split('T')[0] });
+      }
+    );
+  });
+
+  const maxCutoff = new Date(dateRange.maxDate);
+  const cutoffDates: string[] = [];
+
+  for (let i = 0; i < numWindows; i++) {
+    const cutoff = new Date(maxCutoff);
+    cutoff.setDate(cutoff.getDate() - i * windowSpacingDays);
+    // Ensure we have enough history before the cutoff
+    const minRequired = new Date(dateRange.minDate);
+    minRequired.setDate(minRequired.getDate() + windowDays + 30);
+    if (cutoff < minRequired) break;
+    cutoffDates.push(cutoff.toISOString().split('T')[0]);
+  }
+
+  const windows: WalkForwardResult['windows'] = [];
+
+  for (const cutoffDate of cutoffDates) {
+    try {
+      const backtestResult = await runBacktest(cutoffDate, windowDays, undefined, filter);
+      windows.push({
+        cutoffDate,
+        directionalAccuracy: backtestResult.directionalAccuracy,
+        mape: backtestResult.mape,
+        top10AvgReturn: backtestResult.top10AvgReturn,
+        marketAvgReturn: backtestResult.marketAvgReturn,
+        cardsTested: backtestResult.cardsTested,
+      });
+    } catch (err) {
+      logger.warn(`Walk-forward window ${cutoffDate} failed:`, err);
+      windows.push({
+        cutoffDate,
+        directionalAccuracy: null,
+        mape: null,
+        top10AvgReturn: null,
+        marketAvgReturn: null,
+        cardsTested: 0,
+      });
+    }
+  }
+
+  // Compute aggregate metrics
+  const validWindows = windows.filter(w => w.directionalAccuracy !== null);
+  const avgDirectionalAccuracy = validWindows.length > 0
+    ? validWindows.reduce((s, w) => s + w.directionalAccuracy!, 0) / validWindows.length
+    : null;
+
+  const windowsWithMape = windows.filter(w => w.mape !== null);
+  const avgMape = windowsWithMape.length > 0
+    ? windowsWithMape.reduce((s, w) => s + w.mape!, 0) / windowsWithMape.length
+    : null;
+
+  const windowsWithTop10 = windows.filter(w => w.top10AvgReturn !== null);
+  const avgTop10Return = windowsWithTop10.length > 0
+    ? windowsWithTop10.reduce((s, w) => s + w.top10AvgReturn!, 0) / windowsWithTop10.length
+    : null;
+
+  const consistencyScore = validWindows.length > 0
+    ? validWindows.filter(w => w.directionalAccuracy! > 0.5).length / validWindows.length
+    : null;
+
+  return {
+    windows,
+    aggregateMetrics: {
+      avgDirectionalAccuracy,
+      avgMape,
+      avgTop10Return,
+      consistencyScore,
+    },
+  };
 }
