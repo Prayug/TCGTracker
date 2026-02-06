@@ -642,6 +642,66 @@ exports.migrations = [
             yield run('ALTER TABLE backtest_runs DROP COLUMN profit_factor');
         }),
     },
+    {
+        id: 15,
+        name: 'add_backtest_market_distribution_columns',
+        up: (db) => __awaiter(void 0, void 0, void 0, function* () {
+            const run = (sql) => new Promise((resolve, reject) => {
+                db.run(sql, (err) => {
+                    if (err)
+                        reject(err);
+                    else
+                        resolve();
+                });
+            });
+            yield run('ALTER TABLE backtest_runs ADD COLUMN market_median_return REAL');
+            yield run('ALTER TABLE backtest_runs ADD COLUMN market_return_std_dev REAL');
+            logger_1.logger.info('Added market_median_return and market_return_std_dev columns to backtest_runs');
+        }),
+        down: (db) => __awaiter(void 0, void 0, void 0, function* () {
+            const run = (sql) => new Promise((resolve, reject) => {
+                db.run(sql, (err) => {
+                    if (err)
+                        reject(err);
+                    else
+                        resolve();
+                });
+            });
+            yield run('ALTER TABLE backtest_runs DROP COLUMN market_median_return');
+            yield run('ALTER TABLE backtest_runs DROP COLUMN market_return_std_dev');
+        }),
+    },
+    {
+        id: 16,
+        name: 'backfill_card_mapping_rarity_from_catalog',
+        up: (db) => __awaiter(void 0, void 0, void 0, function* () {
+            yield new Promise((resolve, reject) => {
+                db.run(`UPDATE card_mappings
+           SET rarity = (
+             SELECT cc.rarity FROM catalog_cards cc
+             WHERE cc.cardId = card_mappings.cardId
+               AND cc.rarity IS NOT NULL AND TRIM(cc.rarity) <> ''
+             LIMIT 1
+           )
+           WHERE (rarity IS NULL OR TRIM(rarity) = '')
+             AND EXISTS (
+               SELECT 1 FROM catalog_cards cc
+               WHERE cc.cardId = card_mappings.cardId
+                 AND cc.rarity IS NOT NULL AND TRIM(cc.rarity) <> ''
+             )`, function (err) {
+                    if (err) {
+                        reject(err);
+                        return;
+                    }
+                    logger_1.logger.info(`Backfilled rarity on ${this.changes} card_mappings rows from catalog_cards`);
+                    resolve();
+                });
+            });
+        }),
+        down: (_db) => __awaiter(void 0, void 0, void 0, function* () {
+            logger_1.logger.info('Skipping rarity backfill rollback');
+        }),
+    },
 ];
 // Run pending migrations
 const runMigrations = (db) => __awaiter(void 0, void 0, void 0, function* () {

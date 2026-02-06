@@ -660,6 +660,70 @@ export const migrations: Migration[] = [
       await run('ALTER TABLE backtest_runs DROP COLUMN profit_factor');
     },
   },
+  {
+    id: 15,
+    name: 'add_backtest_market_distribution_columns',
+    up: async (db: Database) => {
+      const run = (sql: string): Promise<void> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, (err) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+
+      await run('ALTER TABLE backtest_runs ADD COLUMN market_median_return REAL');
+      await run('ALTER TABLE backtest_runs ADD COLUMN market_return_std_dev REAL');
+
+      logger.info('Added market_median_return and market_return_std_dev columns to backtest_runs');
+    },
+    down: async (db: Database) => {
+      const run = (sql: string): Promise<void> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, (err) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+
+      await run('ALTER TABLE backtest_runs DROP COLUMN market_median_return');
+      await run('ALTER TABLE backtest_runs DROP COLUMN market_return_std_dev');
+    },
+  },
+  {
+    id: 16,
+    name: 'backfill_card_mapping_rarity_from_catalog',
+    up: async (db: Database) => {
+      await new Promise<void>((resolve, reject) => {
+        db.run(
+          `UPDATE card_mappings
+           SET rarity = (
+             SELECT cc.rarity FROM catalog_cards cc
+             WHERE cc.cardId = card_mappings.cardId
+               AND cc.rarity IS NOT NULL AND TRIM(cc.rarity) <> ''
+             LIMIT 1
+           )
+           WHERE (rarity IS NULL OR TRIM(rarity) = '')
+             AND EXISTS (
+               SELECT 1 FROM catalog_cards cc
+               WHERE cc.cardId = card_mappings.cardId
+                 AND cc.rarity IS NOT NULL AND TRIM(cc.rarity) <> ''
+             )`,
+          function (err) {
+            if (err) {
+              reject(err);
+              return;
+            }
+            logger.info(`Backfilled rarity on ${this.changes} card_mappings rows from catalog_cards`);
+            resolve();
+          }
+        );
+      });
+    },
+    down: async (_db: Database) => {
+      logger.info('Skipping rarity backfill rollback');
+    },
+  },
 ];
 
 // Run pending migrations
