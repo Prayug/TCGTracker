@@ -1,5 +1,10 @@
 import { getDb } from '../db/database';
 import { logger } from '../utils/logger';
+import {
+  computePriceChanges as computePriceChangesFromHistory,
+  computeVolatility as computeVolatilityFromHistory,
+  getLatestPrice,
+} from './marketAnalyzer';
 
 interface EnrichedCard {
   investmentData?: {
@@ -82,7 +87,7 @@ function mapSuggestedAction(action: string): 'BUY' | 'HOLD' | 'SELL' | 'WATCH' {
   return 'WATCH';
 }
 
-function computePriceChanges(prices: number[]): { change30d: number; change90d: number; change1y: number } {
+function computePriceChangesLocal(prices: number[]): { change30d: number; change90d: number; change1y: number } {
   if (prices.length === 0) return { change30d: 0, change90d: 0, change1y: 0 };
   const current = prices[prices.length - 1];
   if (!current || current <= 0) return { change30d: 0, change90d: 0, change1y: 0 };
@@ -101,7 +106,7 @@ function computePriceChanges(prices: number[]): { change30d: number; change90d: 
   };
 }
 
-function computeVolatility(prices: number[]): number {
+function computeVolatilityLocal(prices: number[]): number {
   if (prices.length < 7) return 0.1;
   const logReturns: number[] = [];
   for (let i = 1; i < prices.length; i++) {
@@ -112,7 +117,7 @@ function computeVolatility(prices: number[]): number {
   if (logReturns.length === 0) return 0.1;
   const mean = logReturns.reduce((a, b) => a + b, 0) / logReturns.length;
   const variance = logReturns.reduce((a, b) => a + (b - mean) ** 2, 0) / logReturns.length;
-  return Math.sqrt(variance) * Math.sqrt(30); // monthly volatility
+  return Math.sqrt(variance) * Math.sqrt(30);
 }
 
 function computeFairValue(prices: number[]): number {
@@ -283,8 +288,8 @@ export async function enrichCardsWithInvestmentData<T extends { id?: string; car
 
       // Build marketAnalysis from prediction + price data
       const prices = priceHistory.map(p => p.price).filter(p => p > 0);
-      const { change30d, change90d, change1y } = computePriceChanges(prices);
-      const volatility = computeVolatility(prices);
+      const { change30d, change90d, change1y } = computePriceChangesLocal(prices);
+      const volatility = computeVolatilityLocal(prices);
       const fairValue = computeFairValue(prices);
 
       const category = prediction?.category || '';
