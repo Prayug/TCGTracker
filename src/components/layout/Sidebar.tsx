@@ -56,24 +56,30 @@ export const Sidebar: React.FC = () => {
     <aside className="hidden w-56 shrink-0 border-r border-border-subtle bg-surface-raised md:flex md:flex-col">
       <div className="flex h-14 items-center border-b border-border-subtle px-5">
         <NavLink to="/" className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md border border-border-default bg-accent-muted">
-            <span className="font-mono text-sm font-semibold text-accent">T</span>
+          <div className="relative flex h-8 w-8 items-center justify-center rounded-md border border-border-default bg-gradient-accent shadow-glow-accent">
+            <span className="font-mono text-sm font-semibold text-white">T</span>
           </div>
-          <span className="text-sm font-semibold tracking-tight text-ink-primary">TCGTracker</span>
+          <span className="font-display text-sm font-semibold tracking-tight text-ink-primary">
+            TCGTracker
+          </span>
         </NavLink>
       </div>
 
       {/* Game Switcher */}
-      <div className="px-3 pt-3 pb-1">
+      <div className="relative px-3 pt-3 pb-3">
+        <div
+          className="pointer-events-none absolute inset-x-3 bottom-0 h-px bg-gradient-to-r from-transparent via-accent/30 to-transparent"
+          aria-hidden="true"
+        />
         <div className="flex rounded-lg border border-border-default bg-surface-inset p-0.5">
           {GAME_OPTIONS.map(({ value, label, icon: Icon }) => (
             <button
               key={value}
               type="button"
               onClick={() => setGame(value)}
-              className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-all ${
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-all duration-200 ${
                 game === value
-                  ? 'bg-accent text-white shadow-sm'
+                  ? 'bg-gradient-accent text-white shadow-sm'
                   : 'text-ink-muted hover:text-ink-secondary'
               }`}
             >
@@ -84,10 +90,15 @@ export const Sidebar: React.FC = () => {
         </div>
       </div>
 
-      <nav aria-label="Primary" className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
-        {NAV_GROUPS.map((group) => (
+      <nav aria-label="Primary" className="flex-1 overflow-y-auto px-3 py-4">
+        {NAV_GROUPS.map((group, groupIndex) => (
           <div key={group.label}>
-            <p className="mb-1.5 px-2 text-[11px] font-medium text-ink-muted">{group.label}</p>
+            {groupIndex > 0 && (
+              <div className="mx-2 my-4 h-px bg-border-subtle" aria-hidden="true" />
+            )}
+            <p className="mb-1.5 px-2 text-[11px] font-medium uppercase tracking-wider text-ink-muted">
+              {group.label}
+            </p>
             <ul className="space-y-0.5">
               {group.items.map(({ to, label, icon: Icon, end }) => (
                 <li key={to}>
@@ -95,15 +106,30 @@ export const Sidebar: React.FC = () => {
                     to={to}
                     end={end}
                     className={({ isActive }) =>
-                      `flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors ${
+                      `group relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-all duration-200 ${
                         isActive
-                          ? 'bg-surface-hover text-ink-primary'
+                          ? 'bg-accent/10 text-accent'
                           : 'text-ink-secondary hover:bg-surface-hover hover:text-ink-primary'
                       }`
                     }
                   >
-                    <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                    {label}
+                    {({ isActive }) => (
+                      <>
+                        <span
+                          className={`absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-accent transition-opacity duration-200 ${
+                            isActive ? 'opacity-100' : 'opacity-0'
+                          }`}
+                          aria-hidden="true"
+                        />
+                        <Icon
+                          className={`h-4 w-4 shrink-0 transition-colors duration-200 ${
+                            isActive ? 'text-accent' : ''
+                          }`}
+                          aria-hidden="true"
+                        />
+                        {label}
+                      </>
+                    )}
                   </NavLink>
                 </li>
               ))}
