@@ -33,9 +33,18 @@ const GAME_OPTIONS: { value: GameType; label: string; icon: React.ElementType }[
 ];
 
 const tabClass = ({ isActive }: { isActive: boolean }) =>
-  `flex h-full min-w-[56px] flex-col items-center justify-center gap-1 text-[10px] font-medium transition-colors ${
+  `relative flex h-full min-w-[56px] flex-col items-center justify-center gap-1 text-[10px] font-medium transition-all duration-200 active:scale-[0.94] ${
     isActive ? 'text-accent' : 'text-ink-muted hover:text-ink-secondary'
   }`;
+
+const TabIndicator: React.FC<{ isActive: boolean }> = ({ isActive }) => (
+  <span
+    className={`absolute top-0 h-0.5 w-8 rounded-full bg-accent transition-opacity duration-200 ${
+      isActive ? 'opacity-100' : 'opacity-0'
+    }`}
+    aria-hidden="true"
+  />
+);
 
 export const BottomTabBar: React.FC = () => {
   const [moreOpen, setMoreOpen] = useState(false);
@@ -64,7 +73,7 @@ export const BottomTabBar: React.FC = () => {
           ref={sheetRef}
           role="menu"
           aria-label="More destinations"
-          className="fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-50 animate-slide-up rounded-lg border border-border-default bg-surface-overlay p-2 shadow-lg md:hidden"
+          className="fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-50 animate-slide-up rounded-2xl border border-border-default bg-surface-overlay p-2 shadow-elevated md:hidden"
         >
           {/* Game Switcher in More menu */}
           <div className="mb-2 flex rounded-lg border border-border-default bg-surface-inset p-0.5">
@@ -107,13 +116,18 @@ export const BottomTabBar: React.FC = () => {
 
       <nav
         aria-label="Mobile"
-        className="fixed inset-x-0 bottom-0 z-50 h-16 border-t border-border-subtle bg-surface-raised pb-[env(safe-area-inset-bottom)] md:hidden"
+        className="glass fixed inset-x-0 bottom-0 z-50 h-16 border-t border-border-glass pb-[env(safe-area-inset-bottom)] md:hidden"
       >
         <div className="mx-auto flex h-16 max-w-md items-stretch justify-around px-2">
           {PRIMARY_TABS.map(({ to, label, icon: Icon, end }) => (
             <NavLink key={to} to={to} end={end} className={tabClass}>
-              <Icon className="h-[22px] w-[22px]" aria-hidden="true" />
-              {label}
+              {({ isActive }) => (
+                <>
+                  <TabIndicator isActive={isActive} />
+                  <Icon className="h-[22px] w-[22px]" aria-hidden="true" />
+                  {label}
+                </>
+              )}
             </NavLink>
           ))}
 
@@ -126,7 +140,7 @@ export const BottomTabBar: React.FC = () => {
               }`
             }
           >
-            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-accent text-white transition-transform active:scale-95">
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-accent text-white shadow-glow-accent transition-transform duration-200 active:scale-95">
               <Camera className="h-5 w-5" aria-hidden="true" />
             </span>
             Scan
@@ -134,8 +148,13 @@ export const BottomTabBar: React.FC = () => {
 
           {SECONDARY_TABS.map(({ to, label, icon: Icon }) => (
             <NavLink key={to} to={to} className={tabClass}>
-              <Icon className="h-[22px] w-[22px]" aria-hidden="true" />
-              {label}
+              {({ isActive }) => (
+                <>
+                  <TabIndicator isActive={isActive} />
+                  <Icon className="h-[22px] w-[22px]" aria-hidden="true" />
+                  {label}
+                </>
+              )}
             </NavLink>
           ))}
 
@@ -144,10 +163,11 @@ export const BottomTabBar: React.FC = () => {
             onClick={() => setMoreOpen((v) => !v)}
             aria-expanded={moreOpen}
             aria-haspopup="menu"
-            className={`flex h-full min-w-[56px] flex-col items-center justify-center gap-1 text-[10px] font-medium transition-colors ${
+            className={`relative flex h-full min-w-[56px] flex-col items-center justify-center gap-1 text-[10px] font-medium transition-all duration-200 active:scale-[0.94] ${
               moreActive || moreOpen ? 'text-accent' : 'text-ink-muted hover:text-ink-secondary'
             }`}
           >
+            <TabIndicator isActive={moreActive || moreOpen} />
             <MoreHorizontal className="h-[22px] w-[22px]" aria-hidden="true" />
             More
           </button>
