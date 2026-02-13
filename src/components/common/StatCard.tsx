@@ -28,7 +28,7 @@ export const StatCard: React.FC<StatCardProps> = ({
   tone = 'default',
 }) => {
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="flex flex-col gap-0.5 transition-transform duration-200 hover:-translate-y-0.5">
       <p className={`font-mono text-2xl font-semibold tabular-nums tracking-tight ${toneClasses[tone]}`}>
         {value !== undefined ? (
           value
@@ -50,7 +50,7 @@ interface StatsBarProps {
 
 export const StatsBar: React.FC<StatsBarProps> = ({ children, className = '' }) => (
   <div
-    className={`flex flex-wrap items-start gap-x-10 gap-y-6 border-y border-border-subtle py-6 ${className}`}
+    className={`stagger-children flex flex-wrap items-start gap-x-10 gap-y-6 border-y border-border-subtle py-6 ${className}`}
   >
     {children}
   </div>
