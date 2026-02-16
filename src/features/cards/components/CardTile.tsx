@@ -41,16 +41,28 @@ export const CardTile: React.FC<CardTileProps> = ({
   return (
     <article
       className={[
-        'group relative overflow-hidden rounded-lg border border-border-default bg-surface-raised shadow-sm',
-        'transition-colors duration-150 hover:border-border-strong',
+        'group relative overflow-hidden rounded-xl border border-border-default bg-surface-raised shadow-card',
+        'transition-all duration-200 hover:-translate-y-0.5 hover:border-border-strong hover:shadow-elevated',
         getPremiumBorderClass(card.rarity),
       ].join(' ')}
     >
-      <div className="relative aspect-[63/88] overflow-hidden bg-surface-inset cursor-pointer" onClick={onClick}>
+      {/* Pointer convenience only; keyboard access is provided by the labeled button below */}
+      <div
+        role="button"
+        tabIndex={-1}
+        className="relative aspect-[63/88] cursor-pointer overflow-hidden bg-surface-inset"
+        onClick={onClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onClick();
+          }
+        }}
+      >
           {imageUrl ? (
             <img
               src={imageUrl}
-              alt={`${card.name} card image`}
+              alt={card.name}
               className="relative z-0 h-full w-full object-contain p-2.5 transition-transform duration-300 ease-out group-hover:scale-[1.03]"
               loading="lazy"
               decoding="async"
@@ -121,19 +133,17 @@ export const CardTile: React.FC<CardTileProps> = ({
         aria-label={`Open details for ${card.name}`}
       >
         <div className="space-y-1.5 px-3.5 py-3">
-          <div className="flex items-baseline justify-between gap-2">
-            <h3
-              className="truncate text-[13px] font-semibold leading-tight text-ink-primary"
-              title={card.name}
-            >
-              {card.name || 'Unknown Card'}
-            </h3>
-            <span className="shrink-0 font-mono text-[10px] text-ink-muted">
-              #{card.number || '—'}
+          <h3
+            className="line-clamp-2 min-h-[2em] text-[13px] font-semibold leading-tight text-ink-primary"
+            title={card.name}
+          >
+            {card.name || 'Unknown Card'}
+          </h3>
+          <p className="flex items-baseline justify-between gap-2 text-xs text-ink-muted">
+            <span className="truncate" title={card.set.name}>
+              {card.set.name || 'Unknown set'}
             </span>
-          </div>
-          <p className="truncate text-xs text-ink-muted" title={card.set.name}>
-            {card.set.name || 'Unknown set'}
+            <span className="shrink-0 font-mono text-[10px]">#{card.number || '—'}</span>
           </p>
 
           <div className="flex items-center justify-between gap-2 border-t border-border-subtle pt-2">

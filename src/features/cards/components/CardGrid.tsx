@@ -3,7 +3,6 @@ import { ChevronDown, LayoutGrid, List } from 'lucide-react';
 import { CardTile, AnyCard } from './CardTile';
 import { CardListRow } from './CardListRow';
 import { getCardReactKey } from '../../../utils/cardPrice';
-import { PokemonCard as PokemonCardType } from '../../../types/pokemon';
 
 export type CardViewMode = 'grid' | 'list';
 
@@ -103,7 +102,7 @@ export const CardGrid: React.FC<CardGridProps> = ({
 
   if (viewMode === 'list') {
     return (
-      <section className="animate-fade-in space-y-3">
+      <section className="stagger-children space-y-3">
         {reveal.visibleCards.map((card, index) => (
           <CardListRow
             key={getCardReactKey(card, index)}
@@ -127,7 +126,7 @@ export const CardGrid: React.FC<CardGridProps> = ({
 
   return (
     <section className="animate-fade-in">
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+      <div className="stagger-children grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
         {reveal.visibleCards.map((card, index) => (
           <CardTile
             key={getCardReactKey(card, index)}

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { PokemonCard } from '../types/pokemon';
-import { OnePieceCard } from '../types/onepiece';
 import { SearchFilters } from '../features/cards/components/SearchAndSort';
 import { CardGrid, CardViewMode, ViewModeToggle } from '../features/cards/components/CardGrid';
 import { countActiveMarketplaceFilters } from '../utils/marketplaceFilters';
@@ -10,7 +9,7 @@ import { FilterSidebar, MarketplaceFilters } from '../features/cards/components/
 import { LoadingGrid } from '../components/common/LoadingSpinner';
 import { ErrorMessage } from '../components/common/ErrorMessage';
 import { EmptyState } from '../components/common/EmptyState';
-import { useCards, AnyCard, isPokemonCard, isOnePieceCard, getCardPrice } from '../hooks/useCards';
+import { useCards, isPokemonCard, isOnePieceCard, getCardPrice } from '../hooks/useCards';
 import { useGame } from '../contexts/GameContext';
 import { useCardModal } from '../contexts/CardModalContext';
 import { markOnboardingStep } from '../components/common/OnboardingChecklist';
@@ -77,7 +76,7 @@ export function BrowsePage() {
     setMarketplaceFilters(DEFAULT_FILTERS);
   };
 
-  const handleAddToCollection = (_card: AnyCard) => {
+  const handleAddToCollection = () => {
     navigate('/vault');
   };
 
@@ -141,11 +140,13 @@ export function BrowsePage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <section className="mb-6 rounded-xl border border-border-default bg-surface-raised p-4 text-white shadow-sm">
+      <section className="card mb-6 !p-4">
         <SectionLabel className="text-accent/90">Marketplace</SectionLabel>
         <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Browse {gameLabel} Cards</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-ink-primary">
+              Browse {gameLabel} Cards
+            </h1>
             <p className="mt-1 text-sm text-ink-secondary">
               Analyze cards with marketplace filters, pricing surfaces, and collection actions.
             </p>
@@ -173,11 +174,11 @@ export function BrowsePage() {
       {(searchQuery || facetChips.length > 0) && !isLoading && !error && cardsWithMarketplaceFilters.length > 0 && (
         <div className="mb-4 flex flex-wrap items-center gap-2" aria-live="polite">
           <p className="text-sm text-ink-secondary">
-            <span className="font-medium tabular-nums text-white">{cardsWithMarketplaceFilters.length}</span>{' '}
+            <span className="font-medium tabular-nums text-ink-primary">{cardsWithMarketplaceFilters.length}</span>{' '}
             {cardsWithMarketplaceFilters.length === 1 ? 'result' : 'results'}
             {searchQuery && (
               <>
-                {' '}for <span className="font-medium text-white">"{searchQuery}"</span>
+                {' '}for <span className="font-medium text-ink-primary">"{searchQuery}"</span>
               </>
             )}
           </p>
@@ -233,7 +234,7 @@ export function BrowsePage() {
               cards={cardsWithMarketplaceFilters as PokemonCard[]}
               viewMode={cardViewMode}
               onCardClick={(card) => openCard(card as PokemonCard)}
-              onAddToCollection={handleAddToCollection as (card: PokemonCard) => void}
+              onAddToCollection={handleAddToCollection}
               onViewPriceHistory={(card) => openCard(card as PokemonCard)}
             />
           ) : (
