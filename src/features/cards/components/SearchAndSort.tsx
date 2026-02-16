@@ -61,7 +61,7 @@ export const SearchFilters: React.FC<SearchAndSortProps> = ({
   }, [inputValue, searchQuery, onSearchChange]);
 
   return (
-    <section className="sticky top-[4.75rem] z-20 mb-6 w-full min-w-0 max-w-full animate-fade-in rounded-xl border border-border-default bg-surface-raised/95 p-4 shadow-sm ">
+    <section className="sticky top-14 z-30 mb-6 w-full min-w-0 max-w-full animate-fade-in rounded-xl border border-border-default bg-surface-raised/90 p-4 shadow-sm backdrop-blur-md">
       <div className="flex flex-col gap-3">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
