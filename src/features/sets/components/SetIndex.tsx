@@ -57,7 +57,7 @@ function SetCard({
           onSelect();
         }
       }}
-      className="group relative flex w-full cursor-pointer items-center gap-3 rounded-xl border border-border-default bg-surface-raised p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-border-strong"
+      className="group relative flex w-full cursor-pointer items-center gap-3 rounded-xl border border-border-default bg-gradient-surface p-3 text-left shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:border-border-strong hover:shadow-elevated"
     >
       {isPokemon && <SetLogo set={set as PokemonSet} size="md" />}
       {!isPokemon && (
@@ -69,12 +69,12 @@ function SetCard({
         <button
           type="button"
           onClick={onTogglePin}
-          className="absolute right-2 top-2 rounded-lg p-1.5 text-ink-muted hover:bg-white/10 hover:text-amber-300"
+          className="absolute right-2 top-2 rounded-lg p-1.5 text-ink-muted transition-colors duration-200 hover:bg-surface-hover hover:text-amber-400"
           aria-label={pinned ? 'Unpin set' : 'Pin set'}
         >
           <Star className={`h-4 w-4 ${pinned ? 'fill-amber-400 text-amber-400' : ''}`} />
         </button>
-        <p className="pr-8 font-semibold text-white">{set.name}</p>
+        <p className="pr-8 font-semibold text-ink-primary">{set.name}</p>
         <p className="mt-0.5 text-xs text-ink-muted">
           {isPokemon && `${(set as PokemonSet).total} cards`}
           {!isPokemon && `Set ID: ${set.id}`}
@@ -176,7 +176,7 @@ export const SetIndex: React.FC<SetIndexProps> = ({ onSelectSet }) => {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border border-border-default bg-surface-raised p-4 text-white shadow-sm">
+      <section className="card !p-4">
         <SectionLabel className="text-accent/90">Set Tracker</SectionLabel>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight">Browse {gameLabel} Sets</h1>
         <p className="mt-1 text-sm text-ink-secondary">
@@ -194,7 +194,7 @@ export const SetIndex: React.FC<SetIndexProps> = ({ onSelectSet }) => {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search sets..."
-            className="w-full rounded-lg border border-border-subtle bg-surface-hover py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-ink-muted focus:border-violet-500/50 focus:outline-none"
+            className="input input-with-icon"
           />
         </div>
         {isPokemon && (
@@ -227,7 +227,7 @@ export const SetIndex: React.FC<SetIndexProps> = ({ onSelectSet }) => {
                 </h2>
                 <span className="text-xs tabular-nums text-ink-muted">{group.sets.length} sets</span>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="stagger-children grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {group.sets.map((set) => (
                   <SetCard
                     key={set.id}
@@ -243,7 +243,7 @@ export const SetIndex: React.FC<SetIndexProps> = ({ onSelectSet }) => {
           ))}
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="stagger-children grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((set) => (
             <SetCard
               key={set.id}

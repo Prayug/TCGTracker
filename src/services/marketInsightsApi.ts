@@ -19,12 +19,6 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
       /* response may not be JSON */
     }
 
-    if (response.status === 401) {
-      throw new Error('Sign in required. Use an admin account to run predictions or backtests.');
-    }
-    if (response.status === 403) {
-      throw new Error('Admin access required for this action.');
-    }
     throw new Error(detail || `API error: ${response.status}`);
   }
 

@@ -22,7 +22,7 @@ export const CompletionRing: React.FC<CompletionRingProps> = ({
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const complete = clamped >= 100;
-  const color = complete ? '#d6aa51' : '#3b82f6';
+  const color = complete ? 'var(--gold)' : 'var(--accent)';
 
   return (
     <div
@@ -37,7 +37,7 @@ export const CompletionRing: React.FC<CompletionRingProps> = ({
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="rgba(255,255,255,0.08)"
+          stroke="var(--border-subtle)"
           strokeWidth={strokeWidth}
         />
         <circle
