@@ -59,7 +59,7 @@ export const VaultCard: React.FC<VaultCardProps> = ({ vaultCard, onRemove, onUpd
   };
 
   return (
-    <div className="rounded-xl border border-border-subtle bg-surface-inset overflow-hidden hover:border-violet-500/40 transition-colors duration-300">
+    <div className="overflow-hidden rounded-xl border border-border-subtle bg-surface-inset shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-elevated">
       <div className="flex flex-col md:flex-row">
         {/* Card Image */}
         <div className="md:w-48 flex-shrink-0 bg-gradient-to-br from-white/[0.02] to-white/[0.06] p-4">

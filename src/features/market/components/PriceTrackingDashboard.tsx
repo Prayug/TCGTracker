@@ -108,14 +108,16 @@ export const PriceTrackingDashboard: React.FC = () => {
       )}
 
       <div className="animate-slide-up">
-        <SectionLabel className="text-violet-300/90">Price tracker</SectionLabel>
-        <h2 className="mt-2 text-3xl font-bold tracking-tight text-white">Watchlist & alerts</h2>
+        <SectionLabel className="text-accent/90">Price tracker</SectionLabel>
+        <h2 className="text-gradient mt-2 font-display text-3xl font-bold tracking-tight">
+          Watchlist & alerts
+        </h2>
         <p className="mt-2 text-sm text-ink-muted">
           Monitor favorites, spot 7-day moves, and set price triggers.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4 animate-slide-up">
+      <div className="stagger-children grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <TrackerStatCard
           icon={Package}
           label="Tracked cards"
@@ -146,7 +148,7 @@ export const PriceTrackingDashboard: React.FC = () => {
       </div>
 
       <div className="card">
-        <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
+        <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-ink-primary">
           <Plus className="h-5 w-5 text-emerald-400" />
           Add card to track
         </h3>
@@ -191,7 +193,7 @@ export const PriceTrackingDashboard: React.FC = () => {
                     className="h-16 w-11 object-contain"
                   />
                   <div className="min-w-0 flex-1">
-                    <h4 className="truncate font-semibold text-white">{card.name}</h4>
+                    <h4 className="truncate font-semibold text-ink-primary">{card.name}</h4>
                     <p className="text-xs text-ink-muted">{card.set.name}</p>
                     {price > 0 && (
                       <p className="mt-1 text-sm font-bold text-emerald-300">{formatCurrency(price)}</p>
@@ -222,7 +224,7 @@ export const PriceTrackingDashboard: React.FC = () => {
           {/* Top Gainers */}
           {movers.gainers.length > 0 && (
             <div className="card">
-              <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
+              <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-ink-primary">
                 <TrendingUp className="h-5 w-5 text-emerald-400" />
                 Top gainers
               </h3>
@@ -247,7 +249,7 @@ export const PriceTrackingDashboard: React.FC = () => {
                       }}
                     />
                     <div className="flex-1">
-                      <h4 className="line-clamp-1 text-sm font-semibold text-white">{mover.card.name}</h4>
+                      <h4 className="line-clamp-1 text-sm font-semibold text-ink-primary">{mover.card.name}</h4>
                       <p className="text-xs text-ink-muted">{formatCurrency(mover.currentPrice)}</p>
                     </div>
                     <div className="text-right">
@@ -263,7 +265,7 @@ export const PriceTrackingDashboard: React.FC = () => {
           {/* Top Losers */}
           {movers.losers.length > 0 && (
             <div className="card">
-              <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
+              <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-ink-primary">
                 <TrendingDown className="h-5 w-5 text-rose-400" />
                 Top losers
               </h3>
@@ -288,7 +290,7 @@ export const PriceTrackingDashboard: React.FC = () => {
                       }}
                     />
                     <div className="flex-1">
-                      <h4 className="line-clamp-1 text-sm font-semibold text-white">{mover.card.name}</h4>
+                      <h4 className="line-clamp-1 text-sm font-semibold text-ink-primary">{mover.card.name}</h4>
                       <p className="text-xs text-ink-muted">{formatCurrency(mover.currentPrice)}</p>
                     </div>
                     <div className="text-right">
@@ -304,7 +306,7 @@ export const PriceTrackingDashboard: React.FC = () => {
       )}
 
       <div className="card">
-        <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
+        <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-ink-primary">
           <Star className="h-5 w-5 text-amber-400" />
           Tracked cards ({trackedCards.length})
         </h3>
@@ -328,7 +330,7 @@ export const PriceTrackingDashboard: React.FC = () => {
               return (
                 <div
                   key={tracked.id}
-                  className="rounded-xl border border-border-subtle bg-surface-inset p-4"
+                  className="rounded-xl border border-border-subtle bg-surface-inset p-4 transition-all duration-200 hover:border-border-default hover:shadow-card"
                 >
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
                     <img
@@ -340,7 +342,7 @@ export const PriceTrackingDashboard: React.FC = () => {
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                          <h4 className="text-lg font-semibold text-white">{tracked.card.name}</h4>
+                          <h4 className="text-lg font-semibold text-ink-primary">{tracked.card.name}</h4>
                           <p className="text-sm text-ink-muted">{tracked.card.set.name}</p>
                         </div>
                         <div className="text-right">
@@ -354,7 +356,7 @@ export const PriceTrackingDashboard: React.FC = () => {
                           <p className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">
                             Initial
                           </p>
-                          <p className="text-sm font-bold tabular-nums text-white">
+                          <p className="text-sm font-bold tabular-nums text-ink-primary">
                             {formatCurrency(tracked.initialPrice)}
                           </p>
                         </div>
@@ -362,7 +364,7 @@ export const PriceTrackingDashboard: React.FC = () => {
                           <p className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">
                             Current
                           </p>
-                          <p className="text-sm font-bold tabular-nums text-white">
+                          <p className="text-sm font-bold tabular-nums text-ink-primary">
                             {formatCurrency(currentPrice)}
                           </p>
                         </div>
@@ -414,7 +416,7 @@ export const PriceTrackingDashboard: React.FC = () => {
       {/* Price Alerts */}
       {alerts.length > 0 && (
         <div className="card">
-          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
+          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-ink-primary">
             <Bell className="h-5 w-5 text-amber-400" />
             Price alerts ({alerts.filter((a) => a.isActive).length})
           </h3>
@@ -425,11 +427,11 @@ export const PriceTrackingDashboard: React.FC = () => {
               .map((alert) => (
                 <div
                   key={alert.id}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-border-default bg-surface-inset p-4"
+                  className="flex items-center justify-between gap-3 rounded-xl border border-accent/30 border-l-4 border-l-accent bg-surface-inset p-4"
                 >
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h4 className="truncate font-semibold text-white">{alert.cardName}</h4>
+                      <h4 className="truncate font-semibold text-ink-primary">{alert.cardName}</h4>
                       <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
                         <span className="h-1.5 w-1.5 rounded-full bg-amber-400" aria-hidden="true" />
                         Armed
@@ -459,9 +461,9 @@ export const PriceTrackingDashboard: React.FC = () => {
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="w-full max-w-md rounded-2xl border border-border-strong bg-surface-overlay p-6"
+            className="w-full max-w-md rounded-2xl border border-border-strong bg-surface-overlay p-6 shadow-elevated"
           >
-            <h3 className="text-xl font-bold text-white">Create price alert</h3>
+            <h3 className="text-xl font-bold text-ink-primary">Create price alert</h3>
             <p className="mt-1 text-sm text-ink-muted">{selectedCardForAlert.card.name}</p>
 
             <div className="mt-4 space-y-4">
@@ -481,7 +483,7 @@ export const PriceTrackingDashboard: React.FC = () => {
                       onClick={() => setAlertType(type)}
                       className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium capitalize transition-colors ${
                         alertType === type
-                          ? 'bg-surface-hover text-white'
+                          ? 'bg-surface-hover text-ink-primary'
                           : 'text-ink-muted hover:text-ink-secondary'
                       }`}
                     >

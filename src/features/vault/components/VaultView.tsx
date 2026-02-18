@@ -133,7 +133,7 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
           <div className="mt-5 flex flex-wrap items-end gap-x-10 gap-y-4">
             <div>
               <p className="text-xs font-medium text-ink-muted">Current value</p>
-              <p className="font-mono text-[32px] font-bold leading-tight tabular-nums text-ink-primary">
+              <p className="text-gradient font-mono text-[32px] font-bold leading-tight tabular-nums">
                 {formatCurrency(stats.currentValue)}
               </p>
               <p
@@ -173,9 +173,9 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
 
       {/* Empty State */}
       {vaultCards.length === 0 ? (
-        <div className="flex flex-col items-center rounded-2xl border border-dashed border-border-strong bg-surface-raised p-12 text-center">
-          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full border border-border-default bg-surface-inset">
-            <Vault className="h-8 w-8 text-ink-muted" aria-hidden="true" />
+        <div className="mt-6 flex animate-scale-in flex-col items-center rounded-2xl border border-dashed border-border-strong bg-gradient-surface p-12 text-center">
+          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full border border-accent/25 bg-accent-muted shadow-glow-accent">
+            <Vault className="h-8 w-8 text-accent" aria-hidden="true" />
           </div>
           <h3 className="mb-2 text-xl font-semibold text-ink-primary">No {gameLabel} cards yet</h3>
           <p className="mx-auto mb-6 max-w-md text-sm text-ink-muted">
@@ -208,7 +208,7 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
                 Holdings <span className="text-sm font-normal tabular-nums text-ink-muted">({vaultCards.length})</span>
               </h2>
             </div>
-            <div className="space-y-4">
+            <div className="stagger-children space-y-4">
               {vaultCards.map((vaultCard) => (
                 <VaultCard
                   key={vaultCard.id}
