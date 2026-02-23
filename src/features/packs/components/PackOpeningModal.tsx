@@ -1,13 +1,29 @@
-import React, { useRef, useState } from 'react';
+import React, { Suspense, lazy, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Pack, PackPull } from '../../../types/pokemon';
 import { Modal } from '../../../components/common/Modal';
 import { tieredPackService } from '../../../services/tieredPackService';
 import { vaultService } from '../../../services/vaultService';
 import { useToast } from '../../../components/common/Toast';
-import { FastForward, Sparkles, Vault, X } from 'lucide-react';
+import { FastForward, Sparkles, Vault } from 'lucide-react';
 import { pokemonApi } from '../../../services/pokemonApi';
 import { markOnboardingStep } from '../../../components/common/OnboardingChecklist';
+
+// Lazy-loaded so three.js/R3F stay out of the initial bundle.
+const PackOpeningScene = lazy(() => import('./PackOpeningScene'));
+
+/** Kept local (not imported from the scene) to preserve the lazy chunk split. */
+function supportsWebGL(): boolean {
+  try {
+    const canvas = document.createElement('canvas');
+    return !!(
+      window.WebGLRenderingContext &&
+      (canvas.getContext('webgl') || canvas.getContext('experimental-webgl'))
+    );
+  } catch {
+    return false;
+  }
+}
 
 interface PackOpeningModalProps {
   pack: Pack | null;
@@ -21,6 +37,7 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
   const [packPull, setPackPull] = useState<PackPull | null>(null);
   const [revealedCards, setRevealedCards] = useState<number>(0);
   const [showResults, setShowResults] = useState(false);
+  const [use3D, setUse3D] = useState(false);
   const skipRef = useRef(false);
 
   /** Delay that resolves early when the user hits Skip. */
@@ -42,6 +59,10 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
     if (!pack) return;
 
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // 3D reveal only when WebGL works and the user hasn't opted out of motion;
+    // otherwise gracefully degrade to the CSS fan-out.
+    const use3DNow = supportsWebGL() && !reducedMotion;
+    setUse3D(use3DNow);
     skipRef.current = reducedMotion;
     setIsOpening(true);
     setPackPull(null);
@@ -52,14 +73,24 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
       // Start fetching the pack while showing animation
       const packPromise = tieredPackService.openPack(pack);
 
-      // Dramatic opening pause — skippable, and skipped entirely for reduced motion.
-      await wait(2000);
+      // Dramatic opening pause — skippable, and skipped entirely for reduced
+      // motion. The 3D scene provides its own idle/rip intro, so no extra wait.
+      if (!use3DNow) {
+        await wait(2000);
+      }
 
       // Wait for pack to finish opening
       const pull = await packPromise;
       setPackPull(pull);
 
       const cardCount = pull.cards.length;
+
+      if (use3DNow && !skipRef.current) {
+        // The 3D scene drives the reveal and calls onComplete → showResults.
+        setRevealedCards(cardCount);
+        return;
+      }
+
       for (let i = 0; i < cardCount; i++) {
         if (skipRef.current) {
           setRevealedCards(cardCount);
@@ -133,16 +164,8 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} size="large">
+    <Modal isOpen={isOpen} onClose={handleClose} size="detail">
       <div className="relative">
-        {/* Close button */}
-          <button
-            onClick={handleClose}
-            className="absolute top-4 right-4 z-10 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
-          >
-            <X className="w-5 h-5 text-white" />
-          </button>
-
         {/* Not opened yet - Show pack and buy button */}
         {!packPull && (
           <div className="p-8 text-center">
@@ -163,7 +186,7 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
             <div className="flex items-center justify-center gap-8 mb-6 text-sm">
               <div>
                 <p className="text-ink-muted mb-1">Cards per pack</p>
-                <p className="text-2xl font-bold text-white">{pack.cardsPerPack}</p>
+                <p className="text-2xl font-bold text-ink-primary">{pack.cardsPerPack}</p>
               </div>
               <div className="w-px h-12 bg-white/10" />
               <div>
@@ -184,7 +207,7 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
                 {pack.valueRanges.map((range, idx) => (
                   <div key={idx} className="flex items-center justify-between text-xs">
                     <span className="text-ink-muted">{range.label}</span>
-                    <span className="font-bold tabular-nums text-white">
+                    <span className="font-bold tabular-nums text-ink-primary">
                       {range.probability.toFixed(1)}%
                     </span>
                   </div>
@@ -234,18 +257,36 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
 
         {/* Card being revealed */}
         {packPull && !showResults && (
-          <div className="relative p-8">
+          <div className="relative p-4 sm:p-6">
             <button
               type="button"
-              onClick={handleSkip}
+              onClick={() => {
+                handleSkip();
+                if (use3D) setShowResults(true);
+              }}
               className="absolute right-4 top-4 z-20 inline-flex items-center gap-1.5 rounded-lg border border-border-default bg-surface-overlay/90 px-3 py-1.5 text-xs font-medium text-ink-secondary  transition-colors hover:text-ink-primary"
             >
               <FastForward className="h-3.5 w-3.5" aria-hidden="true" />
               Skip
             </button>
-            <h3 className="mb-8 text-center text-3xl font-bold bg-gradient-to-r from-yellow-400 via-pink-400 to-purple-600 bg-clip-text text-transparent motion-safe:animate-pulse">
+            <h3 className="mb-4 text-center text-3xl font-bold bg-gradient-to-r from-yellow-400 via-pink-400 to-purple-600 bg-clip-text text-transparent motion-safe:animate-pulse">
               ✨ YOU PULLED ✨
             </h3>
+            {use3D ? (
+              <Suspense
+                fallback={
+                  <div className="flex h-[380px] items-center justify-center sm:h-[440px]">
+                    <div className="h-9 w-9 animate-spin rounded-full border-2 border-border-default border-t-accent" />
+                  </div>
+                }
+              >
+                <PackOpeningScene
+                  tier={packPull.pack.tier}
+                  cardImages={packPull.cards.map((card) => card.images?.small ?? null)}
+                  onComplete={() => setShowResults(true)}
+                />
+              </Suspense>
+            ) : (
             <div className="flex min-h-[320px] items-end justify-center gap-2 px-4 pb-4">
               {packPull.cards.map((card, index) => {
                 const price = card.marketPrice || pokemonApi.extractCardPrice(card);
@@ -340,6 +381,7 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
                 );
               })}
             </div>
+            )}
           </div>
         )}
 
@@ -357,11 +399,11 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
             <div className="grid grid-cols-3 gap-4 mb-6">
               <div className="bg-surface-inset rounded-xl p-4 text-center">
                 <p className="text-sm text-ink-muted mb-1">Total Value</p>
-                <p className="text-2xl font-bold text-white">${packPull.totalValue.toFixed(2)}</p>
+                <p className="text-2xl font-bold tabular-nums text-ink-primary">${packPull.totalValue.toFixed(2)}</p>
               </div>
               <div className="bg-surface-inset rounded-xl p-4 text-center">
                 <p className="text-sm text-ink-muted mb-1">Pack Cost</p>
-                <p className="text-2xl font-bold text-white">${packPull.pack.price.toFixed(2)}</p>
+                <p className="text-2xl font-bold tabular-nums text-ink-primary">${packPull.pack.price.toFixed(2)}</p>
               </div>
               <div className={`rounded-xl p-4 text-center ${packPull.profit >= 0 ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
                 <p className={`text-sm ${packPull.profit >= 0 ? 'text-green-400' : 'text-red-400'} mb-1`}>Profit/Loss</p>
@@ -374,7 +416,7 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
             </div>
 
             {/* Card display */}
-            <div className="flex justify-center mb-6">
+            <div className="mb-6 flex flex-wrap justify-center gap-6">
               {packPull.cards.map((card, index) => {
                 const price = card.marketPrice || pokemonApi.extractCardPrice(card);
                 return (
@@ -414,7 +456,7 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
                       )}
                     </div>
                     <div className="mt-4 text-center">
-                      <p className="text-xl font-bold text-white mb-1">{card.name}</p>
+                      <p className="text-xl font-bold text-ink-primary mb-1">{card.name}</p>
                       <p className="text-sm text-ink-muted mb-2">{card.set.name} • #{card.number}</p>
                       {card.rarity && (
                         <span className="inline-block px-3 py-1 bg-purple-500/10 text-purple-300 rounded-full text-sm font-semibold mb-2">
