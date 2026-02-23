@@ -9,7 +9,7 @@ import { PageEmptyState } from '../../../components/common/PageEmptyState';
 import { formatCurrency } from '../../../utils/cardDisplay';
 
 export const PackShop: React.FC = () => {
-  const { isPokemon, isOnePiece } = useGame();
+  const { isOnePiece } = useGame();
   const [packs, setPacks] = useState<Pack[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedPack, setSelectedPack] = useState<Pack | null>(null);
@@ -54,6 +54,24 @@ export const PackShop: React.FC = () => {
     }
   };
 
+  /** Tier-matched glow used for the hover border/shadow on pack cards. */
+  const getTierGlow = (tier: string) => {
+    switch (tier) {
+      case 'starter':
+        return 'hover:border-slate-400/60 hover:shadow-[0_16px_40px_-12px_rgba(100,116,139,0.45)]';
+      case 'bronze':
+        return 'hover:border-amber-500/60 hover:shadow-[0_16px_40px_-12px_rgba(217,119,6,0.45)]';
+      case 'silver':
+        return 'hover:border-slate-300/70 hover:shadow-[0_16px_40px_-12px_rgba(148,163,184,0.5)]';
+      case 'gold':
+        return 'hover:border-yellow-400/60 hover:shadow-[0_16px_40px_-12px_rgba(234,179,8,0.5)]';
+      case 'platinum':
+        return 'hover:border-fuchsia-400/60 hover:shadow-[0_16px_40px_-12px_rgba(192,38,211,0.5)]';
+      default:
+        return 'hover:border-blue-400/60 hover:shadow-[0_16px_40px_-12px_rgba(59,130,246,0.5)]';
+    }
+  };
+
   const evRatio = (pack: Pack) => (pack.price > 0 ? pack.averageValue / pack.price : 0);
 
   if (isLoading) {
@@ -70,7 +88,7 @@ export const PackShop: React.FC = () => {
       <div className="section-stack">
         <div>
           <SectionLabel className="text-violet-300/90">Simulated rip lab</SectionLabel>
-          <h2 className="mt-2 text-3xl font-bold text-white">One Piece Pack Shop</h2>
+          <h2 className="mt-2 text-3xl font-bold text-ink-primary">One Piece Pack Shop</h2>
           <p className="mt-2 text-sm text-ink-muted">
             Open tiered packs with play-money odds — results are simulated, not financial advice.
           </p>
@@ -97,7 +115,7 @@ export const PackShop: React.FC = () => {
     <div className="section-stack">
       <div>
         <SectionLabel className="text-violet-300/90">Simulated rip lab</SectionLabel>
-        <h2 className="mt-2 text-3xl font-bold text-white">Pack shop</h2>
+        <h2 className="mt-2 text-3xl font-bold text-ink-primary">Pack shop</h2>
         <p className="mt-2 text-sm text-ink-muted">
           Open tiered packs with play-money odds — results are simulated, not financial advice.
         </p>
@@ -105,26 +123,34 @@ export const PackShop: React.FC = () => {
 
       {history.packsOpened > 0 && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <article className="card">
+          <article className="card min-w-0">
             <p className="section-label mb-2">Packs opened</p>
-            <p className="text-3xl font-bold text-white">{history.packsOpened}</p>
+            <p className="truncate text-3xl font-bold tabular-nums text-ink-primary">{history.packsOpened}</p>
           </article>
-          <article className="card">
+          <article className="card min-w-0">
             <p className="section-label mb-2">Total spent</p>
-            <p className="text-3xl font-bold text-white">{formatCurrency(history.totalSpent)}</p>
+            <p className="truncate text-3xl font-bold tabular-nums text-ink-primary">
+              {formatCurrency(history.totalSpent)}
+            </p>
           </article>
-          <article className="card">
+          <article className="card min-w-0">
             <p className="section-label mb-2">Pull value</p>
-            <p className="text-3xl font-bold text-emerald-300">{formatCurrency(history.totalValue)}</p>
+            <p className="truncate text-3xl font-bold tabular-nums text-emerald-300">
+              {formatCurrency(history.totalValue)}
+            </p>
           </article>
-          <article className="card border-rose-500/20 bg-rose-950/20">
+          <article className="card min-w-0">
             <div className="mb-2 flex items-center justify-between gap-2">
               <p className="section-label">Session P/L</p>
               <span className="rounded-md border border-border-subtle bg-surface-hover px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-ink-muted">
                 Simulated
               </span>
             </div>
-            <p className="text-2xl font-bold tabular-nums text-rose-200/90">
+            <p
+              className={`truncate text-2xl font-bold tabular-nums ${
+                history.totalProfit >= 0 ? 'text-gain' : 'text-loss'
+              }`}
+            >
               {history.totalProfit >= 0 ? '+' : ''}
               {formatCurrency(history.totalProfit)}
             </p>
@@ -134,7 +160,7 @@ export const PackShop: React.FC = () => {
       )}
 
       <div>
-        <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
+        <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-ink-primary">
           <Sparkles className="h-5 w-5 text-violet-400" />
           Available packs
         </h3>
@@ -150,35 +176,41 @@ export const PackShop: React.FC = () => {
             {packs.map((pack) => (
               <div
                 key={pack.id}
-                className="group overflow-hidden rounded-xl border border-border-subtle bg-surface-inset transition-transform hover:-translate-y-0.5"
+                className={`group flex flex-col overflow-hidden rounded-2xl border border-border-subtle bg-surface-inset shadow-card transition-all duration-300 hover:-translate-y-1.5 ${getTierGlow(pack.tier)}`}
               >
-                <div className={`relative bg-gradient-to-br ${getTierColor(pack.tier)} p-4 text-white`}>
-                  <div className="absolute inset-0 bg-black/20" />
+                <div
+                  className={`relative min-h-[10.5rem] bg-gradient-to-br ${getTierColor(pack.tier)} p-5 text-white`}
+                >
+                  <div className="holo-texture" aria-hidden="true" />
+                  <div className="absolute inset-0 bg-black/25" aria-hidden="true" />
+                  <div className="holo-sweep" aria-hidden="true" />
                   <div className="relative">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xl font-bold">{pack.name}</h4>
-                      <Zap className="h-5 w-5 opacity-80" />
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className="text-xl font-bold drop-shadow-sm">{pack.name}</h4>
+                      <Zap className="h-5 w-5 shrink-0 opacity-80" />
                     </div>
                     <p className="mt-1 text-sm text-white/85">{pack.description}</p>
-                    <div className="mt-3 flex items-baseline gap-2">
-                      <span className="text-3xl font-black">{formatCurrency(pack.price)}</span>
+                    <div className="mt-4 flex items-baseline gap-2">
+                      <span className="text-3xl font-black tabular-nums drop-shadow-sm">
+                        {formatCurrency(pack.price)}
+                      </span>
                       <span className="text-xs text-white/70">per pack</span>
                     </div>
-                    <p className="mt-2 inline-flex rounded-md border border-border-default bg-black/25 px-2 py-0.5 text-[10px] font-medium text-white/90">
+                    <p className="mt-2 inline-flex rounded-md border border-white/20 bg-black/30 px-2 py-0.5 text-[10px] font-medium text-white/90">
                       EV: ${evRatio(pack).toFixed(2)}/dollar spent
                     </p>
                   </div>
                 </div>
 
-                <div className="space-y-4 p-4">
+                <div className="flex flex-1 flex-col gap-4 p-5">
                   <div className="flex justify-between border-b border-border-subtle pb-3 text-center text-sm">
                     <div>
                       <p className="text-[10px] uppercase tracking-wider text-ink-muted">Cards</p>
-                      <p className="font-bold text-white">{pack.cardsPerPack}</p>
+                      <p className="font-bold tabular-nums text-ink-primary">{pack.cardsPerPack}</p>
                     </div>
                     <div>
                       <p className="text-[10px] uppercase tracking-wider text-ink-muted">Avg value</p>
-                      <p className="font-bold text-emerald-300">{formatCurrency(pack.averageValue)}</p>
+                      <p className="font-bold tabular-nums text-emerald-300">{formatCurrency(pack.averageValue)}</p>
                     </div>
                   </div>
 
@@ -213,7 +245,7 @@ export const PackShop: React.FC = () => {
 
                   <button
                     type="button"
-                    className={`flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r py-3 text-sm font-bold text-white transition-opacity ${getTierColor(pack.tier)} hover:opacity-90`}
+                    className={`mt-auto flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r py-3 text-sm font-bold text-white shadow-md transition-all hover:opacity-90 hover:shadow-lg active:scale-[0.99] ${getTierColor(pack.tier)}`}
                     onClick={() => handleOpenPack(pack)}
                   >
                     <Sparkles className="h-4 w-4" />
@@ -228,32 +260,32 @@ export const PackShop: React.FC = () => {
 
       {history.pulls.length > 0 && (
         <div>
-          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
+          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-ink-primary">
             <History className="h-5 w-5 text-sky-400" />
             Recent openings
           </h3>
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             {history.pulls.slice(0, 5).map((pull, index) => (
               <div
                 key={index}
-                className="flex items-center justify-between rounded-xl border border-border-subtle bg-surface-inset p-4"
+                className="flex items-center justify-between gap-4 rounded-xl border border-border-subtle bg-surface-inset p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-border-strong hover:bg-surface-hover hover:shadow-card"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex min-w-0 items-center gap-3">
                   <img
                     src={pull.pack.imageUrl || 'https://images.pokemontcg.io/base1/logo.png'}
                     alt={pull.pack.name}
-                    className="h-10 w-10 object-contain"
+                    className="h-10 w-10 shrink-0 object-contain"
                   />
-                  <div>
-                    <p className="font-medium text-white">{pull.pack.name}</p>
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-ink-primary">{pull.pack.name}</p>
                     <p className="text-xs text-ink-muted">
                       {new Date(pull.openedAt).toLocaleString()}
                     </p>
                   </div>
                 </div>
-                <div className="text-right text-sm">
-                  <p className="text-ink-muted">{formatCurrency(pull.totalValue)}</p>
-                  <p className={pull.profit >= 0 ? 'text-emerald-300' : 'text-rose-300/80'}>
+                <div className="shrink-0 text-right text-sm">
+                  <p className="tabular-nums text-ink-muted">{formatCurrency(pull.totalValue)}</p>
+                  <p className={`font-medium tabular-nums ${pull.profit >= 0 ? 'text-gain' : 'text-loss'}`}>
                     {pull.profit >= 0 ? '+' : ''}
                     {formatCurrency(pull.profit)}
                   </p>
