@@ -13,6 +13,7 @@ exports.isOnePieceCatalogIncomplete = exports.getOnePieceCatalogCount = exports.
 const database_1 = require("../db/database");
 const logger_1 = require("../utils/logger");
 const dbAsync_1 = require("../utils/dbAsync");
+const dbJobLock_1 = require("../utils/dbJobLock");
 const onePieceOptcgClient_1 = require("./providers/onePieceOptcgClient");
 const onePieceMapper_1 = require("./onePieceMapper");
 const getRunDateEst = () => new Intl.DateTimeFormat('en-CA', {
@@ -73,17 +74,11 @@ const upsertPriceHistorySql = `
     marketPrice = excluded.marketPrice,
     inventoryPrice = excluded.inventoryPrice
 `;
-let isOnePieceSyncRunning = false;
 const syncOnePieceData = () => __awaiter(void 0, void 0, void 0, function* () {
-    if (isOnePieceSyncRunning) {
-        logger_1.logger.warn('One Piece sync already in progress, skipping duplicate');
-        return { setsProcessed: 0, cardsUpserted: 0, pricesRecorded: 0, runDate: getRunDateEst() };
-    }
-    isOnePieceSyncRunning = true;
-    const runDate = getRunDateEst();
-    let cardsUpserted = 0;
-    let pricesRecorded = 0;
-    try {
+    const result = yield (0, dbJobLock_1.withDbJobLock)('onepiece_sync', () => __awaiter(void 0, void 0, void 0, function* () {
+        const runDate = getRunDateEst();
+        let cardsUpserted = 0;
+        let pricesRecorded = 0;
         const db = (0, database_1.getDb)();
         logger_1.logger.info('One Piece sync: fetching full catalog (sets + ST + promos + Don!!)...');
         const rawCards = yield (0, onePieceOptcgClient_1.getAllOptcgCards)(true);
@@ -143,10 +138,11 @@ const syncOnePieceData = () => __awaiter(void 0, void 0, void 0, function* () {
        VALUES ('onepiece_sync', ?, 'completed', ?, ?, datetime('now'))`, [runDate, pricesRecorded, `Full catalog: ${cardsUpserted} cards`]);
         logger_1.logger.info('One Piece sync completed', { cardsUpserted, pricesRecorded, runDate });
         return { setsProcessed: 1, cardsUpserted, pricesRecorded, runDate };
+    }), { skipIfBusy: true });
+    if ((0, dbJobLock_1.isSkippedDbJob)(result)) {
+        return { setsProcessed: 0, cardsUpserted: 0, pricesRecorded: 0, runDate: getRunDateEst() };
     }
-    finally {
-        isOnePieceSyncRunning = false;
-    }
+    return result;
 });
 exports.syncOnePieceData = syncOnePieceData;
 const getOnePieceCatalogCount = () => __awaiter(void 0, void 0, void 0, function* () {

@@ -13,6 +13,7 @@ exports.syncCatalogData = void 0;
 const database_1 = require("../db/database");
 const pokemonCatalogProvider_1 = require("./providers/pokemonCatalogProvider");
 const logger_1 = require("../utils/logger");
+const dbJobLock_1 = require("../utils/dbJobLock");
 const upsertCatalogCardSql = `
   INSERT INTO catalog_cards (
     cardId,
@@ -96,14 +97,8 @@ const SET_DELAY_MS = 300;
 const YIELD_EVERY_N_SETS = 5;
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const yieldToEventLoop = () => new Promise((resolve) => setImmediate(resolve));
-let isCatalogSyncRunning = false;
 const syncCatalogData = (...args_1) => __awaiter(void 0, [...args_1], void 0, function* (provider = pokemonCatalogProvider_1.pokemonCatalogProvider) {
-    if (isCatalogSyncRunning) {
-        logger_1.logger.warn('Catalog sync already in progress, skipping duplicate');
-        return { setsProcessed: 0, cardsUpserted: 0 };
-    }
-    isCatalogSyncRunning = true;
-    try {
+    const result = yield (0, dbJobLock_1.withDbJobLock)('catalog_sync', () => __awaiter(void 0, void 0, void 0, function* () {
         const sets = yield provider.getSets(250);
         let setsProcessed = 0;
         let cardsUpserted = 0;
@@ -136,9 +131,10 @@ const syncCatalogData = (...args_1) => __awaiter(void 0, [...args_1], void 0, fu
             yield delay(SET_DELAY_MS);
         }
         return { setsProcessed, cardsUpserted };
+    }), { skipIfBusy: true });
+    if ((0, dbJobLock_1.isSkippedDbJob)(result)) {
+        return { setsProcessed: 0, cardsUpserted: 0 };
     }
-    finally {
-        isCatalogSyncRunning = false;
-    }
+    return result;
 });
 exports.syncCatalogData = syncCatalogData;
