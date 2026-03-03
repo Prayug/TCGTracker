@@ -85,6 +85,14 @@ export default defineConfig(({ mode }) => {
           'Accept': 'application/json'
         }
       },
+      '/images/pokemontcg': {
+        target: 'https://images.pokemontcg.io',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/images\/pokemontcg/, ''),
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      },
       '/api/optcg': {
         target: 'https://optcgapi.com',
         changeOrigin: true,

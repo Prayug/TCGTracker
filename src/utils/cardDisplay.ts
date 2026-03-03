@@ -1,5 +1,14 @@
 export type RarityTier = 'common' | 'uncommon' | 'rare' | 'holo' | 'ultra' | 'secret';
 
+/**
+ * Rewrite Pokemon TCG image URLs to go through the Vite dev proxy,
+ * avoiding CORS errors in the browser.
+ */
+export function proxyImageUrl(url: string | null | undefined): string | undefined {
+  if (!url) return undefined;
+  return url.replace('https://images.pokemontcg.io', '/images/pokemontcg');
+}
+
 export function formatCurrency(value: number, options?: { signed?: boolean }): string {
   const abs = Math.abs(value);
   const formatted = `$${abs.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: abs >= 100 ? 0 : 2 })}`;
