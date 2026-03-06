@@ -3,6 +3,7 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
+    { "source": "/images/pokemontcg/:path*", "destination": "https://images.pokemontcg.io/:path*" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
   "headers": [
@@ -14,7 +15,7 @@
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
         { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
         { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=(), interest-cohort=()" },
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://js.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; connect-src 'self' https:; font-src 'self' data: https://fonts.gstatic.com; frame-ancestors 'none'; base-uri 'self'" }
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://js.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https: blob:; connect-src 'self' https:; font-src 'self' data: https://fonts.gstatic.com; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'" }
       ]
     }
   ]
