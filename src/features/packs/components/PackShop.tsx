@@ -3,7 +3,7 @@ import { Pack } from '../../../types/pokemon';
 import { tieredPackService } from '../../../services/tieredPackService';
 import { useGame } from '../../../contexts/GameContext';
 import { PackOpeningModal } from './PackOpeningModal';
-import { Package, Sparkles, History, Zap, Swords } from 'lucide-react';
+import { Package, Sparkles, History, Zap, Swords, ChevronDown } from 'lucide-react';
 import { SectionLabel } from '../../../components/common/SectionLabel';
 import { PageEmptyState } from '../../../components/common/PageEmptyState';
 import { formatCurrency } from '../../../utils/cardDisplay';
@@ -14,6 +14,7 @@ export const PackShop: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedPack, setSelectedPack] = useState<Pack | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [boostedPacks, setBoostedPacks] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     loadPacks();
@@ -30,8 +31,9 @@ export const PackShop: React.FC = () => {
     }
   };
 
-  const handleOpenPack = (pack: Pack) => {
+  const handleOpenPack = (pack: Pack, boosted: boolean) => {
     setSelectedPack(pack);
+    setBoostedPacks((prev) => ({ ...prev, [pack.id]: boosted }));
     setIsModalOpen(true);
   };
 
@@ -214,13 +216,44 @@ export const PackShop: React.FC = () => {
                     </div>
                   </div>
 
+                  {/* Boost toggle */}
+                  {pack.boostedValueRanges && (
+                    <label className="flex items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 cursor-pointer select-none transition-colors hover:bg-amber-500/10">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <Zap className="h-4 w-4 shrink-0 text-amber-400" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-ink-primary">Boosted</p>
+                          <p className="text-[11px] text-ink-muted">Higher variance, same price</p>
+                        </div>
+                      </div>
+                      <div className="relative shrink-0">
+                        <input
+                          type="checkbox"
+                          className="peer sr-only"
+                          checked={!!boostedPacks[pack.id]}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            setBoostedPacks((prev) => ({ ...prev, [pack.id]: e.target.checked }));
+                          }}
+                        />
+                        <div className="h-6 w-11 rounded-full bg-surface-hover transition-colors peer-checked:bg-amber-500" />
+                        <div className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5" />
+                      </div>
+                    </label>
+                  )}
+
                   <details className="group/odds">
                     <summary className="flex cursor-pointer list-none items-center justify-between text-xs font-medium text-ink-secondary transition-colors hover:text-ink-primary [&::-webkit-details-marker]:hidden">
-                      <span>Pull rates (full disclosure)</span>
-                      <span className="text-ink-muted transition-transform group-open/odds:rotate-180">▾</span>
+                      <span>
+                        Pull rates (full disclosure)
+                        {boostedPacks[pack.id] && (
+                          <span className="ml-1.5 inline-flex items-center rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400">BOOSTED</span>
+                        )}
+                      </span>
+                      <ChevronDown className="h-3.5 w-3.5 text-ink-muted transition-transform group-open/odds:rotate-180" />
                     </summary>
                     <div className="mt-3 space-y-2" role="table" aria-label={`${pack.name} pull rates`}>
-                      {pack.valueRanges.map((range, idx) => (
+                      {(boostedPacks[pack.id] && pack.boostedValueRanges ? pack.boostedValueRanges : pack.valueRanges).map((range, idx) => (
                         <div key={idx} className="flex items-center gap-2 text-xs" role="row">
                           <span className="w-24 truncate text-ink-muted" title={range.label}>
                             {range.label}
@@ -246,10 +279,10 @@ export const PackShop: React.FC = () => {
                   <button
                     type="button"
                     className={`mt-auto flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r py-3 text-sm font-bold text-white shadow-md transition-all hover:opacity-90 hover:shadow-lg active:scale-[0.99] ${getTierColor(pack.tier)}`}
-                    onClick={() => handleOpenPack(pack)}
+                    onClick={() => handleOpenPack(pack, !!boostedPacks[pack.id])}
                   >
                     <Sparkles className="h-4 w-4" />
-                    Open pack
+                    {boostedPacks[pack.id] ? 'Open boosted pack' : 'Open pack'}
                   </button>
                 </div>
               </div>
@@ -272,7 +305,7 @@ export const PackShop: React.FC = () => {
               >
                 <div className="flex min-w-0 items-center gap-3">
                   <img
-                    src={pull.pack.imageUrl || 'https://images.pokemontcg.io/base1/logo.png'}
+                    src={pull.pack.imageUrl || '/images/pokemontcg/base1/logo.png'}
                     alt={pull.pack.name}
                     className="h-10 w-10 shrink-0 object-contain"
                   />
@@ -299,6 +332,7 @@ export const PackShop: React.FC = () => {
       <PackOpeningModal
         pack={selectedPack}
         isOpen={isModalOpen}
+        initialBoosted={selectedPack ? !!boostedPacks[selectedPack.id] : false}
         onClose={() => {
           setIsModalOpen(false);
           setSelectedPack(null);

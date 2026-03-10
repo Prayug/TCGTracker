@@ -1,5 +1,5 @@
 import { Pack, PackPull, PokemonCard, PackOpeningHistory, ValueRange } from '../types/pokemon';
-import { pokemonApi } from './pokemonApi';
+import { pokemonApi, proxyImageUrl } from './pokemonApi';
 import { env } from '../config/env';
 
 const PACK_HISTORY_KEY = 'tcg_tiered_pack_history';
@@ -17,7 +17,7 @@ class TieredPackService {
       averageValue: 25,
       cardsPerPack: 1,
       description: 'Perfect for beginners',
-      imageUrl: 'https://images.pokemontcg.io/base1/logo.png',
+      imageUrl: '/images/pokemontcg/base1/logo.png',
       valueRanges: [
         { min: 12, max: 19, probability: 40.6, label: '$12-19' },
         { min: 19, max: 25, probability: 30.6, label: '$19-25' },
@@ -25,6 +25,14 @@ class TieredPackService {
         { min: 50, max: 100, probability: 3, label: '$50-100' },
         { min: 100, max: 250, probability: 0.3, label: '$100-250' },
         { min: 250, max: 500, probability: 0.1, label: '$250-500' }
+      ],
+      boostedValueRanges: [
+        { min: 1, max: 8, probability: 45, label: '$1-8' },
+        { min: 8, max: 25, probability: 20, label: '$8-25' },
+        { min: 25, max: 50, probability: 12, label: '$25-50' },
+        { min: 50, max: 100, probability: 7, label: '$50-100' },
+        { min: 100, max: 250, probability: 3, label: '$100-250' },
+        { min: 250, max: 500, probability: 2, label: '$250-500' }
       ]
     },
     {
@@ -35,7 +43,7 @@ class TieredPackService {
       averageValue: 50,
       cardsPerPack: 1,
       description: 'Step up your collection',
-      imageUrl: 'https://images.pokemontcg.io/base1/logo.png',
+      imageUrl: '/images/pokemontcg/base1/logo.png',
       valueRanges: [
         { min: 25, max: 38, probability: 40, label: '$25-38' },
         { min: 38, max: 50, probability: 30, label: '$38-50' },
@@ -43,6 +51,14 @@ class TieredPackService {
         { min: 100, max: 200, probability: 4, label: '$100-200' },
         { min: 200, max: 500, probability: 0.8, label: '$200-500' },
         { min: 500, max: 1000, probability: 0.2, label: '$500-1000' }
+      ],
+      boostedValueRanges: [
+        { min: 2, max: 15, probability: 42, label: '$2-15' },
+        { min: 15, max: 50, probability: 20, label: '$15-50' },
+        { min: 50, max: 100, probability: 12, label: '$50-100' },
+        { min: 100, max: 200, probability: 7, label: '$100-200' },
+        { min: 200, max: 500, probability: 4, label: '$200-500' },
+        { min: 500, max: 1000, probability: 2, label: '$500-1000' }
       ]
     },
     {
@@ -53,7 +69,7 @@ class TieredPackService {
       averageValue: 100,
       cardsPerPack: 1,
       description: 'Premium cards await',
-      imageUrl: 'https://images.pokemontcg.io/base1/logo.png',
+      imageUrl: '/images/pokemontcg/base1/logo.png',
       valueRanges: [
         { min: 50, max: 75, probability: 38, label: '$50-75' },
         { min: 75, max: 100, probability: 32, label: '$75-100' },
@@ -61,6 +77,14 @@ class TieredPackService {
         { min: 200, max: 400, probability: 4, label: '$200-400' },
         { min: 400, max: 1000, probability: 0.8, label: '$400-1000' },
         { min: 1000, max: 2000, probability: 0.2, label: '$1000-2000' }
+      ],
+      boostedValueRanges: [
+        { min: 5, max: 30, probability: 42, label: '$5-30' },
+        { min: 30, max: 100, probability: 20, label: '$30-100' },
+        { min: 100, max: 200, probability: 11, label: '$100-200' },
+        { min: 200, max: 400, probability: 6, label: '$200-400' },
+        { min: 400, max: 1000, probability: 4, label: '$400-1000' },
+        { min: 1000, max: 2000, probability: 1.5, label: '$1000-2000' }
       ]
     },
     {
@@ -71,7 +95,7 @@ class TieredPackService {
       averageValue: 500,
       cardsPerPack: 1,
       description: 'High-value pulls',
-      imageUrl: 'https://images.pokemontcg.io/base1/logo.png',
+      imageUrl: '/images/pokemontcg/base1/logo.png',
       valueRanges: [
         { min: 250, max: 375, probability: 35, label: '$250-375' },
         { min: 375, max: 500, probability: 35, label: '$375-500' },
@@ -79,6 +103,14 @@ class TieredPackService {
         { min: 1000, max: 2000, probability: 4, label: '$1000-2000' },
         { min: 2000, max: 5000, probability: 0.8, label: '$2000-5000' },
         { min: 5000, max: 10000, probability: 0.2, label: '$5000-10000' }
+      ],
+      boostedValueRanges: [
+        { min: 20, max: 150, probability: 38, label: '$20-150' },
+        { min: 150, max: 500, probability: 22, label: '$150-500' },
+        { min: 500, max: 1000, probability: 12, label: '$500-1000' },
+        { min: 1000, max: 2000, probability: 6, label: '$1000-2000' },
+        { min: 2000, max: 5000, probability: 4, label: '$2000-5000' },
+        { min: 5000, max: 10000, probability: 1.5, label: '$5000-10000' }
       ]
     },
     {
@@ -89,7 +121,7 @@ class TieredPackService {
       averageValue: 1000,
       cardsPerPack: 1,
       description: 'Ultimate gambling experience',
-      imageUrl: 'https://images.pokemontcg.io/base1/logo.png',
+      imageUrl: '/images/pokemontcg/base1/logo.png',
       valueRanges: [
         { min: 400, max: 600, probability: 35, label: '$400-600' },
         { min: 600, max: 800, probability: 35, label: '$600-800' },
@@ -97,6 +129,14 @@ class TieredPackService {
         { min: 1000, max: 1500, probability: 8, label: '$1000-1500' },
         { min: 1500, max: 2500, probability: 1.5, label: '$1500-2500' },
         { min: 2500, max: 5000, probability: 0.5, label: '$2500-5000' }
+      ],
+      boostedValueRanges: [
+        { min: 50, max: 300, probability: 30, label: '$50-300' },
+        { min: 300, max: 800, probability: 22, label: '$300-800' },
+        { min: 800, max: 1000, probability: 12, label: '$800-1000' },
+        { min: 1000, max: 1500, probability: 11, label: '$1000-1500' },
+        { min: 1500, max: 2500, probability: 8, label: '$1500-2500' },
+        { min: 2500, max: 5000, probability: 5, label: '$2500-5000' }
       ]
     }
   ];
@@ -108,7 +148,7 @@ class TieredPackService {
   }
 
   // Open a tiered pack
-  async openPack(pack: Pack): Promise<PackPull> {
+  async openPack(pack: Pack, boosted = false): Promise<PackPull> {
     try {
       const cardPool = await this.fetchCardPool();
       console.log("cardPool: ", cardPool);
@@ -116,7 +156,8 @@ class TieredPackService {
         throw new Error('Unable to fetch cards. Please check your connection.');
       }
 
-      const selectedCard = this.selectCardFromRange(cardPool, pack.valueRanges);
+      const ranges = boosted && pack.boostedValueRanges ? pack.boostedValueRanges : pack.valueRanges;
+      const selectedCard = this.selectCardFromRange(cardPool, ranges);
       console.log("selectedCard: ", selectedCard);
       if (!selectedCard) {
         throw new Error('No suitable card found in the pool for this value range.');
@@ -191,7 +232,17 @@ class TieredPackService {
     const minPrice = Math.min(...prices);
     console.log(`📊 Card pool stats: ${cardsWithPrices.length} cards, price range: $${minPrice.toFixed(2)} - $${maxPrice.toFixed(2)}`);
 
-    return this.shuffleArray([...cardsWithPrices]);
+    // Rewrite image URLs to use the Vite proxy
+    const rewritten = cardsWithPrices.map((card: PokemonCard) => ({
+      ...card,
+      images: card.images ? {
+        ...card.images,
+        small: proxyImageUrl(card.images.small),
+        large: proxyImageUrl(card.images.large),
+      } : card.images,
+    }));
+
+    return this.shuffleArray([...rewritten]);
   }
 
   // Shuffle array for randomness
