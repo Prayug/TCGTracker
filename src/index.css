@@ -433,6 +433,24 @@
     }
   }
 
+  /* Screen shake effect for pack rip impact */
+  @keyframes screenShake {
+    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+    10% { transform: translate(-3px, -2px) rotate(-0.5deg); }
+    20% { transform: translate(2px, 3px) rotate(0.5deg); }
+    30% { transform: translate(-2px, 1px) rotate(-0.3deg); }
+    40% { transform: translate(3px, -1px) rotate(0.3deg); }
+    50% { transform: translate(-1px, 2px) rotate(-0.2deg); }
+    60% { transform: translate(2px, -2px) rotate(0.2deg); }
+    70% { transform: translate(-2px, 1px) rotate(-0.1deg); }
+    80% { transform: translate(1px, -1px) rotate(0.1deg); }
+    90% { transform: translate(-1px, 1px) rotate(-0.05deg); }
+  }
+
+  .animate-screen-shake {
+    animation: screenShake 0.35s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+  }
+
   /* Diagonal foil light band that sweeps across the pack art on hover. */
   .holo-sweep {
     position: absolute;

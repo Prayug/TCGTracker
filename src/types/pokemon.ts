@@ -173,6 +173,7 @@ export interface Pack {
   imageUrl?: string;
   description?: string;
   valueRanges: ValueRange[]; // Probability distribution
+  boostedValueRanges?: ValueRange[]; // Higher variance distribution (lower floor, higher ceiling)
 }
 
 export interface ValueRange {
