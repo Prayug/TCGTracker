@@ -10,7 +10,7 @@ import enhancedPacksRouter from './routes/enhancedPacks';
 import marketInsightsRouter from './routes/marketInsights';
 import { initializeDatabase, getDb } from './db/database';
 import { runMigrations } from './db/migrations';
-import { updatePriceData } from './services/dataFetcher';
+import { updatePriceData, getRunDate, hasCompletedPriceUpdateFor } from './services/dataFetcher';
 import { backupDatabaseToCloud, getCloudBackupStatus, restoreDatabaseFromCloud } from './services/cloudBackupService';
 import { syncCatalogData } from './services/catalogSync';
 import { backfillCardMappingImages } from './services/cardImageBackfillService';
@@ -109,6 +109,37 @@ function setupRoutes(
     { timezone: 'America/New_York' }
   );
 
+  // Catch-up: node-cron never fires missed jobs (machine asleep at 2 AM ET,
+  // process not running, etc.), which silently freezes price data. Check every
+  // 30 minutes whether today's price update completed and run it if not.
+  const PRICE_CATCHUP_INTERVAL_MS = 30 * 60 * 1000;
+  const runPriceUpdateCatchUp = async () => {
+    try {
+      const today = getRunDate();
+      // Before 2 AM ET, today's run isn't due yet — leave it to the cron.
+      const etHour = parseInt(
+        new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', hour12: false }).format(new Date()),
+        10
+      );
+      if (etHour < 2) return;
+      if (await hasCompletedPriceUpdateFor(today)) return;
+
+      logger.warn('Price update for today has not completed — running catch-up', { runDate: today });
+      const result = await updatePriceData();
+      if (result.skipped) {
+        logger.info('Price update catch-up skipped', { reason: (result as { reason?: string }).reason });
+        return;
+      }
+      logger.info('Price update catch-up completed', result);
+      const imageResult = await backfillCardMappingImages();
+      logger.info('Post-catch-up image backfill completed', imageResult);
+    } catch (error: any) {
+      logger.error('Price update catch-up failed', { error: error.message });
+    }
+  };
+  setTimeout(() => void runPriceUpdateCatchUp(), 60_000);
+  setInterval(() => void runPriceUpdateCatchUp(), PRICE_CATCHUP_INTERVAL_MS);
+
   cron.schedule(
     '30 1 * * *',
     async () => {
@@ -161,6 +192,54 @@ function setupRoutes(
         logger.info('Scheduled prediction run completed');
       } catch (error: any) {
         logger.error('Failed to run predictions', { error: error.message });
+      }
+    },
+    { timezone: 'America/New_York' }
+  );
+
+  // Full signal scrape daily at 4:00 AM ET (after price update + prediction run).
+  cron.schedule(
+    '0 4 * * *',
+    async () => {
+      logger.info('Running scheduled signal scrape...');
+      try {
+        const { runSignalScrape } = await import('./services/scrapers/scraperRunner');
+        const result = await runSignalScrape();
+        logger.info('Scheduled signal scrape completed', result);
+      } catch (error: any) {
+        logger.error('Failed to run signal scrape', { error: error.message });
+      }
+    },
+    { timezone: 'America/New_York' }
+  );
+
+  // Fast-moving social/video sources refresh every 6 hours.
+  cron.schedule(
+    '30 */6 * * *',
+    async () => {
+      logger.info('Running scheduled social signal scrape...');
+      try {
+        const { runSignalScrape } = await import('./services/scrapers/scraperRunner');
+        const result = await runSignalScrape();
+        logger.info('Scheduled social signal scrape completed', result);
+      } catch (error: any) {
+        logger.error('Failed to run social signal scrape', { error: error.message });
+      }
+    },
+    { timezone: 'America/New_York' }
+  );
+
+  // Release-calendar pages change rarely — scrape weekly (Sunday 5:00 AM ET).
+  cron.schedule(
+    '0 5 * * 0',
+    async () => {
+      logger.info('Running scheduled weekly signal scrape...');
+      try {
+        const { runSignalScrape } = await import('./services/scrapers/scraperRunner');
+        const result = await runSignalScrape();
+        logger.info('Scheduled weekly signal scrape completed', result);
+      } catch (error: any) {
+        logger.error('Failed to run weekly signal scrape', { error: error.message });
       }
     },
     { timezone: 'America/New_York' }
@@ -323,6 +402,7 @@ function setupRoutes(
           onePieceSync: 'Daily at 1:45 AM EST',
           dataUpdate: 'Daily at 2:00 AM EST',
           predictions: 'Daily at 3:00 AM EST',
+          signalScrape: 'Daily at 4:00 AM EST (social sources every 6 hours)',
         },
         endpoints: {
           auth: '/api/auth',
