@@ -5,8 +5,10 @@ import { logger } from '../utils/logger';
 import { isSkippedDbJob, withDbJobLock } from '../utils/dbJobLock';
 import { syncCatalogData } from './catalogSync';
 import { tcgdexMarketProvider } from './providers/tcgdexMarketProvider';
-import { MarketPriceProvider } from './providers/contracts';
+import { MarketPriceProvider, MarketPriceSnapshot } from './providers/contracts';
 import { normalizeVariantKey } from '../utils/normalizeVariantKey';
+import { createPkmnPricesProvider, PkmnPricesMarketProvider } from './providers/pkmnPricesProvider';
+import { env } from '../config/env';
 
 export { normalizeVariantKey } from '../utils/normalizeVariantKey';
 
@@ -14,6 +16,43 @@ const SYNC_TIMEZONE = 'America/New_York';
 
 const MAX_REASONABLE_PRICE = 50000;
 const MIN_PRICE = 0.01;
+
+// Initialize PkmnPrices provider
+const pkmnPricesProvider = createPkmnPricesProvider(env.apis.pkmnprices);
+
+/**
+ * Multi-provider wrapper that tries TCGdex first, then PkmnPrices, then returns null.
+ */
+class MultiSourceMarketProvider implements MarketPriceProvider {
+  private providers: MarketPriceProvider[];
+
+  constructor(providers: MarketPriceProvider[]) {
+    this.providers = providers;
+  }
+
+  async getSnapshotForCard(cardId: string, cardName?: string, setId?: string, setName?: string): Promise<MarketPriceSnapshot | null> {
+    for (const provider of this.providers) {
+      try {
+        const snapshot = await provider.getSnapshotForCard(cardId, cardName, setId, setName);
+        if (snapshot && snapshot.points.length > 0) {
+          return snapshot;
+        }
+      } catch (error) {
+        logger.debug('Provider failed, trying next', {
+          provider: provider.constructor.name,
+          cardId,
+          error: (error as Error).message,
+        });
+      }
+    }
+    return null;
+  }
+}
+
+const multiSourceProvider = new MultiSourceMarketProvider([
+  tcgdexMarketProvider,
+  pkmnPricesProvider,
+]);
 
 export const isValidPrice = (price: number | null | undefined): boolean => {
   if (price == null || !Number.isFinite(price)) return false;
@@ -28,6 +67,19 @@ export const getRunDate = (): string => {
     day: '2-digit',
   });
   return formatter.format(new Date());
+};
+
+export const hasCompletedPriceUpdateFor = async (runDate: string): Promise<boolean> => {
+  const db = getDb();
+  return new Promise((resolve, reject) => {
+    db.get(
+      `SELECT 1 FROM sync_runs
+       WHERE runType = 'price_update' AND runDate = ? AND status = 'completed'
+       LIMIT 1`,
+      [runDate],
+      (err, row) => (err ? reject(err) : resolve(!!row))
+    );
+  });
 };
 
 const createSyncRun = async (runType: string, runDate: string): Promise<number> => {
