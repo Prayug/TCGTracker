@@ -1,30 +1,21 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 const database_1 = require("../db/database");
 const migrations_1 = require("../db/migrations");
 const logger_1 = require("../utils/logger");
-(() => __awaiter(void 0, void 0, void 0, function* () {
+(async () => {
     try {
         logger_1.logger.info('🔧 Initializing database...');
         (0, database_1.initializeDatabase)();
-        yield new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 1000));
         const db = (0, database_1.getDb)();
         logger_1.logger.info('🔧 Running migrations...');
-        yield (0, migrations_1.runMigrations)(db);
-        yield new Promise(resolve => setTimeout(resolve, 500));
+        await (0, migrations_1.runMigrations)(db);
+        await new Promise(resolve => setTimeout(resolve, 500));
         logger_1.logger.info('✅ Database ready!\n');
         // Check migrations table
         logger_1.logger.info('📋 Checking migrations table:');
-        const migrations = yield new Promise((resolve) => {
+        const migrations = await new Promise((resolve) => {
             db.all('SELECT * FROM migrations ORDER BY id ASC', [], (err, rows) => {
                 if (err) {
                     logger_1.logger.error('Error reading migrations table', { error: err });
@@ -41,7 +32,7 @@ const logger_1 = require("../utils/logger");
         logger_1.logger.info('');
         // Check card_mappings table schema
         logger_1.logger.info('📋 card_mappings table schema:');
-        const schema = yield new Promise((resolve) => {
+        const schema = await new Promise((resolve) => {
             db.all('PRAGMA table_info(card_mappings)', [], (err, rows) => {
                 if (err) {
                     logger_1.logger.error('Error reading table schema', { error: err });
@@ -78,7 +69,7 @@ const logger_1 = require("../utils/logger");
         }
         logger_1.logger.info('');
         // Count cards
-        const count = yield new Promise((resolve) => {
+        const count = await new Promise((resolve) => {
             db.get('SELECT COUNT(*) as count FROM card_mappings', [], (err, row) => {
                 if (err) {
                     logger_1.logger.error('Error counting cards', { error: err });
@@ -96,4 +87,4 @@ const logger_1 = require("../utils/logger");
         logger_1.logger.error('Fatal error', { error });
         process.exit(1);
     }
-}))();
+})();

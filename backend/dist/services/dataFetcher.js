@@ -1,18 +1,9 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updatePriceData = exports.deterministicProductId = exports.getRunDate = exports.isValidPrice = exports.normalizeVariantKey = void 0;
+exports.updatePriceData = exports.deterministicProductId = exports.hasCompletedPriceUpdateFor = exports.getRunDate = exports.isValidPrice = exports.normalizeVariantKey = void 0;
 const database_1 = require("../db/database");
 const cardIdentifier_1 = require("./cardIdentifier");
 const cloudBackupService_1 = require("./cloudBackupService");
@@ -21,11 +12,45 @@ const dbJobLock_1 = require("../utils/dbJobLock");
 const catalogSync_1 = require("./catalogSync");
 const tcgdexMarketProvider_1 = require("./providers/tcgdexMarketProvider");
 const normalizeVariantKey_1 = require("../utils/normalizeVariantKey");
+const pkmnPricesProvider_1 = require("./providers/pkmnPricesProvider");
+const env_1 = require("../config/env");
 var normalizeVariantKey_2 = require("../utils/normalizeVariantKey");
 Object.defineProperty(exports, "normalizeVariantKey", { enumerable: true, get: function () { return normalizeVariantKey_2.normalizeVariantKey; } });
 const SYNC_TIMEZONE = 'America/New_York';
 const MAX_REASONABLE_PRICE = 50000;
 const MIN_PRICE = 0.01;
+// Initialize PkmnPrices provider
+const pkmnPricesProvider = (0, pkmnPricesProvider_1.createPkmnPricesProvider)(env_1.env.apis.pkmnprices);
+/**
+ * Multi-provider wrapper that tries TCGdex first, then PkmnPrices, then returns null.
+ */
+class MultiSourceMarketProvider {
+    constructor(providers) {
+        this.providers = providers;
+    }
+    async getSnapshotForCard(cardId, cardName, setId, setName) {
+        for (const provider of this.providers) {
+            try {
+                const snapshot = await provider.getSnapshotForCard(cardId, cardName, setId, setName);
+                if (snapshot && snapshot.points.length > 0) {
+                    return snapshot;
+                }
+            }
+            catch (error) {
+                logger_1.logger.debug('Provider failed, trying next', {
+                    provider: provider.constructor.name,
+                    cardId,
+                    error: error.message,
+                });
+            }
+        }
+        return null;
+    }
+}
+const multiSourceProvider = new MultiSourceMarketProvider([
+    tcgdexMarketProvider_1.tcgdexMarketProvider,
+    pkmnPricesProvider,
+]);
 const isValidPrice = (price) => {
     if (price == null || !Number.isFinite(price))
         return false;
@@ -42,7 +67,16 @@ const getRunDate = () => {
     return formatter.format(new Date());
 };
 exports.getRunDate = getRunDate;
-const createSyncRun = (runType, runDate) => __awaiter(void 0, void 0, void 0, function* () {
+const hasCompletedPriceUpdateFor = async (runDate) => {
+    const db = (0, database_1.getDb)();
+    return new Promise((resolve, reject) => {
+        db.get(`SELECT 1 FROM sync_runs
+       WHERE runType = 'price_update' AND runDate = ? AND status = 'completed'
+       LIMIT 1`, [runDate], (err, row) => (err ? reject(err) : resolve(!!row)));
+    });
+};
+exports.hasCompletedPriceUpdateFor = hasCompletedPriceUpdateFor;
+const createSyncRun = async (runType, runDate) => {
     const db = (0, database_1.getDb)();
     return new Promise((resolve, reject) => {
         db.run(`INSERT INTO sync_runs (runType, runDate, status, startedAt)
@@ -55,8 +89,8 @@ const createSyncRun = (runType, runDate) => __awaiter(void 0, void 0, void 0, fu
             }
         });
     });
-});
-const finalizeSyncRun = (runId, status, payload) => __awaiter(void 0, void 0, void 0, function* () {
+};
+const finalizeSyncRun = async (runId, status, payload) => {
     const db = (0, database_1.getDb)();
     return new Promise((resolve, reject) => {
         db.run(`UPDATE sync_runs
@@ -82,8 +116,8 @@ const finalizeSyncRun = (runId, status, payload) => __awaiter(void 0, void 0, vo
             }
         });
     });
-});
-const loadCatalogCards = () => __awaiter(void 0, void 0, void 0, function* () {
+};
+const loadCatalogCards = async () => {
     const db = (0, database_1.getDb)();
     const fetchRows = () => new Promise((resolve, reject) => {
         db.all(`SELECT cardId, cardName, setId, setName, cardNumber, tcgplayerProductId, tcgplayerPrices,
@@ -95,14 +129,14 @@ const loadCatalogCards = () => __awaiter(void 0, void 0, void 0, function* () {
                 resolve(rows || []);
         });
     });
-    const rows = yield fetchRows();
+    const rows = await fetchRows();
     if (rows.length > 0) {
         return rows;
     }
     logger_1.logger.info('Catalog empty for market snapshot, syncing catalog first...');
-    yield (0, catalogSync_1.syncCatalogData)();
+    await (0, catalogSync_1.syncCatalogData)();
     return fetchRows();
-});
+};
 const extractCatalogFallbackPoints = (row) => {
     if (!row.tcgplayerPrices) {
         return [];
@@ -138,7 +172,7 @@ const extractCatalogFallbackPoints = (row) => {
         return [];
     }
 };
-const createDailySnapshot = (date) => __awaiter(void 0, void 0, void 0, function* () {
+const createDailySnapshot = async (date) => {
     const db = (0, database_1.getDb)();
     return new Promise((resolve, reject) => {
         // Calculate daily statistics
@@ -224,7 +258,7 @@ const createDailySnapshot = (date) => __awaiter(void 0, void 0, void 0, function
             });
         });
     });
-});
+};
 const crypto_1 = __importDefault(require("crypto"));
 const deterministicProductId = (cardId, variantKey) => {
     const input = `${cardId}|${variantKey}`;
@@ -234,7 +268,7 @@ const deterministicProductId = (cardId, variantKey) => {
     return (hash.readUInt32BE(0) >>> 0) % 100000000 + 1;
 };
 exports.deterministicProductId = deterministicProductId;
-const snapshotFromPokemonCatalog = (date) => __awaiter(void 0, void 0, void 0, function* () {
+const snapshotFromPokemonCatalog = async (date) => {
     var _a, _b, _c, _d, _e, _f;
     const db = (0, database_1.getDb)();
     const priceInsertSql = `
@@ -252,7 +286,7 @@ const snapshotFromPokemonCatalog = (date) => __awaiter(void 0, void 0, void 0, f
       groupName = excluded.groupName,
       productId = excluded.productId;
   `;
-    const rows = yield new Promise((resolve, reject) => {
+    const rows = await new Promise((resolve, reject) => {
         db.all(`SELECT cardId, cardName, setId, setName, cardNumber, tcgplayerProductId, tcgplayerPrices
        FROM catalog_cards
        WHERE tcgplayerPrices IS NOT NULL
@@ -267,11 +301,11 @@ const snapshotFromPokemonCatalog = (date) => __awaiter(void 0, void 0, void 0, f
     });
     if (rows.length === 0) {
         logger_1.logger.info('Catalog empty for fallback snapshot, syncing catalog first...');
-        yield (0, catalogSync_1.syncCatalogData)();
+        await (0, catalogSync_1.syncCatalogData)();
     }
     const refreshedRows = rows.length > 0
         ? rows
-        : yield new Promise((resolve, reject) => {
+        : await new Promise((resolve, reject) => {
             db.all(`SELECT cardId, cardName, setId, setName, cardNumber, tcgplayerProductId, tcgplayerPrices
            FROM catalog_cards
            WHERE tcgplayerPrices IS NOT NULL
@@ -295,7 +329,7 @@ const snapshotFromPokemonCatalog = (date) => __awaiter(void 0, void 0, void 0, f
         });
     });
     try {
-        yield new Promise((resolve, reject) => {
+        await new Promise((resolve, reject) => {
             db.run('BEGIN TRANSACTION', (err) => (err ? reject(err) : resolve()));
         });
         for (const row of refreshedRows) {
@@ -317,7 +351,7 @@ const snapshotFromPokemonCatalog = (date) => __awaiter(void 0, void 0, void 0, f
                 const productId = Number.isFinite(parsedProductId)
                     ? parsedProductId
                     : (0, exports.deterministicProductId)(row.cardId || `${row.setId}-${row.cardNumber}-${row.cardName}`, variantKey);
-                yield runStmt([
+                await runStmt([
                     productId,
                     date,
                     market,
@@ -335,23 +369,23 @@ const snapshotFromPokemonCatalog = (date) => __awaiter(void 0, void 0, void 0, f
             }
         }
         stmt.finalize();
-        yield new Promise((resolve, reject) => {
+        await new Promise((resolve, reject) => {
             db.run('COMMIT', (err) => (err ? reject(err) : resolve()));
         });
     }
     catch (err) {
         stmt.finalize();
-        yield new Promise((resolve) => {
+        await new Promise((resolve) => {
             db.run('ROLLBACK', () => resolve());
         });
         throw err;
     }
     return inserted;
-});
-const snapshotFromMarketProvider = (date, marketProvider) => __awaiter(void 0, void 0, void 0, function* () {
+};
+const snapshotFromMarketProvider = async (date, marketProvider) => {
     var _a, _b, _c;
     const db = (0, database_1.getDb)();
-    const rows = yield loadCatalogCards();
+    const rows = await loadCatalogCards();
     if (rows.length === 0) {
         return { pricesWritten: 0, cardsProcessed: 0, cardsFailed: 0 };
     }
@@ -381,7 +415,7 @@ const snapshotFromMarketProvider = (date, marketProvider) => __awaiter(void 0, v
     const concurrency = 6;
     const chunkSize = Math.ceil(rows.length / concurrency);
     const chunks = Array.from({ length: concurrency }, (_, i) => rows.slice(i * chunkSize, (i + 1) * chunkSize));
-    const workerResults = yield Promise.all(chunks.map((chunk) => __awaiter(void 0, void 0, void 0, function* () {
+    const workerResults = await Promise.all(chunks.map(async (chunk) => {
         var _a, _b, _c;
         const entries = [];
         let cardsProcessed = 0;
@@ -389,7 +423,7 @@ const snapshotFromMarketProvider = (date, marketProvider) => __awaiter(void 0, v
         let tcgdexAttempted = 0;
         let tcgdexSuccessful = 0;
         for (const row of chunk) {
-            const snapshot = yield marketProvider.getSnapshotForCard(row.cardId);
+            const snapshot = await marketProvider.getSnapshotForCard(row.cardId);
             const tcgdexPoints = (_a = snapshot === null || snapshot === void 0 ? void 0 : snapshot.points) !== null && _a !== void 0 ? _a : [];
             tcgdexAttempted += 1;
             if (tcgdexPoints.length > 0) {
@@ -445,7 +479,7 @@ const snapshotFromMarketProvider = (date, marketProvider) => __awaiter(void 0, v
             cardsProcessed += 1;
         }
         return { entries, cardsProcessed, cardsFailed, tcgdexAttempted, tcgdexSuccessful };
-    })));
+    }));
     const collected = workerResults.flatMap((r) => r.entries);
     let cardsProcessed = workerResults.reduce((s, r) => s + r.cardsProcessed, 0);
     let cardsFailed = workerResults.reduce((s, r) => s + r.cardsFailed, 0);
@@ -468,12 +502,12 @@ const snapshotFromMarketProvider = (date, marketProvider) => __awaiter(void 0, v
         });
     });
     try {
-        yield new Promise((resolve, reject) => {
+        await new Promise((resolve, reject) => {
             db.run('BEGIN TRANSACTION', (err) => (err ? reject(err) : resolve()));
         });
         for (const entry of collected) {
             const uniqueIdentifier = (0, cardIdentifier_1.generateUniqueIdentifier)(entry.row.setId, entry.row.cardNumber, entry.row.cardName, entry.variantKey);
-            yield runPriceStmt([
+            await runPriceStmt([
                 entry.productId,
                 date,
                 entry.marketPrice,
@@ -487,7 +521,7 @@ const snapshotFromMarketProvider = (date, marketProvider) => __awaiter(void 0, v
                 (_c = entry.volume) !== null && _c !== void 0 ? _c : null,
                 uniqueIdentifier,
             ]);
-            yield runMappingStmt([
+            await runMappingStmt([
                 entry.row.cardId,
                 entry.productId,
                 entry.row.cardName,
@@ -506,14 +540,14 @@ const snapshotFromMarketProvider = (date, marketProvider) => __awaiter(void 0, v
         }
         priceStmt.finalize();
         mappingStmt.finalize();
-        yield new Promise((resolve, reject) => {
+        await new Promise((resolve, reject) => {
             db.run('COMMIT', (err) => (err ? reject(err) : resolve()));
         });
     }
     catch (err) {
         priceStmt.finalize();
         mappingStmt.finalize();
-        yield new Promise((resolve) => {
+        await new Promise((resolve) => {
             db.run('ROLLBACK', () => resolve());
         });
         throw err;
@@ -523,9 +557,9 @@ const snapshotFromMarketProvider = (date, marketProvider) => __awaiter(void 0, v
         cardsProcessed,
         cardsFailed,
     };
-});
-const updatePriceData = () => __awaiter(void 0, void 0, void 0, function* () {
-    const result = yield (0, dbJobLock_1.withDbJobLock)('price_update', () => performPriceUpdate(), { skipIfBusy: true });
+};
+const updatePriceData = async () => {
+    const result = await (0, dbJobLock_1.withDbJobLock)('price_update', () => performPriceUpdate(), { skipIfBusy: true });
     if ((0, dbJobLock_1.isSkippedDbJob)(result)) {
         return {
             syncRunId: null,
@@ -536,42 +570,42 @@ const updatePriceData = () => __awaiter(void 0, void 0, void 0, function* () {
         };
     }
     return result;
-});
+};
 exports.updatePriceData = updatePriceData;
-const performPriceUpdate = () => __awaiter(void 0, void 0, void 0, function* () {
+const performPriceUpdate = async () => {
     const runDate = (0, exports.getRunDate)();
     let syncRunId = null;
     try {
         logger_1.logger.info('Starting market price data update...', { runDate, timezone: SYNC_TIMEZONE });
-        syncRunId = yield createSyncRun('price_update', runDate);
+        syncRunId = await createSyncRun('price_update', runDate);
         let totalPricesProcessed = 0;
         let groupsProcessed = 0;
         let groupsFailed = 0;
         let usedFallback = false;
         try {
-            const marketSnapshot = yield snapshotFromMarketProvider(runDate, tcgdexMarketProvider_1.tcgdexMarketProvider);
+            const marketSnapshot = await snapshotFromMarketProvider(runDate, tcgdexMarketProvider_1.tcgdexMarketProvider);
             totalPricesProcessed = marketSnapshot.pricesWritten;
             groupsProcessed = marketSnapshot.cardsProcessed;
             groupsFailed = marketSnapshot.cardsFailed;
-            logger_1.logger.info('TCGdex snapshot complete', Object.assign({ runDate }, marketSnapshot));
+            logger_1.logger.info('TCGdex snapshot complete', { runDate, ...marketSnapshot });
         }
         catch (marketError) {
             logger_1.logger.warn('TCGdex snapshot failed, using catalog fallback', {
                 error: marketError.message,
             });
-            const fallbackRows = yield snapshotFromPokemonCatalog(runDate);
+            const fallbackRows = await snapshotFromPokemonCatalog(runDate);
             totalPricesProcessed = fallbackRows;
             groupsProcessed = fallbackRows > 0 ? 1 : 0;
             groupsFailed = 0;
             usedFallback = true;
         }
         logger_1.logger.info('Creating daily market snapshot...');
-        yield createDailySnapshot(runDate);
+        await createDailySnapshot(runDate);
         logger_1.logger.info('Daily market snapshot created.');
-        const cloudBackup = yield (0, cloudBackupService_1.backupDatabaseToCloud)(runDate);
+        const cloudBackup = await (0, cloudBackupService_1.backupDatabaseToCloud)(runDate);
         logger_1.logger.info('Cloud backup result', cloudBackup);
         if (syncRunId) {
-            yield finalizeSyncRun(syncRunId, 'completed', {
+            await finalizeSyncRun(syncRunId, 'completed', {
                 totalPricesProcessed,
                 groupsProcessed,
                 groupsFailed,
@@ -596,7 +630,7 @@ const performPriceUpdate = () => __awaiter(void 0, void 0, void 0, function* () 
             error: error.message,
         });
         if (syncRunId) {
-            yield finalizeSyncRun(syncRunId, 'failed', {
+            await finalizeSyncRun(syncRunId, 'failed', {
                 message: error.message,
             }).catch((finalizeErr) => {
                 logger_1.logger.error('Failed to finalize sync run', { error: finalizeErr.message });
@@ -610,4 +644,4 @@ const performPriceUpdate = () => __awaiter(void 0, void 0, void 0, function* () 
             error: error.message,
         };
     }
-});
+};

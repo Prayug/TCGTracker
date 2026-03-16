@@ -32,21 +32,12 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 const vitest_1 = require("vitest");
 const OLD_ENV = process.env;
 (0, vitest_1.beforeEach)(() => {
     vitest_1.vi.resetModules();
-    process.env = Object.assign({}, OLD_ENV);
+    process.env = { ...OLD_ENV };
     vitest_1.vi.spyOn(process, 'exit').mockImplementation((() => { }));
     vitest_1.vi.spyOn(console, 'error').mockImplementation(() => { });
     vitest_1.vi.spyOn(console, 'warn').mockImplementation(() => { });
@@ -56,19 +47,19 @@ const OLD_ENV = process.env;
     vitest_1.vi.restoreAllMocks();
 });
 (0, vitest_1.describe)('env validation', () => {
-    (0, vitest_1.it)('parses valid environment variables successfully', () => __awaiter(void 0, void 0, void 0, function* () {
+    (0, vitest_1.it)('parses valid environment variables successfully', async () => {
         process.env.JWT_SECRET = 'a'.repeat(32);
         process.env.NODE_ENV = 'development';
-        yield (0, vitest_1.expect)(Promise.resolve().then(() => __importStar(require('../env')))).resolves.toBeDefined();
-    }));
-    (0, vitest_1.it)('rejects missing JWT_SECRET (less than 32 chars)', () => __awaiter(void 0, void 0, void 0, function* () {
+        await (0, vitest_1.expect)(Promise.resolve().then(() => __importStar(require('../env')))).resolves.toBeDefined();
+    });
+    (0, vitest_1.it)('rejects missing JWT_SECRET (less than 32 chars)', async () => {
         process.env.JWT_SECRET = 'short';
         process.env.NODE_ENV = 'development';
-        yield (0, vitest_1.expect)(Promise.resolve().then(() => __importStar(require('../env')))).rejects.toThrow();
-    }));
-    (0, vitest_1.it)('rejects invalid NODE_ENV', () => __awaiter(void 0, void 0, void 0, function* () {
+        await (0, vitest_1.expect)(Promise.resolve().then(() => __importStar(require('../env')))).rejects.toThrow();
+    });
+    (0, vitest_1.it)('rejects invalid NODE_ENV', async () => {
         process.env.JWT_SECRET = 'a'.repeat(32);
         process.env.NODE_ENV = 'invalid';
-        yield (0, vitest_1.expect)(Promise.resolve().then(() => __importStar(require('../env')))).rejects.toThrow();
-    }));
+        await (0, vitest_1.expect)(Promise.resolve().then(() => __importStar(require('../env')))).rejects.toThrow();
+    });
 });

@@ -1,19 +1,10 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.mapLocalRowsToPokemonCards = exports.getLocalCardsForQuery = void 0;
 // Database query utilities for cards
 const database_1 = require("../db/database");
 const cardImageUtils_1 = require("./cardImageUtils");
-const getLocalCardsForQuery = (query_1, setId_1, ...args_1) => __awaiter(void 0, [query_1, setId_1, ...args_1], void 0, function* (query, setId, limit = 250) {
+const getLocalCardsForQuery = async (query, setId, limit = 250) => {
     const db = (0, database_1.getDb)();
     const likeQuery = `%${query}%`;
     const params = [likeQuery];
@@ -22,7 +13,7 @@ const getLocalCardsForQuery = (query_1, setId_1, ...args_1) => __awaiter(void 0,
         whereClause += ' AND (cm.setId = ? OR cm.setName LIKE ?)';
         params.push(setId, `%${setId}%`);
     }
-    const imageColumns = yield (0, cardImageUtils_1.getImageColumnSelectFragment)();
+    const imageColumns = await (0, cardImageUtils_1.getImageColumnSelectFragment)();
     const sql = `
     SELECT 
       cm.cardId,
@@ -59,9 +50,9 @@ const getLocalCardsForQuery = (query_1, setId_1, ...args_1) => __awaiter(void 0,
             resolve(rows || []);
         });
     });
-});
+};
 exports.getLocalCardsForQuery = getLocalCardsForQuery;
-const mapLocalRowsToPokemonCards = (rows) => __awaiter(void 0, void 0, void 0, function* () {
+const mapLocalRowsToPokemonCards = async (rows) => {
     const buildFallbackImage = (cardName, setName) => `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='245' height='342' viewBox='0 0 245 342'%3E%3Crect width='245' height='342' fill='%23f1f5f9' rx='8'/%3E%3Ctext x='50%25' y='46%25' font-family='Inter,sans-serif' font-size='12' fill='%2364748b' text-anchor='middle'%3E${encodeURIComponent(cardName || 'Pokemon Card')}%3C/text%3E%3Ctext x='50%25' y='54%25' font-family='Inter,sans-serif' font-size='10' fill='%2394a3b8' text-anchor='middle'%3E${encodeURIComponent(setName || 'Unknown Set')}%3C/text%3E%3C/svg%3E`;
     const seen = new Set();
     const uniqueRows = rows.filter((row) => {
@@ -72,7 +63,7 @@ const mapLocalRowsToPokemonCards = (rows) => __awaiter(void 0, void 0, void 0, f
         seen.add(key);
         return true;
     });
-    return yield Promise.all(uniqueRows.map((row) => __awaiter(void 0, void 0, void 0, function* () {
+    return await Promise.all(uniqueRows.map(async (row) => {
         // PRIORITY ORDER for images:
         // 1. Stored images from database (most reliable)
         // 2. Deterministic Pokemon TCG API URLs
@@ -89,7 +80,7 @@ const mapLocalRowsToPokemonCards = (rows) => __awaiter(void 0, void 0, void 0, f
         }
         else {
             // Try deterministic URLs - if not available, return undefined (no image)
-            const deterministicImages = yield (0, cardImageUtils_1.buildDeterministicImageUrls)(row.setId, row.cardNumber, row.setName);
+            const deterministicImages = await (0, cardImageUtils_1.buildDeterministicImageUrls)(row.setId, row.cardNumber, row.setName);
             if (deterministicImages) {
                 images = deterministicImages;
                 imageSource = 'deterministic';
@@ -127,6 +118,6 @@ const mapLocalRowsToPokemonCards = (rows) => __awaiter(void 0, void 0, void 0, f
             isLocalDbCard: true,
             source: 'local_database'
         };
-    })));
-});
+    }));
+};
 exports.mapLocalRowsToPokemonCards = mapLocalRowsToPokemonCards;

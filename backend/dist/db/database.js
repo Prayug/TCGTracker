@@ -1,13 +1,4 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -53,11 +44,11 @@ exports.getDb = getDb;
 const initializeDatabase = () => {
     if (dbInitPromise)
         return dbInitPromise;
-    dbInitPromise = (() => __awaiter(void 0, void 0, void 0, function* () {
+    dbInitPromise = (async () => {
         const database = (0, exports.getDb)();
-        yield runDb(database, 'PRAGMA journal_mode = WAL');
-        yield runDb(database, 'PRAGMA foreign_keys = ON');
-        yield runDb(database, 'PRAGMA busy_timeout = 5000');
+        await runDb(database, 'PRAGMA journal_mode = WAL');
+        await runDb(database, 'PRAGMA foreign_keys = ON');
+        await runDb(database, 'PRAGMA busy_timeout = 5000');
         const tables = [
             `CREATE TABLE IF NOT EXISTS card_mappings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -166,9 +157,17 @@ const initializeDatabase = () => {
         predicted_90d_low REAL,
         predicted_90d_mid REAL,
         predicted_90d_high REAL,
+        predicted_180d_low REAL,
+        predicted_180d_mid REAL,
+        predicted_180d_high REAL,
+        predicted_365d_low REAL,
+        predicted_365d_mid REAL,
+        predicted_365d_high REAL,
         expected_7d_return REAL,
         expected_30d_return REAL,
         expected_90d_return REAL,
+        expected_180d_return REAL,
+        expected_365d_return REAL,
         confidence_score INTEGER DEFAULT 0,
         risk_score INTEGER DEFAULT 0,
         category TEXT,
@@ -186,15 +185,23 @@ const initializeDatabase = () => {
         actual_7d_price REAL,
         actual_30d_price REAL,
         actual_90d_price REAL,
+        actual_180d_price REAL,
+        actual_365d_price REAL,
         actual_7d_return REAL,
         actual_30d_return REAL,
         actual_90d_return REAL,
+        actual_180d_return REAL,
+        actual_365d_return REAL,
         error_7d REAL,
         error_30d REAL,
         error_90d REAL,
+        error_180d REAL,
+        error_365d REAL,
         direction_correct_7d INTEGER DEFAULT 0,
         direction_correct_30d INTEGER DEFAULT 0,
         direction_correct_90d INTEGER DEFAULT 0,
+        direction_correct_180d INTEGER DEFAULT 0,
+        direction_correct_365d INTEGER DEFAULT 0,
         status TEXT DEFAULT 'pending',
         FOREIGN KEY (prediction_id) REFERENCES card_predictions(id) ON DELETE CASCADE
       )`,
@@ -221,6 +228,8 @@ const initializeDatabase = () => {
         sentiment_score INTEGER DEFAULT 0,
         relevance_score INTEGER DEFAULT 0,
         risk_type TEXT,
+        card_name TEXT,
+        set_name TEXT,
         created_at TEXT DEFAULT (datetime('now')),
         expires_at TEXT
       )`,
@@ -276,7 +285,7 @@ const initializeDatabase = () => {
       )`,
         ];
         for (let i = 0; i < tables.length; i++) {
-            yield runDb(database, tables[i]);
+            await runDb(database, tables[i]);
             logger_1.logger.info(`Database table ${i + 1} created successfully.`);
         }
         const indexes = [
@@ -302,6 +311,9 @@ const initializeDatabase = () => {
             'CREATE INDEX IF NOT EXISTS idx_prediction_results_status ON prediction_results(status)',
             'CREATE INDEX IF NOT EXISTS idx_prediction_results_prediction ON prediction_results(prediction_id)',
             'CREATE INDEX IF NOT EXISTS idx_external_signals_card ON external_market_signals(card_id)',
+            'CREATE INDEX IF NOT EXISTS idx_external_signals_card_source_created ON external_market_signals(card_id, source_type, created_at)',
+            'CREATE INDEX IF NOT EXISTS idx_external_signals_card_name ON external_market_signals(card_name)',
+            'CREATE INDEX IF NOT EXISTS idx_external_signals_expires ON external_market_signals(expires_at)',
             'CREATE INDEX IF NOT EXISTS idx_backtest_runs_date ON backtest_runs(created_at)',
             'CREATE INDEX IF NOT EXISTS idx_onepiece_catalog_name ON onepiece_catalog(cardName)',
             'CREATE INDEX IF NOT EXISTS idx_onepiece_catalog_set ON onepiece_catalog(setId, setName)',
@@ -312,7 +324,7 @@ const initializeDatabase = () => {
             'CREATE INDEX IF NOT EXISTS idx_graded_prices_grader ON graded_prices(grader, grade)',
         ];
         for (const indexSql of indexes) {
-            yield runDb(database, indexSql);
+            await runDb(database, indexSql);
         }
         logger_1.logger.info('All database tables and indexes ready.');
         logger_1.logger.info(`Using database at ${DB_SOURCE}`);
@@ -333,7 +345,7 @@ const initializeDatabase = () => {
                 }
             });
         }, 30 * 60 * 1000);
-    }))();
+    })();
     return dbInitPromise;
 };
 exports.initializeDatabase = initializeDatabase;

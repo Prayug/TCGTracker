@@ -1,81 +1,81 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.searchExternalSignals = searchExternalSignals;
 exports.getExternalSignalsForCard = getExternalSignalsForCard;
 const database_1 = require("../db/database");
 const logger_1 = require("../utils/logger");
-const SIGNAL_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+function mapRow(r) {
+    var _a;
+    return {
+        sourceUrl: r.source_url,
+        sourceType: r.source_type,
+        title: r.title,
+        summary: r.summary,
+        sentiment: r.sentiment_score,
+        relevance: r.relevance_score,
+        type: r.risk_type || 'unknown',
+        createdAt: r.created_at,
+        expiresAt: (_a = r.expires_at) !== null && _a !== void 0 ? _a : null,
+    };
+}
 /**
- * External market signals are not yet integrated.
- * Returns cached signals from the database or an empty array.
- *
- * TODO: Implement real signal sources (news RSS, social media sentiment, tournament data).
- * When implemented, populate the external_market_signals table via a separate cron job.
+ * Finds active external market signals relevant to a card. Signals are
+ * populated by the scraper pipeline (see services/scrapers/) and matched by:
+ *  - resolved card_id (via card_mappings/catalog_cards),
+ *  - mentioned card name, or
+ *  - set-level signals (e.g. upcoming set releases) matching the card's set.
  */
-function searchExternalSignals(cardName, setName) {
-    return __awaiter(this, void 0, void 0, function* () {
-        try {
-            const cached = yield getCachedSignals(cardName, setName);
-            if (cached)
-                return cached;
-            return [];
-        }
-        catch (err) {
-            logger_1.logger.warn(`External signal search failed for ${cardName}:`, err);
-            return [];
-        }
-    });
-}
-function getCachedSignals(cardName, setName) {
+async function searchExternalSignals(cardName, setName) {
     const db = (0, database_1.getDb)();
-    return new Promise((resolve, reject) => {
-        db.all(`SELECT * FROM external_market_signals
-       WHERE card_id = ? AND created_at >= datetime('now', '-1 day')
-       ORDER BY created_at DESC LIMIT 10`, [`ext|${cardName}|${setName}`], (err, rows) => {
-            if (err)
-                return reject(err);
-            if (!rows || rows.length === 0)
-                return resolve(null);
-            resolve(rows.map((r) => ({
-                sourceUrl: r.source_url,
-                sourceType: r.source_type,
-                title: r.title,
-                summary: r.summary,
-                sentiment: r.sentiment_score,
-                relevance: r.relevance_score,
-                type: r.risk_type || 'unknown',
-            })));
-        });
-    });
-}
-function getExternalSignalsForCard(cardId) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const db = (0, database_1.getDb)();
-        return new Promise((resolve, reject) => {
+    try {
+        return await new Promise((resolve, reject) => {
             db.all(`SELECT * FROM external_market_signals
-       WHERE card_id = ? AND (expires_at IS NULL OR expires_at >= datetime('now'))
-       ORDER BY created_at DESC LIMIT 20`, [cardId], (err, rows) => {
+         WHERE (expires_at IS NULL OR expires_at >= datetime('now'))
+           AND (
+             (card_name IS NOT NULL AND (
+               LOWER(card_name) = LOWER(?) OR LOWER(?) LIKE LOWER(card_name) || '%'
+             ))
+             OR (card_name IS NULL AND card_id IS NULL AND set_name IS NOT NULL
+                 AND LOWER(set_name) = LOWER(?))
+           )
+         ORDER BY relevance_score DESC, created_at DESC
+         LIMIT 10`, [cardName, cardName, setName], (err, rows) => {
                 if (err)
                     return reject(err);
-                resolve(rows.map((r) => ({
-                    sourceUrl: r.source_url,
-                    sourceType: r.source_type,
-                    title: r.title,
-                    summary: r.summary,
-                    sentiment: r.sentiment_score,
-                    relevance: r.relevance_score,
-                    type: r.risk_type || 'unknown',
-                })));
+                resolve((rows || []).map(mapRow));
             });
+        });
+    }
+    catch (err) {
+        logger_1.logger.warn(`External signal search failed for ${cardName}:`, err);
+        return [];
+    }
+}
+async function getExternalSignalsForCard(cardId) {
+    const db = (0, database_1.getDb)();
+    // Resolve the card's name/set so name-matched and set-level signals are included.
+    const cardInfo = await new Promise((resolve) => {
+        db.get(`SELECT cardName, setName FROM card_mappings WHERE cardId = ? LIMIT 1`, [cardId], (err, row) => {
+            if (err || !row)
+                return resolve({});
+            resolve({ cardName: row.cardName, setName: row.setName });
+        });
+    });
+    return new Promise((resolve, reject) => {
+        var _a, _b;
+        db.all(`SELECT * FROM external_market_signals
+       WHERE (expires_at IS NULL OR expires_at >= datetime('now'))
+         AND (
+           card_id = ?
+           OR (card_name IS NOT NULL AND LOWER(card_name) = LOWER(?))
+           OR (card_name IS NULL AND card_id IS NULL AND set_name IS NOT NULL
+               AND LOWER(set_name) = LOWER(?))
+         )
+       ORDER BY relevance_score DESC, created_at DESC
+       LIMIT 20`, [cardId, (_a = cardInfo.cardName) !== null && _a !== void 0 ? _a : '', (_b = cardInfo.setName) !== null && _b !== void 0 ? _b : ''], (err, rows) => {
+            if (err)
+                return reject(err);
+            resolve((rows || []).map(mapRow));
         });
     });
 }

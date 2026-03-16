@@ -1,13 +1,4 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.copyCatalogImagesToMapping = copyCatalogImagesToMapping;
 exports.backfillCardMappingImages = backfillCardMappingImages;
@@ -41,9 +32,8 @@ const dbAll = (sql, params = []) => new Promise((resolve, reject) => {
     });
 });
 /** Bulk copy catalog images into card_mappings using persisted set_id_aliases. */
-function bulkBackfillFromCatalog() {
-    return __awaiter(this, void 0, void 0, function* () {
-        return dbRun(`
+async function bulkBackfillFromCatalog() {
+    return dbRun(`
     UPDATE card_mappings
     SET
       imageSmall = (
@@ -97,12 +87,10 @@ function bulkBackfillFromCatalog() {
           AND (cc.imageSmall IS NOT NULL OR cc.imageLarge IS NOT NULL)
       )
   `);
-    });
 }
 /** Match cards whose mapping setId already equals a catalog setId (no alias needed). */
-function bulkBackfillDirectSetMatch() {
-    return __awaiter(this, void 0, void 0, function* () {
-        return dbRun(`
+async function bulkBackfillDirectSetMatch() {
+    return dbRun(`
     UPDATE card_mappings
     SET
       imageSmall = (
@@ -136,108 +124,97 @@ function bulkBackfillDirectSetMatch() {
           AND (cc.imageSmall IS NOT NULL OR cc.imageLarge IS NOT NULL)
       )
   `);
-    });
 }
-function countMissingImages() {
-    return __awaiter(this, void 0, void 0, function* () {
-        var _a;
-        const row = yield dbGet(`SELECT COUNT(*) as count FROM card_mappings
+async function countMissingImages() {
+    var _a;
+    const row = await dbGet(`SELECT COUNT(*) as count FROM card_mappings
      WHERE imageSmall IS NULL OR imageLarge IS NULL`);
-        return (_a = row === null || row === void 0 ? void 0 : row.count) !== null && _a !== void 0 ? _a : 0;
-    });
+    return (_a = row === null || row === void 0 ? void 0 : row.count) !== null && _a !== void 0 ? _a : 0;
 }
 /** Copy images from catalog_cards when upserting a mapping row during price sync. */
-function copyCatalogImagesToMapping(cardName, setId, setName, cardNumber) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const direct = yield dbGet(`SELECT imageSmall, imageLarge, setId, cardNumber
+async function copyCatalogImagesToMapping(cardName, setId, setName, cardNumber) {
+    const direct = await dbGet(`SELECT imageSmall, imageLarge, setId, cardNumber
      FROM catalog_cards
      WHERE cardName = ? AND setId = ?
        AND (imageSmall IS NOT NULL OR imageLarge IS NOT NULL)
      LIMIT 1`, [cardName, setId]);
-        if (direct) {
-            return {
-                imageSmall: direct.imageSmall,
-                imageLarge: direct.imageLarge,
-                catalogSetId: direct.setId,
-            };
-        }
-        const aliased = yield dbGet(`SELECT cc.imageSmall, cc.imageLarge, sa.catalogSetId, cc.cardNumber
+    if (direct) {
+        return {
+            imageSmall: direct.imageSmall,
+            imageLarge: direct.imageLarge,
+            catalogSetId: direct.setId,
+        };
+    }
+    const aliased = await dbGet(`SELECT cc.imageSmall, cc.imageLarge, sa.catalogSetId, cc.cardNumber
      FROM catalog_cards cc
      INNER JOIN set_id_aliases sa ON sa.catalogSetId = cc.setId
      WHERE sa.sourceSetId = ? AND cc.cardName = ?
        AND (cc.imageSmall IS NOT NULL OR cc.imageLarge IS NOT NULL)
      ORDER BY CASE WHEN ? <> '' AND cc.cardNumber = ? THEN 0 ELSE 1 END, cc.cardNumber
      LIMIT 1`, [setId, cardName, cardNumber || '', cardNumber || '']);
-        if (aliased) {
-            return {
-                imageSmall: aliased.imageSmall,
-                imageLarge: aliased.imageLarge,
-                catalogSetId: aliased.catalogSetId,
-            };
-        }
-        return null;
-    });
+    if (aliased) {
+        return {
+            imageSmall: aliased.imageSmall,
+            imageLarge: aliased.imageLarge,
+            catalogSetId: aliased.catalogSetId,
+        };
+    }
+    return null;
 }
 let isBackfillRunning = false;
 /** Persist catalog images into card_mappings — run after catalog sync and price updates. */
-function backfillCardMappingImages() {
-    return __awaiter(this, void 0, void 0, function* () {
-        if (isBackfillRunning) {
-            logger_1.logger.warn('Card image backfill already running, skipping duplicate');
-            return { aliasesSynced: 0, bulkUpdated: 0, individuallyUpdated: 0, stillMissing: yield countMissingImages() };
-        }
-        isBackfillRunning = true;
-        try {
-            logger_1.logger.info('Starting card image backfill...');
-            const aliasesSynced = yield (0, setAliasStore_1.syncSetIdAliases)();
-            const directUpdated = yield bulkBackfillDirectSetMatch();
-            const aliasUpdated = yield bulkBackfillFromCatalog();
-            const bulkUpdated = directUpdated + aliasUpdated;
-            const stillMissing = yield countMissingImages();
-            logger_1.logger.info('Card image backfill complete', {
-                aliasesSynced,
-                bulkUpdated,
-                stillMissing,
-            });
-            return {
-                aliasesSynced,
-                bulkUpdated,
-                individuallyUpdated: 0,
-                stillMissing,
-            };
-        }
-        finally {
-            isBackfillRunning = false;
-        }
-    });
-}
-function getCardMappingImages(cardId) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const row = yield dbGet(`SELECT imageSmall, imageLarge, cardNumber FROM card_mappings WHERE cardId = ? LIMIT 1`, [cardId]);
-        if (!row || (!row.imageSmall && !row.imageLarge))
-            return null;
+async function backfillCardMappingImages() {
+    if (isBackfillRunning) {
+        logger_1.logger.warn('Card image backfill already running, skipping duplicate');
+        return { aliasesSynced: 0, bulkUpdated: 0, individuallyUpdated: 0, stillMissing: await countMissingImages() };
+    }
+    isBackfillRunning = true;
+    try {
+        logger_1.logger.info('Starting card image backfill...');
+        const aliasesSynced = await (0, setAliasStore_1.syncSetIdAliases)();
+        const directUpdated = await bulkBackfillDirectSetMatch();
+        const aliasUpdated = await bulkBackfillFromCatalog();
+        const bulkUpdated = directUpdated + aliasUpdated;
+        const stillMissing = await countMissingImages();
+        logger_1.logger.info('Card image backfill complete', {
+            aliasesSynced,
+            bulkUpdated,
+            stillMissing,
+        });
         return {
-            imageSmall: row.imageSmall || undefined,
-            imageLarge: row.imageLarge || undefined,
-            cardNumber: row.cardNumber || undefined,
+            aliasesSynced,
+            bulkUpdated,
+            individuallyUpdated: 0,
+            stillMissing,
         };
-    });
+    }
+    finally {
+        isBackfillRunning = false;
+    }
 }
-function getImageCoverageStats() {
-    return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c;
-        const row = yield dbGet(`SELECT
+async function getCardMappingImages(cardId) {
+    const row = await dbGet(`SELECT imageSmall, imageLarge, cardNumber FROM card_mappings WHERE cardId = ? LIMIT 1`, [cardId]);
+    if (!row || (!row.imageSmall && !row.imageLarge))
+        return null;
+    return {
+        imageSmall: row.imageSmall || undefined,
+        imageLarge: row.imageLarge || undefined,
+        cardNumber: row.cardNumber || undefined,
+    };
+}
+async function getImageCoverageStats() {
+    var _a, _b, _c;
+    const row = await dbGet(`SELECT
        COUNT(*) as total,
        SUM(CASE WHEN imageSmall IS NOT NULL AND imageLarge IS NOT NULL THEN 1 ELSE 0 END) as withImages,
        SUM(CASE WHEN imageSmall IS NULL OR imageLarge IS NULL THEN 1 ELSE 0 END) as withoutImages
      FROM card_mappings`);
-        const total = (_a = row === null || row === void 0 ? void 0 : row.total) !== null && _a !== void 0 ? _a : 0;
-        const withImages = (_b = row === null || row === void 0 ? void 0 : row.withImages) !== null && _b !== void 0 ? _b : 0;
-        return {
-            total,
-            withImages,
-            withoutImages: (_c = row === null || row === void 0 ? void 0 : row.withoutImages) !== null && _c !== void 0 ? _c : 0,
-            percentage: total > 0 ? (withImages / total) * 100 : 0,
-        };
-    });
+    const total = (_a = row === null || row === void 0 ? void 0 : row.total) !== null && _a !== void 0 ? _a : 0;
+    const withImages = (_b = row === null || row === void 0 ? void 0 : row.withImages) !== null && _b !== void 0 ? _b : 0;
+    return {
+        total,
+        withImages,
+        withoutImages: (_c = row === null || row === void 0 ? void 0 : row.withoutImages) !== null && _c !== void 0 ? _c : 0,
+        percentage: total > 0 ? (withImages / total) * 100 : 0,
+    };
 }

@@ -1,13 +1,4 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -20,7 +11,7 @@ const db = (0, database_1.getDb)();
 const PUBLIC_DIR = path_1.default.join(__dirname, '..', '..', 'public');
 const DATA_DIR = path_1.default.join(PUBLIC_DIR, 'data');
 const PRICES_DIR = path_1.default.join(DATA_DIR, 'prices');
-const exportStaticData = () => __awaiter(void 0, void 0, void 0, function* () {
+const exportStaticData = async () => {
     console.log('Starting static data export...');
     try {
         // 1. Create directories if they don't exist
@@ -29,7 +20,7 @@ const exportStaticData = () => __awaiter(void 0, void 0, void 0, function* () {
             console.log(`Created data directories at ${DATA_DIR}`);
         }
         // 2. Get all card mappings
-        const mappings = yield new Promise((resolve, reject) => {
+        const mappings = await new Promise((resolve, reject) => {
             db.all('SELECT * FROM card_mappings', [], (err, rows) => {
                 if (err)
                     return reject(err);
@@ -45,7 +36,7 @@ const exportStaticData = () => __awaiter(void 0, void 0, void 0, function* () {
         for (const mapping of mappings) {
             if (!mapping.uniqueIdentifier)
                 continue;
-            const history = yield new Promise((resolve, reject) => {
+            const history = await new Promise((resolve, reject) => {
                 db.all('SELECT date, price, subTypeName, lowPrice, highPrice, marketPrice FROM price_history WHERE uniqueIdentifier = ? ORDER BY date ASC', [mapping.uniqueIdentifier], (err, rows) => {
                     if (err)
                         return reject(err);
@@ -63,7 +54,7 @@ const exportStaticData = () => __awaiter(void 0, void 0, void 0, function* () {
         for (const mapping of mappings) {
             if (!mapping.uniqueIdentifier)
                 continue;
-            const history = yield new Promise((resolve, reject) => {
+            const history = await new Promise((resolve, reject) => {
                 db.all('SELECT date, price FROM price_history WHERE uniqueIdentifier = ? ORDER BY date DESC LIMIT 1', [mapping.uniqueIdentifier], (err, rows) => {
                     if (err)
                         return reject(err);
@@ -88,5 +79,5 @@ const exportStaticData = () => __awaiter(void 0, void 0, void 0, function* () {
                 console.error('Error closing database:', err);
         });
     }
-});
+};
 exportStaticData();

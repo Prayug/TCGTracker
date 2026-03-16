@@ -1,13 +1,4 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getGradedPrices = void 0;
 const database_1 = require("../db/database");
@@ -17,18 +8,18 @@ const REQUEST_TIMEOUT_MS = 12000;
 const REQUEST_DELAY_MS = 1500;
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 const normalize = (value) => (value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-const withTimeout = (promise, ms) => __awaiter(void 0, void 0, void 0, function* () {
+const withTimeout = async (promise, ms) => {
     let timeoutId;
     const timeoutPromise = new Promise((_, reject) => {
         timeoutId = setTimeout(() => reject(new Error('request_timeout')), ms);
     });
     try {
-        return yield Promise.race([promise, timeoutPromise]);
+        return await Promise.race([promise, timeoutPromise]);
     }
     finally {
         clearTimeout(timeoutId);
     }
-});
+};
 const scoreCandidate = (candidate, cardName, setName, cardNumber) => {
     const title = normalize(candidate.title);
     const cSet = normalize(candidate.setName);
@@ -59,14 +50,14 @@ const parsePriceChartingSearchRows = (html) => {
     }
     return rows;
 };
-const searchBestProductUrl = (cardName, setName, cardNumber) => __awaiter(void 0, void 0, void 0, function* () {
+const searchBestProductUrl = async (cardName, setName, cardNumber) => {
     var _a, _b;
     const query = [cardName, cardNumber, setName].filter(Boolean).join(' ').trim();
     const searchUrl = `https://www.pricecharting.com/search-products?exclude-variants=false&q=${encodeURIComponent(query)}&region-name=all&type=prices&go=Go`;
-    const searchResponse = yield withTimeout(fetch(searchUrl, { headers: { Accept: 'text/html' } }), REQUEST_TIMEOUT_MS);
+    const searchResponse = await withTimeout(fetch(searchUrl, { headers: { Accept: 'text/html' } }), REQUEST_TIMEOUT_MS);
     if (!searchResponse.ok)
         return null;
-    const searchHtml = yield searchResponse.text();
+    const searchHtml = await searchResponse.text();
     const rows = parsePriceChartingSearchRows(searchHtml);
     if (rows.length === 0)
         return null;
@@ -74,7 +65,7 @@ const searchBestProductUrl = (cardName, setName, cardNumber) => __awaiter(void 0
         .map((row) => ({ row, score: scoreCandidate(row, cardName, setName || '', cardNumber) }))
         .sort((a, b) => b.score - a.score);
     return ((_b = (_a = ranked[0]) === null || _a === void 0 ? void 0 : _a.row) === null || _b === void 0 ? void 0 : _b.url) || null;
-});
+};
 const parseGradedPriceRow = (html) => {
     const prices = [];
     const knownLabels = [
@@ -159,9 +150,9 @@ const parseGradedPriceRow = (html) => {
     return prices;
 };
 let lastScrapeTime = 0;
-const getGradedPrices = (cardId, cardName, setId, setName, cardNumber) => __awaiter(void 0, void 0, void 0, function* () {
+const getGradedPrices = async (cardId, cardName, setId, setName, cardNumber) => {
     const db = (0, database_1.getDb)();
-    const cached = yield (0, promisified_1.dbGet)(`SELECT cardId, cardName, setId, setName,
+    const cached = await (0, promisified_1.dbGet)(`SELECT cardId, cardName, setId, setName,
             GROUP_CONCAT(grader || '::' || grade || '::' || COALESCE(price, '') || '::' || soldListings, '||') as prices,
             MAX(fetchedAt) as fetchedAt
      FROM graded_prices WHERE cardId = ? GROUP BY cardId`, [cardId]);
@@ -190,18 +181,18 @@ const getGradedPrices = (cardId, cardName, setId, setName, cardNumber) => __awai
     const now = Date.now();
     const elapsed = now - lastScrapeTime;
     if (elapsed < REQUEST_DELAY_MS) {
-        yield delay(REQUEST_DELAY_MS - elapsed);
+        await delay(REQUEST_DELAY_MS - elapsed);
     }
     lastScrapeTime = Date.now();
-    const url = yield searchBestProductUrl(cardName, setName, cardNumber);
+    const url = await searchBestProductUrl(cardName, setName, cardNumber);
     if (!url) {
         return { cardId, cardName, setName: setName || '', prices: [], fetchedAt: new Date().toISOString(), cached: false };
     }
-    const pageResponse = yield withTimeout(fetch(url, { headers: { Accept: 'text/html' } }), REQUEST_TIMEOUT_MS);
+    const pageResponse = await withTimeout(fetch(url, { headers: { Accept: 'text/html' } }), REQUEST_TIMEOUT_MS);
     if (!pageResponse.ok) {
         return { cardId, cardName, setName: setName || '', prices: [], fetchedAt: new Date().toISOString(), cached: false };
     }
-    const html = yield pageResponse.text();
+    const html = await pageResponse.text();
     const prices = parseGradedPriceRow(html);
     const stmt = db.prepare(`INSERT OR REPLACE INTO graded_prices (cardId, cardName, setId, setName, grader, grade, price, soldListings, fetchedAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`);
@@ -217,5 +208,5 @@ const getGradedPrices = (cardId, cardName, setId, setName, cardNumber) => __awai
         fetchedAt: new Date().toISOString(),
         cached: false,
     };
-});
+};
 exports.getGradedPrices = getGradedPrices;

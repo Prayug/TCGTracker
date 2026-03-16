@@ -25,7 +25,10 @@ const errorHandler = (err, req, res, next) => {
         method: req.method,
         ip: req.ip,
     });
-    res.status(statusCode).json(Object.assign({ error: message }, (process.env.NODE_ENV === 'development' && { stack: err.stack })));
+    res.status(statusCode).json({
+        error: message,
+        ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+    });
 };
 exports.errorHandler = errorHandler;
 const notFoundHandler = (req, res) => {
