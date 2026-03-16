@@ -25,6 +25,8 @@ const envSchema = zod_1.z.object({
     POKEMON_TCG_API_KEY: zod_1.z.string().optional(),
     TCGCSV_API_KEY: zod_1.z.string().optional(),
     APIFY_API_TOKEN: zod_1.z.string().optional(),
+    PKMNPRICES_API_KEY: zod_1.z.string().optional(),
+    YOUTUBE_API_KEY: zod_1.z.string().optional(),
     SMTP_HOST: zod_1.z.string().optional(),
     SMTP_PORT: zod_1.z.string().optional(),
     SMTP_USER: zod_1.z.string().optional(),
@@ -73,6 +75,8 @@ exports.env = {
         pokemonTcg: parsedEnv.data.POKEMON_TCG_API_KEY,
         tcgcsv: parsedEnv.data.TCGCSV_API_KEY,
         apify: parsedEnv.data.APIFY_API_TOKEN,
+        pkmnprices: parsedEnv.data.PKMNPRICES_API_KEY,
+        youtube: parsedEnv.data.YOUTUBE_API_KEY,
     },
     email: {
         host: parsedEnv.data.SMTP_HOST,

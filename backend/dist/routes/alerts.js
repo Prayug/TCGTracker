@@ -1,13 +1,4 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createAlertsRouter = void 0;
 const express_1 = require("express");
@@ -44,16 +35,16 @@ const createAlertsRouter = (alertService) => {
      *       401:
      *         description: Unauthorized
      */
-    router.get('/', auth_1.authenticate, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    router.get('/', auth_1.authenticate, async (req, res) => {
         try {
-            const alerts = yield alertService.getAlertsByUser(req.user.id);
+            const alerts = await alertService.getAlertsByUser(req.user.id);
             res.json({ alerts });
         }
         catch (error) {
             logger_1.logger.error('Alerts route error', { error: error.message });
             res.status(500).json({ error: 'An internal error occurred' });
         }
-    }));
+    });
     /**
      * @swagger
      * /api/alerts:
@@ -89,17 +80,17 @@ const createAlertsRouter = (alertService) => {
      *       401:
      *         description: Unauthorized
      */
-    router.post('/', auth_1.authenticate, (0, validation_1.validate)(createAlertSchema), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    router.post('/', auth_1.authenticate, (0, validation_1.validate)(createAlertSchema), async (req, res) => {
         try {
             const { cardId, cardName, targetPrice, condition } = req.body;
-            const alert = yield alertService.createAlert(req.user.id, cardId, cardName, targetPrice, condition);
+            const alert = await alertService.createAlert(req.user.id, cardId, cardName, targetPrice, condition);
             res.status(201).json({ alert });
         }
         catch (error) {
             logger_1.logger.error('Alerts route error', { error: error.message });
             res.status(500).json({ error: 'An internal error occurred' });
         }
-    }));
+    });
     /**
      * @swagger
      * /api/alerts/{id}:
@@ -120,17 +111,17 @@ const createAlertsRouter = (alertService) => {
      *       401:
      *         description: Unauthorized
      */
-    router.delete('/:id', auth_1.authenticate, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    router.delete('/:id', auth_1.authenticate, async (req, res) => {
         try {
             const alertId = parseInt(req.params.id, 10);
-            yield alertService.deleteAlert(alertId, req.user.id);
+            await alertService.deleteAlert(alertId, req.user.id);
             res.json({ message: 'Alert deleted successfully' });
         }
         catch (error) {
             logger_1.logger.error('Alerts route error', { error: error.message });
             res.status(500).json({ error: 'An internal error occurred' });
         }
-    }));
+    });
     /**
      * @swagger
      * /api/alerts/{id}/toggle:
@@ -162,18 +153,18 @@ const createAlertsRouter = (alertService) => {
      *       401:
      *         description: Unauthorized
      */
-    router.put('/:id/toggle', auth_1.authenticate, (0, validation_1.validate)(toggleAlertSchema), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    router.put('/:id/toggle', auth_1.authenticate, (0, validation_1.validate)(toggleAlertSchema), async (req, res) => {
         try {
             const alertId = parseInt(req.params.id, 10);
             const { isActive } = req.body;
-            yield alertService.toggleAlert(alertId, req.user.id, isActive);
+            await alertService.toggleAlert(alertId, req.user.id, isActive);
             res.json({ message: 'Alert status updated successfully' });
         }
         catch (error) {
             logger_1.logger.error('Alerts route error', { error: error.message });
             res.status(500).json({ error: 'An internal error occurred' });
         }
-    }));
+    });
     return router;
 };
 exports.createAlertsRouter = createAlertsRouter;

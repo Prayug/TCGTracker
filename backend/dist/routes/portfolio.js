@@ -1,13 +1,4 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createPortfolioRouter = void 0;
 const express_1 = require("express");
@@ -52,63 +43,63 @@ const syncVaultSchema = zod_1.z.object({
     }),
 });
 const createPortfolioRouter = (portfolioService) => {
-    router.get('/', auth_1.authenticate, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    router.get('/', auth_1.authenticate, async (req, res) => {
         try {
-            const collection = yield portfolioService.getCollection(req.user.id);
+            const collection = await portfolioService.getCollection(req.user.id);
             (0, apiResponse_1.ok)(res, { collection });
         }
         catch (error) {
             (0, apiResponse_1.fail)(res, error.message);
         }
-    }));
-    router.get('/stats', auth_1.authenticate, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    });
+    router.get('/stats', auth_1.authenticate, async (req, res) => {
         try {
-            const stats = yield portfolioService.getPortfolioStats(req.user.id);
+            const stats = await portfolioService.getPortfolioStats(req.user.id);
             (0, apiResponse_1.ok)(res, { stats });
         }
         catch (error) {
             (0, apiResponse_1.fail)(res, error.message);
         }
-    }));
-    router.post('/sync', auth_1.authenticate, (0, validation_1.validate)(syncVaultSchema), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    });
+    router.post('/sync', auth_1.authenticate, (0, validation_1.validate)(syncVaultSchema), async (req, res) => {
         try {
-            const collection = yield portfolioService.syncVault(req.user.id, req.body.cards);
+            const collection = await portfolioService.syncVault(req.user.id, req.body.cards);
             (0, apiResponse_1.ok)(res, { collection, synced: collection.length });
         }
         catch (error) {
             (0, apiResponse_1.fail)(res, error.message);
         }
-    }));
-    router.post('/', auth_1.authenticate, (0, validation_1.validate)(addToCollectionSchema), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    });
+    router.post('/', auth_1.authenticate, (0, validation_1.validate)(addToCollectionSchema), async (req, res) => {
         try {
             const { cardId, cardName, quantity, purchasePrice, purchaseDate, condition, notes, cardData, clientVaultId } = req.body;
-            const item = yield portfolioService.addToCollection(req.user.id, cardId, cardName, quantity, purchasePrice, purchaseDate, condition, notes, cardData, clientVaultId);
+            const item = await portfolioService.addToCollection(req.user.id, cardId, cardName, quantity, purchasePrice, purchaseDate, condition, notes, cardData, clientVaultId);
             (0, apiResponse_1.ok)(res, { item }, 201);
         }
         catch (error) {
             (0, apiResponse_1.fail)(res, error.message);
         }
-    }));
-    router.put('/:id', auth_1.authenticate, (0, validation_1.validate)(updateItemSchema), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    });
+    router.put('/:id', auth_1.authenticate, (0, validation_1.validate)(updateItemSchema), async (req, res) => {
         try {
             const itemId = parseInt(req.params.id, 10);
-            yield portfolioService.updateItem(itemId, req.user.id, req.body);
+            await portfolioService.updateItem(itemId, req.user.id, req.body);
             (0, apiResponse_1.ok)(res, { updated: true });
         }
         catch (error) {
             (0, apiResponse_1.fail)(res, error.message);
         }
-    }));
-    router.delete('/:id', auth_1.authenticate, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    });
+    router.delete('/:id', auth_1.authenticate, async (req, res) => {
         try {
             const itemId = parseInt(req.params.id, 10);
-            yield portfolioService.removeFromCollection(itemId, req.user.id);
+            await portfolioService.removeFromCollection(itemId, req.user.id);
             (0, apiResponse_1.ok)(res, { deleted: true });
         }
         catch (error) {
             (0, apiResponse_1.fail)(res, error.message);
         }
-    }));
+    });
     return router;
 };
 exports.createPortfolioRouter = createPortfolioRouter;

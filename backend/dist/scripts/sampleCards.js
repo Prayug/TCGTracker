@@ -1,30 +1,21 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 const database_1 = require("../db/database");
 const migrations_1 = require("../db/migrations");
 const logger_1 = require("../utils/logger");
-(() => __awaiter(void 0, void 0, void 0, function* () {
+(async () => {
     try {
         logger_1.logger.info('🔧 Initializing database...');
         (0, database_1.initializeDatabase)();
-        yield new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 1000));
         const db = (0, database_1.getDb)();
         logger_1.logger.info('🔧 Running migrations...');
-        yield (0, migrations_1.runMigrations)(db);
-        yield new Promise(resolve => setTimeout(resolve, 500));
+        await (0, migrations_1.runMigrations)(db);
+        await new Promise(resolve => setTimeout(resolve, 500));
         logger_1.logger.info('✅ Database ready!\n');
         // Sample 20 cards that would be processed
         logger_1.logger.info('📋 Sample of cards that would be processed:\n');
-        const cards = yield new Promise((resolve) => {
+        const cards = await new Promise((resolve) => {
             const sql = `
         SELECT 
           cardName,
@@ -67,7 +58,7 @@ const logger_1 = require("../utils/logger");
         });
         // Check what set IDs we have
         logger_1.logger.info('\n📊 Top 10 sets by card count:\n');
-        const sets = yield new Promise((resolve) => {
+        const sets = await new Promise((resolve) => {
             const sql = `
         SELECT 
           setId,
@@ -98,4 +89,4 @@ const logger_1 = require("../utils/logger");
         logger_1.logger.error('Fatal error', { error });
         process.exit(1);
     }
-}))();
+})();

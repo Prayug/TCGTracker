@@ -1,13 +1,4 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.isOnePieceCatalogIncomplete = exports.getOnePieceCatalogCount = exports.syncOnePieceData = void 0;
 const database_1 = require("../db/database");
@@ -74,16 +65,16 @@ const upsertPriceHistorySql = `
     marketPrice = excluded.marketPrice,
     inventoryPrice = excluded.inventoryPrice
 `;
-const syncOnePieceData = () => __awaiter(void 0, void 0, void 0, function* () {
-    const result = yield (0, dbJobLock_1.withDbJobLock)('onepiece_sync', () => __awaiter(void 0, void 0, void 0, function* () {
+const syncOnePieceData = async () => {
+    const result = await (0, dbJobLock_1.withDbJobLock)('onepiece_sync', async () => {
         const runDate = getRunDateEst();
         let cardsUpserted = 0;
         let pricesRecorded = 0;
         const db = (0, database_1.getDb)();
         logger_1.logger.info('One Piece sync: fetching full catalog (sets + ST + promos + Don!!)...');
-        const rawCards = yield (0, onePieceOptcgClient_1.getAllOptcgCards)(true);
+        const rawCards = await (0, onePieceOptcgClient_1.getAllOptcgCards)(true);
         logger_1.logger.info(`One Piece sync: ${rawCards.length} cards fetched from OPTCG`);
-        yield new Promise((resolve, reject) => {
+        await new Promise((resolve, reject) => {
             db.serialize(() => {
                 db.run('BEGIN TRANSACTION');
                 const catalogStmt = db.prepare(upsertCatalogCardSql);
@@ -134,27 +125,27 @@ const syncOnePieceData = () => __awaiter(void 0, void 0, void 0, function* () {
                 }
             });
         });
-        yield (0, dbAsync_1.runDb)(db, `INSERT INTO sync_runs (runType, runDate, status, totalPricesProcessed, message, completedAt)
+        await (0, dbAsync_1.runDb)(db, `INSERT INTO sync_runs (runType, runDate, status, totalPricesProcessed, message, completedAt)
        VALUES ('onepiece_sync', ?, 'completed', ?, ?, datetime('now'))`, [runDate, pricesRecorded, `Full catalog: ${cardsUpserted} cards`]);
         logger_1.logger.info('One Piece sync completed', { cardsUpserted, pricesRecorded, runDate });
         return { setsProcessed: 1, cardsUpserted, pricesRecorded, runDate };
-    }), { skipIfBusy: true });
+    }, { skipIfBusy: true });
     if ((0, dbJobLock_1.isSkippedDbJob)(result)) {
         return { setsProcessed: 0, cardsUpserted: 0, pricesRecorded: 0, runDate: getRunDateEst() };
     }
     return result;
-});
+};
 exports.syncOnePieceData = syncOnePieceData;
-const getOnePieceCatalogCount = () => __awaiter(void 0, void 0, void 0, function* () {
+const getOnePieceCatalogCount = async () => {
     var _a, _b;
     const db = (0, database_1.getDb)();
-    const rows = yield (0, dbAsync_1.allDbRows)(db, 'SELECT COUNT(*) as count FROM onepiece_catalog');
+    const rows = await (0, dbAsync_1.allDbRows)(db, 'SELECT COUNT(*) as count FROM onepiece_catalog');
     return (_b = (_a = rows[0]) === null || _a === void 0 ? void 0 : _a.count) !== null && _b !== void 0 ? _b : 0;
-});
+};
 exports.getOnePieceCatalogCount = getOnePieceCatalogCount;
 const EXPECTED_MIN_CARDS = 5000;
-const isOnePieceCatalogIncomplete = () => __awaiter(void 0, void 0, void 0, function* () {
-    const count = yield (0, exports.getOnePieceCatalogCount)();
+const isOnePieceCatalogIncomplete = async () => {
+    const count = await (0, exports.getOnePieceCatalogCount)();
     return count < EXPECTED_MIN_CARDS;
-});
+};
 exports.isOnePieceCatalogIncomplete = isOnePieceCatalogIncomplete;

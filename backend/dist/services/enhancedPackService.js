@@ -1,13 +1,4 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.enhancedPackService = exports.EnhancedPackService = void 0;
 const database_1 = require("../db/database");
@@ -39,49 +30,46 @@ class EnhancedPackService {
     /**
      * Open a pack using Pokemon TCG API card data.
      */
-    openPack(setId_1) {
-        return __awaiter(this, arguments, void 0, function* (setId, config = {}) {
-            const packConfig = Object.assign(Object.assign({}, this.defaultPackConfig), config);
-            logger_1.logger.info(`Opening enhanced pack for set ${setId} with config: ${packConfig.name}`);
-            try {
-                let apiCards = yield pokemonApiClient_1.pokemonApiClient.getCardsFromSet(setId, 500);
-                if (apiCards.length === 0) {
-                    logger_1.logger.warn(`No cards from Pokemon API for set ${setId}, using local database`);
-                    apiCards = yield this.getCardsFromLocalDb(setId);
-                }
-                if (apiCards.length === 0) {
-                    throw new Error(`No cards available for set ${setId}`);
-                }
-                // Group cards by rarity
-                const cardsByRarity = this.groupCardsByRarity(apiCards);
-                // Generate pack contents
-                const packCards = yield this.generatePackContents(cardsByRarity, packConfig);
-                // Calculate pricing
-                const totalValue = packCards.reduce((sum, card) => sum + (card.marketPrice || 0), 0);
-                const profit = totalValue - packConfig.price;
-                const result = {
-                    cards: packCards,
-                    totalValue,
-                    profit,
-                    packPrice: packConfig.price
-                };
-                logger_1.logger.info(`Pack opened: ${packCards.length} cards, value $${totalValue.toFixed(2)}, profit $${profit.toFixed(2)}`);
-                return result;
+    async openPack(setId, config = {}) {
+        const packConfig = { ...this.defaultPackConfig, ...config };
+        logger_1.logger.info(`Opening enhanced pack for set ${setId} with config: ${packConfig.name}`);
+        try {
+            let apiCards = await pokemonApiClient_1.pokemonApiClient.getCardsFromSet(setId, 500);
+            if (apiCards.length === 0) {
+                logger_1.logger.warn(`No cards from Pokemon API for set ${setId}, using local database`);
+                apiCards = await this.getCardsFromLocalDb(setId);
             }
-            catch (error) {
-                logger_1.logger.error('Error opening enhanced pack:', error);
-                throw error;
+            if (apiCards.length === 0) {
+                throw new Error(`No cards available for set ${setId}`);
             }
-        });
+            // Group cards by rarity
+            const cardsByRarity = this.groupCardsByRarity(apiCards);
+            // Generate pack contents
+            const packCards = await this.generatePackContents(cardsByRarity, packConfig);
+            // Calculate pricing
+            const totalValue = packCards.reduce((sum, card) => sum + (card.marketPrice || 0), 0);
+            const profit = totalValue - packConfig.price;
+            const result = {
+                cards: packCards,
+                totalValue,
+                profit,
+                packPrice: packConfig.price
+            };
+            logger_1.logger.info(`Pack opened: ${packCards.length} cards, value $${totalValue.toFixed(2)}, profit $${profit.toFixed(2)}`);
+            return result;
+        }
+        catch (error) {
+            logger_1.logger.error('Error opening enhanced pack:', error);
+            throw error;
+        }
     }
     /**
      * Get cards from local database as fallback
      */
-    getCardsFromLocalDb(setId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const db = (0, database_1.getDb)();
-            return new Promise((resolve, reject) => {
-                const sql = `
+    async getCardsFromLocalDb(setId) {
+        const db = (0, database_1.getDb)();
+        return new Promise((resolve, reject) => {
+            const sql = `
         SELECT
           cm.cardId as id,
           cm.cardName as name,
@@ -105,38 +93,37 @@ class EnhancedPackService {
         WHERE cm.setId = ? OR cm.setName LIKE ?
         ORDER BY cm.cardNumber ASC
       `;
-                db.all(sql, [setId, `%${setId}%`], (err, rows) => __awaiter(this, void 0, void 0, function* () {
-                    if (err) {
-                        reject(err);
-                        return;
-                    }
-                    const cards = yield Promise.all(rows.map((row) => __awaiter(this, void 0, void 0, function* () {
-                        const storedImages = row.imageSmall || row.imageLarge ? {
-                            small: row.imageSmall,
-                            large: row.imageLarge
-                        } : null;
-                        const deterministicImages = storedImages
-                            ? null
-                            : yield setCodeService_1.setCodeService.buildDeterministicImageUrls(row.setId, row.cardNumber, row.setName);
-                        return {
-                            id: row.id,
-                            name: row.name,
-                            number: row.number,
-                            rarity: row.rarity,
-                            set: {
-                                id: row.setId,
-                                name: row.setName
-                            },
-                            images: storedImages || deterministicImages || undefined,
-                            tcgplayer: row.marketPrice ? {
-                                prices: {
-                                    normal: { market: row.marketPrice }
-                                }
-                            } : undefined
-                        };
-                    })));
-                    resolve(cards);
+            db.all(sql, [setId, `%${setId}%`], async (err, rows) => {
+                if (err) {
+                    reject(err);
+                    return;
+                }
+                const cards = await Promise.all(rows.map(async (row) => {
+                    const storedImages = row.imageSmall || row.imageLarge ? {
+                        small: row.imageSmall,
+                        large: row.imageLarge
+                    } : null;
+                    const deterministicImages = storedImages
+                        ? null
+                        : await setCodeService_1.setCodeService.buildDeterministicImageUrls(row.setId, row.cardNumber, row.setName);
+                    return {
+                        id: row.id,
+                        name: row.name,
+                        number: row.number,
+                        rarity: row.rarity,
+                        set: {
+                            id: row.setId,
+                            name: row.setName
+                        },
+                        images: storedImages || deterministicImages || undefined,
+                        tcgplayer: row.marketPrice ? {
+                            prices: {
+                                normal: { market: row.marketPrice }
+                            }
+                        } : undefined
+                    };
                 }));
+                resolve(cards);
             });
         });
     }
@@ -176,35 +163,33 @@ class EnhancedPackService {
     /**
      * Generate pack contents based on rarity distribution
      */
-    generatePackContents(cardsByRarity, config) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const packCards = [];
-            // Generate guaranteed cards based on distribution
-            const rarityKeys = Object.keys(config.rarityDistribution);
-            const totalWeight = Object.values(config.rarityDistribution).reduce((sum, weight) => sum + weight, 0);
-            for (let i = 0; i < config.guaranteedCards; i++) {
-                const selectedRarity = this.selectRarityByWeight(config.rarityDistribution, totalWeight);
-                const cardsForRarity = cardsByRarity[selectedRarity] || cardsByRarity['Common'] || [];
+    async generatePackContents(cardsByRarity, config) {
+        const packCards = [];
+        // Generate guaranteed cards based on distribution
+        const rarityKeys = Object.keys(config.rarityDistribution);
+        const totalWeight = Object.values(config.rarityDistribution).reduce((sum, weight) => sum + weight, 0);
+        for (let i = 0; i < config.guaranteedCards; i++) {
+            const selectedRarity = this.selectRarityByWeight(config.rarityDistribution, totalWeight);
+            const cardsForRarity = cardsByRarity[selectedRarity] || cardsByRarity['Common'] || [];
+            if (cardsForRarity.length > 0) {
+                const randomCard = cardsForRarity[Math.floor(Math.random() * cardsForRarity.length)];
+                packCards.push(this.convertToPackCard(randomCard));
+            }
+        }
+        // Add bonus cards if configured
+        if (config.bonusCards) {
+            for (let i = 0; i < config.bonusCards; i++) {
+                // Bonus cards are typically commons/uncommons
+                const bonusRarities = ['Common', 'Uncommon'];
+                const selectedRarity = bonusRarities[Math.floor(Math.random() * bonusRarities.length)];
+                const cardsForRarity = cardsByRarity[selectedRarity] || [];
                 if (cardsForRarity.length > 0) {
                     const randomCard = cardsForRarity[Math.floor(Math.random() * cardsForRarity.length)];
                     packCards.push(this.convertToPackCard(randomCard));
                 }
             }
-            // Add bonus cards if configured
-            if (config.bonusCards) {
-                for (let i = 0; i < config.bonusCards; i++) {
-                    // Bonus cards are typically commons/uncommons
-                    const bonusRarities = ['Common', 'Uncommon'];
-                    const selectedRarity = bonusRarities[Math.floor(Math.random() * bonusRarities.length)];
-                    const cardsForRarity = cardsByRarity[selectedRarity] || [];
-                    if (cardsForRarity.length > 0) {
-                        const randomCard = cardsForRarity[Math.floor(Math.random() * cardsForRarity.length)];
-                        packCards.push(this.convertToPackCard(randomCard));
-                    }
-                }
-            }
-            return packCards;
-        });
+        }
+        return packCards;
     }
     /**
      * Select rarity based on weighted distribution
@@ -270,28 +255,27 @@ class EnhancedPackService {
     /**
      * Get available sets for pack opening
      */
-    getAvailableSets() {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                // Try Pokemon API first
-                const apiSets = yield pokemonApiClient_1.pokemonApiClient.getSets(50);
-                if (apiSets.length > 0) {
-                    return apiSets
-                        .filter(set => set.id && set.name)
-                        .map(set => ({
-                        id: set.id,
-                        name: set.name,
-                        totalCards: 0 // API doesn't provide this directly
-                    }));
-                }
+    async getAvailableSets() {
+        try {
+            // Try Pokemon API first
+            const apiSets = await pokemonApiClient_1.pokemonApiClient.getSets(50);
+            if (apiSets.length > 0) {
+                return apiSets
+                    .filter(set => set.id && set.name)
+                    .map(set => ({
+                    id: set.id,
+                    name: set.name,
+                    totalCards: 0 // API doesn't provide this directly
+                }));
             }
-            catch (error) {
-                logger_1.logger.warn('Pokemon API sets failed, using local database', { error: error.message });
-            }
-            // Fallback to local database
-            const db = (0, database_1.getDb)();
-            return new Promise((resolve, reject) => {
-                const sql = `
+        }
+        catch (error) {
+            logger_1.logger.warn('Pokemon API sets failed, using local database', { error: error.message });
+        }
+        // Fallback to local database
+        const db = (0, database_1.getDb)();
+        return new Promise((resolve, reject) => {
+            const sql = `
         SELECT setId as id, setName as name, COUNT(*) as totalCards
         FROM card_mappings
         WHERE setId IS NOT NULL AND setName IS NOT NULL
@@ -299,17 +283,16 @@ class EnhancedPackService {
         ORDER BY setName ASC
         LIMIT 50
       `;
-                db.all(sql, [], (err, rows) => {
-                    if (err) {
-                        reject(err);
-                        return;
-                    }
-                    resolve(rows.map(row => ({
-                        id: row.id,
-                        name: row.name,
-                        totalCards: row.totalCards
-                    })));
-                });
+            db.all(sql, [], (err, rows) => {
+                if (err) {
+                    reject(err);
+                    return;
+                }
+                resolve(rows.map(row => ({
+                    id: row.id,
+                    name: row.name,
+                    totalCards: row.totalCards
+                })));
             });
         });
     }

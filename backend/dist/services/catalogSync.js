@@ -1,13 +1,4 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.syncCatalogData = void 0;
 const database_1 = require("../db/database");
@@ -47,7 +38,7 @@ const upsertCatalogCardSql = `
     tcgplayerPrices = excluded.tcgplayerPrices,
     syncedAt = datetime('now')
 `;
-const upsertCards = (cards, setMeta) => __awaiter(void 0, void 0, void 0, function* () {
+const upsertCards = async (cards, setMeta) => {
     const db = (0, database_1.getDb)();
     if (!cards.length) {
         return 0;
@@ -92,31 +83,31 @@ const upsertCards = (cards, setMeta) => __awaiter(void 0, void 0, void 0, functi
             }
         });
     });
-});
+};
 const SET_DELAY_MS = 300;
 const YIELD_EVERY_N_SETS = 5;
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const yieldToEventLoop = () => new Promise((resolve) => setImmediate(resolve));
-const syncCatalogData = (...args_1) => __awaiter(void 0, [...args_1], void 0, function* (provider = pokemonCatalogProvider_1.pokemonCatalogProvider) {
-    const result = yield (0, dbJobLock_1.withDbJobLock)('catalog_sync', () => __awaiter(void 0, void 0, void 0, function* () {
-        const sets = yield provider.getSets(250);
+const syncCatalogData = async (provider = pokemonCatalogProvider_1.pokemonCatalogProvider) => {
+    const result = await (0, dbJobLock_1.withDbJobLock)('catalog_sync', async () => {
+        const sets = await provider.getSets(250);
         let setsProcessed = 0;
         let cardsUpserted = 0;
         for (const set of sets) {
             // Yield to event loop periodically to avoid blocking API requests
             if (setsProcessed > 0 && setsProcessed % YIELD_EVERY_N_SETS === 0) {
-                yield yieldToEventLoop();
+                await yieldToEventLoop();
             }
             try {
-                const setCards = yield provider.getCardsForSet(set.id);
+                const setCards = await provider.getCardsForSet(set.id);
                 if (!setCards.length) {
                     logger_1.logger.debug(`Skipping empty set: ${set.name}`);
                     setsProcessed += 1;
                     continue;
                 }
                 // Yield again before heavy DB work
-                yield yieldToEventLoop();
-                const inserted = yield upsertCards(setCards, set);
+                await yieldToEventLoop();
+                const inserted = await upsertCards(setCards, set);
                 cardsUpserted += inserted;
                 setsProcessed += 1;
                 if (setsProcessed % 25 === 0) {
@@ -128,13 +119,13 @@ const syncCatalogData = (...args_1) => __awaiter(void 0, [...args_1], void 0, fu
                     error: error.message,
                 });
             }
-            yield delay(SET_DELAY_MS);
+            await delay(SET_DELAY_MS);
         }
         return { setsProcessed, cardsUpserted };
-    }), { skipIfBusy: true });
+    }, { skipIfBusy: true });
     if ((0, dbJobLock_1.isSkippedDbJob)(result)) {
         return { setsProcessed: 0, cardsUpserted: 0 };
     }
     return result;
-});
+};
 exports.syncCatalogData = syncCatalogData;

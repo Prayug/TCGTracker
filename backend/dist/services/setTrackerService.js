@@ -32,15 +32,6 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.fetchSetValueHistory = exports.trimUnreliableSetValueHistory = exports.computeSetSummary = exports.getCardMarketPrice = exports.rowToSetCardDto = exports.fetchSetCatalogRows = exports.resolveSetMeta = exports.extractMarketPriceFromVariants = exports.parsePrices = exports.CATALOG_PRODUCT_EXCLUSIONS = void 0;
 const database_1 = require("../db/database");
@@ -99,17 +90,17 @@ const dbGet = (sql, params = []) => new Promise((resolve, reject) => {
             resolve(row);
     });
 });
-const resolveSetMeta = (setId) => __awaiter(void 0, void 0, void 0, function* () {
+const resolveSetMeta = async (setId) => {
     try {
-        const { enrichSetById } = yield Promise.resolve().then(() => __importStar(require('./setListService')));
-        const enriched = yield enrichSetById(setId);
+        const { enrichSetById } = await Promise.resolve().then(() => __importStar(require('./setListService')));
+        const enriched = await enrichSetById(setId);
         if (enriched)
             return enriched;
     }
     catch (_a) {
         // fall through to DB lookup
     }
-    const row = yield dbGet(`
+    const row = await dbGet(`
     SELECT setId as id, setName as name, MAX(setReleaseDate) as releaseDate, COUNT(*) as total
     FROM catalog_cards cc
     WHERE setId = ? OR setName = ?
@@ -117,9 +108,9 @@ const resolveSetMeta = (setId) => __awaiter(void 0, void 0, void 0, function* ()
     LIMIT 1
     `, [setId, setId]);
     if (row) {
-        const { classifySetEra, getEraLabel, resolveSetImages } = yield Promise.resolve().then(() => __importStar(require('../utils/setEra')));
-        const { setCodeService } = yield Promise.resolve().then(() => __importStar(require('./setCodeService')));
-        yield setCodeService.initialize();
+        const { classifySetEra, getEraLabel, resolveSetImages } = await Promise.resolve().then(() => __importStar(require('../utils/setEra')));
+        const { setCodeService } = await Promise.resolve().then(() => __importStar(require('./setCodeService')));
+        await setCodeService.initialize();
         const apiMeta = setCodeService.resolveApiSet(row.id, row.name);
         const era = classifySetEra({ id: (apiMeta === null || apiMeta === void 0 ? void 0 : apiMeta.id) || row.id, name: row.name, series: apiMeta === null || apiMeta === void 0 ? void 0 : apiMeta.series });
         return {
@@ -134,7 +125,7 @@ const resolveSetMeta = (setId) => __awaiter(void 0, void 0, void 0, function* ()
         };
     }
     return null;
-});
+};
 exports.resolveSetMeta = resolveSetMeta;
 const variantPriority = (rarity, subTypeName, variantKey) => {
     const r = (rarity || '').toLowerCase();
@@ -198,8 +189,8 @@ const buildPriceLookup = (rows) => {
     }
     return { byCardId, bySetNumber, bySetNameNumber, byCardNameNumber, byProductId };
 };
-const fetchMarketPricesForSet = (setId, setName) => __awaiter(void 0, void 0, void 0, function* () {
-    const keys = yield (0, setAliasResolver_1.resolveSetSearchKeys)(setId, setName);
+const fetchMarketPricesForSet = async (setId, setName) => {
+    const keys = await (0, setAliasResolver_1.resolveSetSearchKeys)(setId, setName);
     const where = (0, setAliasResolver_1.buildSetMappingWhereClause)(keys);
     return dbAll(`
     SELECT
@@ -227,7 +218,7 @@ const fetchMarketPricesForSet = (setId, setName) => __awaiter(void 0, void 0, vo
       AND ph.marketPrice IS NOT NULL AND ph.marketPrice > 0
       AND cm.cardName NOT LIKE '%Binder%'
     `, where.params);
-});
+};
 const resolvePriceForCatalogRow = (row, lookup) => {
     const fromId = lookup.byCardId.get(row.cardId);
     const fromNumber = row.setId && row.cardNumber
@@ -264,11 +255,11 @@ const resolvePriceForCatalogRow = (row, lookup) => {
     }
     return { latestPrice: null, priceDate: null, priceSource: null };
 };
-const fetchSetCatalogRows = (setId) => __awaiter(void 0, void 0, void 0, function* () {
-    const catalogSetName = yield dbGet(`SELECT setName FROM catalog_cards WHERE setId = ? OR setName = ? LIMIT 1`, [setId, setId]);
-    const marketRows = yield fetchMarketPricesForSet(setId, catalogSetName === null || catalogSetName === void 0 ? void 0 : catalogSetName.setName);
+const fetchSetCatalogRows = async (setId) => {
+    const catalogSetName = await dbGet(`SELECT setName FROM catalog_cards WHERE setId = ? OR setName = ? LIMIT 1`, [setId, setId]);
+    const marketRows = await fetchMarketPricesForSet(setId, catalogSetName === null || catalogSetName === void 0 ? void 0 : catalogSetName.setName);
     const lookup = buildPriceLookup(marketRows);
-    const catalogBase = yield dbAll(`
+    const catalogBase = await dbAll(`
     SELECT
       cc.cardId,
       cc.cardName,
@@ -291,10 +282,13 @@ const fetchSetCatalogRows = (setId) => __awaiter(void 0, void 0, void 0, functio
       cc.cardName
     `, [setId, setId]);
     if (catalogBase.length > 0) {
-        return catalogBase.map((row) => (Object.assign(Object.assign({}, row), resolvePriceForCatalogRow(row, lookup))));
+        return catalogBase.map((row) => ({
+            ...row,
+            ...resolvePriceForCatalogRow(row, lookup),
+        }));
     }
     return [];
-});
+};
 exports.fetchSetCatalogRows = fetchSetCatalogRows;
 const rowToSetCardDto = (row, setMeta) => {
     var _a;
@@ -453,9 +447,9 @@ const pickBetterPriceForDate = (existing, price, priority) => {
         return { price, priority };
     return existing;
 };
-const fetchSetValueHistory = (setId_1, ...args_1) => __awaiter(void 0, [setId_1, ...args_1], void 0, function* (setId, range = '90d') {
+const fetchSetValueHistory = async (setId, range = '90d') => {
     var _a, _b;
-    const catalogCards = yield dbAll(`
+    const catalogCards = await dbAll(`
     SELECT cardId, cardName, setName, cardNumber, rarity, tcgplayerProductId
     FROM catalog_cards cc
     WHERE (cc.setId = ? OR cc.setName = ?)
@@ -466,10 +460,10 @@ const fetchSetValueHistory = (setId_1, ...args_1) => __awaiter(void 0, [setId_1,
         return [];
     const catalogIndex = buildCatalogMatchIndex(catalogCards);
     const catalogSetName = (_a = catalogCards[0]) === null || _a === void 0 ? void 0 : _a.setName;
-    const keys = yield (0, setAliasResolver_1.resolveSetSearchKeys)(setId, catalogSetName);
+    const keys = await (0, setAliasResolver_1.resolveSetSearchKeys)(setId, catalogSetName);
     const where = (0, setAliasResolver_1.buildSetMappingWhereClause)(keys);
     const cutoff = rangeToCutoff(range);
-    const historyRows = yield dbAll(`
+    const historyRows = await dbAll(`
     SELECT
       cm.cardId,
       cm.cardName,
@@ -529,5 +523,5 @@ const fetchSetValueHistory = (setId_1, ...args_1) => __awaiter(void 0, [setId_1,
         result.push({ date, setValue, cardsPriced });
     }
     return (0, exports.trimUnreliableSetValueHistory)(result, catalogCards.length);
-});
+};
 exports.fetchSetValueHistory = fetchSetValueHistory;
