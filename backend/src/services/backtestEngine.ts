@@ -33,14 +33,35 @@ export interface BacktestCardResult {
   cardId: string;
   cardName: string;
   currentPrice: number;
-  predicted90dReturn: number;
-  actual90dReturn: number | null;
-  error90d: number | null;
+  /** Expected return for the backtest window (7/30/90/180/365 days). */
+  predictedReturn: number;
+  actualReturn: number | null;
+  error: number | null;
   directionCorrect: boolean | null;
   category: PredictionCategory;
   liquidityScore: number;
   dataQualityScore: number;
   riskScore: number;
+}
+
+export const SUPPORTED_BACKTEST_WINDOWS = [7, 30, 90, 180, 365] as const;
+
+/** Picks the expected return matching a backtest window from the engine output. */
+export function expectedReturnForWindow(
+  returns: {
+    expected7dReturn: number;
+    expected30dReturn: number;
+    expected90dReturn: number;
+    expected180dReturn: number;
+    expected365dReturn: number;
+  },
+  windowDays: number
+): number {
+  if (windowDays <= 7) return returns.expected7dReturn;
+  if (windowDays <= 30) return returns.expected30dReturn;
+  if (windowDays <= 90) return returns.expected90dReturn;
+  if (windowDays <= 180) return returns.expected180dReturn;
+  return returns.expected365dReturn;
 }
 
 export interface CategoryPerformance {
@@ -187,27 +208,28 @@ export async function runBacktest(
       };
 
       const expectedReturns = computeExpectedReturns(scores);
+      const predictedReturn = expectedReturnForWindow(expectedReturns, windowDays);
 
       const futurePrice = await fetchFuturePrice(uid, backtestDate, windowDays);
-      let actual90dReturn: number | null = null;
-      let error90d: number | null = null;
+      let actualReturn: number | null = null;
+      let error: number | null = null;
       let directionCorrect: boolean | null = null;
 
       if (futurePrice && futurePrice > 0) {
-        actual90dReturn = (futurePrice - currentPrice) / currentPrice;
+        actualReturn = (futurePrice - currentPrice) / currentPrice;
 
-        if (expectedReturns.expected90dReturn !== 0 && actual90dReturn !== 0) {
-          const predictedDir = expectedReturns.expected90dReturn > 0;
-          const actualDir = actual90dReturn > 0;
+        if (predictedReturn !== 0 && actualReturn !== 0) {
+          const predictedDir = predictedReturn > 0;
+          const actualDir = actualReturn > 0;
           directionCorrect = predictedDir === actualDir;
           if (directionCorrect) totalDirectionalCorrect++;
           totalDirectionalTests++;
         }
 
-        error90d = Math.abs(expectedReturns.expected90dReturn - actual90dReturn);
-        totalMape += Math.abs(error90d);
+        error = Math.abs(predictedReturn - actualReturn);
+        totalMape += Math.abs(error);
         totalMapeCount++;
-        returns.push(actual90dReturn);
+        returns.push(actualReturn);
       }
 
       const category = determineCategory(scores, expectedReturns.expected90dReturn, priceChanges, recoveryMetrics);
@@ -216,9 +238,9 @@ export async function runBacktest(
         cardId: card.cardId,
         cardName: card.cardName,
         currentPrice,
-        predicted90dReturn: expectedReturns.expected90dReturn,
-        actual90dReturn,
-        error90d,
+        predictedReturn,
+        actualReturn,
+        error,
         directionCorrect,
         category,
         liquidityScore,
@@ -235,16 +257,16 @@ export async function runBacktest(
   const mape = totalMapeCount > 0 ? totalMape / totalMapeCount : null;
 
   const top10 = [...cardResults]
-    .filter(r => r.predicted90dReturn !== null)
-    .sort((a, b) => b.predicted90dReturn - a.predicted90dReturn)
+    .filter(r => r.predictedReturn !== null)
+    .sort((a, b) => b.predictedReturn - a.predictedReturn)
     .slice(0, 10);
   const top10AvgReturn = top10.length > 0
-    ? top10.reduce((s, r) => s + (r.actual90dReturn ?? 0), 0) / top10.length
+    ? top10.reduce((s, r) => s + (r.actualReturn ?? 0), 0) / top10.length
     : null;
 
-  const withActualReturns = cardResults.filter(r => r.actual90dReturn !== null);
+  const withActualReturns = cardResults.filter(r => r.actualReturn !== null);
   const marketAvgReturn = withActualReturns.length > 0
-    ? withActualReturns.reduce((s, r) => s + (r.actual90dReturn ?? 0), 0) / withActualReturns.length
+    ? withActualReturns.reduce((s, r) => s + (r.actualReturn ?? 0), 0) / withActualReturns.length
     : null;
 
   // Compute market benchmark from all tested cards' price histories
@@ -264,14 +286,14 @@ export async function runBacktest(
   const benchmark = computeMarketBenchmark(allHistories, windowDays);
 
   const strongBuyCards = cardResults.filter(r => r.category === 'strong_buy');
-  const strongBuyFalsePositive = strongBuyCards.filter(r => r.actual90dReturn !== null && r.actual90dReturn < 0);
+  const strongBuyFalsePositive = strongBuyCards.filter(r => r.actualReturn !== null && r.actualReturn < 0);
   const strongBuyFalsePositiveRate = strongBuyCards.length > 0
     ? strongBuyFalsePositive.length / strongBuyCards.length
     : null;
 
-  const avoidCards = cardResults.filter(r => r.category === 'avoid' && r.actual90dReturn !== null);
+  const avoidCards = cardResults.filter(r => r.category === 'avoid' && r.actualReturn !== null);
   const avoidAvgReturn = avoidCards.length > 0
-    ? avoidCards.reduce((s, r) => s + (r.actual90dReturn ?? 0), 0) / avoidCards.length
+    ? avoidCards.reduce((s, r) => s + (r.actualReturn ?? 0), 0) / avoidCards.length
     : null;
 
   const winRate = returns.length > 0 ? returns.filter(r => r > 0).length / returns.length : null;
@@ -306,11 +328,11 @@ export async function runBacktest(
 
   const categories: PredictionCategory[] = ['strong_buy', 'watch_dip', 'recovery', 'momentum', 'stagnant', 'avoid', 'downtrend'];
   const categoryPerformance: CategoryPerformance[] = categories.map(cat => {
-    const catCards = cardResults.filter(r => r.category === cat && r.actual90dReturn !== null);
+    const catCards = cardResults.filter(r => r.category === cat && r.actualReturn !== null);
     const count = catCards.length;
-    const avgReturn = count > 0 ? catCards.reduce((s, r) => s + (r.actual90dReturn ?? 0), 0) / count : 0;
+    const avgReturn = count > 0 ? catCards.reduce((s, r) => s + (r.actualReturn ?? 0), 0) / count : 0;
     const avgPredictedReturn = count > 0
-      ? catCards.filter(r => r.predicted90dReturn !== null).reduce((s, r) => s + r.predicted90dReturn, 0) / count
+      ? catCards.filter(r => r.predictedReturn !== null).reduce((s, r) => s + r.predictedReturn, 0) / count
       : 0;
     return { category: cat, count, avgReturn, avgPredictedReturn };
   });
