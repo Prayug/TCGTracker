@@ -32,11 +32,37 @@ export const PREDICTION_THRESHOLDS = {
   DOWNTREND_MAX_RETURN: -0.05,
 } as const;
 
+export type PredictionWindow = '7d' | '30d' | '90d' | '180d' | '365d';
+
+export const PREDICTION_WINDOWS: PredictionWindow[] = ['7d', '30d', '90d', '180d', '365d'];
+
+export const PREDICTION_WINDOW_LABELS: Record<PredictionWindow, string> = {
+  '7d': '7d',
+  '30d': '30d',
+  '90d': '90d',
+  '180d': '6mo',
+  '365d': '1yr',
+};
+
+/** Expected return for the given window; long windows fall back to 90d for old prediction runs. */
+export function expectedReturnForWindow(prediction: CardPrediction, window: PredictionWindow): number {
+  switch (window) {
+    case '7d': return prediction.expected7dReturn;
+    case '30d': return prediction.expected30dReturn;
+    case '90d': return prediction.expected90dReturn;
+    case '180d': return prediction.expected180dReturn ?? prediction.expected90dReturn;
+    case '365d': return prediction.expected365dReturn ?? prediction.expected90dReturn;
+  }
+}
+
 export interface PredictionFilters {
   minPrice?: number;
   maxPrice?: number;
   rarities?: string[];
   minConfidence?: number;
+  eras?: string[];
+  releaseDateFrom?: string;
+  releaseDateTo?: string;
 }
 
 export const AVAILABLE_RARITIES = [
@@ -49,6 +75,26 @@ export const AVAILABLE_RARITIES = [
   'Illustration Rare',
   'Special Illustration Rare',
   'Hyper Rare',
+  'Rare Holo GX',
+  'Rare Holo EX',
+  'Rare Holo V',
+  'Rare Holo VMAX',
+  'Rare Holo VSTAR',
+] as const;
+
+/** Keep in sync with backend/src/utils/setEra.ts ERA_GROUPS (minus promo/other noise). */
+export const AVAILABLE_ERAS = [
+  { id: 'mega', label: 'Mega Evolution' },
+  { id: 'sv', label: 'Scarlet & Violet' },
+  { id: 'swsh', label: 'Sword & Shield' },
+  { id: 'sm', label: 'Sun & Moon' },
+  { id: 'xy', label: 'XY' },
+  { id: 'bw', label: 'Black & White' },
+  { id: 'hgss', label: 'HeartGold & SoulSilver' },
+  { id: 'dp', label: 'Diamond & Pearl' },
+  { id: 'ex', label: 'EX Series' },
+  { id: 'neo', label: 'Neo' },
+  { id: 'base', label: 'Base' },
 ] as const;
 
 export interface PriceRange {
@@ -78,9 +124,17 @@ export interface CardPrediction {
   predicted90dLow: number;
   predicted90dMid: number;
   predicted90dHigh: number;
+  predicted180dLow?: number | null;
+  predicted180dMid?: number | null;
+  predicted180dHigh?: number | null;
+  predicted365dLow?: number | null;
+  predicted365dMid?: number | null;
+  predicted365dHigh?: number | null;
   expected7dReturn: number;
   expected30dReturn: number;
   expected90dReturn: number;
+  expected180dReturn?: number | null;
+  expected365dReturn?: number | null;
   confidenceScore: number;
   riskScore: number;
   liquidityScore?: number;
@@ -140,6 +194,8 @@ export interface ForwardTestStatus {
     _7d: { pending: number; hit: number; missed: number; accuracy: number | null };
     _30d: { pending: number; hit: number; missed: number; accuracy: number | null };
     _90d: { pending: number; hit: number; missed: number; accuracy: number | null };
+    _180d?: { pending: number; hit: number; missed: number; accuracy: number | null };
+    _365d?: { pending: number; hit: number; missed: number; accuracy: number | null };
   };
   byCategory: CategoryAccuracy[];
   byPriceRange: {
@@ -165,9 +221,13 @@ export interface CardPredictionDetail {
     predicted7d: PriceRange;
     predicted30d: PriceRange;
     predicted90d: PriceRange;
+    predicted180d?: PriceRange | null;
+    predicted365d?: PriceRange | null;
     expected7dReturn: number;
     expected30dReturn: number;
     expected90dReturn: number;
+    expected180dReturn?: number | null;
+    expected365dReturn?: number | null;
     confidenceScore: number;
     riskScore: number;
     category: PredictionCategory;
@@ -180,6 +240,20 @@ export interface CardPredictionDetail {
     actual7dPrice: number | null;
     actual30dPrice: number | null;
     actual90dPrice: number | null;
+    actual180dPrice?: number | null;
+    actual365dPrice?: number | null;
     status: string;
   } | null;
+}
+
+export interface ExternalSignal {
+  sourceUrl: string;
+  sourceType: string;
+  title: string;
+  summary: string;
+  sentiment: number;
+  relevance: number;
+  type: string;
+  createdAt?: string;
+  expiresAt?: string | null;
 }
