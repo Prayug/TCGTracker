@@ -50,6 +50,7 @@ Pokemon TCG Investment Tracker is a sophisticated full-stack web application des
 - 🎴 **Card Collection Vault**: Track your personal collection
 - 📦 **Pack Opening Simulator**: Open virtual booster packs
 - 📈 **Investment Analytics**: ROI calculations and market insights
+- 📷 **Card Scanner**: AI-powered card recognition via camera or image upload (NEW!)
 
 ### Premium Features
 - 🚨 **Price Alerts**: Custom notifications for price targets
@@ -91,6 +92,13 @@ Pokemon TCG Investment Tracker is a sophisticated full-stack web application des
 - **Testing**: Jest, Supertest
 - **Error Tracking**: Sentry
 
+### Card Scanner Backend (Python)
+- **Framework**: Flask
+- **OCR**: EasyOCR
+- **Card Recognition**: pokemon-card-recognizer
+- **Image Processing**: Pillow
+- **CORS**: flask-cors
+
 ### DevOps & Tools
 - **Containerization**: Docker, Docker Compose
 - **CI/CD**: GitHub Actions
@@ -103,16 +111,19 @@ Pokemon TCG Investment Tracker is a sophisticated full-stack web application des
 
 ```
 TCGTracker/
-├── frontend/
-│   ├── src/
-│   │   ├── components/      # React components
-│   │   ├── hooks/           # Custom React hooks
-│   │   ├── services/        # API services
-│   │   ├── utils/           # Utility functions
-│   │   ├── types/           # TypeScript types
-│   │   └── config/          # Configuration files
-│   ├── public/              # Static assets
-│   └── tests/               # Frontend tests
+├── src/                     # Frontend source
+│   ├── components/          # React components
+│   ├── features/
+│   │   ├── cards/           # Card browsing
+│   │   ├── market/          # Price tracking
+│   │   ├── vault/           # Collection management
+│   │   ├── packs/           # Pack opening
+│   │   └── scanner/         # Card scanner (NEW!)
+│   ├── hooks/               # Custom React hooks
+│   ├── services/            # API services
+│   ├── utils/               # Utility functions
+│   ├── types/               # TypeScript types
+│   └── config/              # Configuration files
 │
 ├── backend/
 │   ├── src/
@@ -123,6 +134,11 @@ TCGTracker/
 │   │   ├── db/              # Database setup
 │   │   └── utils/           # Utility functions
 │   └── tests/               # Backend tests
+│
+├── card-scanner-backend/    # Python Flask backend (NEW!)
+│   ├── app.py               # Flask application
+│   ├── requirements.txt     # Python dependencies
+│   └── temp_uploads/        # Temporary image storage
 │
 ├── .github/
 │   └── workflows/           # CI/CD workflows
@@ -136,6 +152,7 @@ TCGTracker/
 
 - Node.js 18+ and npm
 - Git
+- Python 3.8+ (for card scanner feature)
 - Docker (optional, for containerized deployment)
 
 ### Installation
@@ -172,23 +189,37 @@ TCGTracker/
    # IMPORTANT: Set a secure JWT_SECRET (min 32 characters)
    ```
 
-5. **Start the development servers**
+5. **Set up Card Scanner Backend (Optional but Recommended)**
    
-   Terminal 1 (Backend):
+   Terminal 1 (Card Scanner - Python):
+   ```bash
+   cd card-scanner-backend
+   python3 -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   pip install -r requirements.txt
+   python app.py
+   ```
+
+6. **Start the development servers**
+   
+   Terminal 2 (Backend - Node.js):
    ```bash
    cd backend
    npm run dev
    ```
 
-   Terminal 2 (Frontend):
+   Terminal 3 (Frontend - React):
    ```bash
    npm run dev
    ```
 
-6. **Access the application**
+7. **Access the application**
    - Frontend: http://localhost:5173
    - Backend API: http://localhost:3001
+   - Card Scanner API: http://localhost:5000
    - API Documentation: http://localhost:3001/api-docs
+
+**Note**: The Card Scanner feature requires the Python backend to be running. See [README_CARD_SCANNER.md](./README_CARD_SCANNER.md) for detailed setup instructions.
 
 ## 💻 Development
 
@@ -439,6 +470,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🗺 Roadmap
 
+- [x] **Card Scanner** with AI recognition (COMPLETED!)
+- [ ] Real-time video streaming for card detection
 - [ ] Mobile app (React Native)
 - [ ] Advanced portfolio analytics
 - [ ] Social features (share collections)
@@ -447,6 +480,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [ ] Export to Excel/PDF
 - [ ] Trade marketplace
 - [ ] Wishlist feature
+- [ ] Batch card scanning
+- [ ] Card condition/grading detection
 
 ---
 

@@ -30,7 +30,7 @@ export const usePokemonCards = (): UsePokemonCardsReturn => {
     
     try {
       // Get cards from Pokemon TCG API (with built-in retry logic)
-      let pokemonCards = await pokemonApi.searchCards(query, setId, 250, true);
+      let pokemonCards = await pokemonApi.searchCards(query, setId, 250);
       
       // If no cards returned, show helpful message
       if (pokemonCards.length === 0) {

@@ -1,16 +1,17 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { PokemonCard } from './types/pokemon';
 import { AppView } from './types/ui';
 import { HeroSection } from './components/common/HeroSection';
 import { SearchAndSort } from './features/cards/components/SearchAndSort';
 import { CardGrid } from './features/cards/components/CardGrid';
 import { InvestmentModal } from './features/market/components/InvestmentModal';
-import { LoadingSpinner } from './components/common/LoadingSpinner';
+import { LoadingGrid } from './components/common/LoadingSpinner';
 import { ErrorMessage } from './components/common/ErrorMessage';
 import { EmptyState } from './components/common/EmptyState';
 import { PriceTrackingDashboard } from './features/market/components/PriceTrackingDashboard';
 import { VaultView } from './features/vault/components/VaultView';
 import { PackShop } from './features/packs/components/PackShop';
+import { CardScanner } from './features/scanner/components/CardScanner';
 import { usePokemonCards } from './hooks/usePokemonCards';
 import { Header } from './components/layout/Header';
 import { Footer } from './components/layout/Footer';
@@ -30,7 +31,7 @@ function App() {
     setSearchQuery,
     setSortBy,
     setFilterBy,
-    refetch
+    refetch,
   } = usePokemonCards();
 
   const handleCardClick = (card: PokemonCard) => {
@@ -49,17 +50,12 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 relative overflow-hidden">
-      {/* Subtle background pattern */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#f8fafc_1px,transparent_1px),linear-gradient(to_bottom,#f8fafc_1px,transparent_1px)] bg-[size:24px_24px] opacity-30" />
+    <div className="min-h-screen bg-slate-50 flex flex-col">
       <Header currentView={currentView} onViewChange={setCurrentView} />
 
-      {/* Main Content */}
-      <main className="relative">
+      <main className="flex-1">
         {currentView === 'home' ? (
-          <>
-            <HeroSection onStartSearch={handleHeroSearch} />
-          </>
+          <HeroSection onStartSearch={handleHeroSearch} />
         ) : currentView === 'tracking' ? (
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <PriceTrackingDashboard />
@@ -71,6 +67,10 @@ function App() {
         ) : currentView === 'packs' ? (
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <PackShop />
+          </div>
+        ) : currentView === 'scanner' ? (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <CardScanner />
           </div>
         ) : (
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -84,45 +84,23 @@ function App() {
               isLoading={isLoading}
             />
 
-            {/* Enhanced Results Header */}
-            {searchQuery && !isLoading && !error && (
-              <div className="mb-8 glass rounded-2xl p-6 shadow-xl border animate-slide-up">
-                <div className="flex items-start justify-between flex-wrap gap-4">
-                  <div className="flex-1">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-3 flex items-center gap-3">
-                      <div className="flex items-center gap-2">
-                        <span className="inline-block w-1.5 h-8 bg-gradient-to-b from-primary-600 to-accent-600 rounded-full" />
-                        <span>Search Results</span>
-                      </div>
-                      <span className="inline-flex items-center px-4 py-1.5 bg-gradient-to-r from-primary-600 to-accent-600 text-white rounded-full text-base font-bold shadow-lg">
-                        {cards.length}
-                      </span>
-                    </h2>
-                    <p className="text-gray-600 font-medium text-base">
-                      {searchQuery && (
-                        <>
-                          Showing results for <span className="font-bold text-gray-900 px-2 py-1 bg-gray-100 rounded">"{searchQuery}"</span>
-                        </>
-                      )}
-                      {filterBy !== 'all' && (
-                        <>
-                          {' '}• <span className="inline-flex items-center px-3 py-1.5 bg-gradient-to-r from-primary-100 to-accent-100 text-primary-700 rounded-full text-sm font-bold">
-                            {filterBy}
-                          </span>
-                        </>
-                      )}
-                    </p>
-                  </div>
-                </div>
+            {searchQuery && !isLoading && !error && cards.length > 0 && (
+              <div className="flex items-center gap-2 mb-4">
+                <p className="text-sm text-slate-600">
+                  <span className="font-medium text-slate-900">{cards.length}</span> results for{' '}
+                  <span className="font-medium text-slate-900">"{searchQuery}"</span>
+                </p>
+                {filterBy !== 'all' && (
+                  <span className="badge bg-blue-50 text-blue-700">{filterBy}</span>
+                )}
               </div>
             )}
 
-            {/* Content Area */}
-            <div className="min-h-[400px]">
+            <div className="min-h-96">
               {error ? (
                 <ErrorMessage message={error} onRetry={refetch} />
               ) : isLoading ? (
-                <LoadingSpinner />
+                <LoadingGrid />
               ) : cards.length > 0 ? (
                 <CardGrid cards={cards} onCardClick={handleCardClick} />
               ) : (
@@ -135,7 +113,6 @@ function App() {
 
       <Footer onViewChange={setCurrentView} />
 
-      {/* Modal */}
       <InvestmentModal
         card={selectedCard}
         isOpen={isModalOpen}

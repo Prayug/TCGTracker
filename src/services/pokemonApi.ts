@@ -1,277 +1,190 @@
 import { PokemonCard, PokemonSet, ApiResponse } from '../types/pokemon';
 import { cacheService } from './cacheService';
 
-// Official Pokemon TCG API v2 - Documentation: https://docs.pokemontcg.io/
-// Pokemon TCG API supports CORS, so we can call it directly without a proxy
 const API_BASE_URL = 'https://api.pokemontcg.io/v2';
-
-// Optional: Add your API key here for higher rate limits (get one at https://dev.pokemontcg.io/)
-// Without API key: 20,000 requests per day
-// With API key: 50,000+ requests per day with no IP restrictions
 const API_KEY = import.meta.env.VITE_POKEMON_TCG_API_KEY || '';
 
+// How many results a query is expected to have — drives pagination strategy
+function estimateResultVolume(query?: string): 'small' | 'large' {
+  if (!query) return 'large';
+  // Single well-known cards typically have small result sets; generic terms are large
+  const trimmed = query.trim();
+  // Short queries or exact names → likely small set
+  if (trimmed.length >= 6 && !trimmed.includes('*')) return 'small';
+  return 'large';
+}
+
 class PokemonApiService {
-  private pendingRequests: Map<string, Promise<PokemonCard[]>> = new Map();
+  private pendingRequests = new Map<string, Promise<PokemonCard[]>>();
+
+  private buildHeaders(): HeadersInit {
+    const headers: HeadersInit = { Accept: 'application/json' };
+    if (API_KEY) headers['X-Api-Key'] = API_KEY;
+    return headers;
+  }
+
   private async fetchApi<T>(
-    endpoint: string, 
-    params?: Record<string, string>, 
-    retries = 2  // Increased to 2 retries (3 total attempts)
+    endpoint: string,
+    params?: Record<string, string>,
+    retries = 2
   ): Promise<ApiResponse<T>> {
-    // Build URL with query params
     const url = new URL(`${API_BASE_URL}${endpoint}`);
-    
     if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        if (value) url.searchParams.append(key, value);
-      });
+      Object.entries(params).forEach(([k, v]) => { if (v) url.searchParams.append(k, v); });
     }
 
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt <= retries; attempt++) {
       const controller = new AbortController();
-      // Increased timeout: 60 seconds (API can be slow)
-      const timeoutId = setTimeout(() => controller.abort(), 60000);
-      
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
       try {
-        // Build headers according to official documentation
-        const headers: HeadersInit = {
-          'Accept': 'application/json',
-        };
-
-        // Add API key if available (X-Api-Key header as per docs)
-        if (API_KEY) {
-          headers['X-Api-Key'] = API_KEY;
-        }
-
         const response = await fetch(url.toString(), {
           signal: controller.signal,
-          headers,
-          mode: 'cors', // Explicitly enable CORS
+          headers: this.buildHeaders(),
+          mode: 'cors',
         });
-        
-        // Clear timeout on success
         clearTimeout(timeoutId);
-        
+
         if (!response.ok) {
-          // Check if it's a rate limit or server error that we should retry
           if ([429, 500, 502, 503, 504].includes(response.status) && attempt < retries) {
-            const delay = 2000 * (attempt + 1); // 2s, 4s, 6s
-            console.warn(`Pokemon API ${response.status} error, retrying in ${delay}ms... (attempt ${attempt + 1}/${retries + 1})`);
-            await new Promise(resolve => setTimeout(resolve, delay));
+            await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
             continue;
           }
-          throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+          throw new Error(`API ${response.status}: ${response.statusText}`);
         }
-        
+
         return await response.json();
-      } catch (error) {
-        // Clear timeout on error
+      } catch (err) {
         clearTimeout(timeoutId);
-        
-        lastError = error as Error;
-        
-        // Retry on any timeout or network error
+        lastError = err as Error;
         if (attempt < retries) {
-          const delay = 2000 * (attempt + 1); // 2s, 4s, 6s
-          console.log(`⏳ Request failed (attempt ${attempt + 1}/${retries + 1}), retrying in ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
+          await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
           continue;
         }
-        
-        // If all retries exhausted, throw the error
-        console.error(`❌ All ${retries + 1} attempts failed`);
-        throw error;
+        throw err;
       }
     }
 
-    console.error('Pokemon API Error after retries:', lastError);
-    throw lastError || new Error('Unknown API error');
+    throw lastError ?? new Error('Unknown API error');
   }
 
   async searchCards(
-    query?: string, 
-    setId?: string, 
-    pageSize: number = 250, 
-    fetchAll: boolean = true
+    query?: string,
+    setId?: string,
+    pageSize = 250,
   ): Promise<PokemonCard[]> {
-    // Create cache key
-    const cacheKey = `cards_${query || 'all'}_${setId || 'all'}_${fetchAll}_${pageSize}`;
-    
-    // Check cache first
-    const cached = cacheService.get<PokemonCard[]>(cacheKey);
-    if (cached) {
-      console.log(`✅ Returning ${cached.length} cards from cache`);
-      return cached;
-    }
+    const cacheKey = `cards_${query || 'all'}_${setId || 'all'}_${pageSize}`;
 
-    // Check if request is already pending (deduplication)
+    const cached = cacheService.get<PokemonCard[]>(cacheKey);
+    if (cached) return cached;
+
     if (this.pendingRequests.has(cacheKey)) {
-      console.log('⏳ Request already pending, waiting...');
       return this.pendingRequests.get(cacheKey)!;
     }
 
     const queryParts: string[] = [];
-    
-    if (query && query.trim()) {
-      const escapedQuery = query.trim();
-      queryParts.push(`name:*${escapedQuery}*`);
-    }
-    
-    if (setId) {
-      queryParts.push(`set.id:${setId}`);
-    }
+    if (query?.trim()) queryParts.push(`name:*${query.trim()}*`);
+    if (setId) queryParts.push(`set.id:${setId}`);
+    const q = queryParts.join(' ') || undefined;
 
-    const queryString = queryParts.length > 0 ? queryParts.join(' ') : undefined;
-    
-    const requestPromise = (async () => {
+    const requestPromise = (async (): Promise<PokemonCard[]> => {
       try {
-        if (!fetchAll) {
-          const params: Record<string, string> = {
-            pageSize: pageSize.toString(),
-          };
-          if (queryString) {
-            params.q = queryString;
-          }
-          
-          const response = await this.fetchApi<PokemonCard>('/cards', params);
-          const cards = response.data || [];
-          console.log(`✅ Fetched ${cards.length} cards (single page)`);
-          
-          // Cache result
-          cacheService.set(cacheKey, cards, 10 * 60 * 1000); // 10 minutes
-          return cards;
+        const volume = estimateResultVolume(query);
+        // For specific queries, fetch 1 page first; if full, fetch up to 3 pages total
+        const initialParams: Record<string, string> = { pageSize: pageSize.toString(), page: '1' };
+        if (q) initialParams.q = q;
+
+        const firstPage = await this.fetchApi<PokemonCard>('/cards', initialParams);
+        const firstCards = firstPage.data ?? [];
+
+        // If first page isn't full or query is specific → no need for more pages
+        const needsMore = volume === 'large' && firstCards.length === pageSize;
+
+        if (!needsMore) {
+          cacheService.set(cacheKey, firstCards, 10 * 60 * 1000);
+          return firstCards;
         }
 
-        // OPTIMIZED: Fetch multiple pages in PARALLEL for speed
-        console.log('🚀 Fetching cards in parallel...');
-        const maxPages = 6; // Increased: 6 pages × 250 = 1500 cards max
-        
-        // Create all requests upfront
-        const pageRequests = Array.from({ length: maxPages }, (_, i) => {
-          const params: Record<string, string> = {
-            page: (i + 1).toString(),
-            pageSize: '250',
-          };
-          
-          if (queryString) {
-            params.q = queryString;
-          }
-
+        // Fetch up to 2 more pages in parallel (total 3 pages = 750 cards max)
+        const extraPages = [2, 3].map((page) => {
+          const params: Record<string, string> = { pageSize: pageSize.toString(), page: page.toString() };
+          if (q) params.q = q;
           return this.fetchApi<PokemonCard>('/cards', params)
-            .then(response => response.data || [])
-            .catch(error => {
-              console.warn(`Page ${i + 1} failed:`, error);
-              return [];
-            });
+            .then(r => r.data ?? [])
+            .catch(() => [] as PokemonCard[]);
         });
 
-        // Execute all requests in parallel
-        const results = await Promise.all(pageRequests);
-        
-        // Flatten and filter out empty results
-        const allCards = results.flat().filter(card => card && card.id);
-        
-        console.log(`✅ Fetched ${allCards.length} total cards in parallel`);
-        
-        // Cache result for 10 minutes
+        const [p2, p3] = await Promise.all(extraPages);
+        const allCards = [...firstCards, ...p2, ...p3].filter(c => c?.id);
+
         cacheService.set(cacheKey, allCards, 10 * 60 * 1000);
-        
         return allCards;
-      } catch (error) {
-        console.error('Error searching cards:', error);
+      } catch (err) {
+        console.error('Error searching cards:', err);
         return [];
       } finally {
-        // Remove from pending requests
         this.pendingRequests.delete(cacheKey);
       }
     })();
 
-    // Store pending request
     this.pendingRequests.set(cacheKey, requestPromise);
-
     return requestPromise;
   }
 
   async getSets(): Promise<PokemonSet[]> {
     const cacheKey = 'sets_all';
-    
-    // Check cache first
     const cached = cacheService.get<PokemonSet[]>(cacheKey);
-    if (cached) {
-      console.log(`✅ Returning ${cached.length} sets from cache`);
-      return cached;
-    }
+    if (cached) return cached;
 
     try {
-      const params = {
+      const response = await this.fetchApi<PokemonSet>('/sets', {
         orderBy: '-releaseDate',
-        pageSize: '250'
-      };
-      const response = await this.fetchApi<PokemonSet>('/sets', params);
-      const sets = response.data || [];
-      
-      // Cache for 1 hour (sets don't change often)
+        pageSize: '250',
+      });
+      const sets = response.data ?? [];
       cacheService.set(cacheKey, sets, 60 * 60 * 1000);
-      
       return sets;
-    } catch (error) {
-      console.error('Error fetching sets:', error);
+    } catch (err) {
+      console.error('Error fetching sets:', err);
       return [];
     }
   }
 
   async getCardById(id: string): Promise<PokemonCard | null> {
     const cacheKey = `card_${id}`;
-    
-    // Check cache first
     const cached = cacheService.get<PokemonCard>(cacheKey);
-    if (cached) {
-      return cached;
-    }
+    if (cached) return cached;
 
     try {
       const response = await this.fetchApi<PokemonCard>(`/cards/${id}`);
       const card = response.data as unknown as PokemonCard;
-      
-      // Cache for 30 minutes
       cacheService.set(cacheKey, card, 30 * 60 * 1000);
-      
       return card;
-    } catch (error) {
-      console.error(`Error fetching card ${id}:`, error);
+    } catch (err) {
+      console.error(`Error fetching card ${id}:`, err);
       return null;
     }
   }
 
   extractCardPrice(card: PokemonCard): number {
-    // Try TCGPlayer first
     if (card.tcgplayer?.prices) {
       const prices = card.tcgplayer.prices;
-      
-      // Priority order for price variants
       const variants = ['normal', 'holofoil', '1stEditionHolofoil', '1stEditionNormal', 'unlimited'];
-      
-      for (const variant of variants) {
-        if (prices[variant]?.market) {
-          return prices[variant].market!;
-        }
+      for (const v of variants) {
+        if (prices[v]?.market) return prices[v].market!;
       }
-      
-      // Fallback to any available price
-      for (const priceData of Object.values(prices)) {
-        if (priceData.market) return priceData.market;
-        if (priceData.mid) return priceData.mid;
-        if (priceData.high) return priceData.high;
-        if (priceData.low) return priceData.low;
+      for (const p of Object.values(prices)) {
+        if (p.market) return p.market;
+        if (p.mid) return p.mid;
+        if (p.high) return p.high;
+        if (p.low) return p.low;
       }
     }
-
-    // Try CardMarket as fallback
     if (card.cardmarket?.prices?.averageSellPrice) {
       return card.cardmarket.prices.averageSellPrice;
     }
-
     return 0;
   }
 }
