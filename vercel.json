@@ -3,8 +3,18 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
-    { "source": "/images/pokemontcg/:path*", "destination": "https://images.pokemontcg.io/:path*" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    {
+      "source": "/api/:path*",
+      "destination": "https://classics-syracuse-attention-friday.trycloudflare.com/api/:path*"
+    },
+    {
+      "source": "/images/pokemontcg/:path*",
+      "destination": "https://images.pokemontcg.io/:path*"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
   ],
   "headers": [
     {

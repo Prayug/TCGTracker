@@ -58,27 +58,27 @@ const TIER_THEMES: Record<string, TierTheme> = {
   starter: {
     bgTop: '#0f172a', bgBottom: '#020617',
     ambientParticles: 0, particleColors: ['#94a3b8', '#cbd5e1'],
-    shockwaveCount: 1, flashColor: '#ffffff',
+    shockwaveCount: 2, flashColor: '#ffffff',
   },
   bronze: {
     bgTop: '#1a0f00', bgBottom: '#0c0500',
-    ambientParticles: 20, particleColors: ['#f59e0b', '#fbbf24', '#d97706'],
-    shockwaveCount: 2, flashColor: '#f59e0b',
+    ambientParticles: 30, particleColors: ['#f59e0b', '#fbbf24', '#d97706'],
+    shockwaveCount: 3, flashColor: '#f59e0b',
   },
   silver: {
     bgTop: '#0f172a', bgBottom: '#020617',
-    ambientParticles: 30, particleColors: ['#e2e8f0', '#f1f5f9', '#cbd5e1'],
-    shockwaveCount: 2, flashColor: '#e2e8f0',
+    ambientParticles: 40, particleColors: ['#e2e8f0', '#f1f5f9', '#cbd5e1'],
+    shockwaveCount: 3, flashColor: '#e2e8f0',
   },
   gold: {
     bgTop: '#1a1200', bgBottom: '#0a0800',
-    ambientParticles: 50, particleColors: ['#fde047', '#facc15', '#eab308'],
-    shockwaveCount: 3, flashColor: '#fde047',
+    ambientParticles: 60, particleColors: ['#fde047', '#facc15', '#eab308'],
+    shockwaveCount: 4, flashColor: '#fde047',
   },
   platinum: {
     bgTop: '#0f0326', bgBottom: '#050014',
-    ambientParticles: 70, particleColors: ['#e879f9', '#d946ef', '#a855f7', '#c084fc'],
-    shockwaveCount: 3, flashColor: '#e879f9',
+    ambientParticles: 80, particleColors: ['#e879f9', '#d946ef', '#a855f7', '#c084fc'],
+    shockwaveCount: 5, flashColor: '#e879f9',
   },
 };
 
@@ -105,35 +105,35 @@ const TIER_ANIM: Record<string, TierAnimConfig> = {
   starter: {
     orbitDuration: 0.3, zoomDuration: 0.2, ripDuration: 0.3, shakeDuration: 0.2,
     packBehavior: 'tear', shatterPieces: 0,
-    particleShape: 'spark', particleSpeed: 2.0, particleLifetime: 0.6,
+    particleShape: 'spark', particleSpeed: 2.5, particleLifetime: 0.8,
     orbitRadius: 1.0, orbitSpeed: 0.5, zoomDepth: 1.0,
     bgPulseSpeed: 0.3, bgPulseIntensity: 0.1,
   },
   bronze: {
     orbitDuration: 0.5, zoomDuration: 0.3, ripDuration: 0.4, shakeDuration: 0.3,
     packBehavior: 'spin-tear', shatterPieces: 0,
-    particleShape: 'spark', particleSpeed: 3.0, particleLifetime: 0.8,
+    particleShape: 'spark', particleSpeed: 3.5, particleLifetime: 1.0,
     orbitRadius: 1.5, orbitSpeed: 1.0, zoomDepth: 1.5,
     bgPulseSpeed: 0.5, bgPulseIntensity: 0.2,
   },
   silver: {
     orbitDuration: 0.6, zoomDuration: 0.4, ripDuration: 0.5, shakeDuration: 0.3,
-    packBehavior: 'shatter', shatterPieces: 8,
-    particleShape: 'confetti', particleSpeed: 2.5, particleLifetime: 1.2,
+    packBehavior: 'shatter', shatterPieces: 12,
+    particleShape: 'confetti', particleSpeed: 3.0, particleLifetime: 1.4,
     orbitRadius: 1.8, orbitSpeed: 1.5, zoomDepth: 2.0,
     bgPulseSpeed: 0.7, bgPulseIntensity: 0.3,
   },
   gold: {
     orbitDuration: 0.8, zoomDuration: 0.4, ripDuration: 0.6, shakeDuration: 0.3,
     packBehavior: 'explode', shatterPieces: 0,
-    particleShape: 'confetti', particleSpeed: 3.5, particleLifetime: 1.0,
+    particleShape: 'confetti', particleSpeed: 4.0, particleLifetime: 1.2,
     orbitRadius: 2.0, orbitSpeed: 2.0, zoomDepth: 2.5,
     bgPulseSpeed: 0.9, bgPulseIntensity: 0.4,
   },
   platinum: {
     orbitDuration: 1.0, zoomDuration: 0.5, ripDuration: 0.7, shakeDuration: 0.3,
     packBehavior: 'levitate', shatterPieces: 0,
-    particleShape: 'prismatic', particleSpeed: 4.0, particleLifetime: 2.0,
+    particleShape: 'prismatic', particleSpeed: 5.0, particleLifetime: 2.5,
     orbitRadius: 2.2, orbitSpeed: 3.0, zoomDepth: 3.0,
     bgPulseSpeed: 1.2, bgPulseIntensity: 0.5,
   },
@@ -149,11 +149,11 @@ function cardStart(tier: string): number {
 }
 
 const GLAMOUR_CONFIG = {
-  normal:  { particles: 160, cameraZ: 5.4, lightIntensity: 2.1, bloom: false, bloomStrength: 0 },
-  good:    { particles: 260, cameraZ: 5.2, lightIntensity: 2.5, bloom: true, bloomStrength: 0.6 },
-  amazing: { particles: 360, cameraZ: 5.0, lightIntensity: 3.0, bloom: true, bloomStrength: 0.9 },
-  legendary: { particles: 500, cameraZ: 4.8, lightIntensity: 3.5, bloom: true, bloomStrength: 1.2 },
-  god:     { particles: 700, cameraZ: 4.5, lightIntensity: 4.0, bloom: true, bloomStrength: 1.8 },
+  normal:  { particles: 200, cameraZ: 5.4, lightIntensity: 2.1, bloom: false, bloomStrength: 0 },
+  good:    { particles: 320, cameraZ: 5.2, lightIntensity: 2.5, bloom: true, bloomStrength: 0.7 },
+  amazing: { particles: 440, cameraZ: 5.0, lightIntensity: 3.0, bloom: true, bloomStrength: 1.0 },
+  legendary: { particles: 600, cameraZ: 4.8, lightIntensity: 3.5, bloom: true, bloomStrength: 1.4 },
+  god:     { particles: 850, cameraZ: 4.5, lightIntensity: 4.0, bloom: true, bloomStrength: 2.0 },
 };
 
 /* ─────────── Constants ─────────── */
@@ -204,9 +204,11 @@ const CameraRig: React.FC<{
   baseZ: number;
   glamour: string;
   tier: string;
-}> = ({ timeRef, baseZ, glamour, tier }) => {
+  cardRarities?: string[];
+}> = ({ timeRef, baseZ, glamour, tier, cardRarities = [] }) => {
   const { camera } = useThree();
   const shakeRef = useRef({ x: 0, y: 0 });
+  const punchRef = useRef(0);
   const anim = getTierAnim(tier);
 
   useFrame(() => {
@@ -249,6 +251,24 @@ const CameraRig: React.FC<{
       targetX = Math.sin(t * 0.2) * 0.4;
       shakeRef.current.x *= 0.9;
       shakeRef.current.y *= 0.9;
+
+      const cardStartBase = cardStart(tier);
+      for (let i = 0; i < cardRarities.length; i++) {
+        const rank = rarityRank(cardRarities[i]);
+        if (rank >= 3) {
+          const cardRevealStart = cardStartBase + i * CARD_INTERVAL;
+          const cardProgress = clamp01((t - cardRevealStart) / CARD_FLIGHT);
+          if (cardProgress > 0.2 && cardProgress < 0.6) {
+            const punchStrength = rank >= 4 ? 0.6 : 0.35;
+            const punchProg = clamp01((cardProgress - 0.2) / 0.4);
+            punchRef.current = Math.sin(punchProg * Math.PI) * punchStrength;
+          }
+        }
+      }
+      if (punchRef.current > 0.01) {
+        targetZ -= punchRef.current;
+        punchRef.current *= 0.92;
+      }
     }
 
     camera.position.x = lerp(camera.position.x, targetX + shakeRef.current.x, 0.08);
@@ -287,8 +307,10 @@ const EnvironmentScene: React.FC<{
       },
       vertexShader: `
         varying vec2 vUv;
+        varying vec3 vPosition;
         void main() {
           vUv = uv;
+          vPosition = position;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
@@ -300,11 +322,46 @@ const EnvironmentScene: React.FC<{
         uniform float uPulseSpeed;
         uniform float uPulseIntensity;
         varying vec2 vUv;
+        varying vec3 vPosition;
+
+        float noise(vec2 p) {
+          return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+        }
+
+        float smoothNoise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          float a = noise(i);
+          float b = noise(i + vec2(1.0, 0.0));
+          float c = noise(i + vec2(0.0, 1.0));
+          float d = noise(i + vec2(1.0, 1.0));
+          return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+        }
+
         void main() {
           vec3 bg = mix(uBottom, uTop, vUv.y);
+
           float dist = length(vUv - vec2(0.5, 0.6));
           float glow = exp(-dist * 3.0) * uPulseIntensity * (0.7 + 0.3 * sin(uTime * uPulseSpeed));
           bg += uTierGlow * glow;
+
+          vec2 swirlUv = vUv * 3.0;
+          float swirl1 = smoothNoise(swirlUv + uTime * 0.15);
+          float swirl2 = smoothNoise(swirlUv * 1.5 - uTime * 0.1);
+          float swirlPattern = swirl1 * 0.6 + swirl2 * 0.4;
+
+          float swirlAngle = atan(swirlUv.y - 1.5, swirlUv.x - 1.5);
+          float swirlRadius = length(swirlUv - 1.5);
+          float spiral = sin(swirlAngle * 3.0 + swirlRadius * 2.0 - uTime * 0.8) * 0.5 + 0.5;
+
+          float energyMask = smoothstep(0.3, 0.7, spiral) * smoothstep(0.0, 1.5, swirlRadius);
+          vec3 energyColor = uTierGlow * energyMask * uPulseIntensity * 0.4;
+          bg += energyColor * swirlPattern;
+
+          float vignette = 1.0 - smoothstep(0.4, 1.2, dist);
+          bg *= 0.7 + vignette * 0.3;
+
           gl_FragColor = vec4(bg, 1.0);
         }
       `,
@@ -345,6 +402,232 @@ const EnvironmentScene: React.FC<{
         />
       )}
     </>
+  );
+};
+
+/* ═══════════════════════════════════════════════
+   ENERGY BUILDUP — Glowing orb that charges before rip
+   ═══════════════════════════════════════════════ */
+
+const EnergyBuildup: React.FC<{
+  tier: string;
+  timeRef: React.MutableRefObject<number>;
+}> = ({ tier, timeRef }) => {
+  const colors = TIER_COLORS[tier] ?? { base: '#3b82f6', glow: '#60a5fa' };
+  const anim = getTierAnim(tier);
+  const orbRef = useRef<THREE.Mesh>(null);
+  const materialRef = useRef<THREE.MeshBasicMaterial>(null);
+
+  const material = useMemo(
+    () => new THREE.MeshBasicMaterial({
+      color: colors.glow,
+      transparent: true,
+      opacity: 0,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    }),
+    [colors.glow]
+  );
+
+  useEffect(() => { materialRef.current = material; }, [material]);
+  useEffect(() => () => material.dispose(), [material]);
+
+  useFrame(() => {
+    const t = timeRef.current;
+    const orb = orbRef.current;
+    if (!orb) return;
+
+    const zoomEnd = anim.orbitDuration + anim.zoomDuration;
+    const ripEnd = zoomEnd + anim.ripDuration;
+
+    if (t < zoomEnd * 0.5) {
+      material.opacity = 0;
+      orb.visible = false;
+      return;
+    }
+
+    orb.visible = true;
+    const chargePhase = clamp01((t - zoomEnd * 0.5) / (zoomEnd * 0.5));
+    const pulse = Math.sin(t * 12) * 0.3 + 0.7;
+    material.opacity = chargePhase * 0.6 * pulse;
+    orb.scale.setScalar(0.3 + chargePhase * 1.5);
+
+    if (t >= zoomEnd) {
+      const flashPhase = clamp01((t - zoomEnd) / 0.15);
+      material.opacity = (1 - flashPhase) * 0.8;
+      orb.scale.setScalar((1 + flashPhase * 3) * (1 - flashPhase));
+    }
+
+    if (t >= ripEnd) {
+      material.opacity *= 0.85;
+    }
+  });
+
+  return (
+    <mesh ref={orbRef} position={[0, 0.3, 0]}>
+      <sphereGeometry args={[0.6, 24, 24]} />
+      <primitive object={material} attach="material" />
+    </mesh>
+  );
+};
+
+/* ═══════════════════════════════════════════════
+   ORBIT ENERGY — Floating particles during orbit phase
+   ═══════════════════════════════════════════════ */
+
+const OrbitEnergy: React.FC<{
+  tier: string;
+  timeRef: React.MutableRefObject<number>;
+  count: number;
+}> = ({ tier, timeRef, count }) => {
+  const colors = TIER_COLORS[tier] ?? { base: '#3b82f6', glow: '#60a5fa' };
+  const anim = getTierAnim(tier);
+  const instancedRef = useRef<THREE.InstancedMesh>(null);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+
+  const particles = useMemo(() => {
+    return Array.from({ length: count }, (_, i) => ({
+      angle: (i / count) * Math.PI * 2,
+      radius: 1.2 + Math.random() * 0.6,
+      speed: 0.8 + Math.random() * 0.6,
+      yOffset: (Math.random() - 0.5) * 0.8,
+      size: 0.02 + Math.random() * 0.03,
+      phase: Math.random() * Math.PI * 2,
+    }));
+  }, [count]);
+
+  const material = useMemo(
+    () => new THREE.MeshBasicMaterial({
+      color: colors.glow,
+      transparent: true,
+      opacity: 0.7,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    }),
+    [colors.glow]
+  );
+
+  useEffect(() => () => material.dispose(), [material]);
+
+  useFrame(() => {
+    const t = timeRef.current;
+    const mesh = instancedRef.current;
+    if (!mesh) return;
+
+    const orbitEnd = anim.orbitDuration + anim.zoomDuration;
+    if (t >= orbitEnd) {
+      mesh.visible = false;
+      return;
+    }
+    mesh.visible = true;
+
+    const fadeOut = t > orbitEnd - 0.3 ? 1 - (t - (orbitEnd - 0.3)) / 0.3 : 1;
+
+    particles.forEach((p, i) => {
+      const currentAngle = p.angle + t * p.speed;
+      const wobble = Math.sin(t * 2 + p.phase) * 0.15;
+      const px = Math.cos(currentAngle) * (p.radius + wobble);
+      const py = p.yOffset + Math.sin(t * 1.5 + p.phase) * 0.2;
+      const pz = Math.sin(currentAngle) * (p.radius + wobble);
+
+      dummy.position.set(px, py, pz);
+      dummy.scale.setScalar(p.size * fadeOut);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+    });
+
+    mesh.instanceMatrix.needsUpdate = true;
+  });
+
+  return (
+    <instancedMesh ref={instancedRef} args={[undefined, undefined, count]} visible={false}>
+      <sphereGeometry args={[1, 6, 6]} />
+      <primitive object={material} attach="material" />
+    </instancedMesh>
+  );
+};
+
+/* ═══════════════════════════════════════════════
+   SHOCKWAVE RIPPLE — Concentric ripples at rip moment
+   ═══════════════════════════════════════════════ */
+
+const ShockwaveRipple: React.FC<{
+  tier: string;
+  timeRef: React.MutableRefObject<number>;
+}> = ({ tier, timeRef }) => {
+  const colors = TIER_COLORS[tier] ?? { base: '#3b82f6', glow: '#60a5fa' };
+  const anim = getTierAnim(tier);
+  const cleanupRefs = useRef<THREE.MeshBasicMaterial[]>([]);
+
+  const rippleCount = tier === 'platinum' ? 4 : tier === 'gold' ? 3 : 2;
+
+  useEffect(() => {
+    const mats = cleanupRefs.current;
+    return () => {
+      mats.forEach(m => m?.dispose());
+    };
+  }, []);
+
+  return (
+    <>
+      {Array.from({ length: rippleCount }).map((_, i) => (
+        <ShockwaveRippleRing
+          key={i}
+          color={colors.glow}
+          timeRef={timeRef}
+          ripStart={anim.orbitDuration + anim.zoomDuration}
+          delay={i * 0.08}
+        />
+      ))}
+    </>
+  );
+};
+
+const ShockwaveRippleRing: React.FC<{
+  color: string;
+  timeRef: React.MutableRefObject<number>;
+  ripStart: number;
+  delay: number;
+}> = ({ color, timeRef, ripStart, delay }) => {
+  const ref = useRef<THREE.Mesh>(null);
+  const matRef = useRef<THREE.MeshBasicMaterial>(null);
+
+  useEffect(() => {
+    const mat = matRef.current;
+    return () => { mat?.dispose(); };
+  }, []);
+
+  useFrame(() => {
+    const t = timeRef.current;
+    const ring = ref.current;
+    const mat = matRef.current;
+    if (!ring || !mat) return;
+
+    const age = t - ripStart - delay;
+    if (age < 0 || age > 0.8) { ring.visible = false; return; }
+    ring.visible = true;
+
+    const prog = easeOutCubic(age / 0.8);
+    const scale = 0.1 + prog * 6;
+    ring.scale.set(scale, scale, 1);
+    mat.opacity = (1 - prog) * 0.5;
+    ring.rotation.z = prog * 0.3;
+  });
+
+  return (
+    <mesh ref={ref} position={[0, 0.3, 0]}>
+      <ringGeometry args={[0.8, 0.88, 64]} />
+      <meshBasicMaterial
+        ref={matRef}
+        color={color}
+        transparent
+        opacity={0}
+        side={THREE.DoubleSide}
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+      />
+    </mesh>
   );
 };
 
@@ -1221,7 +1504,7 @@ const SceneContents: React.FC<PackOpeningSceneProps> = ({
 
   return (
     <>
-      <CameraRig timeRef={timeRef} baseZ={config.cameraZ} glamour={glamourLevel} tier={tier} />
+      <CameraRig timeRef={timeRef} baseZ={config.cameraZ} glamour={glamourLevel} tier={tier} cardRarities={cardRarities} />
       <EnvironmentScene tier={tier} glamourLevel={glamourLevel} timeRef={timeRef} />
 
       <ambientLight intensity={0.3 + (config.lightIntensity - 2.1) * 0.1} />
@@ -1230,12 +1513,15 @@ const SceneContents: React.FC<PackOpeningSceneProps> = ({
       <directionalLight position={[0, 3, -5]} intensity={1.4} color="#e0e7ff" />
 
       <PackMesh tier={tier} timeRef={timeRef} />
+      <EnergyBuildup tier={tier} timeRef={timeRef} />
+      <OrbitEnergy tier={tier} timeRef={timeRef} count={anim.packBehavior === 'levitate' ? 24 : 12} />
 
       {anim.packBehavior === 'shatter' && (
         <ShatterFragments tier={tier} timeRef={timeRef} />
       )}
 
       <ShockwaveRings tier={tier} timeRef={timeRef} count={theme.shockwaveCount} />
+      <ShockwaveRipple tier={tier} timeRef={timeRef} />
       <BurstParticles tier={tier} timeRef={timeRef} count={config.particles} />
 
       {cardImages.map((url, i) => (
