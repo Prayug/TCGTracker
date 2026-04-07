@@ -7,6 +7,7 @@ const backtestEngine_1 = require("../services/backtestEngine");
 const forwardTestTracker_1 = require("../services/forwardTestTracker");
 const externalSignalService_1 = require("../services/externalSignalService");
 const scraperRunner_1 = require("../services/scrapers/scraperRunner");
+const aiExplanationService_1 = require("../services/aiExplanationService");
 const database_1 = require("../db/database");
 const router = (0, express_1.Router)();
 const asyncHandler = (fn) => (req, res) => {
@@ -197,5 +198,73 @@ router.post('/run-scrape', asyncHandler(async (_req, res) => {
         errors: result.errors,
         message: `Signal scrape complete: ${result.stored} signals stored from ${result.scraped} unique signals`,
     });
+}));
+router.get('/card/:cardId/explanation', asyncHandler(async (req, res) => {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+    const { cardId } = req.params;
+    const db = (0, database_1.getDb)();
+    const prediction = await new Promise((resolve, reject) => {
+        db.get(`SELECT cp.*, cm.cardName, cm.setName, cm.rarity
+       FROM card_predictions cp
+       LEFT JOIN (
+         SELECT cardId, MIN(cardName) AS cardName, MIN(setName) AS setName,
+                COALESCE(NULLIF(TRIM(MIN(rarity)), ''), '') AS rarity
+         FROM card_mappings
+         GROUP BY cardId
+       ) cm ON cm.cardId = cp.card_id
+       LEFT JOIN catalog_cards cc ON cc.cardId = cp.card_id
+       WHERE cp.card_id = ? AND cp.run_id = (SELECT MAX(id) FROM prediction_runs)
+       LIMIT 1`, [cardId], (err, row) => {
+            if (err)
+                return reject(err);
+            resolve(row || null);
+        });
+    });
+    if (!prediction) {
+        return res.status(404).json({ error: 'No prediction found for this card' });
+    }
+    const existingExplanation = (_a = prediction.explanation) !== null && _a !== void 0 ? _a : '';
+    if ((0, aiExplanationService_1.isAiExplanation)(existingExplanation)) {
+        return res.json({ explanation: existingExplanation, cached: true });
+    }
+    const setReleaseDate = await new Promise((resolve) => {
+        db.get(`SELECT setReleaseDate FROM catalog_cards
+       WHERE cardId = ? AND setReleaseDate IS NOT NULL AND TRIM(setReleaseDate) <> ''
+       LIMIT 1`, [cardId], (err, row) => resolve(err || !row ? null : row.setReleaseDate));
+    });
+    const ctx = {
+        cardName: prediction.cardName || prediction.card_id,
+        setName: prediction.setName || '',
+        currentPrice: (_b = prediction.current_price) !== null && _b !== void 0 ? _b : 0,
+        category: (_c = prediction.category) !== null && _c !== void 0 ? _c : '',
+        rarity: prediction.rarity || undefined,
+        predictedReturns: {
+            d7: (_d = prediction.expected_7d_return) !== null && _d !== void 0 ? _d : 0,
+            d30: (_e = prediction.expected_30d_return) !== null && _e !== void 0 ? _e : 0,
+            d90: (_f = prediction.expected_90d_return) !== null && _f !== void 0 ? _f : 0,
+        },
+        confidence: (_g = prediction.confidence_score) !== null && _g !== void 0 ? _g : 0,
+        riskScore: (_h = prediction.risk_score) !== null && _h !== void 0 ? _h : 0,
+        externalSignals: (_j = prediction.external_signals_json) !== null && _j !== void 0 ? _j : '[]',
+        setAgeDays: setReleaseDate ? (0, predictionEngine_1.computeSetAgeDays)(setReleaseDate) : null,
+    };
+    let aiExplanation;
+    try {
+        aiExplanation = await (0, aiExplanationService_1.generateAiExplanation)(ctx);
+    }
+    catch (err) {
+        const msg = (err === null || err === void 0 ? void 0 : err.message) || 'AI explanation generation failed';
+        logger_1.logger.warn(`AI explanation failed for ${ctx.cardName}: ${msg}`);
+        return res.status(503).json({ error: msg });
+    }
+    await new Promise((resolve, reject) => {
+        db.run(`UPDATE card_predictions SET explanation = ? WHERE id = ?`, [aiExplanation, prediction.id], (err) => {
+            if (err)
+                reject(err);
+            else
+                resolve();
+        });
+    });
+    res.json({ explanation: aiExplanation, cached: false });
 }));
 exports.default = router;

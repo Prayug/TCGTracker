@@ -23,6 +23,7 @@ const envSchema = z.object({
   APIFY_API_TOKEN: z.string().optional(),
   PKMNPRICES_API_KEY: z.string().optional(),
   YOUTUBE_API_KEY: z.string().optional(),
+  GROQ_API_KEY: z.string().optional(),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.string().optional(),
   SMTP_USER: z.string().optional(),
@@ -77,6 +78,7 @@ export const env = {
     apify: parsedEnv.data.APIFY_API_TOKEN,
     pkmnprices: parsedEnv.data.PKMNPRICES_API_KEY,
     youtube: parsedEnv.data.YOUTUBE_API_KEY,
+    groq: parsedEnv.data.GROQ_API_KEY,
   },
   email: {
     host: parsedEnv.data.SMTP_HOST,
