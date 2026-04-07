@@ -1,10 +1,11 @@
 import { Router, Response } from 'express';
 import { logger } from '../utils/logger';
-import { runPredictions, getLatestPredictions, isPredictionWindow, PredictionWindow } from '../services/predictionEngine';
+import { runPredictions, getLatestPredictions, isPredictionWindow, PredictionWindow, computeSetAgeDays } from '../services/predictionEngine';
 import { runBacktest, getBacktestResults } from '../services/backtestEngine';
 import { updateActualResults, getForwardTestStatus } from '../services/forwardTestTracker';
 import { getExternalSignalsForCard } from '../services/externalSignalService';
 import { runSignalScrape } from '../services/scrapers/scraperRunner';
+import { generateAiExplanation, isAiExplanation, ExplanationContext } from '../services/aiExplanationService';
 import { getDb } from '../db/database';
 import { AuthRequest } from '../middleware/auth';
 
@@ -224,6 +225,91 @@ router.post('/run-scrape', asyncHandler(async (_req, res) => {
     errors: result.errors,
     message: `Signal scrape complete: ${result.stored} signals stored from ${result.scraped} unique signals`,
   });
+}));
+
+router.get('/card/:cardId/explanation', asyncHandler(async (req, res) => {
+  const { cardId } = req.params;
+  const db = getDb();
+
+  const prediction: any = await new Promise((resolve, reject) => {
+    db.get(
+      `SELECT cp.*, cm.cardName, cm.setName, cm.rarity
+       FROM card_predictions cp
+       LEFT JOIN (
+         SELECT cardId, MIN(cardName) AS cardName, MIN(setName) AS setName,
+                COALESCE(NULLIF(TRIM(MIN(rarity)), ''), '') AS rarity
+         FROM card_mappings
+         GROUP BY cardId
+       ) cm ON cm.cardId = cp.card_id
+       LEFT JOIN catalog_cards cc ON cc.cardId = cp.card_id
+       WHERE cp.card_id = ? AND cp.run_id = (SELECT MAX(id) FROM prediction_runs)
+       LIMIT 1`,
+      [cardId],
+      (err, row: any) => {
+        if (err) return reject(err);
+        resolve(row || null);
+      }
+    );
+  });
+
+  if (!prediction) {
+    return res.status(404).json({ error: 'No prediction found for this card' });
+  }
+
+  const existingExplanation: string = prediction.explanation ?? '';
+
+  if (isAiExplanation(existingExplanation)) {
+    return res.json({ explanation: existingExplanation, cached: true });
+  }
+
+  const setReleaseDate: string | null = await new Promise((resolve) => {
+    db.get(
+      `SELECT setReleaseDate FROM catalog_cards
+       WHERE cardId = ? AND setReleaseDate IS NOT NULL AND TRIM(setReleaseDate) <> ''
+       LIMIT 1`,
+      [cardId],
+      (err, row: any) => resolve(err || !row ? null : row.setReleaseDate)
+    );
+  });
+
+  const ctx: ExplanationContext = {
+    cardName: prediction.cardName || prediction.card_id,
+    setName: prediction.setName || '',
+    currentPrice: prediction.current_price ?? 0,
+    category: prediction.category ?? '',
+    rarity: prediction.rarity || undefined,
+    predictedReturns: {
+      d7: prediction.expected_7d_return ?? 0,
+      d30: prediction.expected_30d_return ?? 0,
+      d90: prediction.expected_90d_return ?? 0,
+    },
+    confidence: prediction.confidence_score ?? 0,
+    riskScore: prediction.risk_score ?? 0,
+    externalSignals: prediction.external_signals_json ?? '[]',
+    setAgeDays: setReleaseDate ? computeSetAgeDays(setReleaseDate) : null,
+  };
+
+  let aiExplanation: string;
+  try {
+    aiExplanation = await generateAiExplanation(ctx);
+  } catch (err: any) {
+    const msg = err?.message || 'AI explanation generation failed';
+    logger.warn(`AI explanation failed for ${ctx.cardName}: ${msg}`);
+    return res.status(503).json({ error: msg });
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    db.run(
+      `UPDATE card_predictions SET explanation = ? WHERE id = ?`,
+      [aiExplanation, prediction.id],
+      (err) => {
+        if (err) reject(err);
+        else resolve();
+      }
+    );
+  });
+
+  res.json({ explanation: aiExplanation, cached: false });
 }));
 
 export default router;
