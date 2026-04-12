@@ -59,6 +59,10 @@ export const marketInsightsApi = {
     return fetchJson(`${BASE_URL}/card/${encodeURIComponent(cardId)}`);
   },
 
+  async getAiExplanation(cardId: string): Promise<{ explanation: string; cached: boolean }> {
+    return fetchJson(`${BASE_URL}/card/${encodeURIComponent(cardId)}/explanation`);
+  },
+
   async triggerPredictionRun(): Promise<{ success: boolean; runId: number; message: string }> {
     return fetchJson(`${BASE_URL}/run-predictions`, { method: 'POST' });
   },
