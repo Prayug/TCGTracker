@@ -12,132 +12,121 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.updatePriceData = void 0;
 const database_1 = require("../db/database");
 const cardIdentifier_1 = require("./cardIdentifier");
-const TCGCSV_BASE_URL = 'https://tcgcsv.com/tcgplayer';
-const POKEMON_CATEGORY_ID = '3';
-const fetchPokemonGroups = () => __awaiter(void 0, void 0, void 0, function* () {
-    const response = yield fetch(`${TCGCSV_BASE_URL}/${POKEMON_CATEGORY_ID}/groups`);
-    if (!response.ok) {
-        throw new Error(`Failed to fetch Pokemon groups: ${response.statusText}`);
-    }
-    const data = yield response.json();
-    return data.results;
-});
-const fetchGroupProducts = (groupId) => __awaiter(void 0, void 0, void 0, function* () {
-    const response = yield fetch(`${TCGCSV_BASE_URL}/${POKEMON_CATEGORY_ID}/${groupId}/products`);
-    if (!response.ok) {
-        throw new Error(`Failed to fetch products for group ${groupId}: ${response.statusText}`);
-    }
-    const data = yield response.json();
-    return data.results;
-});
-const fetchGroupPrices = (groupId) => __awaiter(void 0, void 0, void 0, function* () {
-    const response = yield fetch(`${TCGCSV_BASE_URL}/${POKEMON_CATEGORY_ID}/${groupId}/prices`);
-    if (!response.ok) {
-        throw new Error(`Failed to fetch prices for group ${groupId}: ${response.statusText}`);
-    }
-    const data = yield response.json();
-    return data.results;
-});
-const storePriceData = (prices, products, groupName, date) => __awaiter(void 0, void 0, void 0, function* () {
+const cloudBackupService_1 = require("./cloudBackupService");
+const logger_1 = require("../utils/logger");
+const catalogSync_1 = require("./catalogSync");
+const tcgdexMarketProvider_1 = require("./providers/tcgdexMarketProvider");
+const SYNC_TIMEZONE = 'America/New_York';
+let isUpdateRunning = false;
+const normalizeVariantKey = (value) => {
+    if (!value)
+        return 'normal';
+    const normalized = value.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return normalized || 'normal';
+};
+const getRunDate = () => {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: SYNC_TIMEZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    });
+    return formatter.format(new Date());
+};
+const createSyncRun = (runType, runDate) => __awaiter(void 0, void 0, void 0, function* () {
     const db = (0, database_1.getDb)();
-    const priceInsertSql = `
-    INSERT INTO price_history (
-      productId, date, price, subTypeName, productName, groupName, 
-      source, lowPrice, highPrice, marketPrice, volume, uniqueIdentifier
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(productId, date, source, subTypeName) DO UPDATE SET
-      price = excluded.price,
-      lowPrice = excluded.lowPrice,
-      highPrice = excluded.highPrice,
-      marketPrice = excluded.marketPrice,
-      productName = excluded.productName;
-  `;
-    const mappingInsertSql = `
-    INSERT OR REPLACE INTO card_mappings 
-    (cardId, productId, cardName, setId, setName, cardNumber, rarity, tcgplayerProductId, uniqueIdentifier, updatedAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-  `;
-    const priceStmt = db.prepare(priceInsertSql);
-    const mappingStmt = db.prepare(mappingInsertSql);
-    const productMap = new Map(products.map(p => [p.productId, p.name]));
     return new Promise((resolve, reject) => {
-        db.serialize(() => {
-            db.run('BEGIN TRANSACTION');
-            try {
-                for (const price of prices) {
-                    if (price.marketPrice && price.marketPrice > 0) {
-                        const productName = productMap.get(price.productId) || '';
-                        const cardDetails = extractCardDetails(productName, groupName);
-                        const uniqueIdentifier = (0, cardIdentifier_1.generateUniqueIdentifier)(cardDetails.setId, cardDetails.cardNumber, cardDetails.cardName);
-                        priceStmt.run([
-                            price.productId, date, price.marketPrice,
-                            price.subTypeName || 'Normal', productName, groupName,
-                            'tcgcsv', price.lowPrice || null, price.highPrice || null,
-                            price.marketPrice || null, null, uniqueIdentifier
-                        ]);
-                        if (cardDetails.cardName && cardDetails.setId) {
-                            mappingStmt.run([
-                                `tcgcsv-${price.productId}`, price.productId,
-                                cardDetails.cardName, cardDetails.setId, groupName,
-                                cardDetails.cardNumber || null, null,
-                                price.productId.toString(), uniqueIdentifier
-                            ]);
-                        }
-                    }
-                }
-                db.run('COMMIT', (commitErr) => {
-                    if (commitErr) {
-                        throw commitErr;
-                    }
-                    priceStmt.finalize();
-                    mappingStmt.finalize();
-                    resolve();
-                });
+        db.run(`INSERT INTO sync_runs (runType, runDate, status, startedAt)
+       VALUES (?, ?, 'running', datetime('now'))`, [runType, runDate], function (err) {
+            if (err) {
+                reject(err);
             }
-            catch (runErr) {
-                console.error('Error during transaction, rolling back.', runErr);
-                db.run('ROLLBACK', () => {
-                    priceStmt.finalize();
-                    mappingStmt.finalize();
-                    reject(runErr);
-                });
+            else {
+                resolve(this.lastID);
             }
         });
     });
 });
-/**
- * Extracts card details from TCGCSV product name
- */
-const extractCardDetails = (productName, setName) => {
-    let cardName = productName;
-    let cardNumber = '';
-    let setId = setName.toLowerCase().replace(/[^a-z0-9]/g, '');
-    // Try to match standard card numbers first, e.g., (199/165)
-    let numberMatches = productName.match(/\s\(?(\d+\/\d+)\)?/);
-    if (numberMatches) {
-        cardNumber = numberMatches[1];
-        cardName = productName.substring(0, numberMatches.index).trim();
+const finalizeSyncRun = (runId, status, payload) => __awaiter(void 0, void 0, void 0, function* () {
+    const db = (0, database_1.getDb)();
+    return new Promise((resolve, reject) => {
+        db.run(`UPDATE sync_runs
+       SET status = ?,
+           totalPricesProcessed = ?,
+           groupsProcessed = ?,
+           groupsFailed = ?,
+           message = ?,
+           completedAt = datetime('now')
+       WHERE id = ?`, [
+            status,
+            payload.totalPricesProcessed || 0,
+            payload.groupsProcessed || 0,
+            payload.groupsFailed || 0,
+            payload.message || null,
+            runId,
+        ], (err) => {
+            if (err) {
+                reject(err);
+            }
+            else {
+                resolve();
+            }
+        });
+    });
+});
+const loadCatalogCards = () => __awaiter(void 0, void 0, void 0, function* () {
+    const db = (0, database_1.getDb)();
+    const fetchRows = () => new Promise((resolve, reject) => {
+        db.all(`SELECT cardId, cardName, setId, setName, cardNumber, tcgplayerProductId, tcgplayerPrices
+         FROM catalog_cards`, [], (err, rows) => {
+            if (err)
+                reject(err);
+            else
+                resolve(rows || []);
+        });
+    });
+    const rows = yield fetchRows();
+    if (rows.length > 0) {
+        return rows;
     }
-    else {
-        // If not found, try to match promo numbers, e.g., - SWSH250
-        // This pattern looks for a dash followed by a code that contains at least one digit.
-        numberMatches = productName.match(/-\s+([a-zA-Z0-9-]*[a-zA-Z]*\d+[a-zA-Z0-9-]*)$/);
-        if (numberMatches) {
-            cardNumber = numberMatches[1];
-            cardName = productName.substring(0, numberMatches.index).trim();
-        }
+    logger_1.logger.info('Catalog empty for market snapshot, syncing catalog first...');
+    yield (0, catalogSync_1.syncCatalogData)();
+    return fetchRows();
+});
+const extractCatalogFallbackPoints = (row) => {
+    if (!row.tcgplayerPrices) {
+        return [];
     }
-    // Clean up card name from rarity indicators often found in TCGPlayer names
-    cardName = cardName.replace(/\s*-\s*(Common|Uncommon|Rare|Holo Rare|Reverse Holo|Promo|Secret Rare|Ultra Rare|Amazing Rare).*$/i, '').trim();
-    if (cardName.endsWith(' -')) {
-        cardName = cardName.slice(0, -2).trim();
+    try {
+        const parsed = JSON.parse(row.tcgplayerPrices);
+        return Object.entries(parsed)
+            .map(([rawVariant, price]) => {
+            var _a, _b, _c;
+            const marketPrice = (_c = (_b = (_a = price.market) !== null && _a !== void 0 ? _a : price.mid) !== null && _b !== void 0 ? _b : price.low) !== null && _c !== void 0 ? _c : 0;
+            if (!marketPrice || marketPrice <= 0) {
+                return null;
+            }
+            const variantKey = normalizeVariantKey(rawVariant);
+            const parsedProductId = row.tcgplayerProductId
+                ? Number.parseInt(String(row.tcgplayerProductId), 10)
+                : Number.NaN;
+            const productId = Number.isFinite(parsedProductId)
+                ? parsedProductId
+                : deterministicProductId(row.cardId, variantKey);
+            return {
+                variantKey,
+                subTypeName: rawVariant,
+                productId,
+                marketPrice,
+                lowPrice: price.low,
+                highPrice: price.high,
+            };
+        })
+            .filter((point) => Boolean(point));
     }
-    return {
-        cardName,
-        cardNumber,
-        setId,
-    };
+    catch (_a) {
+        return [];
+    }
 };
 const createDailySnapshot = (date) => __awaiter(void 0, void 0, void 0, function* () {
     const db = (0, database_1.getDb)();
@@ -208,44 +197,348 @@ const createDailySnapshot = (date) => __awaiter(void 0, void 0, void 0, function
         });
     });
 });
-const updatePriceData = () => __awaiter(void 0, void 0, void 0, function* () {
-    try {
-        console.log('Starting TCGCSV price data update...');
-        const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
-        console.log('Fetching TCGCSV data...');
-        const groups = yield fetchPokemonGroups();
-        console.log(`Found ${groups.length} Pokemon groups/sets`);
-        let totalPricesProcessed = 0;
-        // Process groups sequentially to prevent database locking issues
-        for (const group of groups) {
-            try {
-                console.log(`Processing group: ${group.name} (${group.groupId})`);
-                const [products, prices] = yield Promise.all([
-                    fetchGroupProducts(group.groupId),
-                    fetchGroupPrices(group.groupId)
-                ]);
-                if (prices.length > 0 && products.length > 0) {
-                    yield storePriceData(prices, products, group.name, currentDate);
-                    totalPricesProcessed += prices.length;
-                    console.log(`Successfully processed ${prices.length} price points for ${group.name}.`);
+const deterministicProductId = (cardId, variantKey) => {
+    const input = `${cardId}|${variantKey}`;
+    let hash = 0;
+    for (let i = 0; i < input.length; i++) {
+        hash = ((hash << 5) - hash + input.charCodeAt(i)) | 0;
+    }
+    return Math.abs(hash) + 1;
+};
+const snapshotFromPokemonCatalog = (date) => __awaiter(void 0, void 0, void 0, function* () {
+    const db = (0, database_1.getDb)();
+    const priceInsertSql = `
+    INSERT INTO price_history (
+      productId, date, price, subTypeName, productName, groupName,
+      source, lowPrice, highPrice, marketPrice, volume, uniqueIdentifier
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(productId, date, source, subTypeName) DO UPDATE SET
+      price = excluded.price,
+      lowPrice = excluded.lowPrice,
+      highPrice = excluded.highPrice,
+      marketPrice = excluded.marketPrice,
+      productName = excluded.productName,
+      groupName = excluded.groupName,
+      uniqueIdentifier = excluded.uniqueIdentifier;
+  `;
+    const rows = yield new Promise((resolve, reject) => {
+        db.all(`SELECT cardId, cardName, setId, setName, cardNumber, tcgplayerProductId, tcgplayerPrices
+       FROM catalog_cards
+       WHERE tcgplayerPrices IS NOT NULL
+       AND tcgplayerPrices <> ''`, [], (err, resultRows) => {
+            if (err) {
+                reject(err);
+            }
+            else {
+                resolve(resultRows || []);
+            }
+        });
+    });
+    if (rows.length === 0) {
+        logger_1.logger.info('Catalog empty for fallback snapshot, syncing catalog first...');
+        yield (0, catalogSync_1.syncCatalogData)();
+    }
+    const refreshedRows = rows.length > 0
+        ? rows
+        : yield new Promise((resolve, reject) => {
+            db.all(`SELECT cardId, cardName, setId, setName, cardNumber, tcgplayerProductId, tcgplayerPrices
+           FROM catalog_cards
+           WHERE tcgplayerPrices IS NOT NULL
+           AND tcgplayerPrices <> ''`, [], (err, resultRows) => {
+                if (err) {
+                    reject(err);
                 }
                 else {
-                    console.log(`No price or product data found for ${group.name}, skipping.`);
+                    resolve(resultRows || []);
+                }
+            });
+        });
+    const stmt = db.prepare(priceInsertSql);
+    let inserted = 0;
+    yield new Promise((resolve, reject) => {
+        db.serialize(() => {
+            var _a, _b, _c, _d, _e, _f;
+            db.run('BEGIN TRANSACTION');
+            try {
+                for (const row of refreshedRows) {
+                    const parsedPrices = JSON.parse(row.tcgplayerPrices || '{}');
+                    for (const [variantKey, variantValue] of Object.entries(parsedPrices)) {
+                        const priceData = variantValue;
+                        const market = (_c = (_b = (_a = priceData.market) !== null && _a !== void 0 ? _a : priceData.mid) !== null && _b !== void 0 ? _b : priceData.low) !== null && _c !== void 0 ? _c : 0;
+                        if (!market || market <= 0) {
+                            continue;
+                        }
+                        const uniqueIdentifier = (0, cardIdentifier_1.generateUniqueIdentifier)(row.setId, row.cardNumber, row.cardName, variantKey);
+                        const parsedProductId = row.tcgplayerProductId
+                            ? Number.parseInt(String(row.tcgplayerProductId), 10)
+                            : Number.NaN;
+                        const productId = Number.isFinite(parsedProductId)
+                            ? parsedProductId
+                            : deterministicProductId(row.cardId || `${row.setId}-${row.cardNumber}-${row.cardName}`, variantKey);
+                        stmt.run([
+                            productId,
+                            date,
+                            market,
+                            variantKey,
+                            row.cardName,
+                            row.setName,
+                            'catalog_fallback',
+                            (_d = priceData.low) !== null && _d !== void 0 ? _d : null,
+                            (_e = priceData.high) !== null && _e !== void 0 ? _e : null,
+                            (_f = priceData.market) !== null && _f !== void 0 ? _f : market,
+                            null,
+                            uniqueIdentifier,
+                        ]);
+                        inserted += 1;
+                    }
+                }
+                stmt.finalize();
+                db.run('COMMIT', (commitErr) => {
+                    if (commitErr) {
+                        reject(commitErr);
+                        return;
+                    }
+                    resolve();
+                });
+            }
+            catch (err) {
+                stmt.finalize();
+                db.run('ROLLBACK', () => reject(err));
+            }
+        });
+    });
+    return inserted;
+});
+const snapshotFromMarketProvider = (date, marketProvider) => __awaiter(void 0, void 0, void 0, function* () {
+    const db = (0, database_1.getDb)();
+    const rows = yield loadCatalogCards();
+    if (rows.length === 0) {
+        return { pricesWritten: 0, cardsProcessed: 0, cardsFailed: 0 };
+    }
+    const priceInsertSql = `
+    INSERT INTO price_history (
+      productId, date, price, subTypeName, productName, groupName,
+      source, lowPrice, highPrice, marketPrice, volume, uniqueIdentifier
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(productId, date, source, subTypeName) DO UPDATE SET
+      price = excluded.price,
+      lowPrice = excluded.lowPrice,
+      highPrice = excluded.highPrice,
+      marketPrice = excluded.marketPrice,
+      productName = excluded.productName,
+      groupName = excluded.groupName,
+      uniqueIdentifier = excluded.uniqueIdentifier;
+  `;
+    const mappingInsertSql = `
+    INSERT OR REPLACE INTO card_mappings 
+    (cardId, productId, cardName, setId, setName, cardNumber, rarity, variantKey, tcgplayerProductId, uniqueIdentifier, updatedAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+  `;
+    const priceStmt = db.prepare(priceInsertSql);
+    const mappingStmt = db.prepare(mappingInsertSql);
+    const concurrency = 6;
+    let index = 0;
+    const collected = [];
+    let cardsProcessed = 0;
+    let cardsFailed = 0;
+    let tcgdexAttempted = 0;
+    let tcgdexSuccessful = 0;
+    let tcgdexDisabledForRun = false;
+    yield Promise.all(Array.from({ length: concurrency }).map(() => __awaiter(void 0, void 0, void 0, function* () {
+        var _a;
+        while (true) {
+            const nextIndex = index;
+            index += 1;
+            if (nextIndex >= rows.length) {
+                return;
+            }
+            const row = rows[nextIndex];
+            const snapshot = tcgdexDisabledForRun
+                ? null
+                : yield marketProvider.getSnapshotForCard(row.cardId);
+            const tcgdexPoints = (_a = snapshot === null || snapshot === void 0 ? void 0 : snapshot.points) !== null && _a !== void 0 ? _a : [];
+            if (!tcgdexDisabledForRun) {
+                tcgdexAttempted += 1;
+                if (tcgdexPoints.length > 0) {
+                    tcgdexSuccessful += 1;
+                }
+                if (tcgdexAttempted >= 200 && tcgdexSuccessful === 0) {
+                    tcgdexDisabledForRun = true;
+                    logger_1.logger.warn('TCGdex appears unavailable for this run; switching to catalog fallback only', {
+                        attempted: tcgdexAttempted,
+                    });
                 }
             }
-            catch (error) {
-                console.error(`Failed to process group ${group.name} (${group.groupId}):`, error);
+            const fallbackPoints = tcgdexPoints.length > 0 ? [] : extractCatalogFallbackPoints(row);
+            const chosenPoints = tcgdexPoints.length > 0 ? tcgdexPoints : fallbackPoints;
+            if (chosenPoints.length === 0) {
+                cardsFailed += 1;
+                continue;
             }
-            // Add a small delay between processing each group to be kind to the API
-            yield new Promise(resolve => setTimeout(resolve, 200));
+            for (const point of chosenPoints) {
+                const rawVariantName = 'rawVariantName' in point
+                    ? point.rawVariantName
+                    : 'subTypeName' in point
+                        ? point.subTypeName
+                        : point.variantKey;
+                const variantKey = normalizeVariantKey(rawVariantName || point.variantKey);
+                const candidateProductId = Number(point.productId);
+                const productId = Number.isFinite(candidateProductId) && candidateProductId > 0
+                    ? candidateProductId
+                    : deterministicProductId(row.cardId, variantKey);
+                collected.push({
+                    row,
+                    variantKey,
+                    subTypeName: rawVariantName || variantKey,
+                    productId,
+                    marketPrice: point.marketPrice,
+                    lowPrice: point.lowPrice,
+                    highPrice: point.highPrice,
+                    source: tcgdexPoints.length > 0 ? 'tcgdex' : 'catalog_fallback',
+                });
+            }
+            cardsProcessed += 1;
         }
-        console.log(`Finished processing all groups. Total price points processed: ${totalPricesProcessed}`);
-        console.log('Creating daily market snapshot...');
-        yield createDailySnapshot(currentDate);
-        console.log('Daily market snapshot created.');
+    })));
+    yield new Promise((resolve, reject) => {
+        db.serialize(() => {
+            var _a, _b;
+            db.run('BEGIN TRANSACTION');
+            try {
+                for (const entry of collected) {
+                    const uniqueIdentifier = (0, cardIdentifier_1.generateUniqueIdentifier)(entry.row.setId, entry.row.cardNumber, entry.row.cardName, entry.variantKey);
+                    priceStmt.run([
+                        entry.productId,
+                        date,
+                        entry.marketPrice,
+                        entry.subTypeName,
+                        entry.row.cardName,
+                        entry.row.setName,
+                        entry.source,
+                        (_a = entry.lowPrice) !== null && _a !== void 0 ? _a : null,
+                        (_b = entry.highPrice) !== null && _b !== void 0 ? _b : null,
+                        entry.marketPrice,
+                        null,
+                        uniqueIdentifier,
+                    ]);
+                    mappingStmt.run([
+                        entry.row.cardId,
+                        entry.productId,
+                        entry.row.cardName,
+                        entry.row.setId,
+                        entry.row.setName,
+                        entry.row.cardNumber || null,
+                        null,
+                        entry.variantKey,
+                        entry.row.tcgplayerProductId || null,
+                        uniqueIdentifier,
+                    ]);
+                }
+                priceStmt.finalize();
+                mappingStmt.finalize();
+                db.run('COMMIT', (commitErr) => {
+                    if (commitErr) {
+                        reject(commitErr);
+                        return;
+                    }
+                    resolve();
+                });
+            }
+            catch (err) {
+                priceStmt.finalize();
+                mappingStmt.finalize();
+                db.run('ROLLBACK', () => reject(err));
+            }
+        });
+    });
+    return {
+        pricesWritten: collected.length,
+        cardsProcessed,
+        cardsFailed,
+    };
+});
+const updatePriceData = () => __awaiter(void 0, void 0, void 0, function* () {
+    if (isUpdateRunning) {
+        return {
+            started: false,
+            skipped: true,
+            reason: 'Update already running',
+        };
+    }
+    isUpdateRunning = true;
+    const runDate = getRunDate();
+    let syncRunId = null;
+    try {
+        logger_1.logger.info('Starting market price data update...', { runDate, timezone: SYNC_TIMEZONE });
+        syncRunId = yield createSyncRun('price_update', runDate);
+        let totalPricesProcessed = 0;
+        let groupsProcessed = 0;
+        let groupsFailed = 0;
+        let usedFallback = false;
+        try {
+            const marketSnapshot = yield snapshotFromMarketProvider(runDate, tcgdexMarketProvider_1.tcgdexMarketProvider);
+            totalPricesProcessed = marketSnapshot.pricesWritten;
+            groupsProcessed = marketSnapshot.cardsProcessed;
+            groupsFailed = marketSnapshot.cardsFailed;
+            logger_1.logger.info('TCGdex snapshot complete', Object.assign({ runDate }, marketSnapshot));
+        }
+        catch (marketError) {
+            logger_1.logger.warn('TCGdex snapshot failed, using catalog fallback', {
+                error: marketError.message,
+            });
+            const fallbackRows = yield snapshotFromPokemonCatalog(runDate);
+            totalPricesProcessed = fallbackRows;
+            groupsProcessed = fallbackRows > 0 ? 1 : 0;
+            groupsFailed = 0;
+            usedFallback = true;
+        }
+        logger_1.logger.info('Creating daily market snapshot...');
+        yield createDailySnapshot(runDate);
+        logger_1.logger.info('Daily market snapshot created.');
+        const cloudBackup = yield (0, cloudBackupService_1.backupDatabaseToCloud)(runDate);
+        logger_1.logger.info('Cloud backup result', cloudBackup);
+        if (syncRunId) {
+            yield finalizeSyncRun(syncRunId, 'completed', {
+                totalPricesProcessed,
+                groupsProcessed,
+                groupsFailed,
+                message: usedFallback
+                    ? `fallback_source=catalog_cards; ${cloudBackup.message}`
+                    : cloudBackup.message,
+            });
+        }
+        return {
+            started: true,
+            skipped: false,
+            runDate,
+            totalPricesProcessed,
+            groupsProcessed,
+            groupsFailed,
+            cloudBackup,
+        };
     }
     catch (error) {
-        console.error('An error occurred during the price data update process:', error);
+        logger_1.logger.error('An error occurred during the price data update process', {
+            error: error.message,
+        });
+        if (syncRunId) {
+            yield finalizeSyncRun(syncRunId, 'failed', {
+                message: error.message,
+            }).catch((finalizeErr) => {
+                logger_1.logger.error('Failed to finalize sync run', { error: finalizeErr.message });
+            });
+        }
+        return {
+            started: true,
+            skipped: false,
+            runDate,
+            error: error.message,
+        };
+    }
+    finally {
+        isUpdateRunning = false;
     }
 });
 exports.updatePriceData = updatePriceData;

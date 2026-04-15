@@ -1,5 +1,6 @@
 import { pokemonApiClient, PokemonApiSet } from './pokemonApiClient';
 import { logger } from '../utils/logger';
+import { getDb } from '../db/database';
 
 /**
  * Simple, dynamic set code service using Pokemon TCG API
@@ -28,8 +29,11 @@ export class SetCodeService {
 
     logger.info('Starting SetCodeService initialization...');
     this.initializationPromise = this.loadSets();
-    await this.initializationPromise;
-    this.initializationPromise = null; // Reset for future re-initializations
+    try {
+      await this.initializationPromise;
+    } finally {
+      this.initializationPromise = null; // Always reset, even on failure
+    }
   }
 
   /**
@@ -46,49 +50,7 @@ export class SetCodeService {
       }
 
       this.dynamicSetMap.clear();
-
-      for (const set of allSets) {
-        if (!set.id || !set.name) {
-          logger.warn(`Skipping invalid set: ${JSON.stringify(set)}`);
-          continue;
-        }
-
-        // Map by normalized set name (multiple variations)
-        const normalizedName = set.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-        this.dynamicSetMap.set(normalizedName, set.id);
-        
-        // Also map without common words
-        const nameWithoutCommon = normalizedName
-          .replace(/^pokemon/, '')
-          .replace(/pokemon$/, '')
-          .replace(/^tcg/, '')
-          .replace(/tcg$/, '')
-          .replace(/^set/, '')
-          .replace(/set$/, '');
-        if (nameWithoutCommon && nameWithoutCommon !== normalizedName) {
-          this.dynamicSetMap.set(nameWithoutCommon, set.id);
-        }
-
-        // Map by PTCGO code if available
-        if (set.ptcgoCode) {
-          this.dynamicSetMap.set(set.ptcgoCode.toLowerCase(), set.id);
-          // Also normalize PTCGO code
-          this.dynamicSetMap.set(set.ptcgoCode.toLowerCase().replace(/[^a-z0-9]/g, ''), set.id);
-        }
-
-        // Map by set ID itself (normalized and as-is)
-        const normalizedId = set.id.toLowerCase();
-        this.dynamicSetMap.set(normalizedId, set.id);
-        this.dynamicSetMap.set(normalizedId.replace(/[^a-z0-9]/g, ''), set.id);
-
-        // Map by series + name combination
-        if (set.series) {
-          const seriesNormalized = set.series.toLowerCase().replace(/[^a-z0-9]/g, '');
-          const nameNormalized = set.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-          this.dynamicSetMap.set(seriesNormalized + nameNormalized, set.id);
-          this.dynamicSetMap.set(nameNormalized + seriesNormalized, set.id);
-        }
-      }
+      allSets.forEach((set) => this.addSetMappings(set));
 
       this.initialized = true;
       this.lastRefresh = Date.now();
@@ -98,14 +60,105 @@ export class SetCodeService {
       const sampleMappings = Array.from(this.dynamicSetMap.entries()).slice(0, 10);
       logger.info(`Sample mappings: ${JSON.stringify(sampleMappings)}`);
     } catch (error) {
-      logger.error('❌ CRITICAL: Failed to load sets from Pokemon TCG API', { 
+      logger.error('❌ Failed to load sets from Pokemon TCG API', { 
         error: (error as Error).message,
         stack: (error as Error).stack
       });
+      const localFallbackCount = await this.loadSetsFromLocalCatalog();
+      if (localFallbackCount > 0) {
+        logger.warn(
+          `⚠️ Using local set mapping fallback with ${localFallbackCount} sets; API unavailable.`
+        );
+        return;
+      }
+
       // Don't mark as initialized on error - allow retry
       this.initialized = false;
       throw error; // Re-throw to allow caller to handle
     }
+  }
+
+  private addSetMappings(set: PokemonApiSet): void {
+    if (!set.id || !set.name) {
+      logger.warn(`Skipping invalid set: ${JSON.stringify(set)}`);
+      return;
+    }
+
+    // Map by normalized set name (multiple variations)
+    const normalizedName = set.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    this.dynamicSetMap.set(normalizedName, set.id);
+
+    // Also map without common words
+    const nameWithoutCommon = normalizedName
+      .replace(/^pokemon/, '')
+      .replace(/pokemon$/, '')
+      .replace(/^tcg/, '')
+      .replace(/tcg$/, '')
+      .replace(/^set/, '')
+      .replace(/set$/, '');
+    if (nameWithoutCommon && nameWithoutCommon !== normalizedName) {
+      this.dynamicSetMap.set(nameWithoutCommon, set.id);
+    }
+
+    // Map by PTCGO code if available
+    if (set.ptcgoCode) {
+      this.dynamicSetMap.set(set.ptcgoCode.toLowerCase(), set.id);
+      this.dynamicSetMap.set(set.ptcgoCode.toLowerCase().replace(/[^a-z0-9]/g, ''), set.id);
+    }
+
+    // Map by set ID itself (normalized and as-is)
+    const normalizedId = set.id.toLowerCase();
+    this.dynamicSetMap.set(normalizedId, set.id);
+    this.dynamicSetMap.set(normalizedId.replace(/[^a-z0-9]/g, ''), set.id);
+
+    // Map by series + name combination
+    if (set.series) {
+      const seriesNormalized = set.series.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const nameNormalized = set.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+      this.dynamicSetMap.set(seriesNormalized + nameNormalized, set.id);
+      this.dynamicSetMap.set(nameNormalized + seriesNormalized, set.id);
+    }
+  }
+
+  private async loadSetsFromLocalCatalog(): Promise<number> {
+    const db = getDb();
+    const localSets = await new Promise<Array<{ setId: string; setName: string }>>((resolve, reject) => {
+      db.all(
+        `SELECT DISTINCT setId, setName
+         FROM catalog_cards
+         WHERE setId IS NOT NULL AND setId <> ''
+           AND setName IS NOT NULL AND setName <> ''
+         UNION
+         SELECT DISTINCT setId, setName
+         FROM card_mappings
+         WHERE setId IS NOT NULL AND setId <> ''
+           AND setName IS NOT NULL AND setName <> ''`,
+        [],
+        (err, rows: any[]) => {
+          if (err) reject(err);
+          else resolve((rows || []) as Array<{ setId: string; setName: string }>);
+        }
+      );
+    }).catch((err) => {
+      logger.error('Failed to load local set mappings', { error: (err as Error).message });
+      return [];
+    });
+
+    if (localSets.length === 0) {
+      return 0;
+    }
+
+    this.dynamicSetMap.clear();
+    localSets.forEach((entry) => {
+      this.addSetMappings({
+        id: entry.setId,
+        name: entry.setName,
+      });
+    });
+
+    this.initialized = true;
+    this.lastRefresh = Date.now();
+    return localSets.length;
   }
 
   /**

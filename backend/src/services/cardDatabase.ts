@@ -56,6 +56,9 @@ export const getLocalCardsForQuery = async (query: string, setId?: string, limit
 };
 
 export const mapLocalRowsToPokemonCards = async (rows: any[]) => {
+  const buildFallbackImage = (cardName: string, setName: string) =>
+    `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='245' height='342' viewBox='0 0 245 342'%3E%3Crect width='245' height='342' fill='%23f1f5f9' rx='8'/%3E%3Ctext x='50%25' y='46%25' font-family='Inter,sans-serif' font-size='12' fill='%2364748b' text-anchor='middle'%3E${encodeURIComponent(cardName || 'Pokemon Card')}%3C/text%3E%3Ctext x='50%25' y='54%25' font-family='Inter,sans-serif' font-size='10' fill='%2394a3b8' text-anchor='middle'%3E${encodeURIComponent(setName || 'Unknown Set')}%3C/text%3E%3C/svg%3E`;
+
   return await Promise.all(rows.map(async row => {
     // PRIORITY ORDER for images:
     // 1. Stored images from database (most reliable)
@@ -79,9 +82,12 @@ export const mapLocalRowsToPokemonCards = async (rows: any[]) => {
         images = deterministicImages;
         imageSource = 'deterministic';
       } else {
-        // No image available - return undefined
-        images = undefined;
-        imageSource = undefined;
+        const fallbackImage = buildFallbackImage(row.cardName, row.setName);
+        images = {
+          small: fallbackImage,
+          large: fallbackImage
+        };
+        imageSource = 'fallback';
       }
     }
 

@@ -9,17 +9,18 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateRollingAveragesWithIdentifier = exports.updatePriceHistoryWithIdentifier = exports.getCardPriceHistory = exports.findCardByDetails = exports.findCardByIdentifier = exports.storeCardMapping = exports.generateUniqueIdentifier = void 0;
+exports.updateRollingAveragesWithIdentifier = exports.updatePriceHistoryWithIdentifier = exports.getCardPriceHistoryForProduct = exports.getCardPriceHistory = exports.findExactCardByDetails = exports.findCardByDetails = exports.findCardByIdentifier = exports.storeCardMapping = exports.generateUniqueIdentifier = void 0;
 const database_1 = require("../db/database");
 /**
  * Generates a unique identifier for a card based on its properties
  * Format: setId|cardNumber|cardName (normalized)
  */
-const generateUniqueIdentifier = (setId, cardNumber, cardName) => {
+const generateUniqueIdentifier = (setId, cardNumber, cardName, variantKey = 'normal') => {
     const normalizedName = cardName.toLowerCase().replace(/[^a-z0-9]/g, '');
     const normalizedSetId = setId.toLowerCase().replace(/[^a-z0-9]/g, '');
     const normalizedCardNumber = cardNumber ? cardNumber.replace(/[^a-z0-9]/g, '') : '';
-    return `${normalizedSetId}|${normalizedCardNumber}|${normalizedName}`;
+    const normalizedVariantKey = variantKey.toLowerCase().replace(/[^a-z0-9]/g, '') || 'normal';
+    return `${normalizedSetId}|${normalizedCardNumber}|${normalizedName}|${normalizedVariantKey}`;
 };
 exports.generateUniqueIdentifier = generateUniqueIdentifier;
 /**
@@ -27,12 +28,12 @@ exports.generateUniqueIdentifier = generateUniqueIdentifier;
  */
 const storeCardMapping = (cardData) => __awaiter(void 0, void 0, void 0, function* () {
     const db = (0, database_1.getDb)();
-    const uniqueIdentifier = (0, exports.generateUniqueIdentifier)(cardData.setId, cardData.cardNumber, cardData.cardName);
+    const uniqueIdentifier = (0, exports.generateUniqueIdentifier)(cardData.setId, cardData.cardNumber, cardData.cardName, cardData.variantKey || 'normal');
     return new Promise((resolve, reject) => {
         const sql = `
       INSERT OR REPLACE INTO card_mappings 
-      (cardId, productId, cardName, setId, setName, cardNumber, rarity, tcgplayerProductId, uniqueIdentifier, updatedAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      (cardId, productId, cardName, setId, setName, cardNumber, rarity, variantKey, tcgplayerProductId, uniqueIdentifier, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     `;
         db.run(sql, [
             cardData.cardId,
@@ -42,6 +43,7 @@ const storeCardMapping = (cardData) => __awaiter(void 0, void 0, void 0, functio
             cardData.setName,
             cardData.cardNumber || null,
             cardData.rarity || null,
+            cardData.variantKey || 'normal',
             cardData.tcgplayerProductId || null,
             uniqueIdentifier
         ], function (err) {
@@ -75,6 +77,7 @@ const findCardByIdentifier = (uniqueIdentifier) => __awaiter(void 0, void 0, voi
                     setName: row.setName,
                     cardNumber: row.cardNumber,
                     rarity: row.rarity,
+                    variantKey: row.variantKey || 'normal',
                     tcgplayerProductId: row.tcgplayerProductId,
                     uniqueIdentifier: row.uniqueIdentifier
                 });
@@ -89,13 +92,46 @@ exports.findCardByIdentifier = findCardByIdentifier;
 /**
  * Finds card mapping by card name, set, and optional card number
  */
-const findCardByDetails = (cardName, setId, cardNumber, rarity, productId) => __awaiter(void 0, void 0, void 0, function* () {
+const findCardByDetails = (cardName, setId, cardNumber, rarity, variantKey, productId) => __awaiter(void 0, void 0, void 0, function* () {
     const db = (0, database_1.getDb)();
+    const normalizedVariantKey = variantKey
+        ? variantKey.toLowerCase().replace(/[^a-z0-9]/g, '')
+        : null;
     return new Promise((resolve, reject) => {
         // Priority 1: Match by tcgplayerProductId if available
         if (productId) {
-            const sql = 'SELECT * FROM card_mappings WHERE tcgplayerProductId = ? LIMIT 1';
-            db.get(sql, [productId], (err, row) => {
+            const sql = `
+        SELECT *
+        FROM card_mappings
+        WHERE tcgplayerProductId = ?
+        ORDER BY
+          CASE
+            WHEN ? IS NOT NULL AND REPLACE(LOWER(COALESCE(variantKey, 'normal')), ' ', '') = ? THEN 0
+            ELSE 1
+          END,
+          CASE
+            WHEN ? IS NOT NULL AND REPLACE(LOWER(COALESCE(cardNumber, '')), '-', '') = ? THEN 0
+            ELSE 1
+          END,
+          CASE
+            WHEN REPLACE(LOWER(COALESCE(setId, '')), ' ', '') = ? THEN 0
+            ELSE 1
+          END,
+          updatedAt DESC
+        LIMIT 1
+      `;
+            const normalizedCardNumber = cardNumber
+                ? cardNumber.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
+                : null;
+            const normalizedSetId = setId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+            db.get(sql, [
+                productId,
+                normalizedVariantKey,
+                normalizedVariantKey,
+                normalizedCardNumber,
+                normalizedCardNumber,
+                normalizedSetId,
+            ], (err, row) => {
                 if (err)
                     return reject(err);
                 if (row)
@@ -158,7 +194,13 @@ const findCardByDetails = (cardName, setId, cardNumber, rarity, productId) => __
                         params.push(normalizedCardNumber.toLowerCase());
                     }
                     sql += ' WHERE ' + conditions.join(' AND ');
-                    sql += ' ORDER BY length(cardNumber) ASC, createdAt DESC LIMIT 1';
+                    if (normalizedVariantKey) {
+                        sql += " ORDER BY CASE WHEN REPLACE(LOWER(COALESCE(variantKey, 'normal')), ' ', '') = ? THEN 0 ELSE 1 END, length(cardNumber) ASC, createdAt DESC LIMIT 1";
+                        params.push(normalizedVariantKey);
+                    }
+                    else {
+                        sql += ' ORDER BY length(cardNumber) ASC, createdAt DESC LIMIT 1';
+                    }
                     db.get(sql, params, (err, row) => {
                         if (err)
                             rej(err);
@@ -190,7 +232,13 @@ const findCardByDetails = (cardName, setId, cardNumber, rarity, productId) => __
                         sql += " AND (REPLACE(LOWER(cardNumber), '-', '') = ? OR cardNumber IS NULL)";
                         params.push(normalizedCardNumber.toLowerCase());
                     }
-                    sql += ' ORDER BY length(cardNumber) ASC, createdAt DESC LIMIT 1';
+                    if (normalizedVariantKey) {
+                        sql += " ORDER BY CASE WHEN REPLACE(LOWER(COALESCE(variantKey, 'normal')), ' ', '') = ? THEN 0 ELSE 1 END, length(cardNumber) ASC, createdAt DESC LIMIT 1";
+                        params.push(normalizedVariantKey);
+                    }
+                    else {
+                        sql += ' ORDER BY length(cardNumber) ASC, createdAt DESC LIMIT 1';
+                    }
                     db.get(sql, params, (err, row) => {
                         if (err)
                             rej(err);
@@ -212,7 +260,13 @@ const findCardByDetails = (cardName, setId, cardNumber, rarity, productId) => __
                         sql += ' AND (setId = ? OR setName LIKE ?)';
                         params.push(setId, `%${setId}%`);
                     }
-                    sql += ' ORDER BY length(cardNumber) ASC, createdAt DESC LIMIT 1';
+                    if (normalizedVariantKey) {
+                        sql += " ORDER BY CASE WHEN REPLACE(LOWER(COALESCE(variantKey, 'normal')), ' ', '') = ? THEN 0 ELSE 1 END, length(cardNumber) ASC, createdAt DESC LIMIT 1";
+                        params.push(normalizedVariantKey);
+                    }
+                    else {
+                        sql += ' ORDER BY length(cardNumber) ASC, createdAt DESC LIMIT 1';
+                    }
                     db.get(sql, params, (err, row) => {
                         if (err)
                             rej(err);
@@ -225,19 +279,69 @@ const findCardByDetails = (cardName, setId, cardNumber, rarity, productId) => __
     });
 });
 exports.findCardByDetails = findCardByDetails;
+const findExactCardByDetails = (params) => __awaiter(void 0, void 0, void 0, function* () {
+    const db = (0, database_1.getDb)();
+    const normalizedVariantKey = (params.variantKey || 'normal')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '') || 'normal';
+    const normalizedSetId = params.setId.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const normalizedName = params.cardName.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const normalizedCardNumber = params.cardNumber
+        ? params.cardNumber.toLowerCase().replace(/[^a-z0-9]/g, '')
+        : null;
+    return new Promise((resolve, reject) => {
+        const sql = `
+      SELECT *
+      FROM card_mappings
+      WHERE
+        (? IS NULL OR cardId = ?)
+        AND (? IS NULL OR tcgplayerProductId = ?)
+        AND REPLACE(LOWER(setId), ' ', '') = ?
+        AND REPLACE(LOWER(cardName), ' ', '') = ?
+        AND REPLACE(LOWER(COALESCE(variantKey, 'normal')), ' ', '') = ?
+        AND (
+          ? IS NULL
+          OR REPLACE(LOWER(COALESCE(cardNumber, '')), '-', '') = ?
+        )
+      ORDER BY updatedAt DESC
+      LIMIT 1
+    `;
+        db.get(sql, [
+            params.cardId || null,
+            params.cardId || null,
+            params.productId || null,
+            params.productId || null,
+            normalizedSetId,
+            normalizedName,
+            normalizedVariantKey,
+            normalizedCardNumber,
+            normalizedCardNumber,
+        ], (err, row) => {
+            if (err) {
+                reject(err);
+            }
+            else {
+                resolve(row || null);
+            }
+        });
+    });
+});
+exports.findExactCardByDetails = findExactCardByDetails;
 /**
  * Gets all TCGCSV price history for a specific card using its unique identifier
  */
 const getCardPriceHistory = (uniqueIdentifier) => __awaiter(void 0, void 0, void 0, function* () {
     const db = (0, database_1.getDb)();
+    const parts = uniqueIdentifier.split('|');
+    const legacyIdentifier = parts.length > 3 ? parts.slice(0, 3).join('|') : uniqueIdentifier;
     return new Promise((resolve, reject) => {
         const sql = `
       SELECT * FROM price_history 
-      WHERE uniqueIdentifier = ? 
-      AND source = 'tcgcsv'
+      WHERE (uniqueIdentifier = ? OR uniqueIdentifier = ?)
+      AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
       ORDER BY date ASC
     `;
-        db.all(sql, [uniqueIdentifier], (err, rows) => {
+        db.all(sql, [uniqueIdentifier, legacyIdentifier], (err, rows) => {
             if (err) {
                 reject(err);
             }
@@ -248,6 +352,34 @@ const getCardPriceHistory = (uniqueIdentifier) => __awaiter(void 0, void 0, void
     });
 });
 exports.getCardPriceHistory = getCardPriceHistory;
+const getCardPriceHistoryForProduct = (productId, variantKey) => __awaiter(void 0, void 0, void 0, function* () {
+    const db = (0, database_1.getDb)();
+    const normalizedVariantKey = variantKey
+        ? variantKey.toLowerCase().replace(/[^a-z0-9]/g, '')
+        : null;
+    return new Promise((resolve, reject) => {
+        let sql = `
+      SELECT * FROM price_history
+      WHERE productId = ?
+      AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
+    `;
+        const params = [productId];
+        if (normalizedVariantKey) {
+            sql += ` AND REPLACE(LOWER(COALESCE(subTypeName, 'normal')), ' ', '') = ?`;
+            params.push(normalizedVariantKey);
+        }
+        sql += ' ORDER BY date ASC';
+        db.all(sql, params, (err, rows) => {
+            if (err) {
+                reject(err);
+            }
+            else {
+                resolve(rows || []);
+            }
+        });
+    });
+});
+exports.getCardPriceHistoryForProduct = getCardPriceHistoryForProduct;
 /**
  * Updates price history with unique identifier
  */
