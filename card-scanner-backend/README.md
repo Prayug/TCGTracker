@@ -21,7 +21,7 @@ pip install -r requirements.txt
 python app.py
 ```
 
-The server will run on `http://localhost:5000`
+The server will run on `http://localhost:5001` (override with `PORT`).
 
 ## API Endpoints
 
