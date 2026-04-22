@@ -14,6 +14,8 @@ const DB_SOURCE = (() => {
   return resolvedPath;
 })();
 
+export const getDatabasePath = () => DB_SOURCE;
+
 let db: sqlite3.Database;
 
 export const getDb = () => {
@@ -45,6 +47,7 @@ export const initializeDatabase = () => {
       setName TEXT NOT NULL,
       cardNumber TEXT,
       rarity TEXT,
+      variantKey TEXT DEFAULT 'normal',
       tcgplayerProductId TEXT,
       uniqueIdentifier TEXT NOT NULL UNIQUE,
       createdAt TEXT DEFAULT (datetime('now')),
@@ -101,13 +104,58 @@ export const initializeDatabase = () => {
     )
   `;
 
+  const createSyncRunsTable = `
+    CREATE TABLE IF NOT EXISTS sync_runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      runType TEXT NOT NULL,
+      runDate TEXT,
+      status TEXT NOT NULL,
+      totalPricesProcessed INTEGER DEFAULT 0,
+      groupsProcessed INTEGER DEFAULT 0,
+      groupsFailed INTEGER DEFAULT 0,
+      message TEXT,
+      startedAt TEXT DEFAULT (datetime('now')),
+      completedAt TEXT
+    )
+  `;
+
+  const createCatalogCardsTable = `
+    CREATE TABLE IF NOT EXISTS catalog_cards (
+      cardId TEXT PRIMARY KEY,
+      cardName TEXT NOT NULL,
+      setId TEXT NOT NULL,
+      setName TEXT NOT NULL,
+      setReleaseDate TEXT,
+      cardNumber TEXT,
+      rarity TEXT,
+      types TEXT,
+      artist TEXT,
+      imageSmall TEXT,
+      imageLarge TEXT,
+      tcgplayerProductId TEXT,
+      tcgplayerPrices TEXT,
+      syncedAt TEXT DEFAULT (datetime('now'))
+    )
+  `;
+
+  const createPopulationCacheTable = `
+    CREATE TABLE IF NOT EXISTS population_cache (
+      cacheKey TEXT PRIMARY KEY,
+      payload TEXT NOT NULL,
+      fetchedAt INTEGER NOT NULL
+    )
+  `;
+
   // Set mappings are now loaded dynamically from Pokemon TCG API (no database table needed)
 
   const tables = [
     createCardMappingsTable,
     createPriceHistoryTable,
     createSnapshotsTable,
-    createPokemonCacheTable
+    createPokemonCacheTable,
+    createSyncRunsTable,
+    createCatalogCardsTable,
+    createPopulationCacheTable
   ];
 
   // Create tables sequentially to avoid conflicts
@@ -144,7 +192,14 @@ export const initializeDatabase = () => {
       'CREATE INDEX IF NOT EXISTS idx_price_history_identifier ON price_history(uniqueIdentifier)',
       'CREATE INDEX IF NOT EXISTS idx_card_mappings_identifier ON card_mappings(uniqueIdentifier)',
       'CREATE INDEX IF NOT EXISTS idx_card_mappings_card_set ON card_mappings(cardName, setId, cardNumber)',
-      'CREATE INDEX IF NOT EXISTS idx_pokemon_cache_fetched_at ON pokemon_cache(fetchedAt)'
+      'CREATE INDEX IF NOT EXISTS idx_card_mappings_variant ON card_mappings(variantKey)',
+      'CREATE INDEX IF NOT EXISTS idx_pokemon_cache_fetched_at ON pokemon_cache(fetchedAt)',
+      'CREATE INDEX IF NOT EXISTS idx_catalog_cards_name ON catalog_cards(cardName)',
+      'CREATE INDEX IF NOT EXISTS idx_catalog_cards_set ON catalog_cards(setId, setName)',
+      'CREATE INDEX IF NOT EXISTS idx_catalog_cards_tcgplayer_product ON catalog_cards(tcgplayerProductId)',
+      'CREATE INDEX IF NOT EXISTS idx_sync_runs_type_date ON sync_runs(runType, runDate)',
+      'CREATE INDEX IF NOT EXISTS idx_sync_runs_status ON sync_runs(status)',
+      'CREATE INDEX IF NOT EXISTS idx_population_cache_fetched_at ON population_cache(fetchedAt)'
     ];
 
     indexes.forEach((indexSql, index) => {

@@ -16,7 +16,7 @@ const router = (0, express_1.Router)();
 const clampNumber = (value, min, max) => Math.min(Math.max(value, min), max);
 // Get price history for a specific card using card details
 router.get('/card', (req, res) => {
-    const { cardName, setId, cardNumber } = req.query;
+    const { cardName, setId, cardNumber, variant = 'normal' } = req.query;
     if (!cardName || !setId) {
         res.status(400).json({
             error: 'cardName and setId are required query parameters.'
@@ -26,14 +26,15 @@ router.get('/card', (req, res) => {
     const safeCardName = String(cardName).trim();
     const safeSetId = String(setId).trim();
     const safeCardNumber = cardNumber ? String(cardNumber).trim() : undefined;
+    const safeVariant = String(variant).trim();
     // Generate unique identifier
-    const uniqueIdentifier = (0, cardIdentifier_1.generateUniqueIdentifier)(safeSetId, safeCardNumber, safeCardName);
+    const uniqueIdentifier = (0, cardIdentifier_1.generateUniqueIdentifier)(safeSetId, safeCardNumber, safeCardName, safeVariant);
     // Get price history using the unique identifier
     (0, cardIdentifier_1.getCardPriceHistory)(uniqueIdentifier)
         .then((priceHistory) => {
         if (priceHistory.length === 0) {
             res.status(404).json({
-                message: 'No TCGCSV price history found for the specified card',
+                message: 'No price history found for the specified card',
                 uniqueIdentifier
             });
             return;
@@ -43,7 +44,8 @@ router.get('/card', (req, res) => {
             cardDetails: {
                 cardName: safeCardName,
                 setId: safeSetId,
-                cardNumber: safeCardNumber
+                cardNumber: safeCardNumber,
+                variant: safeVariant,
             },
             priceHistory
         });
@@ -57,7 +59,7 @@ router.get('/card', (req, res) => {
 });
 // Enhanced match endpoint with better card identification
 router.get('/match', (req, res) => {
-    const { cardName, setName, cardNumber, setId } = req.query;
+    const { cardName, setName, cardNumber, setId, variant = 'normal', productId } = req.query;
     const db = (0, database_1.getDb)();
     if (!cardName || (!setName && !setId)) {
         res.status(400).json({
@@ -69,18 +71,24 @@ router.get('/match', (req, res) => {
     const safeSetName = setName ? String(setName).trim() : '';
     const safeSetId = setId ? String(setId).trim() : safeSetName.toLowerCase().replace(/[^a-z0-9]/g, '');
     const safeCardNumber = cardNumber ? String(cardNumber).trim() : undefined;
+    const safeVariant = String(variant).trim();
+    const safeProductId = productId ? String(productId).trim() : undefined;
     // First try to find using our card mappings
-    (0, cardIdentifier_1.findCardByDetails)(safeCardName, safeSetId, safeCardNumber)
+    (0, cardIdentifier_1.findCardByDetails)(safeCardName, safeSetId, safeCardNumber, undefined, safeVariant, safeProductId)
         .then(mapping => {
         if (mapping) {
-            // Found in our mappings, get the price history
-            return (0, cardIdentifier_1.getCardPriceHistory)(mapping.uniqueIdentifier)
+            // Found in our mappings, fetch history for exact product first.
+            const historyPromise = mapping.productId
+                ? (0, cardIdentifier_1.getCardPriceHistoryForProduct)(mapping.productId, safeVariant)
+                : (0, cardIdentifier_1.getCardPriceHistory)(mapping.uniqueIdentifier);
+            return historyPromise
                 .then((priceHistory) => ({
                 matchedProduct: {
                     productId: mapping.productId,
                     productName: mapping.cardName,
                     groupName: mapping.setName,
-                    uniqueIdentifier: mapping.uniqueIdentifier
+                    uniqueIdentifier: mapping.uniqueIdentifier,
+                    variant: mapping.variantKey || safeVariant,
                 },
                 priceHistory
             }));
@@ -102,18 +110,65 @@ router.get('/match', (req, res) => {
 });
 // New endpoint specifically for getting price history by card details
 router.get('/history', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { cardName, setName, cardNumber, setId, rarity, productId } = req.query;
+    const { cardId, cardName, setName, cardNumber, setId, rarity, productId, variant = 'normal' } = req.query;
     if (!cardName || !setName) {
         return res.status(400).json({ error: 'cardName and setName are required.' });
     }
     try {
-        const card = yield (0, cardIdentifier_1.findCardByDetails)(String(cardName), String(setId || setName), String(cardNumber || ''), rarity ? String(rarity) : undefined, productId ? String(productId) : undefined);
-        if (card) {
-            const priceHistory = yield (0, cardIdentifier_1.getCardPriceHistory)(card.uniqueIdentifier);
-            return res.json({ priceHistory });
+        const safeCardName = String(cardName);
+        const safeSetName = String(setName);
+        const safeSetId = String(setId || setName);
+        const safeCardNumber = cardNumber ? String(cardNumber) : '';
+        const safeVariant = String(variant || 'normal');
+        const safeCardId = cardId ? String(cardId) : undefined;
+        const exactCard = yield (0, cardIdentifier_1.findExactCardByDetails)({
+            cardId: safeCardId,
+            productId: productId ? String(productId) : undefined,
+            cardName: safeCardName,
+            setId: safeSetId,
+            cardNumber: safeCardNumber || undefined,
+            variantKey: safeVariant,
+        });
+        if (exactCard) {
+            const priceHistory = exactCard.productId
+                ? yield (0, cardIdentifier_1.getCardPriceHistoryForProduct)(exactCard.productId, safeVariant)
+                : yield (0, cardIdentifier_1.getCardPriceHistory)(exactCard.uniqueIdentifier);
+            return res.json({
+                priceHistory,
+                productId: exactCard.productId,
+                uniqueIdentifier: exactCard.uniqueIdentifier,
+                variant: exactCard.variantKey || safeVariant,
+            });
         }
-        // If not found, try a broader search or return 404
-        return res.status(404).json({ message: 'Price history not found for this card.' });
+        const card = yield (0, cardIdentifier_1.findCardByDetails)(safeCardName, safeSetId, safeCardNumber, rarity ? String(rarity) : undefined, safeVariant, productId ? String(productId) : undefined);
+        if (card) {
+            const priceHistory = card.productId
+                ? yield (0, cardIdentifier_1.getCardPriceHistoryForProduct)(card.productId, safeVariant)
+                : yield (0, cardIdentifier_1.getCardPriceHistory)(card.uniqueIdentifier);
+            if (priceHistory.length === 0) {
+                return res.status(404).json({
+                    message: 'No exact price history found for this card variant.',
+                    strictMatching: true,
+                });
+            }
+            return res.json({
+                priceHistory,
+                productId: card.productId,
+                uniqueIdentifier: card.uniqueIdentifier,
+                variant: card.variantKey || safeVariant,
+            });
+        }
+        return res.status(404).json({
+            message: 'No exact price history found for this card.',
+            strictMatching: true,
+            searched: {
+                cardName: safeCardName,
+                setName: safeSetName,
+                setId: safeSetId,
+                cardNumber: safeCardNumber || null,
+                variant: safeVariant,
+            },
+        });
     }
     catch (error) {
         console.error('Error fetching price history:', error);
@@ -132,7 +187,7 @@ const fallbackMatch = (cardName, setName, cardNumber, db) => {
       WHERE 
         (productName LIKE ? OR productName LIKE ?)
         AND groupName LIKE ?
-        AND source = 'tcgcsv'
+        AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
       GROUP BY productId, productName, groupName
       ORDER BY
         CASE WHEN groupName = ? THEN 0 ELSE 1 END,
@@ -160,13 +215,13 @@ const fallbackMatch = (cardName, setName, cardNumber, db) => {
             }
             if (!row) {
                 resolve({
-                    message: 'No matching TCGCSV product found for the given criteria.',
+                    message: 'No matching product found for the given criteria.',
                     searchCriteria: { cardName, setName, cardNumber }
                 });
                 return;
             }
             const matchedProduct = row;
-            const historySql = 'SELECT * FROM price_history WHERE productId = ? AND source = \'tcgcsv\' ORDER BY date ASC';
+            const historySql = 'SELECT * FROM price_history WHERE productId = ? AND source IN (\'tcgcsv\', \'tcgdex\', \'catalog_fallback\') ORDER BY date ASC';
             db.all(historySql, [matchedProduct.productId], (historyErr, rows) => {
                 if (historyErr) {
                     reject(historyErr);
@@ -189,7 +244,7 @@ router.get('/:productId', (req, res) => {
     const { productId } = req.params;
     const { days } = req.query;
     const db = (0, database_1.getDb)();
-    let sql = 'SELECT * FROM price_history WHERE productId = ? AND source = \'tcgcsv\'';
+    let sql = 'SELECT * FROM price_history WHERE productId = ? AND source IN (\'tcgcsv\', \'tcgdex\', \'catalog_fallback\')';
     const params = [productId];
     if (days) {
         sql += ' AND date >= date("now", "-' + parseInt(days) + ' days")';
@@ -361,7 +416,7 @@ router.get('/export/:productId', (req, res) => {
     const { productId } = req.params;
     const { format = 'json' } = req.query;
     const db = (0, database_1.getDb)();
-    const sql = 'SELECT * FROM price_history WHERE productId = ? AND source = \'tcgcsv\' ORDER BY date ASC';
+    const sql = 'SELECT * FROM price_history WHERE productId = ? AND source IN (\'tcgcsv\', \'tcgdex\', \'catalog_fallback\') ORDER BY date ASC';
     db.all(sql, [productId], (err, rows) => {
         if (err) {
             res.status(500).json({ error: err.message });

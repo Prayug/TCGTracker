@@ -299,6 +299,88 @@ export const migrations: Migration[] = [
       logger.info('Skipping rollback (SQLite limitation)');
     },
   },
+  {
+    id: 7,
+    name: 'add_variant_and_catalog_tables',
+    up: async (db: Database) => {
+      const alterStatements = [
+        `ALTER TABLE card_mappings ADD COLUMN variantKey TEXT DEFAULT 'normal'`,
+      ];
+
+      for (const statement of alterStatements) {
+        await new Promise<void>((resolve, reject) => {
+          db.run(statement, (err) => {
+            if (err && !err.message.includes('duplicate column')) {
+              reject(err);
+              return;
+            }
+            resolve();
+          });
+        });
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        db.run(
+          `CREATE TABLE IF NOT EXISTS catalog_cards (
+            cardId TEXT PRIMARY KEY,
+            cardName TEXT NOT NULL,
+            setId TEXT NOT NULL,
+            setName TEXT NOT NULL,
+            setReleaseDate TEXT,
+            cardNumber TEXT,
+            rarity TEXT,
+            types TEXT,
+            artist TEXT,
+            imageSmall TEXT,
+            imageLarge TEXT,
+            tcgplayerProductId TEXT,
+            tcgplayerPrices TEXT,
+            syncedAt TEXT DEFAULT (datetime('now'))
+          )`,
+          (err) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          }
+        );
+      });
+
+      const indexes = [
+        'CREATE INDEX IF NOT EXISTS idx_card_mappings_variant ON card_mappings(variantKey)',
+        'CREATE INDEX IF NOT EXISTS idx_catalog_cards_name ON catalog_cards(cardName)',
+        'CREATE INDEX IF NOT EXISTS idx_catalog_cards_set ON catalog_cards(setId, setName)',
+        'CREATE INDEX IF NOT EXISTS idx_catalog_cards_tcgplayer_product ON catalog_cards(tcgplayerProductId)',
+      ];
+
+      for (const indexSql of indexes) {
+        await new Promise<void>((resolve, reject) => {
+          db.run(indexSql, (err) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          });
+        });
+      }
+
+      logger.info('Added variant-aware mappings and catalog tables');
+    },
+    down: async (db: Database) => {
+      await new Promise<void>((resolve, reject) => {
+        db.run('DROP TABLE IF EXISTS catalog_cards', (err) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        });
+      });
+      logger.info('Rolled back catalog_cards table');
+    },
+  },
 ];
 
 // Run pending migrations
