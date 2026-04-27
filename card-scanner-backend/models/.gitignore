@@ -1,0 +1,5 @@
+# Keep ONNX + calibration for runtime; ignore training checkpoints & caches
+*.pt
+*.onnx.data
+__pycache__/
+bootstrap_summary.json
