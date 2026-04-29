@@ -22,8 +22,77 @@ import {
   getLocalCardsForQuery,
   mapLocalRowsToPokemonCards,
 } from '../services/cardDatabase';
+import { getPopulationCounts } from '../services/populationService';
 
 const router = Router();
+
+const parsePrices = (value?: string | null): Record<string, { market?: number }> | undefined => {
+  if (!value) {
+    return undefined;
+  }
+  try {
+    return JSON.parse(value);
+  } catch {
+    return undefined;
+  }
+};
+
+const extractMarketPriceFromVariants = (
+  prices?: Record<string, { market?: number }>
+): number | null => {
+  if (!prices) {
+    return null;
+  }
+
+  const preferredOrder = ['normal', 'holofoil', 'reverseHolofoil', '1stEditionHolofoil'];
+  for (const key of preferredOrder) {
+    const value = prices[key]?.market;
+    if (typeof value === 'number' && value > 0) {
+      return value;
+    }
+  }
+
+  for (const entry of Object.values(prices)) {
+    if (typeof entry?.market === 'number' && entry.market > 0) {
+      return entry.market;
+    }
+  }
+
+  return null;
+};
+
+const mapCatalogRowsToPokemonCards = (rows: any[]) =>
+  rows.map((row) => {
+    const parsedPrices = parsePrices(row.tcgplayerPrices);
+    const derivedMarketPrice =
+      typeof row.latestPrice === 'number' ? row.latestPrice : extractMarketPriceFromVariants(parsedPrices);
+
+    return {
+      id: row.cardId,
+      name: row.cardName,
+      number: row.cardNumber || '',
+      rarity: row.rarity || undefined,
+      artist: row.artist || undefined,
+      images: {
+        small: row.imageSmall || row.imageLarge || '',
+        large: row.imageLarge || row.imageSmall || '',
+      },
+      set: {
+        id: row.setId,
+        name: row.setName,
+        releaseDate: row.setReleaseDate || '2020-01-01',
+        total: 0,
+      },
+      tcgplayer: row.tcgplayerProductId
+        ? {
+            productId: row.tcgplayerProductId,
+            prices: parsedPrices,
+          }
+        : undefined,
+      marketPrice: typeof derivedMarketPrice === 'number' ? derivedMarketPrice : 0,
+      source: 'catalog_sync',
+    };
+  });
 
 /**
  * Search cards from local database
@@ -42,42 +111,44 @@ router.get('/search', async (req, res) => {
     const db = getDb();
     const searchLimit = Math.min(parseInt(limit as string) || 100, 250);
 
-    const imageColumns = await getImageColumnSelectFragment();
-
     let sql = `
-      SELECT DISTINCT
-        cm.cardId,
-        cm.cardName,
-        cm.setId,
-        cm.setName,
-        cm.cardNumber,
-        cm.rarity,
-        cm.tcgplayerProductId,
-        cm.uniqueIdentifier,
-        ${imageColumns}
-        ph.marketPrice as latestPrice,
-        ph.date as priceDate
-      FROM card_mappings cm
+      SELECT
+        cc.cardId,
+        cc.cardName,
+        cc.setId,
+        cc.setName,
+        cc.setReleaseDate,
+        cc.cardNumber,
+        cc.rarity,
+        cc.types,
+        cc.artist,
+        cc.imageSmall,
+        cc.imageLarge,
+        cc.tcgplayerProductId,
+        cc.tcgplayerPrices,
+        ph.marketPrice as latestPrice
+      FROM catalog_cards cc
       LEFT JOIN (
-        SELECT uniqueIdentifier, marketPrice, date
+        SELECT cm.cardId, ph.marketPrice
         FROM price_history
-        WHERE (uniqueIdentifier, date) IN (
-          SELECT uniqueIdentifier, MAX(date)
+        JOIN card_mappings cm ON cm.uniqueIdentifier = ph.uniqueIdentifier
+        WHERE (ph.productId, ph.date, ph.subTypeName, ph.source) IN (
+          SELECT productId, MAX(date), subTypeName, source
           FROM price_history
-          GROUP BY uniqueIdentifier
+          GROUP BY productId, subTypeName, source
         )
-      ) ph ON cm.uniqueIdentifier = ph.uniqueIdentifier
-      WHERE cm.cardName LIKE ?
+      ) ph ON cc.cardId = ph.cardId
+      WHERE cc.cardName LIKE ?
     `;
     
     const params: any[] = [`%${query}%`];
 
     if (setId && typeof setId === 'string') {
-      sql += ' AND (cm.setId = ? OR cm.setName LIKE ?)';
+      sql += ' AND (cc.setId = ? OR cc.setName LIKE ?)';
       params.push(setId, `%${setId}%`);
     }
 
-    sql += ` ORDER BY cm.cardName ASC LIMIT ?`;
+    sql += ` ORDER BY cc.cardName ASC LIMIT ?`;
     params.push(searchLimit);
 
     db.all(sql, params, async (err, rows: any[]) => {
@@ -89,8 +160,53 @@ router.get('/search', async (req, res) => {
         });
       }
 
-      // Transform to Pokemon TCG API compatible format using the helper function
-      const cards = await mapLocalRowsToPokemonCards(rows);
+      let cards: any[] = mapCatalogRowsToPokemonCards(rows);
+      if (cards.length === 0) {
+        const imageColumns = await getImageColumnSelectFragment();
+        const fallbackSql = `
+          SELECT DISTINCT
+            cm.cardId,
+            cm.cardName,
+            cm.setId,
+            cm.setName,
+            cm.cardNumber,
+            cm.rarity,
+            cm.tcgplayerProductId,
+            cm.uniqueIdentifier,
+            ${imageColumns}
+            ph.marketPrice as latestPrice,
+            ph.date as priceDate
+          FROM card_mappings cm
+          LEFT JOIN (
+            SELECT uniqueIdentifier, marketPrice, date
+            FROM price_history
+            WHERE (uniqueIdentifier, date) IN (
+              SELECT uniqueIdentifier, MAX(date)
+              FROM price_history
+              GROUP BY uniqueIdentifier
+            )
+          ) ph ON cm.uniqueIdentifier = ph.uniqueIdentifier
+          WHERE cm.cardName LIKE ?
+          ${setId && typeof setId === 'string' ? 'AND (cm.setId = ? OR cm.setName LIKE ?)' : ''}
+          ORDER BY cm.cardName ASC
+          LIMIT ?
+        `;
+        const fallbackParams: any[] = [`%${query}%`];
+        if (setId && typeof setId === 'string') {
+          fallbackParams.push(setId, `%${setId}%`);
+        }
+        fallbackParams.push(searchLimit);
+        const fallbackRows = await new Promise<any[]>((resolve, reject) => {
+          db.all(fallbackSql, fallbackParams, (fallbackErr, fallbackResult: any[]) => {
+            if (fallbackErr) {
+              reject(fallbackErr);
+            } else {
+              resolve(fallbackResult || []);
+            }
+          });
+        });
+        cards = await mapLocalRowsToPokemonCards(fallbackRows);
+      }
 
       console.log(`✅ Found ${cards.length} cards matching "${query}" from local database`);
 
@@ -121,10 +237,11 @@ router.get('/sets', async (req, res) => {
       SELECT DISTINCT 
         setId as id,
         setName as name,
+        MAX(setReleaseDate) as releaseDate,
         COUNT(*) as total
-      FROM card_mappings
+      FROM catalog_cards
       GROUP BY setId, setName
-      ORDER BY setName ASC
+      ORDER BY date(setReleaseDate) DESC, setName ASC
     `;
 
     db.all(sql, [], (err, rows: any[]) => {
@@ -136,21 +253,50 @@ router.get('/sets', async (req, res) => {
         });
       }
 
-      const sets = rows.map(row => ({
-        id: row.id,
-        name: row.name,
-        releaseDate: '2020-01-01',
-        total: row.total,
-        images: {
-          symbol: '',
-          logo: ''
-        }
-      }));
+      const mapRowsToSets = (inputRows: any[]) =>
+        inputRows.map(row => ({
+          id: row.id,
+          name: row.name,
+          releaseDate: row.releaseDate || '2020-01-01',
+          total: row.total,
+          images: {
+            symbol: '',
+            logo: ''
+          }
+        }));
 
-      res.json({
-        data: sets,
-        count: sets.length,
-        source: 'local_database'
+      if (rows.length > 0) {
+        const sets = mapRowsToSets(rows);
+        return res.json({
+          data: sets,
+          count: sets.length,
+          source: 'catalog_sync'
+        });
+      }
+
+      const fallbackSql = `
+        SELECT DISTINCT
+          setId as id,
+          setName as name,
+          COUNT(*) as total
+        FROM card_mappings
+        GROUP BY setId, setName
+        ORDER BY setName ASC
+      `;
+      db.all(fallbackSql, [], (fallbackErr, fallbackRows: any[]) => {
+        if (fallbackErr) {
+          return res.status(500).json({
+            error: 'Database error',
+            message: fallbackErr.message
+          });
+        }
+
+        const fallbackSets = mapRowsToSets(fallbackRows);
+        return res.json({
+          data: fallbackSets,
+          count: fallbackSets.length,
+          source: 'local_database_fallback'
+        });
       });
     });
 
@@ -200,6 +346,33 @@ router.get('/stats', async (req, res) => {
     res.status(500).json({ 
       error: 'Internal server error',
       message: (error as Error).message 
+    });
+  }
+});
+
+router.get('/population', async (req, res) => {
+  try {
+    const { cardId, cardName, setId, setName, cardNumber, variant } = req.query;
+    if (!cardName || typeof cardName !== 'string') {
+      return res.status(400).json({
+        error: 'cardName query parameter is required',
+      });
+    }
+
+    const result = await getPopulationCounts({
+      cardId: typeof cardId === 'string' ? cardId.trim() : undefined,
+      cardName: cardName.trim(),
+      setId: typeof setId === 'string' ? setId.trim() : undefined,
+      setName: typeof setName === 'string' ? setName.trim() : undefined,
+      cardNumber: typeof cardNumber === 'string' ? cardNumber.trim() : undefined,
+      variant: typeof variant === 'string' ? variant.trim() : undefined,
+    });
+
+    return res.json(result);
+  } catch (error) {
+    return res.status(500).json({
+      error: 'Failed to fetch population counts',
+      message: (error as Error).message,
     });
   }
 });
@@ -284,7 +457,7 @@ router.get('/pool', async (req, res) => {
         JOIN (
           SELECT uniqueIdentifier, MAX(date) AS maxDate
           FROM price_history
-          WHERE source = 'tcgcsv'
+          WHERE source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
           GROUP BY uniqueIdentifier
         ) latest ON ph1.uniqueIdentifier = latest.uniqueIdentifier AND ph1.date = latest.maxDate
         WHERE ph1.marketPrice IS NOT NULL

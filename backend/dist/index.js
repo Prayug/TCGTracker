@@ -21,6 +21,8 @@ const enhancedPacks_1 = __importDefault(require("./routes/enhancedPacks"));
 const database_1 = require("./db/database");
 const migrations_1 = require("./db/migrations");
 const dataFetcher_1 = require("./services/dataFetcher");
+const cloudBackupService_1 = require("./services/cloudBackupService");
+const catalogSync_1 = require("./services/catalogSync");
 const env_1 = require("./config/env");
 const swagger_1 = require("./config/swagger");
 const security_1 = require("./middleware/security");
@@ -96,8 +98,8 @@ function setupRoutes(authService, alertService, portfolioService) {
     node_cron_1.default.schedule('0 2 * * *', () => __awaiter(this, void 0, void 0, function* () {
         logger_1.logger.info('Running scheduled daily price data update...');
         try {
-            yield (0, dataFetcher_1.updatePriceData)();
-            logger_1.logger.info('Daily price data update completed');
+            const result = yield (0, dataFetcher_1.updatePriceData)();
+            logger_1.logger.info('Daily price data update completed', result);
         }
         catch (error) {
             logger_1.logger.error('Failed to update price data', { error: error.message });
@@ -105,12 +107,34 @@ function setupRoutes(authService, alertService, portfolioService) {
     }), {
         timezone: "America/New_York"
     });
+    // Sync card catalog metadata shortly before price sync
+    node_cron_1.default.schedule('30 1 * * *', () => __awaiter(this, void 0, void 0, function* () {
+        logger_1.logger.info('Running scheduled catalog sync...');
+        try {
+            const result = yield (0, catalogSync_1.syncCatalogData)();
+            logger_1.logger.info('Catalog sync completed', result);
+        }
+        catch (error) {
+            logger_1.logger.error('Failed to sync card catalog', { error: error.message });
+        }
+    }), {
+        timezone: 'America/New_York',
+    });
     // Run initial data update on startup (after a short delay)
     if (env_1.env.isProduction) {
         setTimeout(() => __awaiter(this, void 0, void 0, function* () {
+            logger_1.logger.info('Running initial catalog sync...');
+            try {
+                const catalogResult = yield (0, catalogSync_1.syncCatalogData)();
+                logger_1.logger.info('Initial catalog sync completed', catalogResult);
+            }
+            catch (error) {
+                logger_1.logger.error('Failed initial catalog sync', { error: error.message });
+            }
             logger_1.logger.info('Running initial price data update...');
             try {
-                yield (0, dataFetcher_1.updatePriceData)();
+                const updateResult = yield (0, dataFetcher_1.updatePriceData)();
+                logger_1.logger.info('Initial price update completed', updateResult);
             }
             catch (error) {
                 logger_1.logger.error('Failed initial price update', { error: error.message });
@@ -128,7 +152,9 @@ function setupRoutes(authService, alertService, portfolioService) {
     app.post('/api/update', (req, res) => __awaiter(this, void 0, void 0, function* () {
         try {
             logger_1.logger.info('Manual price data update requested');
-            (0, dataFetcher_1.updatePriceData)(); // Don't await - let it run in background
+            (0, dataFetcher_1.updatePriceData)()
+                .then((result) => logger_1.logger.info('Manual update finished', result))
+                .catch((error) => logger_1.logger.error('Manual update failed', { error: error.message }));
             res.status(202).json({
                 success: true,
                 message: 'Data update process started in background.'
@@ -139,6 +165,57 @@ function setupRoutes(authService, alertService, portfolioService) {
             res.status(500).json({
                 success: false,
                 error: 'Failed to start update process'
+            });
+        }
+    }));
+    app.post('/api/cloud-backup', (_req, res) => __awaiter(this, void 0, void 0, function* () {
+        try {
+            const runDate = new Intl.DateTimeFormat('en-CA', {
+                timeZone: 'America/New_York',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+            }).format(new Date());
+            const result = yield (0, cloudBackupService_1.backupDatabaseToCloud)(runDate);
+            res.status(result.uploaded || !result.enabled ? 200 : 500).json(result);
+        }
+        catch (error) {
+            logger_1.logger.error('Cloud backup endpoint failed', { error: error.message });
+            res.status(500).json({
+                success: false,
+                error: 'Cloud backup failed',
+            });
+        }
+    }));
+    app.get('/api/cloud-backup/status', (_req, res) => __awaiter(this, void 0, void 0, function* () {
+        try {
+            const status = yield (0, cloudBackupService_1.getCloudBackupStatus)();
+            res.json(status);
+        }
+        catch (error) {
+            logger_1.logger.error('Cloud backup status failed', { error: error.message });
+            res.status(500).json({
+                success: false,
+                error: 'Failed to retrieve cloud backup status',
+            });
+        }
+    }));
+    app.post('/api/sync-catalog', (_req, res) => __awaiter(this, void 0, void 0, function* () {
+        try {
+            logger_1.logger.info('Manual catalog sync requested');
+            (0, catalogSync_1.syncCatalogData)()
+                .then((result) => logger_1.logger.info('Manual catalog sync completed', result))
+                .catch((error) => logger_1.logger.error('Manual catalog sync failed', { error: error.message }));
+            res.status(202).json({
+                success: true,
+                message: 'Catalog sync started in background.',
+            });
+        }
+        catch (error) {
+            logger_1.logger.error('Error starting manual catalog sync', { error: error.message });
+            res.status(500).json({
+                success: false,
+                error: 'Failed to start catalog sync process',
             });
         }
     }));
@@ -167,6 +244,7 @@ function setupRoutes(authService, alertService, portfolioService) {
                 environment: env_1.env.nodeEnv,
                 version: '1.0.0',
                 scheduledTasks: {
+                    catalogSync: 'Daily at 1:30 AM EST',
                     dataUpdate: 'Daily at 2:00 AM EST'
                 },
                 endpoints: {

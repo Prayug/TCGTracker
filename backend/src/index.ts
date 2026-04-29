@@ -7,6 +7,8 @@ import enhancedPacksRouter from './routes/enhancedPacks';
 import { initializeDatabase, getDb } from './db/database';
 import { runMigrations } from './db/migrations';
 import { updatePriceData } from './services/dataFetcher';
+import { backupDatabaseToCloud, getCloudBackupStatus } from './services/cloudBackupService';
+import { syncCatalogData } from './services/catalogSync';
 import { env } from './config/env';
 import { swaggerSpec } from './config/swagger';
 import { corsMiddleware, securityMiddleware } from './middleware/security';
@@ -97,8 +99,8 @@ function setupRoutes(
   cron.schedule('0 2 * * *', async () => {
     logger.info('Running scheduled daily price data update...');
     try {
-      await updatePriceData();
-      logger.info('Daily price data update completed');
+      const result = await updatePriceData();
+      logger.info('Daily price data update completed', result);
     } catch (error: any) {
       logger.error('Failed to update price data', { error: error.message });
     }
@@ -106,12 +108,34 @@ function setupRoutes(
     timezone: "America/New_York"
   });
 
+  // Sync card catalog metadata shortly before price sync
+  cron.schedule('30 1 * * *', async () => {
+    logger.info('Running scheduled catalog sync...');
+    try {
+      const result = await syncCatalogData();
+      logger.info('Catalog sync completed', result);
+    } catch (error: any) {
+      logger.error('Failed to sync card catalog', { error: error.message });
+    }
+  }, {
+    timezone: 'America/New_York',
+  });
+
   // Run initial data update on startup (after a short delay)
   if (env.isProduction) {
     setTimeout(async () => {
+      logger.info('Running initial catalog sync...');
+      try {
+        const catalogResult = await syncCatalogData();
+        logger.info('Initial catalog sync completed', catalogResult);
+      } catch (error: any) {
+        logger.error('Failed initial catalog sync', { error: error.message });
+      }
+
       logger.info('Running initial price data update...');
       try {
-        await updatePriceData();
+        const updateResult = await updatePriceData();
+        logger.info('Initial price update completed', updateResult);
       } catch (error: any) {
         logger.error('Failed initial price update', { error: error.message });
       }
@@ -130,7 +154,9 @@ function setupRoutes(
   app.post('/api/update', async (req, res) => {
     try {
       logger.info('Manual price data update requested');
-      updatePriceData(); // Don't await - let it run in background
+      updatePriceData()
+        .then((result) => logger.info('Manual update finished', result))
+        .catch((error: any) => logger.error('Manual update failed', { error: error.message }));
       res.status(202).json({ 
         success: true, 
         message: 'Data update process started in background.' 
@@ -140,6 +166,60 @@ function setupRoutes(
       res.status(500).json({ 
         success: false, 
         error: 'Failed to start update process' 
+      });
+    }
+  });
+
+  app.post('/api/cloud-backup', async (_req, res) => {
+    try {
+      const runDate = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/New_York',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date());
+      const result = await backupDatabaseToCloud(runDate);
+      res.status(result.uploaded || !result.enabled ? 200 : 500).json(result);
+    } catch (error: any) {
+      logger.error('Cloud backup endpoint failed', { error: error.message });
+      res.status(500).json({
+        success: false,
+        error: 'Cloud backup failed',
+      });
+    }
+  });
+
+  app.get('/api/cloud-backup/status', async (_req, res) => {
+    try {
+      const status = await getCloudBackupStatus();
+      res.json(status);
+    } catch (error: any) {
+      logger.error('Cloud backup status failed', { error: error.message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to retrieve cloud backup status',
+      });
+    }
+  });
+
+  app.post('/api/sync-catalog', async (_req, res) => {
+    try {
+      logger.info('Manual catalog sync requested');
+      syncCatalogData()
+        .then((result) => logger.info('Manual catalog sync completed', result))
+        .catch((error: any) =>
+          logger.error('Manual catalog sync failed', { error: error.message })
+        );
+
+      res.status(202).json({
+        success: true,
+        message: 'Catalog sync started in background.',
+      });
+    } catch (error: any) {
+      logger.error('Error starting manual catalog sync', { error: error.message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to start catalog sync process',
       });
     }
   });
@@ -171,6 +251,7 @@ function setupRoutes(
         environment: env.nodeEnv,
         version: '1.0.0',
         scheduledTasks: {
+          catalogSync: 'Daily at 1:30 AM EST',
           dataUpdate: 'Daily at 2:00 AM EST'
         },
         endpoints: {

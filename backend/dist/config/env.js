@@ -26,6 +26,7 @@ const envSchema = zod_1.z.object({
     LOG_FILE: zod_1.z.string().default('./backend.log'),
     POKEMON_TCG_API_KEY: zod_1.z.string().optional(),
     TCGCSV_API_KEY: zod_1.z.string().optional(),
+    APIFY_API_TOKEN: zod_1.z.string().optional(),
     SMTP_HOST: zod_1.z.string().optional(),
     SMTP_PORT: zod_1.z.string().optional(),
     SMTP_USER: zod_1.z.string().optional(),
@@ -33,6 +34,10 @@ const envSchema = zod_1.z.object({
     EMAIL_FROM: zod_1.z.string().optional(),
     SENTRY_DSN: zod_1.z.string().optional(),
     SENTRY_ENVIRONMENT: zod_1.z.string().default('development'),
+    CLOUD_SYNC_ENABLED: zod_1.z.string().default('false'),
+    SUPABASE_URL: zod_1.z.string().optional(),
+    SUPABASE_SERVICE_ROLE_KEY: zod_1.z.string().optional(),
+    SUPABASE_BUCKET: zod_1.z.string().default('tcgtracker-data'),
 });
 // Parse and validate environment variables
 const parsedEnv = envSchema.superRefine((data, ctx) => {
@@ -79,6 +84,7 @@ exports.env = {
     apis: {
         pokemonTcg: parsedEnv.data.POKEMON_TCG_API_KEY,
         tcgcsv: parsedEnv.data.TCGCSV_API_KEY,
+        apify: parsedEnv.data.APIFY_API_TOKEN,
     },
     email: {
         host: parsedEnv.data.SMTP_HOST,
@@ -90,6 +96,12 @@ exports.env = {
     sentry: {
         dsn: parsedEnv.data.SENTRY_DSN,
         environment: parsedEnv.data.SENTRY_ENVIRONMENT,
+    },
+    cloud: {
+        enabled: parsedEnv.data.CLOUD_SYNC_ENABLED.toLowerCase() === 'true',
+        supabaseUrl: parsedEnv.data.SUPABASE_URL,
+        serviceRoleKey: parsedEnv.data.SUPABASE_SERVICE_ROLE_KEY,
+        bucket: parsedEnv.data.SUPABASE_BUCKET,
     },
     isDevelopment: parsedEnv.data.NODE_ENV === 'development',
     isProduction: parsedEnv.data.NODE_ENV === 'production',

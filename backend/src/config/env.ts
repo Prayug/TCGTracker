@@ -22,6 +22,7 @@ const envSchema = z.object({
   LOG_FILE: z.string().default('./backend.log'),
   POKEMON_TCG_API_KEY: z.string().optional(),
   TCGCSV_API_KEY: z.string().optional(),
+  APIFY_API_TOKEN: z.string().optional(),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.string().optional(),
   SMTP_USER: z.string().optional(),
@@ -29,6 +30,10 @@ const envSchema = z.object({
   EMAIL_FROM: z.string().optional(),
   SENTRY_DSN: z.string().optional(),
   SENTRY_ENVIRONMENT: z.string().default('development'),
+  CLOUD_SYNC_ENABLED: z.string().default('false'),
+  SUPABASE_URL: z.string().optional(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
+  SUPABASE_BUCKET: z.string().default('tcgtracker-data'),
 });
 
 // Parse and validate environment variables
@@ -80,6 +85,7 @@ export const env = {
   apis: {
     pokemonTcg: parsedEnv.data.POKEMON_TCG_API_KEY,
     tcgcsv: parsedEnv.data.TCGCSV_API_KEY,
+    apify: parsedEnv.data.APIFY_API_TOKEN,
   },
   email: {
     host: parsedEnv.data.SMTP_HOST,
@@ -91,6 +97,12 @@ export const env = {
   sentry: {
     dsn: parsedEnv.data.SENTRY_DSN,
     environment: parsedEnv.data.SENTRY_ENVIRONMENT,
+  },
+  cloud: {
+    enabled: parsedEnv.data.CLOUD_SYNC_ENABLED.toLowerCase() === 'true',
+    supabaseUrl: parsedEnv.data.SUPABASE_URL,
+    serviceRoleKey: parsedEnv.data.SUPABASE_SERVICE_ROLE_KEY,
+    bucket: parsedEnv.data.SUPABASE_BUCKET,
   },
   isDevelopment: parsedEnv.data.NODE_ENV === 'development',
   isProduction: parsedEnv.data.NODE_ENV === 'production',
