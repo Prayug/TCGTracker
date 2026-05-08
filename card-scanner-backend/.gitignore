@@ -22,12 +22,20 @@ wheels/
 
 # Virtual Environment
 venv/
+.venv/
 env/
 ENV/
 
 # Temporary files
 temp_uploads/
 *.log
+
+# ML training artifacts (keep exported ONNX in models/)
+ml/data/
+models/*.pt
+models/*.onnx.data
+__pycache__/
+ml/**/__pycache__/
 
 # IDE
 .vscode/
