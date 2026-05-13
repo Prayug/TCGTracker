@@ -33,11 +33,17 @@ export default {
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
+        display: ['Inter', 'system-ui', 'sans-serif'],
+      },
+      fontVariantNumeric: {
+        tabular: 'tabular-nums',
       },
       animation: {
         'fade-in': 'fadeIn 0.2s ease-out',
         'slide-down': 'slideDown 0.2s ease-out',
+        'slide-up': 'slideUp 0.2s ease-out',
         'scale-in': 'scaleIn 0.15s ease-out',
+        'glow': 'glowPulse 2.2s ease-in-out infinite',
         'shimmer': 'shimmer 1.5s infinite linear',
       },
       keyframes: {
@@ -49,9 +55,18 @@ export default {
           '0%': { opacity: '0', transform: 'translateY(-8px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
+        slideUp: {
+          '0%': { opacity: '0', transform: 'translateY(8px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
         scaleIn: {
           '0%': { opacity: '0', transform: 'scale(0.97)' },
           '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+        glowPulse: {
+          '0%': { boxShadow: '0 0 0 rgba(37, 99, 235, 0.15)' },
+          '50%': { boxShadow: '0 0 24px rgba(37, 99, 235, 0.28)' },
+          '100%': { boxShadow: '0 0 0 rgba(37, 99, 235, 0.15)' },
         },
         shimmer: {
           '0%': { backgroundPosition: '-1000px 0' },
