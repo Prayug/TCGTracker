@@ -42,6 +42,7 @@ const syncVaultSchema = z.object({
         quantity: z.number().int().positive(),
         condition: z.string(),
         notes: z.string().optional(),
+        gradingResult: z.record(z.unknown()).optional(),
       })
     ),
   }),
