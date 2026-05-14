@@ -811,6 +811,103 @@ export const migrations: Migration[] = [
       logger.info('Dropped external signal scraper indexes (columns retained — SQLite limitation)');
     },
   },
+  {
+    id: 19,
+    name: 'create_grading_results_table',
+    up: async (db: Database) => {
+      const run = (sql: string): Promise<void> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, (err) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+
+      await run(`
+        CREATE TABLE IF NOT EXISTS grading_results (
+          id TEXT PRIMARY KEY,
+          user_id TEXT,
+          card_id TEXT,
+          card_name TEXT NOT NULL,
+          game TEXT NOT NULL DEFAULT 'pokemon',
+          centering_score INTEGER NOT NULL,
+          corners_score INTEGER NOT NULL,
+          edges_score INTEGER NOT NULL,
+          surface_score INTEGER NOT NULL,
+          total_score INTEGER NOT NULL,
+          grade REAL NOT NULL,
+          grade_label TEXT NOT NULL,
+          defects TEXT,
+          image_url TEXT,
+          estimated_value REAL,
+          centering_details TEXT,
+          corners_details TEXT,
+          edges_details TEXT,
+          surface_details TEXT,
+          deviations TEXT,
+          suggested_condition TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+      `);
+      await run('CREATE INDEX IF NOT EXISTS idx_grading_results_card ON grading_results(card_id)');
+      await run('CREATE INDEX IF NOT EXISTS idx_grading_results_user ON grading_results(user_id)');
+      await run('CREATE INDEX IF NOT EXISTS idx_grading_results_created ON grading_results(created_at)');
+      logger.info('Created grading_results table');
+    },
+    down: async (db: Database) => {
+      return new Promise((resolve, reject) => {
+        db.run('DROP TABLE IF EXISTS grading_results', (err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+    },
+  },
+  {
+    id: 20,
+    name: 'add_defect_regions_to_grading',
+    up: async (db: Database) => {
+      const run = (sql: string): Promise<void> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, (err) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+
+      // Add defect_regions column if it doesn't exist
+      await run(`
+        ALTER TABLE grading_results ADD COLUMN defect_regions TEXT
+      `).catch(() => {
+        // Column may already exist
+      });
+      logger.info('Added defect_regions column to grading_results');
+    },
+    down: async (db: Database) => {
+      // SQLite doesn't support DROP COLUMN before 3.35.0, so we skip rollback
+      logger.info('Skipping defect_regions rollback (SQLite limitation)');
+    },
+  },
+  {
+    id: 21,
+    name: 'add_full_result_and_back_image_to_grading',
+    up: async (db: Database) => {
+      const run = (sql: string): Promise<void> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, (err) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+
+      await run(`ALTER TABLE grading_results ADD COLUMN full_result TEXT`).catch(() => {});
+      await run(`ALTER TABLE grading_results ADD COLUMN back_image_url TEXT`).catch(() => {});
+      logger.info('Added full_result and back_image_url columns to grading_results');
+    },
+    down: async (db: Database) => {
+      logger.info('Skipping full_result/back_image_url rollback (SQLite limitation)');
+    },
+  },
 ];
 
 // Run pending migrations

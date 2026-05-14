@@ -8,6 +8,7 @@ import { syncOnePieceData, isOnePieceCatalogIncomplete } from './services/onePie
 import setTrackerRouter from './routes/setTracker';
 import enhancedPacksRouter from './routes/enhancedPacks';
 import marketInsightsRouter from './routes/marketInsights';
+import gradingRouter from './routes/grading';
 import { initializeDatabase, getDb } from './db/database';
 import { runMigrations } from './db/migrations';
 import { updatePriceData, getRunDate, hasCompletedPriceUpdateFor } from './services/dataFetcher';
@@ -36,7 +37,8 @@ initSentry();
 
 const app = express();
 const port = env.port;
-const BODY_LIMIT = '1mb';
+// 12mb supports base64 card images for AI grading analyze endpoint
+const BODY_LIMIT = '12mb';
 
 app.set('trust proxy', 1);
 
@@ -179,6 +181,7 @@ function setupRoutes(
   app.use('/api/cards', onePieceCardsRouter);
   app.use('/api/packs', enhancedPacksRouter);
   app.use('/api/market-insights', marketInsightsRouter);
+  app.use('/api/grading', gradingRouter);
 
   cron.schedule(
     '0 3 * * *',
