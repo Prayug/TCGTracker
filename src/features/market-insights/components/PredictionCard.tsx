@@ -94,14 +94,25 @@ export function PredictionCard({ prediction, card, window: predictionWindow = '9
         >
           {CATEGORY_LABELS[prediction.category]}
         </span>
-        <span
-          className={`rounded-full border border-black/40 bg-black/75 px-2 py-0.5 font-mono text-[10px] font-semibold tabular-nums  ${
-            isPositive ? 'text-emerald-300' : 'text-red-300'
-          }`}
-        >
-          {windowLabel} {isPositive ? '+' : ''}
-          {formatPercent(expectedReturnPct, { signed: false })}
-        </span>
+        <div className="flex flex-col items-end gap-1">
+          <span
+            className={`rounded-full border border-black/40 bg-black/75 px-2 py-0.5 font-mono text-[10px] font-semibold tabular-nums  ${
+              isPositive ? 'text-emerald-300' : 'text-red-300'
+            }`}
+          >
+            {windowLabel} {isPositive ? '+' : ''}
+            {formatPercent(expectedReturnPct, { signed: false })}
+          </span>
+          {prediction.gradingPremiumPotential != null &&
+            prediction.gradingPremiumPotential >= 0.25 && (
+              <span
+                title="High grading premium potential (AI grade quality + low PSA-10 pop)"
+                className="rounded-full border border-amber-400/40 bg-black/75 px-2 py-0.5 font-mono text-[10px] font-semibold tabular-nums text-amber-200"
+              >
+                Grade +{Math.round(prediction.gradingPremiumPotential * 100)}%
+              </span>
+            )}
+        </div>
       </div>
 
       {signalCount > 0 && (
