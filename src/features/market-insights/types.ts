@@ -145,6 +145,10 @@ export interface CardPrediction {
   riskFactors: string;
   externalSignals: string;
   modelVersion: string;
+  /** 0–100 AI grading / slab premium signal from prediction engine. */
+  gradingScore?: number;
+  /** Estimated grading premium uplift vs raw (0–1+). */
+  gradingPremiumPotential?: number;
 }
 
 export interface BacktestResult {
