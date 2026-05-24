@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
+  Award,
   BookOpen,
   Camera,
   LayoutGrid,
@@ -23,6 +24,7 @@ const SECONDARY_TABS: { to: string; label: string; icon: React.ElementType }[] =
 const MORE_ITEMS: { to: string; label: string; icon: React.ElementType }[] = [
   { to: '/sets', label: 'Sets', icon: LayoutGrid },
   { to: '/packs', label: 'Packs', icon: LayoutGrid },
+  { to: '/grading', label: 'Grade', icon: Award },
   { to: '/prices', label: 'Prices', icon: LineChart },
   { to: '/market-insights', label: 'Insights', icon: TrendingUp },
 ];
