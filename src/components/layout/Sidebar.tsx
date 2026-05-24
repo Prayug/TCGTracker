@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
+  Award,
   BookOpen,
   Camera,
   Layers,
@@ -40,6 +41,7 @@ const NAV_GROUPS: {
     items: [
       { to: '/packs', label: 'Packs', icon: Package },
       { to: '/scanner', label: 'Scan', icon: Camera },
+      { to: '/grading', label: 'Grade', icon: Award },
     ],
   },
 ];

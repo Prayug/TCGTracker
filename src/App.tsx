@@ -34,6 +34,9 @@ const PackShop = lazy(() =>
 const CardScanner = lazy(() =>
   import('./features/scanner/components/CardScanner').then((m) => ({ default: m.CardScanner }))
 );
+const GradingPage = lazy(() =>
+  import('./features/grading/components/GradingPage').then((m) => ({ default: m.GradingPage }))
+);
 const SetIndex = lazy(() =>
   import('./features/sets/components/SetIndex').then((m) => ({ default: m.SetIndex }))
 );
@@ -128,6 +131,14 @@ function AppRoutes() {
               element={
                 <div className={PAGE_CONTAINER}>
                   <CardScanner />
+                </div>
+              }
+            />
+            <Route
+              path="/grading"
+              element={
+                <div className={PAGE_CONTAINER}>
+                  <GradingPage />
                 </div>
               }
             />

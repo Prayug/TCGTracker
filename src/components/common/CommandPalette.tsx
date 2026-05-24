@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  Award,
   BookOpen,
   Camera,
   Clock,
@@ -39,6 +40,7 @@ const NAV_COMMANDS: NavCommand[] = [
   { label: 'Sets', to: '/sets', keywords: 'sets eras binder completion', icon: Layers, shortcut: 'G S' },
   { label: 'Open packs', to: '/packs', keywords: 'packs booster rip simulator', icon: Package },
   { label: 'Scan a card', to: '/scanner', keywords: 'scanner camera identify photo', icon: Camera },
+  { label: 'AI grade a card', to: '/grading', keywords: 'grade grading tag centering corners condition', icon: Award },
 ];
 
 const GO_TARGETS: Record<string, string> = {
