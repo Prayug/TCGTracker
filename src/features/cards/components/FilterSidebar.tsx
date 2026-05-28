@@ -1,0 +1,196 @@
+import React, { useState } from 'react';
+import { ChevronDown, SlidersHorizontal, X } from 'lucide-react';
+import { SortOption } from '../../../types/pokemon';
+import { getSortOptions } from '../../../utils/sorting';
+import { SectionLabel } from '../../../components/common/SectionLabel';
+
+export interface MarketplaceFilters {
+  setName: string;
+  rarity: string;
+  priceRange: string;
+  cardType: string;
+}
+
+interface FilterSidebarProps {
+  isMobileOpen?: boolean;
+  onCloseMobile?: () => void;
+  filters: MarketplaceFilters;
+  onFiltersChange: (filters: MarketplaceFilters) => void;
+  sortBy: SortOption;
+  onSortChange: (sort: SortOption) => void;
+  setOptions: string[];
+  rarityOptions: string[];
+  typeOptions: string[];
+  onReset: () => void;
+}
+
+const priceRanges = [
+  { value: 'all', label: 'All Prices' },
+  { value: '0-10', label: 'Under $10' },
+  { value: '10-50', label: '$10 - $50' },
+  { value: '50-150', label: '$50 - $150' },
+  { value: '150+', label: '$150+' },
+];
+
+function FilterGroup({
+  title,
+  defaultOpen = true,
+  children,
+}: {
+  title: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div className="border-b border-white/10 last:border-0">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center justify-between py-3 text-left"
+      >
+        <span className="text-xs font-medium text-slate-300">{title}</span>
+        <ChevronDown
+          className={`h-4 w-4 text-slate-500 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      <div
+        className={`grid transition-all duration-200 ease-out ${
+          open ? 'grid-rows-[1fr] pb-3 opacity-100' : 'grid-rows-[0fr] opacity-0'
+        }`}
+      >
+        <div className="overflow-hidden">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function SidebarPanel({
+  filters,
+  onFiltersChange,
+  sortBy,
+  onSortChange,
+  setOptions,
+  rarityOptions,
+  typeOptions,
+  onReset,
+}: Omit<FilterSidebarProps, 'isMobileOpen' | 'onCloseMobile'>) {
+  const sortOptions = getSortOptions();
+
+  const setFilter = (key: keyof MarketplaceFilters, value: string) => {
+    onFiltersChange({ ...filters, [key]: value });
+  };
+
+  const selectClass =
+    'h-10 w-full rounded-lg border border-white/15 bg-[#0f1624] px-3 text-sm text-slate-100 focus:border-violet-400 focus:outline-none';
+
+  return (
+    <div className="h-full rounded-xl border border-white/10 bg-white/[0.03] p-4 backdrop-blur">
+      <div className="mb-2 flex items-center justify-between">
+        <SectionLabel className="!flex items-center gap-2 !text-slate-300">
+          <SlidersHorizontal className="h-3.5 w-3.5 text-violet-300" />
+          Filters
+        </SectionLabel>
+        <button
+          type="button"
+          onClick={onReset}
+          className="text-xs font-medium text-slate-400 transition-colors hover:text-slate-200"
+        >
+          Reset
+        </button>
+      </div>
+
+      <FilterGroup title="Sort" defaultOpen>
+        <select
+          value={sortBy}
+          onChange={(e) => onSortChange(e.target.value as SortOption)}
+          className={selectClass}
+        >
+          {sortOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </FilterGroup>
+
+      <FilterGroup title="Set">
+        <select value={filters.setName} onChange={(e) => setFilter('setName', e.target.value)} className={selectClass}>
+          <option value="all">All Sets</option>
+          {setOptions.map((setName) => (
+            <option key={setName} value={setName}>
+              {setName}
+            </option>
+          ))}
+        </select>
+      </FilterGroup>
+
+      <FilterGroup title="Rarity">
+        <select value={filters.rarity} onChange={(e) => setFilter('rarity', e.target.value)} className={selectClass}>
+          <option value="all">All Rarities</option>
+          {rarityOptions.map((rarity) => (
+            <option key={rarity} value={rarity}>
+              {rarity}
+            </option>
+          ))}
+        </select>
+      </FilterGroup>
+
+      <FilterGroup title="Price range">
+        <select
+          value={filters.priceRange}
+          onChange={(e) => setFilter('priceRange', e.target.value)}
+          className={selectClass}
+        >
+          {priceRanges.map((range) => (
+            <option key={range.value} value={range.value}>
+              {range.label}
+            </option>
+          ))}
+        </select>
+      </FilterGroup>
+
+      <FilterGroup title="Type" defaultOpen={false}>
+        <select value={filters.cardType} onChange={(e) => setFilter('cardType', e.target.value)} className={selectClass}>
+          <option value="all">All Types</option>
+          {typeOptions.map((type) => (
+            <option key={type} value={type}>
+              {type}
+            </option>
+          ))}
+        </select>
+      </FilterGroup>
+    </div>
+  );
+}
+
+export const FilterSidebar: React.FC<FilterSidebarProps> = ({
+  isMobileOpen = false,
+  onCloseMobile,
+  ...props
+}) => (
+  <>
+    <div className="hidden lg:block">
+      <SidebarPanel {...props} />
+    </div>
+
+    {isMobileOpen && (
+      <div className="fixed inset-0 z-40 bg-black/55 lg:hidden" role="dialog" aria-modal="true">
+        <div className="absolute right-0 top-0 h-full w-[88%] max-w-sm border-l border-white/10 bg-[#0b111d] p-4">
+          <div className="mb-3 flex justify-end">
+            <button
+              type="button"
+              onClick={onCloseMobile}
+              className="rounded-lg border border-white/15 p-2 text-slate-200"
+              aria-label="Close filters"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <SidebarPanel {...props} />
+        </div>
+      </div>
+    )}
+  </>
+);
