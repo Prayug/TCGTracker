@@ -148,6 +148,8 @@ export interface VaultCard {
   condition: CardCondition; // Card condition
   notes?: string; // Optional user notes
   game?: 'pokemon' | 'onepiece'; // Which game this card belongs to
+  /** Optional AI grading result (TAG-style 1000-point analysis). */
+  gradingResult?: import('./grading').GradingResult;
 }
 
 export type CardCondition = 'raw' | 'near-mint' | 'lightly-played' | 'moderately-played' | 'heavily-played' | 'damaged';
