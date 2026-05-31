@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { TrendingUp, TrendingDown, AlertCircle, Plus, Trash2, Search, Star, Target, Bell, Package } from 'lucide-react';
 import { priceTrackingService, TrackedCard, PriceAlert } from '../../../services/priceTrackingService';
 import { pokemonApi } from '../../../services/pokemonApi';
 import { PokemonCard } from '../../../types/pokemon';
+import { SectionLabel } from '../../../components/common/SectionLabel';
+import { PageEmptyState } from '../../../components/common/PageEmptyState';
+import { MiniSparkline } from '../../../components/common/MiniSparkline';
+import { TrackerStatCard, buildSparklinePrices } from './TrackerStatCard';
+import { formatCurrency, formatPercent } from '../../../utils/cardDisplay';
 
 export const PriceTrackingDashboard: React.FC = () => {
   const [trackedCards, setTrackedCards] = useState<TrackedCard[]>([]);
@@ -81,143 +85,105 @@ export const PriceTrackingDashboard: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
+    <div className="section-stack">
       <div className="animate-slide-up">
-        <div className="flex items-center gap-4 mb-3">
-          <div className="relative group">
-            <div className="absolute -inset-1 bg-gradient-to-r from-primary-600 to-accent-600 rounded-2xl blur opacity-60 group-hover:opacity-100 transition duration-500 animate-glow" />
-            <div className="relative p-4 bg-gradient-to-br from-primary-600 to-accent-600 rounded-2xl shadow-xl">
-              <TrendingUp className="w-10 h-10 text-white" />
-            </div>
-          </div>
-          <div>
-            <h2 className="text-4xl font-black gradient-text tracking-tight">
-              Price Tracker
-            </h2>
-            <p className="text-gray-600 text-base font-medium mt-1">
-              Monitor your favorite cards and set price alerts
-            </p>
-          </div>
-        </div>
+        <SectionLabel className="text-violet-300/90">Price tracker</SectionLabel>
+        <h2 className="mt-2 text-3xl font-bold tracking-tight text-white">Watchlist & alerts</h2>
+        <p className="mt-2 text-sm text-slate-400">
+          Monitor favorites, spot 7-day moves, and set price triggers.
+        </p>
       </div>
 
-      {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 animate-slide-up">
-        <div className="group card hover:border-primary-300 border-2 border-transparent p-6">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-3 bg-gradient-to-br from-primary-100 to-primary-200 rounded-xl group-hover:scale-110 transition-transform duration-300">
-              <Package className="w-6 h-6 text-primary-600" />
-            </div>
-            <p className="text-sm font-semibold text-gray-600">Tracked Cards</p>
-          </div>
-          <p className="text-4xl font-black text-gray-900 mb-2">{stats.totalTracked}</p>
-          <p className="text-sm text-gray-500 font-medium">Cards in watchlist</p>
-        </div>
-
-        <div className="group card hover:border-green-300 border-2 border-transparent p-6">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-3 bg-gradient-to-br from-green-100 to-emerald-200 rounded-xl group-hover:scale-110 transition-transform duration-300">
-              <TrendingUp className="w-6 h-6 text-green-600" />
-            </div>
-            <p className="text-sm font-semibold text-gray-600">Gainers</p>
-          </div>
-          <p className="text-4xl font-black text-gray-900 mb-2">{stats.totalGainers}</p>
-          <p className="text-sm text-green-600 font-bold">
-            {stats.avgChange > 0 ? '+' : ''}{stats.avgChange.toFixed(1)}% avg
-          </p>
-        </div>
-
-        <div className="group card hover:border-red-300 border-2 border-transparent p-6">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-3 bg-gradient-to-br from-red-100 to-rose-200 rounded-xl group-hover:scale-110 transition-transform duration-300">
-              <TrendingDown className="w-6 h-6 text-red-600" />
-            </div>
-            <p className="text-sm font-semibold text-gray-600">Losers</p>
-          </div>
-          <p className="text-4xl font-black text-gray-900 mb-2">{stats.totalLosers}</p>
-          <p className="text-sm text-gray-500 font-medium">Cards down</p>
-        </div>
-
-        <div className="group card hover:border-yellow-300 border-2 border-transparent p-6">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-3 bg-gradient-to-br from-yellow-100 to-amber-200 rounded-xl group-hover:scale-110 transition-transform duration-300">
-              <Bell className="w-6 h-6 text-yellow-600" />
-            </div>
-            <p className="text-sm font-semibold text-gray-600">Active Alerts</p>
-          </div>
-          <p className="text-4xl font-black text-gray-900 mb-2">{stats.totalAlerts}</p>
-          <p className="text-sm text-gray-500 font-medium">Price notifications</p>
-        </div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4 animate-slide-up">
+        <TrackerStatCard
+          icon={Package}
+          label="Tracked cards"
+          value={stats.totalTracked}
+          helper={stats.totalTracked === 0 ? 'Search below to add your first card' : 'Cards in watchlist'}
+        />
+        <TrackerStatCard
+          icon={TrendingUp}
+          label="Gainers"
+          value={stats.totalGainers}
+          helper={stats.totalGainers === 0 ? 'No positive movers yet' : `${formatPercent(stats.avgChange, { signed: true })} avg`}
+          tone="gain"
+        />
+        <TrackerStatCard
+          icon={TrendingDown}
+          label="Losers"
+          value={stats.totalLosers}
+          helper={stats.totalLosers === 0 ? 'No decliners in watchlist' : 'Cards trending down'}
+          tone="loss"
+        />
+        <TrackerStatCard
+          icon={Bell}
+          label="Active alerts"
+          value={stats.totalAlerts}
+          helper={stats.totalAlerts === 0 ? 'Set alerts from any tracked card' : 'Price notifications'}
+          tone="alert"
+        />
       </div>
 
-      {/* Add New Card to Track */}
-      <div className="card p-6">
-        <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-          <Plus className="w-5 h-5 text-primary-600" />
-          Add Card to Track
+      <div className="card">
+        <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
+          <Plus className="h-5 w-5 text-emerald-400" />
+          Add card to track
         </h3>
-        
-        <div className="flex gap-3">
-          <div className="flex-1 relative">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               placeholder="Search for a card to track..."
-              className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 font-medium"
+              className="input pl-10"
             />
           </div>
           <button
+            type="button"
             onClick={handleSearch}
             disabled={isSearching}
-            className="px-8 py-3 bg-gradient-to-r from-primary-600 to-accent-600 text-white rounded-xl font-bold hover:from-primary-700 hover:to-accent-700 transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50"
+            className="btn-primary justify-center px-6 py-2.5 disabled:opacity-50"
           >
-            {isSearching ? 'Searching...' : 'Search'}
+            {isSearching ? 'Searching…' : 'Search'}
           </button>
         </div>
 
         {/* Search Results */}
         {searchResults.length > 0 && (
-          <div className="mt-4 space-y-2 max-h-96 overflow-y-auto">
+          <div className="mt-4 max-h-96 space-y-2 overflow-y-auto">
             {searchResults.map((card) => {
               const price = getCardPrice(card);
               const isTracked = priceTrackingService.isTracked(card.id);
-              
+
               return (
                 <div
                   key={card.id}
-                  className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+                  className="flex items-center gap-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 hover:bg-white/[0.06]"
                 >
                   <img
                     src={card.images.small}
                     alt={card.name}
-                    className="w-16 h-22 object-contain rounded-lg"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      if (target.src !== card.images.large) {
-                        target.src = card.images.large;
-                      }
-                    }}
+                    className="h-16 w-11 object-contain"
                   />
-                  <div className="flex-1">
-                    <h4 className="font-bold text-gray-900">{card.name}</h4>
-                    <p className="text-sm text-gray-600">{card.set.name}</p>
+                  <div className="min-w-0 flex-1">
+                    <h4 className="truncate font-semibold text-white">{card.name}</h4>
+                    <p className="text-xs text-slate-400">{card.set.name}</p>
                     {price > 0 && (
-                      <p className="text-sm font-bold text-green-600 mt-1">
-                        ${price.toFixed(2)}
-                      </p>
+                      <p className="mt-1 text-sm font-bold text-emerald-300">{formatCurrency(price)}</p>
                     )}
                   </div>
                   <button
+                    type="button"
                     onClick={() => handleTrackCard(card)}
                     disabled={isTracked}
-                    className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                    className={`rounded-lg px-4 py-2 text-sm font-semibold ${
                       isTracked
-                        ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                        : 'bg-primary-600 text-white hover:bg-primary-700'
+                        ? 'cursor-not-allowed border border-white/10 text-slate-500'
+                        : 'btn-primary'
                     }`}
                   >
                     {isTracked ? 'Tracked' : 'Track'}
@@ -234,10 +200,10 @@ export const PriceTrackingDashboard: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Top Gainers */}
           {movers.gainers.length > 0 && (
-            <div className="card p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-green-600" />
-                Top Gainers
+            <div className="card">
+              <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
+                <TrendingUp className="h-5 w-5 text-emerald-400" />
+                Top gainers
               </h3>
               <div className="space-y-3">
                 {movers.gainers.map((mover, index) => (
@@ -246,7 +212,7 @@ export const PriceTrackingDashboard: React.FC = () => {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.1 }}
-                    className="flex items-center gap-3 p-3 bg-green-50 rounded-lg"
+                    className="flex items-center gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3"
                   >
                     <img
                       src={mover.card.images.small}
@@ -260,14 +226,12 @@ export const PriceTrackingDashboard: React.FC = () => {
                       }}
                     />
                     <div className="flex-1">
-                      <h4 className="font-bold text-gray-900 text-sm line-clamp-1">
-                        {mover.card.name}
-                      </h4>
-                      <p className="text-xs text-gray-600">${mover.currentPrice.toFixed(2)}</p>
+                      <h4 className="line-clamp-1 text-sm font-semibold text-white">{mover.card.name}</h4>
+                      <p className="text-xs text-slate-400">{formatCurrency(mover.currentPrice)}</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-black text-green-600">+{mover.changePercent.toFixed(1)}%</p>
-                      <p className="text-xs text-gray-600">+${Math.abs(mover.change).toFixed(2)}</p>
+                      <p className="font-bold text-emerald-300">+{mover.changePercent.toFixed(1)}%</p>
+                      <p className="text-xs text-slate-400">+{formatCurrency(Math.abs(mover.change))}</p>
                     </div>
                   </motion.div>
                 ))}
@@ -277,10 +241,10 @@ export const PriceTrackingDashboard: React.FC = () => {
 
           {/* Top Losers */}
           {movers.losers.length > 0 && (
-            <div className="card p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <TrendingDown className="w-5 h-5 text-red-600" />
-                Top Losers
+            <div className="card">
+              <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
+                <TrendingDown className="h-5 w-5 text-rose-400" />
+                Top losers
               </h3>
               <div className="space-y-3">
                 {movers.losers.map((mover, index) => (
@@ -289,7 +253,7 @@ export const PriceTrackingDashboard: React.FC = () => {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.1 }}
-                    className="flex items-center gap-3 p-3 bg-red-50 rounded-lg"
+                    className="flex items-center gap-3 rounded-lg border border-rose-500/20 bg-rose-500/10 p-3"
                   >
                     <img
                       src={mover.card.images.small}
@@ -303,14 +267,12 @@ export const PriceTrackingDashboard: React.FC = () => {
                       }}
                     />
                     <div className="flex-1">
-                      <h4 className="font-bold text-gray-900 text-sm line-clamp-1">
-                        {mover.card.name}
-                      </h4>
-                      <p className="text-xs text-gray-600">${mover.currentPrice.toFixed(2)}</p>
+                      <h4 className="line-clamp-1 text-sm font-semibold text-white">{mover.card.name}</h4>
+                      <p className="text-xs text-slate-400">{formatCurrency(mover.currentPrice)}</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-black text-red-600">{mover.changePercent.toFixed(1)}%</p>
-                      <p className="text-xs text-gray-600">-${Math.abs(mover.change).toFixed(2)}</p>
+                      <p className="font-bold text-rose-300">{mover.changePercent.toFixed(1)}%</p>
+                      <p className="text-xs text-slate-400">-{formatCurrency(Math.abs(mover.change))}</p>
                     </div>
                   </motion.div>
                 ))}
@@ -320,117 +282,99 @@ export const PriceTrackingDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Tracked Cards */}
-      <div className="card p-6">
-        <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-          <Star className="w-5 h-5 text-yellow-600" />
-          Tracked Cards ({trackedCards.length})
+      <div className="card">
+        <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
+          <Star className="h-5 w-5 text-amber-400" />
+          Tracked cards ({trackedCards.length})
         </h3>
-        
+
         {trackedCards.length === 0 ? (
-          <div className="text-center py-12">
-            <Target className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 font-medium">
-              No cards tracked yet. Search and add cards to start monitoring their prices!
-            </p>
-          </div>
+          <PageEmptyState
+            icon={Target}
+            title="No cards tracked yet"
+            message="Search above and tap Track to start monitoring prices and 7-day movement."
+          />
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {trackedCards.map((tracked) => {
               const currentPrice = tracked.priceHistory[tracked.priceHistory.length - 1].price;
               const change = currentPrice - tracked.initialPrice;
-              const changePercent = tracked.initialPrice > 0 ? (change / tracked.initialPrice) * 100 : 0;
+              const changePercent =
+                tracked.initialPrice > 0 ? (change / tracked.initialPrice) * 100 : 0;
               const isPositive = change >= 0;
+              const sparkData = buildSparklinePrices(tracked.priceHistory);
 
               return (
-                <div key={tracked.id} className="card p-4 border-2 border-gray-100">
-                  <div className="flex items-start gap-4">
+                <div
+                  key={tracked.id}
+                  className="rounded-xl border border-white/10 bg-white/[0.03] p-4"
+                >
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
                     <img
                       src={tracked.card.images.small}
                       alt={tracked.card.name}
-                      className="w-20 h-28 object-contain rounded-lg"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        if (target.src !== tracked.card.images.large) {
-                          target.src = tracked.card.images.large;
-                        }
-                      }}
+                      className="h-24 w-16 shrink-0 object-contain"
                     />
-                    
-                    <div className="flex-1">
-                      <h4 className="font-bold text-gray-900 text-lg mb-1">
-                        {tracked.card.name}
-                      </h4>
-                      <p className="text-sm text-gray-600 mb-3">{tracked.card.set.name}</p>
-                      
-                      <div className="grid grid-cols-3 gap-4 mb-3">
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                          <p className="text-xs text-gray-500 font-semibold mb-1">Initial Price</p>
-                          <p className="text-sm font-bold text-gray-900">
-                            ${tracked.initialPrice.toFixed(2)}
+                          <h4 className="text-lg font-semibold text-white">{tracked.card.name}</h4>
+                          <p className="text-sm text-slate-400">{tracked.card.set.name}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="section-label !text-[10px]">7-day trend</p>
+                          <MiniSparkline data={sparkData} positive={isPositive} width={112} height={36} />
+                        </div>
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-3 gap-3">
+                        <div>
+                          <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500">
+                            Initial
+                          </p>
+                          <p className="text-sm font-bold tabular-nums text-white">
+                            {formatCurrency(tracked.initialPrice)}
                           </p>
                         </div>
                         <div>
-                          <p className="text-xs text-gray-500 font-semibold mb-1">Current Price</p>
-                          <p className="text-sm font-bold text-gray-900">
-                            ${currentPrice.toFixed(2)}
+                          <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500">
+                            Current
+                          </p>
+                          <p className="text-sm font-bold tabular-nums text-white">
+                            {formatCurrency(currentPrice)}
                           </p>
                         </div>
                         <div>
-                          <p className="text-xs text-gray-500 font-semibold mb-1">Change</p>
-                          <p className={`text-sm font-black ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
-                            {isPositive ? '+' : ''}{changePercent.toFixed(1)}%
+                          <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500">
+                            Change
+                          </p>
+                          <p
+                            className={`text-sm font-bold tabular-nums ${isPositive ? 'text-emerald-300' : 'text-rose-300'}`}
+                          >
+                            {formatPercent(changePercent, { signed: true })}
                           </p>
                         </div>
                       </div>
 
-                      {/* Price Chart */}
-                      {tracked.priceHistory.length > 1 && (
-                        <div className="h-24 mb-3">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={tracked.priceHistory}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                              <XAxis 
-                                dataKey="date" 
-                                tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                tick={{ fontSize: 10 }}
-                              />
-                              <YAxis 
-                                tickFormatter={(value) => `$${value}`}
-                                tick={{ fontSize: 10 }}
-                              />
-                              <Tooltip 
-                                formatter={(value: number) => [`$${value.toFixed(2)}`, 'Price']}
-                                labelFormatter={(date) => new Date(date).toLocaleDateString()}
-                              />
-                              <Line 
-                                type="monotone" 
-                                dataKey="price" 
-                                stroke={isPositive ? '#10b981' : '#ef4444'}
-                                strokeWidth={2}
-                                dot={false}
-                              />
-                            </LineChart>
-                          </ResponsiveContainer>
-                        </div>
-                      )}
-
-                      <div className="flex gap-2">
+                      <div className="mt-4 flex flex-wrap gap-2">
                         <button
+                          type="button"
                           onClick={() => {
                             setSelectedCardForAlert(tracked);
                             setShowAlertForm(true);
                           }}
-                          className="flex items-center gap-2 px-4 py-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-colors font-semibold text-sm"
+                          className="btn-alert"
                         >
-                          <AlertCircle className="w-4 h-4" />
-                          Set Alert
+                          <AlertCircle className="h-4 w-4" />
+                          Set alert
                         </button>
                         <button
+                          type="button"
                           onClick={() => handleUntrack(tracked.id)}
-                          className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors font-semibold text-sm"
+                          className="btn-destructive"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="h-4 w-4" />
                           Remove
                         </button>
                       </div>
@@ -445,95 +389,87 @@ export const PriceTrackingDashboard: React.FC = () => {
 
       {/* Price Alerts */}
       {alerts.length > 0 && (
-        <div className="card p-6">
-          <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <Bell className="w-5 h-5 text-yellow-600" />
-            Price Alerts ({alerts.filter(a => a.isActive).length})
+        <div className="card">
+          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
+            <Bell className="h-5 w-5 text-amber-400" />
+            Price alerts ({alerts.filter((a) => a.isActive).length})
           </h3>
-          
+
           <div className="space-y-3">
-            {alerts.filter(a => a.isActive).map((alert) => (
-              <div
-                key={alert.id}
-                className="flex items-center justify-between p-4 bg-yellow-50 rounded-lg border border-yellow-200"
-              >
-                <div>
-                  <h4 className="font-bold text-gray-900">{alert.cardName}</h4>
-                  <p className="text-sm text-gray-600">
-                    Alert when price goes {alert.alertType} ${alert.targetPrice.toFixed(2)}
-                  </p>
-                </div>
-                <button
-                  onClick={() => handleDeleteAlert(alert.id)}
-                  className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors font-semibold"
+            {alerts
+              .filter((a) => a.isActive)
+              .map((alert) => (
+                <div
+                  key={alert.id}
+                  className="flex items-center justify-between rounded-lg border border-amber-500/20 bg-amber-500/10 p-4"
                 >
-                  Delete
-                </button>
-              </div>
-            ))}
+                  <div>
+                    <h4 className="font-semibold text-white">{alert.cardName}</h4>
+                    <p className="text-sm text-slate-400">
+                      When price goes {alert.alertType} {formatCurrency(alert.targetPrice)}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteAlert(alert.id)}
+                    className="btn-destructive"
+                  >
+                    Delete
+                  </button>
+                </div>
+              ))}
           </div>
         </div>
       )}
 
       {/* Create Alert Modal */}
       {showAlertForm && selectedCardForAlert && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
+            initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl"
+            className="w-full max-w-md rounded-xl border border-white/15 bg-[#0f1624] p-6"
           >
-            <h3 className="text-2xl font-bold text-gray-900 mb-4">
-              Create Price Alert
-            </h3>
-            
-            <div className="mb-4">
-              <p className="text-sm text-gray-600 mb-1">Card</p>
-              <p className="font-bold text-gray-900">{selectedCardForAlert.card.name}</p>
-            </div>
+            <h3 className="text-xl font-bold text-white">Create price alert</h3>
+            <p className="mt-1 text-sm text-slate-400">{selectedCardForAlert.card.name}</p>
 
-            <div className="mb-4">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Alert Type
+            <div className="mt-4 space-y-4">
+              <label className="block">
+                <span className="section-label mb-2 block">Alert type</span>
+                <select
+                  value={alertType}
+                  onChange={(e) => setAlertType(e.target.value as 'above' | 'below')}
+                  className="input"
+                >
+                  <option value="above">Above target price</option>
+                  <option value="below">Below target price</option>
+                </select>
               </label>
-              <select
-                value={alertType}
-                onChange={(e) => setAlertType(e.target.value as 'above' | 'below')}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium"
-              >
-                <option value="above">Above Target Price</option>
-                <option value="below">Below Target Price</option>
-              </select>
-            </div>
-
-            <div className="mb-6">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Target Price ($)
+              <label className="block">
+                <span className="section-label mb-2 block">Target price ($)</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={alertTarget}
+                  onChange={(e) => setAlertTarget(e.target.value)}
+                  placeholder="0.00"
+                  className="input"
+                />
               </label>
-              <input
-                type="number"
-                step="0.01"
-                value={alertTarget}
-                onChange={(e) => setAlertTarget(e.target.value)}
-                placeholder="0.00"
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 font-medium"
-              />
             </div>
 
-            <div className="flex gap-3">
-              <button
-                onClick={handleCreateAlert}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-primary-600 to-accent-600 text-white rounded-xl font-bold hover:from-primary-700 hover:to-accent-700 transition-all"
-              >
-                Create Alert
+            <div className="mt-6 flex gap-3">
+              <button type="button" onClick={handleCreateAlert} className="btn-primary flex-1 justify-center">
+                Create alert
               </button>
               <button
+                type="button"
                 onClick={() => {
                   setShowAlertForm(false);
                   setSelectedCardForAlert(null);
                   setAlertTarget('');
                 }}
-                className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl font-bold hover:bg-gray-300 transition-all"
+                className="btn-secondary"
               >
                 Cancel
               </button>
