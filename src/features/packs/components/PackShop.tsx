@@ -2,7 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Pack } from '../../../types/pokemon';
 import { tieredPackService } from '../../../services/tieredPackService';
 import { PackOpeningModal } from './PackOpeningModal';
-import { Package, Sparkles, TrendingUp, History, Zap } from 'lucide-react';
+import { Package, Sparkles, History, Zap } from 'lucide-react';
+import { SectionLabel } from '../../../components/common/SectionLabel';
+import { PageEmptyState } from '../../../components/common/PageEmptyState';
+import { formatCurrency } from '../../../utils/cardDisplay';
 
 export const PackShop: React.FC = () => {
   const [packs, setPacks] = useState<Pack[]>([]);
@@ -17,8 +20,7 @@ export const PackShop: React.FC = () => {
   const loadPacks = async () => {
     setIsLoading(true);
     try {
-      const availablePacks = tieredPackService.getAvailablePacks();
-      setPacks(availablePacks);
+      setPacks(tieredPackService.getAvailablePacks());
     } catch (error) {
       console.error('Error loading packs:', error);
     } finally {
@@ -35,181 +37,141 @@ export const PackShop: React.FC = () => {
 
   const getTierColor = (tier: string) => {
     switch (tier) {
-      case 'starter': return 'from-gray-400 to-gray-600';
-      case 'bronze': return 'from-orange-400 to-orange-600';
-      case 'silver': return 'from-gray-300 to-gray-500';
-      case 'gold': return 'from-yellow-400 to-yellow-600';
-      case 'platinum': return 'from-purple-400 to-purple-600';
-      default: return 'from-blue-400 to-blue-600';
+      case 'starter':
+        return 'from-slate-500 to-slate-700';
+      case 'bronze':
+        return 'from-orange-500 to-amber-700';
+      case 'silver':
+        return 'from-slate-300 to-slate-500';
+      case 'gold':
+        return 'from-yellow-400 to-amber-600';
+      case 'platinum':
+        return 'from-violet-400 to-fuchsia-700';
+      default:
+        return 'from-blue-500 to-indigo-700';
     }
   };
 
+  const evRatio = (pack: Pack) => (pack.price > 0 ? pack.averageValue / pack.price : 0);
+
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="flex min-h-[400px] items-center justify-center">
+        <div className="h-9 w-9 animate-spin rounded-full border-2 border-white/20 border-t-violet-400" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Enhanced Header */}
-      <div className="flex justify-between items-start animate-slide-up">
-        <div className="flex items-center gap-4">
-          <div className="relative group">
-            <div className="absolute -inset-1 bg-gradient-to-r from-primary-600 to-accent-600 rounded-2xl blur opacity-60 group-hover:opacity-100 transition duration-500 animate-glow" />
-            <div className="relative p-4 bg-gradient-to-br from-primary-600 to-accent-600 rounded-2xl shadow-xl">
-              <Package className="w-10 h-10 text-white" />
-            </div>
-          </div>
-          <div>
-            <h2 className="text-4xl font-black gradient-text tracking-tight">
-              Pack Shop
-            </h2>
-            <p className="text-gray-600 text-base font-medium mt-1">Open packs and discover amazing cards!</p>
-          </div>
-        </div>
+    <div className="section-stack">
+      <div>
+        <SectionLabel className="text-violet-300/90">Simulated rip lab</SectionLabel>
+        <h2 className="mt-2 text-3xl font-bold text-white">Pack shop</h2>
+        <p className="mt-2 text-sm text-slate-400">
+          Open tiered packs with play-money odds — results are simulated, not financial advice.
+        </p>
       </div>
 
-      {/* Enhanced Stats */}
       {history.packsOpened > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 animate-slide-up">
-          <div className="group card hover:border-primary-300 border-2 border-transparent p-6">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-3 bg-gradient-to-br from-primary-100 to-primary-200 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                <Package className="w-6 h-6 text-primary-600" />
-              </div>
-              <p className="text-sm font-semibold text-gray-600">Packs Opened</p>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <article className="card">
+            <p className="section-label mb-2">Packs opened</p>
+            <p className="text-3xl font-bold text-white">{history.packsOpened}</p>
+          </article>
+          <article className="card">
+            <p className="section-label mb-2">Total spent</p>
+            <p className="text-3xl font-bold text-white">{formatCurrency(history.totalSpent)}</p>
+          </article>
+          <article className="card">
+            <p className="section-label mb-2">Pull value</p>
+            <p className="text-3xl font-bold text-emerald-300">{formatCurrency(history.totalValue)}</p>
+          </article>
+          <article className="card border-rose-500/20 bg-rose-950/20">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="section-label">Session P/L</p>
+              <span className="rounded-md border border-white/10 bg-white/[0.06] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-slate-400">
+                Simulated
+              </span>
             </div>
-            <p className="text-4xl font-black text-gray-900">{history.packsOpened}</p>
-          </div>
-
-          <div className="group card hover:border-accent-300 border-2 border-transparent p-6">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-3 bg-gradient-to-br from-accent-100 to-accent-200 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                <Sparkles className="w-6 h-6 text-accent-600" />
-              </div>
-              <p className="text-sm font-semibold text-gray-600">Total Spent</p>
-            </div>
-            <p className="text-4xl font-black text-gray-900">${history.totalSpent.toFixed(2)}</p>
-          </div>
-
-          <div className="group card hover:border-green-300 border-2 border-transparent p-6">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-3 bg-gradient-to-br from-green-100 to-emerald-200 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                <TrendingUp className="w-6 h-6 text-green-600" />
-              </div>
-              <p className="text-sm font-semibold text-gray-600">Total Value</p>
-            </div>
-            <p className="text-4xl font-black text-gray-900">${history.totalValue.toFixed(2)}</p>
-          </div>
-
-          <div className={`group rounded-2xl p-6 shadow-card hover:shadow-card-hover transition-all duration-300 border-2 ${
-            history.totalProfit >= 0 
-              ? 'bg-gradient-to-br from-green-50 via-green-50 to-emerald-100 border-green-300 hover:border-green-400' 
-              : 'bg-gradient-to-br from-red-50 via-red-50 to-rose-100 border-red-300 hover:border-red-400'
-          }`}>
-            <div className="flex items-center gap-3 mb-3">
-              <div className={`p-3 rounded-xl group-hover:scale-110 transition-transform duration-300 ${history.totalProfit >= 0 ? 'bg-green-200/80' : 'bg-red-200/80'}`}>
-                <TrendingUp className={`w-6 h-6 ${history.totalProfit >= 0 ? 'text-green-700' : 'text-red-700'}`} />
-              </div>
-              <p className={`text-sm font-semibold ${history.totalProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                {history.totalProfit >= 0 ? 'Total Profit' : 'Total Loss'}
-              </p>
-            </div>
-            <p className={`text-4xl font-black ${history.totalProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-              {history.totalProfit >= 0 ? '+' : ''}${history.totalProfit.toFixed(2)}
+            <p className="text-2xl font-bold tabular-nums text-rose-200/90">
+              {history.totalProfit >= 0 ? '+' : ''}
+              {formatCurrency(history.totalProfit)}
             </p>
-          </div>
+            <p className="mt-1 text-xs text-slate-500">Play-money session only</p>
+          </article>
         </div>
       )}
 
-      {/* Available Packs Grid */}
       <div>
-        <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-purple-600" />
-          Available Packs
+        <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
+          <Sparkles className="h-5 w-5 text-violet-400" />
+          Available packs
         </h3>
-        
+
         {packs.length === 0 ? (
-          <div className="glass rounded-3xl p-12 text-center shadow-xl border animate-scale-in">
-            <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-primary-100 to-accent-100 rounded-full mb-6">
-              <Package className="w-12 h-12 text-primary-600" />
-            </div>
-            <h3 className="text-2xl font-black text-gray-900 mb-3">No Packs Available</h3>
-            <p className="text-gray-600 font-medium">Check back later for new packs!</p>
-          </div>
+          <PageEmptyState
+            icon={Package}
+            title="No packs available"
+            message="Check back later for new simulated pack tiers."
+          />
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
             {packs.map((pack) => (
               <div
                 key={pack.id}
-                className="group card border-2 border-gray-200 hover:border-primary-400 overflow-hidden shine"
+                className="group overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] transition-transform hover:-translate-y-0.5"
               >
-                {/* Pack Header with Gradient */}
-                <div className={`relative overflow-hidden bg-gradient-to-br ${getTierColor(pack.tier)} p-6 text-white`}>
-                  <div className="absolute inset-0 bg-black opacity-10"></div>
-                  <div className="relative z-10">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-black text-2xl">{pack.name}</h4>
-                      <Zap className="w-6 h-6" />
+                <div className={`relative bg-gradient-to-br ${getTierColor(pack.tier)} p-4 text-white`}>
+                  <div className="absolute inset-0 bg-black/20" />
+                  <div className="relative">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xl font-bold">{pack.name}</h4>
+                      <Zap className="h-5 w-5 opacity-80" />
                     </div>
-                    <p className="text-white/90 text-sm mb-4">{pack.description}</p>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-4xl font-black">${pack.price}</span>
-                      <span className="text-white/80 text-sm">per pack</span>
+                    <p className="mt-1 text-sm text-white/85">{pack.description}</p>
+                    <div className="mt-3 flex items-baseline gap-2">
+                      <span className="text-3xl font-black">{formatCurrency(pack.price)}</span>
+                      <span className="text-xs text-white/70">per pack</span>
                     </div>
+                    <p className="mt-2 inline-flex rounded-md border border-white/20 bg-black/25 px-2 py-0.5 text-[10px] font-medium text-white/90">
+                      EV: ${evRatio(pack).toFixed(2)}/dollar spent
+                    </p>
                   </div>
                 </div>
 
-                {/* Pack Info */}
-                <div className="p-5 space-y-4">
-                  {/* Stats */}
-                  <div className="flex items-center justify-between pb-3 border-b border-gray-200">
-                    <div className="text-center">
-                      <p className="text-xs text-gray-500 mb-1">Cards</p>
-                      <p className="text-lg font-bold text-gray-900">{pack.cardsPerPack}</p>
+                <div className="space-y-4 p-4">
+                  <div className="flex justify-between border-b border-white/10 pb-3 text-center text-sm">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider text-slate-500">Cards</p>
+                      <p className="font-bold text-white">{pack.cardsPerPack}</p>
                     </div>
-                    <div className="h-8 w-px bg-gray-200" />
-                    <div className="text-center">
-                      <p className="text-xs text-gray-500 mb-1">Avg Value</p>
-                      <p className="text-lg font-bold text-green-600">${pack.averageValue}</p>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider text-slate-500">Avg value</p>
+                      <p className="font-bold text-emerald-300">{formatCurrency(pack.averageValue)}</p>
                     </div>
                   </div>
 
-                  {/* Value Distribution */}
-                  <div>
-                    <h5 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
-                      <Sparkles className="w-3 h-3" />
-                      Value Distribution
-                    </h5>
-                    <div className="space-y-1.5">
-                      {pack.valueRanges.slice(0, 4).map((range, idx) => (
-                        <div key={idx} className="flex items-center gap-2 text-xs">
-                          <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
-                            <div
-                              className={`h-full bg-gradient-to-r ${getTierColor(pack.tier)} transition-all`}
-                              style={{ width: `${Math.min(range.probability * 2, 100)}%` }}
-                            />
-                          </div>
-                          <span className="text-gray-600 font-medium w-20">{range.label}</span>
-                          <span className="text-gray-500 w-12 text-right">{range.probability}%</span>
+                  <div className="space-y-1.5">
+                    {pack.valueRanges.slice(0, 3).map((range, idx) => (
+                      <div key={idx} className="flex items-center gap-2 text-xs">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
+                          <div
+                            className={`h-full bg-gradient-to-r ${getTierColor(pack.tier)}`}
+                            style={{ width: `${Math.min(range.probability * 2, 100)}%` }}
+                          />
                         </div>
-                      ))}
-                      {pack.valueRanges.length > 4 && (
-                        <p className="text-xs text-gray-400 italic mt-1">+ {pack.valueRanges.length - 4} more tiers...</p>
-                      )}
-                    </div>
+                        <span className="w-16 text-slate-400">{range.label}</span>
+                      </div>
+                    ))}
                   </div>
 
-                  {/* Enhanced Open Button */}
                   <button
-                    className={`w-full py-4 bg-gradient-to-r ${getTierColor(pack.tier)} hover:opacity-90 text-white font-black rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl flex items-center justify-center gap-2 hover:scale-105 active:scale-95 group/btn`}
+                    type="button"
+                    className={`flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r py-3 text-sm font-bold text-white transition-opacity ${getTierColor(pack.tier)} hover:opacity-90`}
                     onClick={() => handleOpenPack(pack)}
                   >
-                    <Sparkles className="w-5 h-5 group-hover/btn:rotate-180 transition-transform duration-500" />
-                    <span>Open Pack</span>
+                    <Sparkles className="h-4 w-4" />
+                    Open pack
                   </button>
                 </div>
               </div>
@@ -218,36 +180,36 @@ export const PackShop: React.FC = () => {
         )}
       </div>
 
-      {/* Recent Openings */}
       {history.pulls.length > 0 && (
-        <div className="mt-8">
-          <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <History className="w-5 h-5 text-blue-600" />
-            Recent Openings
+        <div>
+          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
+            <History className="h-5 w-5 text-sky-400" />
+            Recent openings
           </h3>
-          <div className="space-y-3">
+          <div className="space-y-2">
             {history.pulls.slice(0, 5).map((pull, index) => (
               <div
                 key={index}
-                className="bg-white rounded-xl p-4 shadow-md border border-gray-200 flex items-center justify-between"
+                className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] p-4"
               >
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                   <img
                     src={pull.pack.imageUrl || 'https://images.pokemontcg.io/base1/logo.png'}
                     alt={pull.pack.name}
-                    className="w-12 h-12 object-contain"
+                    className="h-10 w-10 object-contain"
                   />
                   <div>
-                    <p className="font-semibold text-gray-900">{pull.pack.name}</p>
-                    <p className="text-sm text-gray-500">
+                    <p className="font-medium text-white">{pull.pack.name}</p>
+                    <p className="text-xs text-slate-500">
                       {new Date(pull.openedAt).toLocaleString()}
                     </p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm text-gray-600">Value: ${pull.totalValue.toFixed(2)}</p>
-                  <p className={`text-sm font-semibold ${pull.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {pull.profit >= 0 ? '+' : ''}${pull.profit.toFixed(2)}
+                <div className="text-right text-sm">
+                  <p className="text-slate-400">{formatCurrency(pull.totalValue)}</p>
+                  <p className={pull.profit >= 0 ? 'text-emerald-300' : 'text-rose-300/80'}>
+                    {pull.profit >= 0 ? '+' : ''}
+                    {formatCurrency(pull.profit)}
                   </p>
                 </div>
               </div>
@@ -256,20 +218,15 @@ export const PackShop: React.FC = () => {
         </div>
       )}
 
-      {/* Pack Opening Modal */}
       <PackOpeningModal
         pack={selectedPack}
         isOpen={isModalOpen}
         onClose={() => {
           setIsModalOpen(false);
           setSelectedPack(null);
-          // Refresh history
-          const newHistory = tieredPackService.getHistory();
-          // Force re-render by updating state
           loadPacks();
         }}
       />
     </div>
   );
 };
-

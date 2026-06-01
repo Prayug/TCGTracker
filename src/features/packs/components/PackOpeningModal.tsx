@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion } from 'framer-motion';
 import { Pack, PackPull } from '../../../types/pokemon';
 import { Modal } from '../../../components/common/Modal';
 import { tieredPackService } from '../../../services/tieredPackService';
@@ -37,12 +38,13 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
       const pull = await packPromise;
       setPackPull(pull);
 
-      // Dramatic card flip reveal
-      await new Promise(resolve => setTimeout(resolve, 800));
-      setRevealedCards(1);
+      const cardCount = pull.cards.length;
+      for (let i = 0; i < cardCount; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 450));
+        setRevealedCards(i + 1);
+      }
 
-      // Show results after card revealed
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 600));
       setShowResults(true);
     } catch (error) {
       console.error('Error opening pack:', error);
@@ -206,17 +208,31 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
             <h3 className="text-3xl font-bold text-center mb-8 bg-gradient-to-r from-yellow-400 via-pink-400 to-purple-600 bg-clip-text text-transparent animate-pulse">
               ✨ YOU PULLED ✨
             </h3>
-            <div className="flex justify-center">
+            <div className="flex min-h-[320px] items-end justify-center gap-2 px-4 pb-4">
               {packPull.cards.map((card, index) => {
                 const price = card.marketPrice || pokemonApi.extractCardPrice(card);
+                const revealed = index < revealedCards;
+                const fanRotate = (index - (packPull.cards.length - 1) / 2) * 14;
+                const fanX = (index - (packPull.cards.length - 1) / 2) * 28;
+
                 return (
-                  <div
+                  <motion.div
                     key={index}
-                    className={`transition-all duration-1000 ${
-                      index < revealedCards 
-                        ? 'opacity-100 scale-100 rotate-0' 
-                        : 'opacity-0 scale-50 rotate-180'
-                    }`}
+                    initial={{ opacity: 0, y: 80, rotate: 0, scale: 0.6 }}
+                    animate={
+                      revealed
+                        ? {
+                            opacity: 1,
+                            y: 0,
+                            rotate: fanRotate,
+                            x: fanX,
+                            scale: 1,
+                          }
+                        : { opacity: 0, y: 80, scale: 0.5 }
+                    }
+                    transition={{ type: 'spring', stiffness: 260, damping: 22 }}
+                    className="origin-bottom"
+                    style={{ zIndex: index }}
                   >
                     {/* Card with glow effect */}
                     <div className="relative">
@@ -282,7 +298,7 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
             </div>
