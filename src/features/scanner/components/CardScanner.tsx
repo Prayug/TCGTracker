@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Camera, Upload, X, AlertCircle, CheckCircle, RefreshCw, Scan,
-  Terminal, ChevronRight
+  ChevronRight
 } from 'lucide-react';
 import { scanCardFromFile, scanCardFromBase64, checkBackendHealth, ScanResult } from '../../../services/cardScannerApi';
 
@@ -73,9 +73,30 @@ export function CardScanner() {
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [retryProgress, setRetryProgress] = useState(0);
+
   useEffect(() => {
     checkBackendHealth().then(setBackendStatus);
   }, []);
+
+  useEffect(() => {
+    if (backendStatus !== false) return;
+
+    let attempts = 0;
+    const maxAttempts = 12;
+    const interval = setInterval(async () => {
+      attempts += 1;
+      setRetryProgress(Math.round((attempts / maxAttempts) * 100));
+      const ok = await checkBackendHealth();
+      if (ok) {
+        setBackendStatus(true);
+        clearInterval(interval);
+      }
+      if (attempts >= maxAttempts) clearInterval(interval);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [backendStatus]);
 
   useEffect(() => () => stopCamera(), []);
 
@@ -183,60 +204,69 @@ export function CardScanner() {
     checkBackendHealth().then(setBackendStatus);
   };
 
-  // Backend offline
   if (backendStatus === false) {
     return (
-      <div className="max-w-2xl mx-auto">
-        <div className="bg-white border border-slate-200 rounded-xl p-8 text-center">
-          <div className="w-12 h-12 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-center mx-auto mb-4">
-            <Terminal className="w-6 h-6 text-amber-600" />
+      <div className="mx-auto max-w-2xl">
+        <div className="rounded-xl border border-white/10 bg-white/[0.04] p-8 text-center">
+          <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-2xl border border-amber-500/25 bg-amber-500/10">
+            <Camera className="h-10 w-10 text-amber-300/80" />
           </div>
-          <h2 className="text-lg font-semibold text-slate-900 mb-2">Scanner backend offline</h2>
-          <p className="text-sm text-slate-500 mb-6">
-            The card scanner requires a local Python backend running on port 5001.
+          <h2 className="text-xl font-semibold text-white">Scanner warming up…</h2>
+          <p className="mx-auto mt-2 max-w-md text-sm text-slate-400">
+            We&apos;re trying to reach the recognition service on port 5001. Start the Python backend
+            locally, or wait — we&apos;ll retry automatically.
           </p>
 
-          <div className="bg-slate-900 rounded-lg p-4 text-left mb-6 text-sm font-mono">
-            <p className="text-slate-400 mb-2"># Start the scanner backend</p>
-            <p className="text-green-400">cd card-scanner-backend</p>
-            <p className="text-green-400">pip install -r requirements.txt</p>
-            <p className="text-green-400">python app.py</p>
+          <div className="mx-auto mt-6 max-w-xs">
+            <div className="mb-1 flex justify-between text-[10px] uppercase tracking-wider text-slate-500">
+              <span>Auto-retry</span>
+              <span>{retryProgress}%</span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-emerald-500/70 transition-all duration-500"
+                style={{ width: `${retryProgress}%` }}
+              />
+            </div>
           </div>
 
-          <button
-            onClick={recheckBackend}
-            className="btn-primary"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Check again
+          <div className="mt-6 rounded-lg border border-white/10 bg-black/40 p-4 text-left font-mono text-xs">
+            <p className="mb-2 text-slate-500"># Start the scanner backend</p>
+            <p className="text-emerald-400">cd card-scanner-backend</p>
+            <p className="text-emerald-400">pip install -r requirements.txt</p>
+            <p className="text-emerald-400">python app.py</p>
+          </div>
+
+          <button type="button" onClick={recheckBackend} className="btn-primary mt-6">
+            <RefreshCw className="h-4 w-4" />
+            Retry now
           </button>
         </div>
       </div>
     );
   }
 
-  // Loading backend status
   if (backendStatus === null) {
     return (
-      <div className="max-w-2xl mx-auto flex items-center justify-center py-20">
-        <div className="w-6 h-6 border-2 border-slate-200 border-t-blue-600 rounded-full animate-spin" />
-        <span className="ml-3 text-sm text-slate-500">Connecting to scanner...</span>
+      <div className="mx-auto flex max-w-2xl items-center justify-center py-20">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-white/20 border-t-emerald-400" />
+        <span className="ml-3 text-sm text-slate-400">Connecting to scanner…</span>
       </div>
     );
   }
 
   return (
-    <div className="max-w-3xl mx-auto">
-      {/* Page header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-2 mb-1">
-          <Scan className="w-5 h-5 text-blue-600" />
-          <h1 className="text-xl font-bold text-slate-900">Card Scanner</h1>
-          <span className="badge bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold">
+    <div className="mx-auto max-w-3xl">
+      <div className="mb-6">
+        <div className="mb-1 flex items-center gap-2">
+          <Scan className="h-5 w-5 text-emerald-400" />
+          <h1 className="text-xl font-bold text-white">Card scanner</h1>
+          <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-300">
+            <span className="live-pulse-dot scale-75" />
             Online
           </span>
         </div>
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-slate-400">
           Identify any Pokémon card by uploading a photo or using your camera.
         </p>
       </div>
@@ -314,8 +344,16 @@ export function CardScanner() {
               </div>
             )}
             {isCameraActive && !isScanning && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-48 h-64 border-2 border-white/50 rounded-xl" />
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <div className="relative h-[68%] w-[42%] max-w-[220px] rounded-xl border-2 border-emerald-400/70 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]">
+                  <span className="absolute -top-7 left-0 right-0 text-center text-[10px] font-semibold uppercase tracking-wider text-emerald-300">
+                    Align card here
+                  </span>
+                  <span className="absolute -left-1 -top-1 h-4 w-4 border-l-2 border-t-2 border-emerald-400" />
+                  <span className="absolute -right-1 -top-1 h-4 w-4 border-r-2 border-t-2 border-emerald-400" />
+                  <span className="absolute -bottom-1 -left-1 h-4 w-4 border-b-2 border-l-2 border-emerald-400" />
+                  <span className="absolute -bottom-1 -right-1 h-4 w-4 border-b-2 border-r-2 border-emerald-400" />
+                </div>
               </div>
             )}
             {isScanning && (
