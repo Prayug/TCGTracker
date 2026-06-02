@@ -1,10 +1,11 @@
-import { PokemonCard, PokemonSet, ApiResponse, PricePoint } from '../types/pokemon';
+import { PricePoint } from '../types/pokemon';
 import { CardIdentifier } from '../types/identifiers';
 
 interface PriceHistoryPoint {
   date: string;
   price: number;
   marketPrice?: number;
+  subTypeName?: string;
   lowPrice?: number;
   highPrice?: number;
   volume?: number;
@@ -45,6 +46,12 @@ export class PriceHistoryApi {
   public static dataMode: 'live' | 'static' = 'live'; // Use live mode by default (backend server)
   private static staticMappings: CardIdentifier[] | null = null;
   private static latestPrices: { [uniqueIdentifier: string]: PricePoint } | null = null;
+  private static normalizeVariantKey(value?: string): string {
+    if (!value) return 'normal';
+    const compact = value.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!compact) return 'normal';
+    return compact;
+  }
 
   private static async getStaticMappings(): Promise<CardIdentifier[]> {
     if (this.staticMappings) {
@@ -304,12 +311,18 @@ export class PriceHistoryApi {
    * Converts raw price history to the format expected by the frontend
    */
   static formatPriceHistory(priceHistory: PriceHistoryPoint[]): Array<{ date: string; price: number }> {
-    return priceHistory
-      .filter(point => point.price > 0)
-      .map(point => ({
-        date: point.date,
-        price: point.marketPrice || point.price
-      }))
+    const byDate = new Map<string, number>();
+
+    priceHistory
+      .filter((point) => (point.marketPrice || point.price) > 0)
+      .forEach((point) => {
+        const pointDate = point.date.includes('T') ? point.date.split('T')[0] : point.date;
+        const normalizedPrice = point.marketPrice || point.price;
+        byDate.set(pointDate, normalizedPrice);
+      });
+
+    return Array.from(byDate.entries())
+      .map(([date, price]) => ({ date, price }))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }
 
@@ -323,69 +336,30 @@ export class PriceHistoryApi {
     number?: string;
     rarity?: string;
     productId?: string;
+    variant?: string;
   }): Promise<Array<{ date: string; price: number }>> {
     const cardNumber = card.number || this.extractCardNumber(card.id);
-    
-    // Use the new, more reliable endpoint first
-    const history = await this.getPriceHistory({
+    return this.getPriceHistory({
       name: card.name,
       set: card.set,
       number: cardNumber,
       rarity: card.rarity,
-      productId: card.productId
+      productId: card.productId,
+      variant: card.variant,
     });
-
-    if (history.length > 0) {
-      return history;
-    }
-    
-    // Fallback to old methods if new one fails
-    // 1. Try direct card endpoint with Pokemon TCG API set ID
-    let result = await this.getCardPriceHistory(card.name, card.set.id, cardNumber);
-    if (result?.priceHistory && result.priceHistory.length > 0) {
-      return this.formatPriceHistory(result.priceHistory);
-    }
-    
-    // 2. Try direct card endpoint with set name (for sets like "151")
-    result = await this.getCardPriceHistory(card.name, card.set.name, cardNumber);
-    if (result?.priceHistory && result.priceHistory.length > 0) {
-      return this.formatPriceHistory(result.priceHistory);
-    }
-    
-    // 3. Fallback to matching endpoint with set name (most reliable for TCGCSV data)
-    const matchResult = await this.matchCardAndGetHistory(
-      card.name,
-      card.set.name,
-      cardNumber,
-      card.set.id
-    );
-    if (matchResult?.priceHistory && matchResult.priceHistory.length > 0) {
-      return this.formatPriceHistory(matchResult.priceHistory);
-    }
-    
-    // 4. Try matching with just the card name and shortened set name
-    const setNameWords = card.set.name.split(' ');
-    const shortSetName = setNameWords[setNameWords.length - 1]; // Get last word (like "151")
-    const shortMatchResult = await this.matchCardAndGetHistory(
-      card.name,
-      shortSetName,
-      cardNumber
-    );
-    if (shortMatchResult?.priceHistory && shortMatchResult.priceHistory.length > 0) {
-      return this.formatPriceHistory(shortMatchResult.priceHistory);
-    }
-    
-    // Return empty array if no data found
-    return [];
   }
 
   static async getPriceHistory(card: {
+    id?: string;
     name: string;
     set: { id: string; name: string };
     number?: string;
     rarity?: string;
     productId?: string;
+    variant?: string;
   }): Promise<Array<{ date: string; price: number }>> {
+    const variantKey = this.normalizeVariantKey(card.variant);
+
     if (PriceHistoryApi.dataMode === 'static') {
       const matchedCard = await this.findCardStatically(card);
       if (!matchedCard || !matchedCard.uniqueIdentifier) {
@@ -406,77 +380,52 @@ export class PriceHistoryApi {
         }
         
         const data = await response.json();
-        return this.formatPriceHistory(data || []);
+        const normalizedData = (data || []).filter((point: PriceHistoryPoint) => {
+          const pointVariant = this.normalizeVariantKey(point.subTypeName);
+          return variantKey === 'normal' ? true : pointVariant === variantKey;
+        });
+        return this.formatPriceHistory(normalizedData);
       } catch (error) {
         // Silently fail - price file doesn't exist or is invalid
         return [];
       }
     }
 
-    // Live mode - try multiple endpoints and name variations for maximum compatibility
-    console.log(`🔍 Fetching price history for "${card.name}" from "${card.set.name}"`);
-    
-    // Generate name variations to try
-    const nameVariations = [
-      card.name, // Original name
-      card.name.replace(/-/g, ' '), // Replace hyphens with spaces (e.g., "Charizard-EX" -> "Charizard EX")
-      card.name.replace(/-/g, ''), // Remove hyphens (e.g., "Charizard-EX" -> "CharizardEX")
-    ];
-    
-    // Try each name variation with the match endpoint
-    for (const nameVariation of nameVariations) {
-      try {
-        const matchParams = new URLSearchParams({
-          cardName: nameVariation,
-          setName: card.set.name,
-        });
-        if (card.number) {
-          matchParams.append('cardNumber', card.number);
-        }
-        
-        const matchResponse = await fetch(`${this.baseUrl}/match?${matchParams}`);
-        if (matchResponse.ok) {
-          const matchData = await matchResponse.json();
-          if (matchData?.priceHistory && matchData.priceHistory.length > 0) {
-            console.log(`✅ Found ${matchData.priceHistory.length} price points via match endpoint (using "${nameVariation}")`);
-            return this.formatPriceHistory(matchData.priceHistory);
-          }
-        }
-      } catch (error) {
-        // Continue to next variation
-      }
-    }
-
-    // Try the history endpoint as fallback with original name
     try {
-      const params = new URLSearchParams({
-        cardName: card.name,
-        setName: card.set.name,
-        setId: card.set.id,
-      });
-      if (card.number) {
-        params.append('cardNumber', card.number);
-      }
-      if (card.rarity) {
-        params.append('rarity', card.rarity);
-      }
-      if (card.productId) {
-        params.append('productId', card.productId);
-      }
-
-      const response = await fetch(`${this.baseUrl}/history?${params}`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data?.priceHistory && data.priceHistory.length > 0) {
-          console.log(`✅ Found ${data.priceHistory.length} price points via history endpoint`);
-          return this.formatPriceHistory(data.priceHistory);
+      const fetchHistory = async (variantToUse?: string) => {
+        const params = new URLSearchParams({
+          cardId: card.id,
+          cardName: card.name,
+          setName: card.set.name,
+          setId: card.set.id,
+        });
+        if (variantToUse) {
+          params.append('variant', variantToUse);
         }
-      }
+        if (card.number) {
+          params.append('cardNumber', card.number);
+        }
+        if (card.rarity) {
+          params.append('rarity', card.rarity);
+        }
+        if (card.productId) {
+          params.append('productId', card.productId);
+        }
+        const response = await fetch(`${this.baseUrl}/history?${params}`);
+        if (!response.ok) {
+          return [];
+        }
+        const data = await response.json();
+        return data?.priceHistory ? this.formatPriceHistory(data.priceHistory) : [];
+      };
+
+      return await fetchHistory(variantKey);
     } catch (error) {
-      console.log('History endpoint failed');
+      if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_API) {
+        console.log('History endpoint failed', error);
+      }
     }
-    
-    console.log(`❌ No price history found for "${card.name}" (tried ${nameVariations.length} variations)`);
+
     return [];
   }
 

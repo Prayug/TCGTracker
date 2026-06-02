@@ -1,8 +1,7 @@
-import { PokemonCard, PokemonSet, ApiResponse } from '../types/pokemon';
+import { PokemonCard, PokemonSet } from '../types/pokemon';
 import { cacheService } from './cacheService';
 
-const API_BASE_URL = 'https://api.pokemontcg.io/v2';
-const API_KEY = import.meta.env.VITE_POKEMON_TCG_API_KEY || '';
+const BACKEND_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
 
 // How many results a query is expected to have — drives pagination strategy
 function estimateResultVolume(query?: string): 'small' | 'large' {
@@ -17,20 +16,12 @@ function estimateResultVolume(query?: string): 'small' | 'large' {
 class PokemonApiService {
   private pendingRequests = new Map<string, Promise<PokemonCard[]>>();
 
-  private buildHeaders(): HeadersInit {
-    const headers: HeadersInit = { Accept: 'application/json' };
-    if (API_KEY) headers['X-Api-Key'] = API_KEY;
-    return headers;
-  }
-
-  private async fetchApi<T>(
-    endpoint: string,
-    params?: Record<string, string>,
-    retries = 2
-  ): Promise<ApiResponse<T>> {
-    const url = new URL(`${API_BASE_URL}${endpoint}`);
+  private async fetchBackend<T>(endpoint: string, params?: Record<string, string>, retries = 2): Promise<T> {
+    const url = new URL(`${BACKEND_BASE_URL}${endpoint}`);
     if (params) {
-      Object.entries(params).forEach(([k, v]) => { if (v) url.searchParams.append(k, v); });
+      Object.entries(params).forEach(([k, v]) => {
+        if (v) url.searchParams.append(k, v);
+      });
     }
 
     let lastError: Error | null = null;
@@ -42,8 +33,7 @@ class PokemonApiService {
       try {
         const response = await fetch(url.toString(), {
           signal: controller.signal,
-          headers: this.buildHeaders(),
-          mode: 'cors',
+          headers: { Accept: 'application/json' },
         });
         clearTimeout(timeoutId);
 
@@ -55,7 +45,7 @@ class PokemonApiService {
           throw new Error(`API ${response.status}: ${response.statusText}`);
         }
 
-        return await response.json();
+        return (await response.json()) as T;
       } catch (err) {
         clearTimeout(timeoutId);
         lastError = err as Error;
@@ -84,43 +74,28 @@ class PokemonApiService {
       return this.pendingRequests.get(cacheKey)!;
     }
 
-    const queryParts: string[] = [];
-    if (query?.trim()) queryParts.push(`name:*${query.trim()}*`);
-    if (setId) queryParts.push(`set.id:${setId}`);
-    const q = queryParts.join(' ') || undefined;
-
     const requestPromise = (async (): Promise<PokemonCard[]> => {
       try {
-        const volume = estimateResultVolume(query);
-        // For specific queries, fetch 1 page first; if full, fetch up to 3 pages total
-        const initialParams: Record<string, string> = { pageSize: pageSize.toString(), page: '1' };
-        if (q) initialParams.q = q;
-
-        const firstPage = await this.fetchApi<PokemonCard>('/cards', initialParams);
-        const firstCards = firstPage.data ?? [];
-
-        // If first page isn't full or query is specific → no need for more pages
-        const needsMore = volume === 'large' && firstCards.length === pageSize;
-
-        if (!needsMore) {
-          cacheService.set(cacheKey, firstCards, 10 * 60 * 1000);
-          return firstCards;
+        if (!query || query.trim().length < 2) {
+          return [];
         }
 
-        // Fetch up to 2 more pages in parallel (total 3 pages = 750 cards max)
-        const extraPages = [2, 3].map((page) => {
-          const params: Record<string, string> = { pageSize: pageSize.toString(), page: page.toString() };
-          if (q) params.q = q;
-          return this.fetchApi<PokemonCard>('/cards', params)
-            .then(r => r.data ?? [])
-            .catch(() => [] as PokemonCard[]);
+        const volume = estimateResultVolume(query);
+        const response = await this.fetchBackend<{
+          data?: PokemonCard[];
+          source?: string;
+          totalCount?: number;
+        }>('/api/cards/pokemon', {
+          query: query.trim(),
+          setId: setId || '',
+          pageSize: pageSize.toString(),
+          fetchAll: volume === 'large' ? 'true' : 'false',
+          maxPages: volume === 'large' ? '10' : '2',
         });
 
-        const [p2, p3] = await Promise.all(extraPages);
-        const allCards = [...firstCards, ...p2, ...p3].filter(c => c?.id);
-
-        cacheService.set(cacheKey, allCards, 10 * 60 * 1000);
-        return allCards;
+        const cards = (response.data || []).filter((card) => card?.id);
+        cacheService.set(cacheKey, cards, 5 * 60 * 1000);
+        return cards;
       } catch (err) {
         console.error('Error searching cards:', err);
         return [];
@@ -139,10 +114,7 @@ class PokemonApiService {
     if (cached) return cached;
 
     try {
-      const response = await this.fetchApi<PokemonSet>('/sets', {
-        orderBy: '-releaseDate',
-        pageSize: '250',
-      });
+      const response = await this.fetchBackend<{ data?: PokemonSet[] }>('/api/cards/sets');
       const sets = response.data ?? [];
       cacheService.set(cacheKey, sets, 60 * 60 * 1000);
       return sets;
@@ -158,8 +130,14 @@ class PokemonApiService {
     if (cached) return cached;
 
     try {
-      const response = await this.fetchApi<PokemonCard>(`/cards/${id}`);
-      const card = response.data as unknown as PokemonCard;
+      const response = await this.fetchBackend<{ data?: PokemonCard[] }>(
+        '/api/cards/search',
+        { query: id, limit: '20' }
+      );
+      const card = (response.data || []).find((entry) => entry.id === id) || null;
+      if (!card) {
+        return null;
+      }
       cacheService.set(cacheKey, card, 30 * 60 * 1000);
       return card;
     } catch (err) {
@@ -168,10 +146,18 @@ class PokemonApiService {
     }
   }
 
-  extractCardPrice(card: PokemonCard): number {
+  extractCardPrice(card: PokemonCard, preferredVariant?: string): number {
     if (card.tcgplayer?.prices) {
       const prices = card.tcgplayer.prices;
-      const variants = ['normal', 'holofoil', '1stEditionHolofoil', '1stEditionNormal', 'unlimited'];
+      const variants = [
+        preferredVariant,
+        'normal',
+        'holofoil',
+        'reverseHolofoil',
+        '1stEditionHolofoil',
+        '1stEditionNormal',
+        'unlimited',
+      ].filter(Boolean) as string[];
       for (const v of variants) {
         if (prices[v]?.market) return prices[v].market!;
       }
