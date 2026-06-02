@@ -409,7 +409,20 @@ JWT_SECRET=your-super-secure-secret-min-32-chars
 DATABASE_PATH=/path/to/production/database.db
 CORS_ORIGIN=https://yourdomain.com
 SENTRY_DSN=your-backend-sentry-dsn
+CLOUD_SYNC_ENABLED=true
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
+SUPABASE_BUCKET=tcgtracker-data
 ```
+
+Cloud backup notes:
+- When `CLOUD_SYNC_ENABLED=true`, every successful price sync uploads:
+  - `backups/tcg-prices-YYYY-MM-DD.db`
+  - `latest/tcg-prices-latest.db`
+  - metadata JSON under `metadata/`
+- Manual endpoints:
+  - `POST /api/cloud-backup`
+  - `GET /api/cloud-backup/status`
 
 ### CI/CD Pipeline
 
