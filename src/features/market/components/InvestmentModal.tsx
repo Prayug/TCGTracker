@@ -4,11 +4,14 @@ import { Modal } from '../../../components/common/Modal';
 import { PriceChart } from './PriceChart';
 import { PriceHistoryApi } from '../../../services/priceHistoryApi';
 import { AddToVaultModal } from '../../../features/vault/components/AddToVaultModal';
-import { Database, Vault, TrendingUp } from 'lucide-react';
+import { Database, Vault, TrendingUp, Calendar } from 'lucide-react';
 import { vaultService } from '../../../services/vaultService';
 import { pokemonApi } from '../../../services/pokemonApi';
 import { priceTrackingService } from '../../../services/priceTrackingService';
 import { fetchCardPopulation, PopulationLookupResponse } from '../../../services/populationApi';
+import { SectionLabel } from '../../../components/common/SectionLabel';
+import { formatCurrency } from '../../../utils/cardDisplay';
+import { toIsoDate } from '../../../utils/priceHistory';
 
 interface InvestmentModalProps {
   card: PokemonCard | null;
@@ -16,14 +19,23 @@ interface InvestmentModalProps {
   onClose: () => void;
 }
 
+function formatDisplayDate(dateStr: string): string {
+  const iso = toIsoDate(dateStr);
+  const [year, month, day] = iso.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
 export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, onClose }) => {
-  const getPopulationMessage = (data?: PopulationLookupResponse['companies'][keyof PopulationLookupResponse['companies']]) => {
-    if (!data || data.status === 'ok') {
-      return null;
-    }
-    if (data.status === 'unavailable') {
-      return 'No exact match found';
-    }
+  const getPopulationMessage = (
+    data?: PopulationLookupResponse['companies'][keyof PopulationLookupResponse['companies']]
+  ) => {
+    if (!data || data.status === 'ok') return null;
+    if (data.status === 'unavailable') return 'No exact match found';
     return data.message || 'Temporarily unavailable';
   };
 
@@ -38,18 +50,12 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
   const [isLoadingPopulation, setIsLoadingPopulation] = useState(false);
 
   const variantOptions = React.useMemo(() => {
-    if (!card?.tcgplayer?.prices) {
-      return [{ key: 'normal', label: 'Normal' }];
-    }
+    if (!card?.tcgplayer?.prices) return [{ key: 'normal', label: 'Normal' }];
     const keys = Object.keys(card.tcgplayer.prices);
-    if (keys.length === 0) {
-      return [{ key: 'normal', label: 'Normal' }];
-    }
+    if (keys.length === 0) return [{ key: 'normal', label: 'Normal' }];
     return keys.map((key) => ({
       key,
-      label: key
-        .replace(/([a-z])([A-Z])/g, '$1 $2')
-        .replace(/^./, (char) => char.toUpperCase()),
+      label: key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (char) => char.toUpperCase()),
     }));
   }, [card]);
 
@@ -62,28 +68,20 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
   }, [card, isOpen, selectedVariant]);
 
   useEffect(() => {
-    if (card && isOpen) {
-      fetchPopulation();
-    }
+    if (card && isOpen) fetchPopulation();
   }, [card, isOpen, selectedVariant]);
 
   useEffect(() => {
-    if (!card || !isOpen) {
-      return;
-    }
+    if (!card || !isOpen) return;
     setSelectedVariant(variantOptions[0]?.key || 'normal');
   }, [card, isOpen, variantOptions]);
 
   const checkIfInVault = () => {
-    if (card) {
-      setIsInVault(vaultService.isInVault(card.id));
-    }
+    if (card) setIsInVault(vaultService.isInVault(card.id));
   };
 
   const checkIfTracked = () => {
-    if (card) {
-      setIsTracked(priceTrackingService.isTracked(card.id));
-    }
+    if (card) setIsTracked(priceTrackingService.isTracked(card.id));
   };
 
   const handleTrack = () => {
@@ -95,7 +93,6 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
 
   const fetchPriceHistory = async () => {
     if (!card) return;
-
     setIsLoadingHistory(true);
     try {
       const history = await PriceHistoryApi.getPokemonCardPriceHistory({
@@ -107,16 +104,14 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
         productId: card.tcgplayer?.productId,
         variant: selectedVariant,
       });
-
-      if (history && history.length > 0) {
+      if (history?.length > 0) {
         setPriceHistory(history);
         setHasRealData(true);
       } else {
         setPriceHistory([]);
         setHasRealData(false);
       }
-    } catch (error) {
-      console.error('Error fetching price history:', error);
+    } catch {
       setPriceHistory([]);
       setHasRealData(false);
     } finally {
@@ -144,111 +139,112 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
 
   if (!card) return null;
 
-  const formattedDate = new Date(card.set.releaseDate).toLocaleDateString('en-US', {
+  const formattedReleaseDate = new Date(card.set.releaseDate).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
-    day: 'numeric'
+    day: 'numeric',
   });
 
-  const mostRecentPriceDate = hasRealData && priceHistory.length > 0 
-    ? new Date(priceHistory[priceHistory.length - 1].date).toLocaleDateString()
-    : null;
+  const latestHistoryDate =
+    hasRealData && priceHistory.length > 0
+      ? formatDisplayDate(priceHistory[priceHistory.length - 1].date)
+      : null;
 
   const selectedVariantLabel =
     variantOptions.find((option) => option.key === selectedVariant)?.label || 'Normal';
   const actualCardPrice = pokemonApi.extractCardPrice(card, selectedVariant) || card.marketPrice || 0;
-  
-  // Use latest stored snapshot point for trend comparison.
   const snapshotPrice = priceHistory.length > 0 ? priceHistory[priceHistory.length - 1].price : null;
-  const populationEntries = populationData
-    ? Object.values(populationData.companies)
-    : [];
+  const populationEntries = populationData ? Object.values(populationData.companies) : [];
   const allPopulationUnavailable =
     populationEntries.length > 0 && populationEntries.every((entry) => entry.total === null);
+
+  const firstHistoryPrice = priceHistory[0]?.price || 0;
+  const lastHistoryPrice = priceHistory[priceHistory.length - 1]?.price || 0;
+  const priceChange = lastHistoryPrice - firstHistoryPrice;
+  const priceChangePercent = firstHistoryPrice > 0 ? (priceChange / firstHistoryPrice) * 100 : 0;
+  const isPositiveChange = priceChange >= 0;
 
   return (
     <>
       <Modal isOpen={isOpen} onClose={onClose} size="large">
-        <div className="p-6">
-          {/* Header */}
-          <div className="flex items-start gap-6 mb-6">
+        <div className="p-6 pr-14">
+          <div className="mb-6 flex flex-col gap-6 lg:flex-row lg:items-start">
             <img
               src={card.images.large}
               alt={card.name}
-              className="w-48 rounded-xl shadow-lg flex-shrink-0"
+              className="mx-auto w-44 shrink-0 rounded-xl border border-white/10 bg-black/30 object-contain shadow-lg lg:mx-0 lg:w-48"
               loading="lazy"
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
-                if (target.src !== card.images.small) {
-                  target.src = card.images.small;
-                }
+                if (target.src !== card.images.small) target.src = card.images.small;
               }}
             />
-            
-            <div className="flex-1 space-y-4">
-              <div>
-                <div className="flex items-start justify-between mb-2 flex-wrap gap-2">
-                  <h2 className="text-3xl font-bold text-slate-900">{card.name}</h2>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleTrack}
-                      disabled={isTracked}
-                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                        isTracked
-                          ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
-                          : 'bg-primary-600 text-white hover:bg-primary-700'
-                      }`}
-                    >
-                      <TrendingUp className="w-4 h-4" />
-                      {isTracked ? 'Tracking' : 'Track Price'}
-                    </button>
-                    <button
-                      onClick={() => setIsVaultModalOpen(true)}
-                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                        isInVault
-                          ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                          : 'bg-accent-600 text-white hover:bg-accent-700'
-                      }`}
-                    >
-                      <Vault className="w-4 h-4" />
-                      {isInVault ? 'In Vault' : 'Add to Vault'}
-                    </button>
-                  </div>
+
+            <div className="min-w-0 flex-1 space-y-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">{card.name}</h2>
+                  <p className="mt-1 text-sm text-slate-400">
+                    {card.set.name} · Released {formattedReleaseDate}
+                  </p>
+                  {card.types && card.types.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {card.types.map((type) => (
+                        <span
+                          key={type}
+                          className="rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-0.5 text-xs font-medium text-sky-200"
+                        >
+                          {type}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <p className="text-lg text-slate-600">{card.set.name} • {formattedDate}</p>
-                {card.types && card.types.length > 0 && (
-                  <div className="flex gap-2 mt-2">
-                    {card.types.map((type) => (
-                      <span
-                        key={type}
-                        className="px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm font-medium"
-                      >
-                        {type}
-                      </span>
-                    ))}
-                  </div>
-                )}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={handleTrack}
+                    disabled={isTracked}
+                    className={
+                      isTracked
+                        ? 'inline-flex items-center gap-2 rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-slate-500'
+                        : 'btn-secondary'
+                    }
+                  >
+                    <TrendingUp className="h-4 w-4" />
+                    {isTracked ? 'Tracking' : 'Track price'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsVaultModalOpen(true)}
+                    className={
+                      isInVault
+                        ? 'inline-flex items-center gap-2 rounded-lg border border-emerald-500/35 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300'
+                        : 'btn-primary'
+                    }
+                  >
+                    <Vault className="h-4 w-4" />
+                    {isInVault ? 'In vault' : 'Add to vault'}
+                  </button>
+                </div>
               </div>
 
-              {/* Basic Card Information */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-                <div className="text-left">
-                  <p className="font-semibold text-slate-700 mb-1">Rarity</p>
-                  <p className="text-slate-900">{card.rarity || 'N/A'}</p>
+              <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
+                <div>
+                  <p className="section-label mb-1">Rarity</p>
+                  <p className="font-medium text-slate-200">{card.rarity || 'N/A'}</p>
                 </div>
-                
                 {card.artist && (
-                  <div className="text-left">
-                    <p className="font-semibold text-slate-700 mb-1">Artist</p>
-                    <p className="text-slate-900">{card.artist}</p>
+                  <div>
+                    <p className="section-label mb-1">Artist</p>
+                    <p className="font-medium text-slate-200">{card.artist}</p>
                   </div>
                 )}
-
-                <div className="text-left">
-                  <p className="font-semibold text-slate-700 mb-1">Finish</p>
+                <div>
+                  <p className="section-label mb-1">Finish</p>
                   <select
                     value={selectedVariant}
-                    onChange={(event) => setSelectedVariant(event.target.value)}
+                    onChange={(e) => setSelectedVariant(e.target.value)}
                     className="input py-1.5"
                   >
                     {variantOptions.map((option) => (
@@ -262,14 +258,13 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
             </div>
           </div>
 
-          {/* Price Chart */}
-          <div className="card p-6">
-            <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4">
+          <div className="space-y-6">
+            <section className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
               <div className="mb-3 flex items-center justify-between">
-                <h5 className="text-sm font-semibold text-slate-900">Graded Population</h5>
-                <span className="text-xs text-slate-500">
+                <SectionLabel>Graded population</SectionLabel>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
                   {isLoadingPopulation
-                    ? 'Loading...'
+                    ? 'Loading…'
                     : populationData?.cached
                       ? 'Cached'
                       : populationData
@@ -277,19 +272,25 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
                         : 'Unavailable'}
                 </span>
               </div>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 {[
                   { key: 'psa', label: 'PSA' },
                   { key: 'cgc', label: 'CGC' },
                   { key: 'beckett', label: 'Beckett' },
                 ].map((company) => {
-                  const data = populationData?.companies?.[company.key as keyof PopulationLookupResponse['companies']];
+                  const data =
+                    populationData?.companies?.[
+                      company.key as keyof PopulationLookupResponse['companies']
+                    ];
                   const value = data?.total;
                   return (
-                    <div key={company.key} className="rounded-lg border border-slate-200 p-3">
-                      <p className="text-xs font-medium text-slate-600">{company.label}</p>
-                      <p className="mt-1 text-xl font-bold text-slate-900">
-                        {value !== null && value !== undefined ? value.toLocaleString() : 'Unavailable'}
+                    <div
+                      key={company.key}
+                      className="rounded-lg border border-white/10 bg-black/20 p-3"
+                    >
+                      <p className="text-xs font-medium text-slate-400">{company.label}</p>
+                      <p className="mt-1 text-xl font-bold tabular-nums text-white">
+                        {value !== null && value !== undefined ? value.toLocaleString() : '—'}
                       </p>
                       {getPopulationMessage(data) && (
                         <p className="mt-1 text-[11px] text-slate-500">{getPopulationMessage(data)}</p>
@@ -303,123 +304,112 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
                   Population data is temporarily unavailable for this card.
                 </p>
               )}
-            </div>
+            </section>
 
-            <div className="flex items-center justify-between mb-6">
-              <h4 className="text-xl font-bold text-slate-900">Price History</h4>
-              <div className="flex items-center gap-2">
-                {isLoadingHistory && (
-                  <div className="flex items-center gap-1 text-xs text-slate-500 bg-white px-3 py-1.5 rounded-full shadow-sm">
-                    <div className="w-3 h-3 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin"></div>
-                    <span>Loading...</span>
-                  </div>
-                )}
-                {!isLoadingHistory && hasRealData && (
-                  <div className="flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full shadow-sm border border-emerald-200">
-                    <Database className="w-3 h-3" />
-                    <span className="font-medium">Snapshot {selectedVariantLabel}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            {/* Current Price Display - Always show the actual card price */}
-            <div className="bg-white rounded-xl p-6 mb-6 shadow-sm border border-slate-200">
-              <div className="flex items-end justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-600 mb-1">Current Market Price</p>
-                  <p className="text-4xl font-black text-slate-900">
-                    ${actualCardPrice.toFixed(2)}
-                  </p>
-                  <p className="text-xs text-slate-500 mt-1">TCGPlayer {selectedVariantLabel} Market</p>
+            <section className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                <SectionLabel>Price history</SectionLabel>
+                <div className="flex flex-wrap items-center gap-2">
+                  {isLoadingHistory && (
+                    <span className="inline-flex items-center gap-1.5 text-xs text-slate-400">
+                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/20 border-t-emerald-400" />
+                      Loading…
+                    </span>
+                  )}
+                  {!isLoadingHistory && hasRealData && (
+                    <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-300">
+                      <Database className="h-3 w-3" />
+                      {selectedVariantLabel}
+                    </span>
+                  )}
+                  {latestHistoryDate && (
+                    <span className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 text-xs text-slate-300">
+                      <Calendar className="h-3 w-3 text-slate-500" />
+                      As of {latestHistoryDate}
+                    </span>
+                  )}
                 </div>
-                
-                {/* Show price change if we have historical snapshot data */}
-                {priceHistory.length > 0 && (
-                  <div className="text-right">
-                    {(() => {
-                      const firstPrice = priceHistory[0]?.price || 0;
-                      const lastPrice = priceHistory[priceHistory.length - 1]?.price || 0;
-                      const priceChange = lastPrice - firstPrice;
-                      const priceChangePercent = firstPrice > 0 ? (priceChange / firstPrice) * 100 : 0;
-                      const isPositive = priceChange >= 0;
-                      
-                      return (
-                        <div>
-                          <div className={`inline-flex flex-col items-end px-4 py-2 rounded-lg ${
-                            isPositive ? 'bg-emerald-50' : 'bg-red-50'
-                          }`}>
-                            <span className={`text-lg font-bold ${
-                              isPositive ? 'text-emerald-700' : 'text-red-700'
-                            }`}>
-                              {isPositive ? '+' : ''}${Math.abs(priceChange).toFixed(2)}
-                            </span>
-                            <span className={`text-sm font-semibold ${
-                              isPositive ? 'text-emerald-600' : 'text-red-600'
-                            }`}>
-                              {isPositive ? '+' : ''}{priceChangePercent.toFixed(1)}%
-                            </span>
-                          </div>
-                          <p className="text-xs text-slate-500 mt-1">Historical Change</p>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
               </div>
-              
-              {/* Show comparison if snapshot and current market differ significantly */}
-              {snapshotPrice && Math.abs(snapshotPrice - actualCardPrice) > 1 && (
-                <div className="mt-3 pt-3 border-t border-slate-200">
-                  <p className="text-xs text-slate-600">
-                    Snapshot Historical Price: <span className="font-semibold">${snapshotPrice.toFixed(2)}</span>
+
+              <div className="mb-4 rounded-xl border border-white/10 bg-black/25 p-4">
+                <div className="flex flex-wrap items-end justify-between gap-4">
+                  <div>
+                    <p className="section-label mb-1">Current market price</p>
+                    <p className="text-3xl font-bold tabular-nums text-white sm:text-4xl">
+                      {formatCurrency(actualCardPrice)}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      TCGPlayer {selectedVariantLabel} market
+                      {latestHistoryDate && (
+                        <span className="text-slate-400"> · quote dated {latestHistoryDate}</span>
+                      )}
+                    </p>
+                  </div>
+                  {priceHistory.length > 0 && (
+                    <div className="text-right">
+                      <div
+                        className={`inline-flex flex-col items-end rounded-lg border px-3 py-2 ${
+                          isPositiveChange
+                            ? 'border-emerald-500/30 bg-emerald-500/10'
+                            : 'border-rose-500/30 bg-rose-500/10'
+                        }`}
+                      >
+                        <span
+                          className={`text-lg font-bold tabular-nums ${isPositiveChange ? 'text-emerald-300' : 'text-rose-300'}`}
+                        >
+                          {isPositiveChange ? '+' : ''}
+                          {formatCurrency(Math.abs(priceChange))}
+                        </span>
+                        <span
+                          className={`text-sm font-semibold tabular-nums ${isPositiveChange ? 'text-emerald-400/90' : 'text-rose-400/90'}`}
+                        >
+                          {isPositiveChange ? '+' : ''}
+                          {priceChangePercent.toFixed(1)}%
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[10px] uppercase tracking-wider text-slate-500">
+                        vs {formatDisplayDate(priceHistory[0].date)}
+                      </p>
+                    </div>
+                  )}
+                </div>
+                {snapshotPrice && Math.abs(snapshotPrice - actualCardPrice) > 1 && (
+                  <p className="mt-3 border-t border-white/10 pt-3 text-xs text-slate-500">
+                    Snapshot price {formatCurrency(snapshotPrice)}
                     {snapshotPrice !== actualCardPrice && (
-                      <span className={`ml-2 ${snapshotPrice > actualCardPrice ? 'text-red-600' : 'text-emerald-600'}`}>
-                        ({snapshotPrice > actualCardPrice ? 'above' : 'below'} current market)
+                      <span className={snapshotPrice > actualCardPrice ? 'text-rose-400' : 'text-emerald-400'}>
+                        {' '}
+                        ({snapshotPrice > actualCardPrice ? 'above' : 'below'} live market)
                       </span>
                     )}
                   </p>
+                )}
+              </div>
+
+              {priceHistory.length > 0 ? (
+                <PriceChart priceHistory={priceHistory} variant="dark" />
+              ) : (
+                <div className="flex h-56 flex-col items-center justify-center rounded-lg border border-dashed border-white/15 text-center">
+                  <Database className="mb-3 h-10 w-10 text-slate-600" />
+                  <p className="font-medium text-slate-300">No price history available</p>
+                  <p className="mt-1 max-w-sm text-sm text-slate-500">
+                    Run backend sync jobs to collect TCGdex variant snapshots.
+                  </p>
+                  <code className="mt-4 rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-xs text-slate-400">
+                    cd TCGTracker/backend && npm run start
+                  </code>
                 </div>
               )}
-            </div>
-            
-            {priceHistory.length > 0 ? (
-              <>
-                {/* Chart */}
-                <PriceChart priceHistory={priceHistory} />
-                
-                {/* Last Updated */}
-                {hasRealData && mostRecentPriceDate && (
-                  <div className="mt-4 flex items-center justify-center gap-1 text-xs text-slate-500">
-                    <span>Price history last updated:</span>
-                    <span className="font-medium">{mostRecentPriceDate}</span>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="h-64 flex items-center justify-center text-slate-500">
-                <div className="text-center">
-                  <Database className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                  <p className="text-base font-semibold text-slate-700">No price history available</p>
-                  <p className="text-sm mt-2 text-slate-500">Run backend sync jobs to collect TCGdex variant snapshots</p>
-                  <div className="mt-4 text-xs text-slate-400 bg-slate-50 px-4 py-2 rounded-lg inline-block">
-                    <code>cd TCGTracker/backend && npm run start</code>
-                  </div>
-                </div>
-              </div>
-            )}
+            </section>
           </div>
         </div>
       </Modal>
 
-      {/* Add to Vault Modal */}
       <AddToVaultModal
         card={card}
         isOpen={isVaultModalOpen}
         onClose={() => setIsVaultModalOpen(false)}
-        onSuccess={() => {
-          checkIfInVault();
-        }}
+        onSuccess={checkIfInVault}
       />
     </>
   );

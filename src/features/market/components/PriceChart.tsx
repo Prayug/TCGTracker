@@ -1,111 +1,203 @@
-import React from 'react';
-import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
+import React, { useMemo } from 'react';
+import {
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Area,
+  AreaChart,
+} from 'recharts';
+import { Calendar } from 'lucide-react';
 import { PricePoint } from '../../../types/pokemon';
+import { fillPriceHistoryGaps, toIsoDate } from '../../../utils/priceHistory';
 
 interface PriceChartProps {
   priceHistory: PricePoint[];
   title?: string;
+  fillGaps?: boolean;
+  variant?: 'light' | 'dark';
 }
 
-export const PriceChart: React.FC<PriceChartProps> = ({ priceHistory, title = "Price History" }) => {
-  if (!priceHistory || priceHistory.length === 0) {
+function formatShortDate(dateStr: string): string {
+  if (!dateStr.includes('-')) return dateStr;
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+function formatFullDate(dateStr: string): string {
+  if (!dateStr.includes('-')) return dateStr;
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+export const PriceChart: React.FC<PriceChartProps> = ({
+  priceHistory,
+  title = 'Price History',
+  fillGaps = true,
+  variant = 'dark',
+}) => {
+  const isDark = variant === 'dark';
+
+  const { chartData, filledDayCount, rawPointCount, latestDate, firstDate } = useMemo(() => {
+    if (!priceHistory?.length) {
+      return {
+        chartData: [],
+        filledDayCount: 0,
+        rawPointCount: 0,
+        latestDate: '',
+        firstDate: '',
+      };
+    }
+
+    const normalized = [...priceHistory]
+      .map((p) => ({ date: toIsoDate(p.date), price: p.price }))
+      .filter((p) => p.price > 0)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    const series = fillGaps ? fillPriceHistoryGaps(normalized).points : normalized;
+    const filled = fillGaps ? fillPriceHistoryGaps(normalized).filledDayCount : 0;
+
+    return {
+      chartData: series,
+      filledDayCount: filled,
+      rawPointCount: normalized.length,
+      firstDate: series[0]?.date ?? '',
+      latestDate: series[series.length - 1]?.date ?? '',
+    };
+  }, [priceHistory, fillGaps]);
+
+  if (chartData.length === 0) {
     return (
-      <div className="h-64 flex items-center justify-center text-slate-500">
+      <div className={`flex h-64 items-center justify-center ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
         No price history available
       </div>
     );
   }
 
-  const formatDate = (dateStr: string) => {
-    if (!dateStr.includes('-')) return dateStr;
-    const normalized = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
-    const [year, month, day] = normalized.split('-').map(Number);
-    const date = new Date(Date.UTC(year, month - 1, day));
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
-  };
-
   const formatPrice = (price: number) => `$${price.toFixed(2)}`;
+  const firstPrice = chartData[0]?.price || 0;
+  const lastPrice = chartData[chartData.length - 1]?.price || 0;
+  const isPositive = lastPrice - firstPrice >= 0;
+  const strokeColor = isPositive ? '#34d399' : '#fb7185';
+  const gridColor = isDark ? '#334155' : '#e2e8f0';
+  const tickColor = isDark ? '#94a3b8' : '#64748b';
 
-  // Calculate price change
-  const firstPrice = priceHistory[0]?.price || 0;
-  const lastPrice = priceHistory[priceHistory.length - 1]?.price || 0;
-  const priceChange = lastPrice - firstPrice;
-  const priceChangePercent = firstPrice > 0 ? (priceChange / firstPrice) * 100 : 0;
-
-  const isPositive = priceChange >= 0;
-  const toIsoDate = (value: string) => (value.includes('T') ? value.split('T')[0] : value);
-  const sorted = [...priceHistory].sort(
-    (a, b) => new Date(toIsoDate(a.date)).getTime() - new Date(toIsoDate(b.date)).getTime()
-  );
-  const firstDate = new Date(`${toIsoDate(sorted[0].date)}T00:00:00Z`);
-  const lastDate = new Date(`${toIsoDate(sorted[sorted.length - 1].date)}T00:00:00Z`);
-  const byDate = new Map(sorted.map((point) => [toIsoDate(point.date), point.price]));
-  const expandedData: Array<{ date: string; price: number | null }> = [];
-  const cursor = new Date(firstDate);
-  while (cursor <= lastDate) {
-    const key = cursor.toISOString().slice(0, 10);
-    expandedData.push({ date: key, price: byDate.has(key) ? (byDate.get(key) as number) : null });
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-  }
-  const missingDays = expandedData.filter((point) => point.price === null).length;
-  const hasSparseData = missingDays > 0;
+  const showAllXTicks = chartData.length <= 10;
+  const xInterval = showAllXTicks ? 0 : Math.max(0, Math.floor(chartData.length / 6) - 1);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-slate-500">{title} ({priceHistory.length} points)</p>
-        {hasSparseData && (
-          <p className="text-xs text-amber-700">
-            Sparse data: {missingDays} missing day{missingDays === 1 ? '' : 's'}
+    <div className="space-y-3">
+      <div
+        className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2.5 ${
+          isDark ? 'border-white/10 bg-white/[0.04]' : 'border-slate-200 bg-slate-50'
+        }`}
+      >
+        <div className="flex items-center gap-2">
+          <Calendar className={`h-4 w-4 ${isDark ? 'text-emerald-400' : 'text-slate-500'}`} />
+          <div>
+            <p className={`text-[10px] font-semibold uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+              Date range
+            </p>
+            <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              {formatFullDate(firstDate)}
+              <span className={`mx-1.5 ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>→</span>
+              {formatFullDate(latestDate)}
+            </p>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className={`text-[10px] font-semibold uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+            Latest quote
+          </p>
+          <p className={`text-sm font-bold tabular-nums ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
+            {formatPrice(lastPrice)}
+            <span className={`ml-2 text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              {formatShortDate(latestDate)}
+            </span>
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+          {title} · {rawPointCount} market {rawPointCount === 1 ? 'quote' : 'quotes'}
+        </p>
+        {filledDayCount > 0 && (
+          <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+            {filledDayCount} gap day{filledDayCount === 1 ? '' : 's'} carried at prior price
           </p>
         )}
       </div>
-      <div className="h-64">
+
+      <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={expandedData}>
+          <AreaChart data={chartData} margin={{ top: 12, right: 8, left: 4, bottom: showAllXTicks ? 8 : 4 }}>
             <defs>
               <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={isPositive ? "#10B981" : "#EF4444"} stopOpacity={0.3}/>
-                <stop offset="95%" stopColor={isPositive ? "#10B981" : "#EF4444"} stopOpacity={0}/>
+                <stop offset="5%" stopColor={strokeColor} stopOpacity={0.35} />
+                <stop offset="95%" stopColor={strokeColor} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-            <XAxis 
-              dataKey="date" 
-              tickFormatter={formatDate}
-              stroke="#64748b"
-              fontSize={12}
+            <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
+            <XAxis
+              dataKey="date"
+              tickFormatter={formatShortDate}
+              stroke={tickColor}
+              tick={{ fill: tickColor, fontSize: 11 }}
+              interval={xInterval}
+              angle={showAllXTicks ? -32 : 0}
+              textAnchor={showAllXTicks ? 'end' : 'middle'}
+              height={showAllXTicks ? 52 : 32}
+              tickLine={false}
+              axisLine={{ stroke: isDark ? '#475569' : '#cbd5e1' }}
             />
-            <YAxis 
+            <YAxis
               tickFormatter={formatPrice}
-              stroke="#64748b"
-              fontSize={12}
+              stroke={tickColor}
+              tick={{ fill: tickColor, fontSize: 11 }}
+              domain={['auto', 'auto']}
+              width={56}
+              tickLine={false}
+              axisLine={false}
             />
-            <Tooltip 
-              formatter={(value: number | null) => [
-                typeof value === 'number' ? formatPrice(value) : 'No data',
-                'Price',
-              ]}
-              labelFormatter={(label: string) => {
-                if (!label.includes('-')) return label;
-                const [year, month, day] = label.split('-').map(Number);
-                const date = new Date(Date.UTC(year, month - 1, day));
-                return date.toLocaleDateString('en-US', { timeZone: 'UTC' });
-              }}
-              contentStyle={{
-                backgroundColor: 'white',
-                border: '1px solid #e2e8f0',
-                borderRadius: '8px',
-                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-              }}
+            <Tooltip
+              formatter={(value: number) => [formatPrice(value), 'Price']}
+              labelFormatter={(label: string) => formatFullDate(String(label))}
+              contentStyle={
+                isDark
+                  ? {
+                      backgroundColor: '#0f1624',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      borderRadius: '8px',
+                      color: '#e2e8f0',
+                    }
+                  : {
+                      backgroundColor: 'white',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                    }
+              }
+              labelStyle={isDark ? { color: '#94a3b8' } : undefined}
             />
             <Area
-              type="linear"
+              type="monotone"
               dataKey="price"
-              stroke={isPositive ? "#10B981" : "#EF4444"}
+              stroke={strokeColor}
               strokeWidth={2}
               fill="url(#priceGradient)"
-              connectNulls={false}
+              dot={{ fill: strokeColor, strokeWidth: 0, r: 3 }}
+              activeDot={{ r: 5, fill: strokeColor, stroke: isDark ? '#0f1624' : '#fff', strokeWidth: 2 }}
             />
           </AreaChart>
         </ResponsiveContainer>

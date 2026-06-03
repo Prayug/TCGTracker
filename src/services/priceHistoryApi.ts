@@ -1,5 +1,6 @@
 import { PricePoint } from '../types/pokemon';
 import { CardIdentifier } from '../types/identifiers';
+import { fillPriceHistoryGaps } from '../utils/priceHistory';
 
 interface PriceHistoryPoint {
   date: string;
@@ -321,9 +322,11 @@ export class PriceHistoryApi {
         byDate.set(pointDate, normalizedPrice);
       });
 
-    return Array.from(byDate.entries())
+    const deduped = Array.from(byDate.entries())
       .map(([date, price]) => ({ date, price }))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    return fillPriceHistoryGaps(deduped).points;
   }
 
   /**
