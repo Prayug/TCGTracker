@@ -57,6 +57,30 @@ export default defineConfig({
         target: 'http://localhost:3001',
         changeOrigin: true
       },
+      '/api/cards': {
+        target: 'http://localhost:3001',
+        changeOrigin: true
+      },
+      '/api/auth': {
+        target: 'http://localhost:3001',
+        changeOrigin: true
+      },
+      '/api/alerts': {
+        target: 'http://localhost:3001',
+        changeOrigin: true
+      },
+      '/api/portfolio': {
+        target: 'http://localhost:3001',
+        changeOrigin: true
+      },
+      '/api/packs': {
+        target: 'http://localhost:3001',
+        changeOrigin: true
+      },
+      '/api/market-insights': {
+        target: 'http://localhost:3001',
+        changeOrigin: true
+      },
       '/api/pokemontcg': {
         target: 'https://api.pokemontcg.io',
         changeOrigin: true,

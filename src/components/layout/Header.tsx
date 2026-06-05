@@ -1,163 +1,62 @@
-import React, { useState } from 'react';
-import {
-  BookOpen,
-  Camera,
-  ChevronRight,
-  CircleDollarSign,
-  LayoutGrid,
-  LineChart,
-  Menu,
-  Package,
-  X,
-  Zap,
-} from 'lucide-react';
-import { AppView } from '../../types/ui';
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { Moon, Search, Sun } from 'lucide-react';
 import { UserMenu } from './UserMenu';
+import { openCommandPalette } from '../common/CommandPalette';
+import { useTheme } from '../../hooks/useTheme';
 
-interface HeaderProps {
-  currentView: AppView;
-  onViewChange: (view: AppView) => void;
-}
+const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 
-const navItems: { view: AppView; label: string; icon: React.ReactNode }[] = [
-  { view: 'home', label: 'Home', icon: <Zap className="h-4 w-4" /> },
-  { view: 'cards', label: 'Browse', icon: <LayoutGrid className="h-4 w-4" /> },
-  { view: 'tracking', label: 'Prices', icon: <LineChart className="h-4 w-4" /> },
-  { view: 'vault', label: 'Collection', icon: <BookOpen className="h-4 w-4" /> },
-  { view: 'packs', label: 'Packs', icon: <Package className="h-4 w-4" /> },
-  { view: 'scanner', label: 'Scanner', icon: <Camera className="h-4 w-4" /> },
-];
-
-function NavButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`relative inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150 ${
-        active
-          ? 'bg-white/[0.1] text-white'
-          : 'text-slate-400 hover:bg-white/[0.06] hover:text-slate-100'
-      }`}
-      aria-current={active ? 'page' : undefined}
-    >
-      {active && (
-        <span
-          className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-emerald-400"
-          aria-hidden="true"
-        />
-      )}
-      <span className={active ? 'pl-1' : ''}>{children}</span>
-    </button>
-  );
-}
-
-export const Header: React.FC<HeaderProps> = ({ currentView, onViewChange }) => {
-  const [mobileOpen, setMobileOpen] = useState(false);
+export const Header: React.FC = () => {
+  const { theme, toggleTheme } = useTheme();
 
   return (
-    <header className="sticky top-0 z-50 border-b border-white/10 bg-[#0a0f17]/90 backdrop-blur-xl">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center justify-between gap-4">
+    <header className="sticky top-0 z-40 border-b border-border-subtle bg-surface-base">
+      <div className="flex h-14 items-center justify-between gap-4 px-4 sm:px-6">
+        <Link to="/" className="flex shrink-0 items-center gap-2 md:hidden">
+          <div className="flex h-8 w-8 items-center justify-center rounded-md border border-border-default bg-accent-muted">
+            <span className="font-mono text-sm font-semibold text-accent">T</span>
+          </div>
+          <span className="text-sm font-semibold text-ink-primary">TCGTracker</span>
+        </Link>
+
+        <div className="hidden flex-1 md:block" />
+
+        <div className="flex flex-1 items-center justify-end gap-2 sm:gap-3 md:flex-none">
           <button
             type="button"
-            onClick={() => {
-              onViewChange('home');
-              setMobileOpen(false);
-            }}
-            className="group flex shrink-0 items-center gap-2.5"
+            onClick={openCommandPalette}
+            className="hidden h-9 w-56 items-center gap-2 rounded-md border border-border-default bg-surface-inset px-3 text-sm text-ink-muted transition-colors hover:border-border-strong hover:text-ink-secondary lg:flex"
+            aria-label="Open command palette"
           >
-            <div className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-emerald-300/40 bg-emerald-400/10">
-              <Zap className="h-4 w-4 text-emerald-300" />
-            </div>
-            <span className="text-base font-semibold tracking-tight text-white">TCGTracker</span>
+            <Search className="h-3.5 w-3.5" />
+            <span className="flex-1 text-left">Search cards…</span>
+            <kbd className="rounded border border-border-subtle bg-surface-raised px-1.5 py-0.5 font-mono text-[10px] font-medium text-ink-muted">
+              {isMac ? '⌘K' : 'Ctrl K'}
+            </kbd>
           </button>
 
-          <nav className="hidden items-center gap-0.5 md:flex">
-            {navItems.map(({ view, label, icon }) => (
-              <NavButton
-                key={view}
-                active={currentView === view}
-                onClick={() => onViewChange(view)}
-              >
-                {icon}
-                {label}
-              </NavButton>
-            ))}
-          </nav>
+          <button
+            type="button"
+            onClick={openCommandPalette}
+            className="flex h-9 w-9 items-center justify-center rounded-md text-ink-secondary transition-colors hover:bg-surface-hover hover:text-ink-primary lg:hidden"
+            aria-label="Search"
+          >
+            <Search className="h-[18px] w-[18px]" />
+          </button>
 
-          <div className="hidden items-center gap-3 md:flex">
-            <button
-              type="button"
-              onClick={() => onViewChange('tracking')}
-              className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-200 transition-colors hover:bg-emerald-500/20"
-            >
-              <span className="live-pulse-dot" aria-hidden="true" />
-              Market Live
-            </button>
-            <UserMenu onViewChange={onViewChange} />
-          </div>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="flex h-9 w-9 items-center justify-center rounded-md text-ink-secondary transition-colors hover:bg-surface-hover hover:text-ink-primary"
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
 
-          <div className="flex items-center gap-2 md:hidden">
-            <UserMenu onViewChange={onViewChange} />
-            <button
-              type="button"
-              onClick={() => setMobileOpen(!mobileOpen)}
-              className="rounded-lg p-2 text-slate-300 transition-colors hover:bg-white/[0.08] hover:text-white"
-              aria-label="Toggle menu"
-            >
-              {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </button>
-          </div>
+          <UserMenu />
         </div>
       </div>
-
-      {mobileOpen && (
-        <div className="animate-slide-down border-t border-white/10 bg-[#0a0f17] md:hidden">
-          <nav className="mx-auto flex max-w-7xl flex-col gap-1 px-4 py-3">
-            {navItems.map(({ view, label, icon }) => (
-              <button
-                key={view}
-                type="button"
-                onClick={() => {
-                  onViewChange(view);
-                  setMobileOpen(false);
-                }}
-                className={`flex items-center justify-between rounded-lg border-l-2 px-3 py-2.5 text-sm font-medium transition-colors ${
-                  currentView === view
-                    ? 'border-l-emerald-400 bg-white/[0.08] text-white'
-                    : 'border-l-transparent text-slate-300 hover:bg-white/[0.06] hover:text-white'
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  {icon}
-                  {label}
-                </span>
-                <ChevronRight className="h-4 w-4 text-slate-500" />
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => {
-                onViewChange('tracking');
-                setMobileOpen(false);
-              }}
-              className="mt-2 inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 py-2 text-xs font-semibold uppercase tracking-wider text-emerald-200"
-            >
-              <CircleDollarSign className="h-3.5 w-3.5" />
-              <span className="live-pulse-dot" />
-              Market Live
-            </button>
-          </nav>
-        </div>
-      )}
     </header>
   );
 };

@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -17,158 +50,164 @@ const node_cron_1 = __importDefault(require("node-cron"));
 const swagger_ui_express_1 = __importDefault(require("swagger-ui-express"));
 const priceHistory_1 = __importDefault(require("./routes/priceHistory"));
 const cardSearch_1 = __importDefault(require("./routes/cardSearch"));
+const setTracker_1 = __importDefault(require("./routes/setTracker"));
 const enhancedPacks_1 = __importDefault(require("./routes/enhancedPacks"));
+const marketInsights_1 = __importDefault(require("./routes/marketInsights"));
 const database_1 = require("./db/database");
 const migrations_1 = require("./db/migrations");
 const dataFetcher_1 = require("./services/dataFetcher");
 const cloudBackupService_1 = require("./services/cloudBackupService");
 const catalogSync_1 = require("./services/catalogSync");
+const cardImageBackfillService_1 = require("./services/cardImageBackfillService");
 const env_1 = require("./config/env");
 const swagger_1 = require("./config/swagger");
 const security_1 = require("./middleware/security");
 const rateLimiter_1 = require("./middleware/rateLimiter");
 const errorHandler_1 = require("./middleware/errorHandler");
+const auth_1 = require("./middleware/auth");
+const admin_1 = require("./middleware/admin");
 const logger_1 = require("./utils/logger");
 const authService_1 = require("./services/authService");
 const alertService_1 = require("./services/alertService");
 const portfolioService_1 = require("./services/portfolioService");
-const auth_1 = require("./routes/auth");
+const auth_2 = require("./routes/auth");
 const alerts_1 = require("./routes/alerts");
 const portfolio_1 = require("./routes/portfolio");
+const setCodeService_1 = require("./services/setCodeService");
+const sentry_1 = require("./config/sentry");
+(0, sentry_1.initSentry)();
 const app = (0, express_1.default)();
 const port = env_1.env.port;
-// Security middleware
+const BODY_LIMIT = '1mb';
+app.set('trust proxy', 1);
 app.use((0, security_1.securityMiddleware)());
 app.use((0, security_1.corsMiddleware)());
-app.use(express_1.default.json());
-app.use(express_1.default.urlencoded({ extended: true }));
-// Request logging
-app.use(logger_1.requestLogger);
-// Rate limiting
-app.use('/api/', rateLimiter_1.apiLimiter);
-// Initialize the database and services
-logger_1.logger.info('Initializing database...');
-(0, database_1.initializeDatabase)();
-const db = (0, database_1.getDb)();
-// Initialize set code service on startup (before migrations to ensure it's ready)
-const setCodeService_1 = require("./services/setCodeService");
-logger_1.logger.info('Initializing set code service...');
-// Initialize with retry logic
-const initializeSetCodeService = (...args_1) => __awaiter(void 0, [...args_1], void 0, function* (retries = 3) {
-    for (let i = 0; i < retries; i++) {
-        try {
-            yield setCodeService_1.setCodeService.initialize();
-            logger_1.logger.info('✅ Set code service initialized successfully');
-            return;
+app.use(express_1.default.json({ limit: BODY_LIMIT }));
+app.use(express_1.default.urlencoded({ extended: true, limit: BODY_LIMIT }));
+const REQUEST_TIMEOUT_MS = 120000;
+app.use((req, res, next) => {
+    req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+        logger_1.logger.warn('Request timed out', { method: req.method, url: req.url });
+        if (!res.headersSent) {
+            res.status(503).json({ error: 'Request timed out' });
         }
-        catch (error) {
-            logger_1.logger.error(`Failed to initialize set code service (attempt ${i + 1}/${retries})`, {
-                error: error.message
-            });
-            if (i < retries - 1) {
-                const delay = (i + 1) * 2000; // 2s, 4s, 6s
-                logger_1.logger.info(`Retrying in ${delay}ms...`);
-                yield new Promise(resolve => setTimeout(resolve, delay));
+    });
+    next();
+});
+app.use(logger_1.requestLogger);
+app.use('/api/', rateLimiter_1.apiLimiter);
+let server = null;
+function initializeSetCodeService() {
+    return __awaiter(this, arguments, void 0, function* (retries = 3) {
+        for (let i = 0; i < retries; i++) {
+            try {
+                yield setCodeService_1.setCodeService.initialize();
+                logger_1.logger.info('Set code service initialized successfully');
+                return;
+            }
+            catch (error) {
+                logger_1.logger.error(`Failed to initialize set code service (attempt ${i + 1}/${retries})`, {
+                    error: error.message,
+                });
+                if (i < retries - 1) {
+                    const delay = (i + 1) * 2000;
+                    yield new Promise((resolve) => setTimeout(resolve, delay));
+                }
             }
         }
-    }
-    logger_1.logger.error('❌ CRITICAL: Failed to initialize set code service after all retries. Image loading will be impaired.');
-});
-initializeSetCodeService();
-// Run database migrations before creating services
-(0, migrations_1.runMigrations)(db)
-    .then(() => {
-    // Services are created after migrations complete
-    const authService = new authService_1.AuthService(db);
-    const alertService = new alertService_1.AlertService(db);
-    const portfolioService = new portfolioService_1.PortfolioService(db);
-    // Set up routes after services are ready
-    setupRoutes(authService, alertService, portfolioService);
-})
-    .catch((error) => {
-    logger_1.logger.error('Failed to run migrations', { error });
-    process.exit(1);
-});
-// Move route setup to a function that gets called after migrations
+        logger_1.logger.error('CRITICAL: Failed to initialize set code service after all retries.');
+    });
+}
 function setupRoutes(authService, alertService, portfolioService) {
-    // API Documentation
     app.use('/api-docs', swagger_ui_express_1.default.serve, swagger_ui_express_1.default.setup(swagger_1.swaggerSpec));
     logger_1.logger.info(`API Documentation available at http://${env_1.env.host}:${port}/api-docs`);
-    // Schedule daily data updates at 2 AM
     node_cron_1.default.schedule('0 2 * * *', () => __awaiter(this, void 0, void 0, function* () {
         logger_1.logger.info('Running scheduled daily price data update...');
         try {
             const result = yield (0, dataFetcher_1.updatePriceData)();
             logger_1.logger.info('Daily price data update completed', result);
+            const imageResult = yield (0, cardImageBackfillService_1.backfillCardMappingImages)();
+            logger_1.logger.info('Post-price-update image backfill completed', imageResult);
         }
         catch (error) {
             logger_1.logger.error('Failed to update price data', { error: error.message });
         }
-    }), {
-        timezone: "America/New_York"
-    });
-    // Sync card catalog metadata shortly before price sync
+    }), { timezone: 'America/New_York' });
     node_cron_1.default.schedule('30 1 * * *', () => __awaiter(this, void 0, void 0, function* () {
         logger_1.logger.info('Running scheduled catalog sync...');
         try {
             const result = yield (0, catalogSync_1.syncCatalogData)();
             logger_1.logger.info('Catalog sync completed', result);
+            const imageResult = yield (0, cardImageBackfillService_1.backfillCardMappingImages)();
+            logger_1.logger.info('Post-catalog image backfill completed', imageResult);
         }
         catch (error) {
             logger_1.logger.error('Failed to sync card catalog', { error: error.message });
         }
-    }), {
-        timezone: 'America/New_York',
-    });
-    // Run initial data update on startup (after a short delay)
-    if (env_1.env.isProduction) {
-        setTimeout(() => __awaiter(this, void 0, void 0, function* () {
-            logger_1.logger.info('Running initial catalog sync...');
-            try {
-                const catalogResult = yield (0, catalogSync_1.syncCatalogData)();
-                logger_1.logger.info('Initial catalog sync completed', catalogResult);
-            }
-            catch (error) {
-                logger_1.logger.error('Failed initial catalog sync', { error: error.message });
-            }
-            logger_1.logger.info('Running initial price data update...');
-            try {
-                const updateResult = yield (0, dataFetcher_1.updatePriceData)();
-                logger_1.logger.info('Initial price update completed', updateResult);
-            }
-            catch (error) {
-                logger_1.logger.error('Failed initial price update', { error: error.message });
-            }
-        }), 5000);
-    }
-    // API Routes
-    app.use('/api/auth', rateLimiter_1.authLimiter, (0, auth_1.createAuthRouter)(authService));
+    }), { timezone: 'America/New_York' });
+    app.use('/api/auth', rateLimiter_1.authLimiter, (0, auth_2.createAuthRouter)(authService));
     app.use('/api/alerts', (0, alerts_1.createAlertsRouter)(alertService));
     app.use('/api/portfolio', (0, portfolio_1.createPortfolioRouter)(portfolioService));
     app.use('/api/prices', priceHistory_1.default);
+    app.use('/api/cards', setTracker_1.default);
     app.use('/api/cards', cardSearch_1.default);
     app.use('/api/packs', enhancedPacks_1.default);
-    // Manual update endpoint (admin only in production)
-    app.post('/api/update', (req, res) => __awaiter(this, void 0, void 0, function* () {
+    app.use('/api/market-insights', marketInsights_1.default);
+    node_cron_1.default.schedule('0 3 * * *', () => __awaiter(this, void 0, void 0, function* () {
+        logger_1.logger.info('Running scheduled prediction run...');
+        try {
+            const { runPredictions } = yield Promise.resolve().then(() => __importStar(require('./services/predictionEngine')));
+            const { updateActualResults } = yield Promise.resolve().then(() => __importStar(require('./services/forwardTestTracker')));
+            yield runPredictions();
+            yield updateActualResults();
+            logger_1.logger.info('Scheduled prediction run completed');
+        }
+        catch (error) {
+            logger_1.logger.error('Failed to run predictions', { error: error.message });
+        }
+    }), { timezone: 'America/New_York' });
+    app.post('/api/update', auth_1.authenticate, admin_1.requireAdmin, (req, res) => __awaiter(this, void 0, void 0, function* () {
         try {
             logger_1.logger.info('Manual price data update requested');
-            (0, dataFetcher_1.updatePriceData)()
-                .then((result) => logger_1.logger.info('Manual update finished', result))
-                .catch((error) => logger_1.logger.error('Manual update failed', { error: error.message }));
+            const result = yield (0, dataFetcher_1.updatePriceData)();
+            if (result.skipped) {
+                res.status(409).json({ success: false, message: 'Update already running' });
+                return;
+            }
+            logger_1.logger.info('Manual update finished', result);
             res.status(202).json({
                 success: true,
-                message: 'Data update process started in background.'
+                syncRunId: result.syncRunId,
+                message: `Data update process completed. Prices processed: ${result.totalPricesProcessed}`,
             });
         }
         catch (error) {
-            logger_1.logger.error('Error starting manual update', { error: error.message });
-            res.status(500).json({
-                success: false,
-                error: 'Failed to start update process'
-            });
+            logger_1.logger.error('Error during manual update', { error: error.message });
+            res.status(500).json({ success: false, error: 'Update failed: ' + error.message });
         }
     }));
-    app.post('/api/cloud-backup', (_req, res) => __awaiter(this, void 0, void 0, function* () {
+    app.get('/api/update/status/:runId', (req, res) => __awaiter(this, void 0, void 0, function* () {
+        try {
+            const { runId } = req.params;
+            const db = (0, database_1.getDb)();
+            db.get(`SELECT id, runType, runDate, status, totalPricesProcessed, groupsProcessed, groupsFailed, message, startedAt, completedAt
+         FROM sync_runs WHERE id = ?`, [runId], (err, row) => {
+                if (err) {
+                    res.status(500).json({ error: err.message });
+                    return;
+                }
+                if (!row) {
+                    res.status(404).json({ error: 'Run not found' });
+                    return;
+                }
+                res.json({ data: row });
+            });
+        }
+        catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    }));
+    app.post('/api/cloud-backup', auth_1.authenticate, admin_1.requireAdmin, (_req, res) => __awaiter(this, void 0, void 0, function* () {
         try {
             const runDate = new Intl.DateTimeFormat('en-CA', {
                 timeZone: 'America/New_York',
@@ -181,10 +220,7 @@ function setupRoutes(authService, alertService, portfolioService) {
         }
         catch (error) {
             logger_1.logger.error('Cloud backup endpoint failed', { error: error.message });
-            res.status(500).json({
-                success: false,
-                error: 'Cloud backup failed',
-            });
+            res.status(500).json({ success: false, error: 'Cloud backup failed' });
         }
     }));
     app.get('/api/cloud-backup/status', (_req, res) => __awaiter(this, void 0, void 0, function* () {
@@ -194,49 +230,38 @@ function setupRoutes(authService, alertService, portfolioService) {
         }
         catch (error) {
             logger_1.logger.error('Cloud backup status failed', { error: error.message });
-            res.status(500).json({
-                success: false,
-                error: 'Failed to retrieve cloud backup status',
-            });
+            res.status(500).json({ success: false, error: 'Failed to retrieve cloud backup status' });
         }
     }));
-    app.post('/api/sync-catalog', (_req, res) => __awaiter(this, void 0, void 0, function* () {
+    app.post('/api/sync-catalog', auth_1.authenticate, admin_1.requireAdmin, (_req, res) => __awaiter(this, void 0, void 0, function* () {
         try {
             logger_1.logger.info('Manual catalog sync requested');
             (0, catalogSync_1.syncCatalogData)()
                 .then((result) => logger_1.logger.info('Manual catalog sync completed', result))
                 .catch((error) => logger_1.logger.error('Manual catalog sync failed', { error: error.message }));
-            res.status(202).json({
-                success: true,
-                message: 'Catalog sync started in background.',
-            });
+            res.status(202).json({ success: true, message: 'Catalog sync started in background.' });
         }
         catch (error) {
             logger_1.logger.error('Error starting manual catalog sync', { error: error.message });
-            res.status(500).json({
-                success: false,
-                error: 'Failed to start catalog sync process',
-            });
+            res.status(500).json({ success: false, error: 'Failed to start catalog sync process' });
         }
     }));
-    // Health check endpoint (for Docker)
-    app.get('/health', (req, res) => {
+    app.get('/health', (_req, res) => {
         res.status(200).json({
             status: 'healthy',
             timestamp: new Date().toISOString(),
-            version: '1.0.0'
+            version: '1.0.0',
         });
     });
-    app.get('/api/health', (req, res) => {
+    app.get('/api/health', (_req, res) => {
         res.json({
             status: 'healthy',
             timestamp: new Date().toISOString(),
             version: '1.0.0',
-            environment: env_1.env.nodeEnv
+            environment: env_1.env.nodeEnv,
         });
     });
-    // Get server status
-    app.get('/api/status', (req, res) => __awaiter(this, void 0, void 0, function* () {
+    app.get('/api/status', (_req, res) => __awaiter(this, void 0, void 0, function* () {
         try {
             res.json({
                 status: 'running',
@@ -245,7 +270,8 @@ function setupRoutes(authService, alertService, portfolioService) {
                 version: '1.0.0',
                 scheduledTasks: {
                     catalogSync: 'Daily at 1:30 AM EST',
-                    dataUpdate: 'Daily at 2:00 AM EST'
+                    dataUpdate: 'Daily at 2:00 AM EST',
+                    predictions: 'Daily at 3:00 AM EST',
                 },
                 endpoints: {
                     auth: '/api/auth',
@@ -253,20 +279,18 @@ function setupRoutes(authService, alertService, portfolioService) {
                     prices: '/api/prices',
                     cards: '/api/cards',
                     packs: '/api/packs',
+                    'market-insights': '/api/market-insights',
                     docs: '/api-docs',
-                    health: '/api/health'
-                }
+                    health: '/api/health',
+                },
             });
         }
         catch (error) {
             logger_1.logger.error('Error getting status', { error: error.message });
-            res.status(500).json({
-                status: 'error',
-                error: 'Failed to get status'
-            });
+            res.status(500).json({ status: 'error', error: 'Failed to get status' });
         }
     }));
-    app.get('/', (req, res) => {
+    app.get('/', (_req, res) => {
         res.json({
             message: 'TCGTracker Backend API',
             version: '1.0.0',
@@ -277,20 +301,62 @@ function setupRoutes(authService, alertService, portfolioService) {
                 prices: '/api/prices',
                 cards: '/api/cards',
                 packs: '/api/packs',
+                'market-insights': '/api/market-insights',
                 status: '/api/status',
-                health: '/api/health'
-            }
+                health: '/api/health',
+            },
         });
     });
-    // 404 handler
     app.use(errorHandler_1.notFoundHandler);
-    // Global error handler
     app.use(errorHandler_1.errorHandler);
-    app.listen(port, () => {
-        logger_1.logger.info(`🚀 TCGTracker Backend server running on http://${env_1.env.host}:${port}`);
-        logger_1.logger.info(`📈 Price data updates scheduled daily at 2:00 AM EST`);
-        logger_1.logger.info(`📚 API documentation available at http://${env_1.env.host}:${port}/api-docs`);
-        logger_1.logger.info(`🔒 Security features enabled: Helmet, CORS, Rate Limiting`);
+    server = app.listen(port, () => {
+        logger_1.logger.info(`TCGTracker Backend server running on http://${env_1.env.host}:${port}`);
+        logger_1.logger.info(`Price data updates scheduled daily at 2:00 AM EST`);
+        logger_1.logger.info(`API documentation available at http://${env_1.env.host}:${port}/api-docs`);
         logger_1.logger.info(`Environment: ${env_1.env.nodeEnv}`);
     });
 }
+function bootstrap() {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            logger_1.logger.info('Initializing database...');
+            yield (0, database_1.initializeDatabase)();
+            const db = (0, database_1.getDb)();
+            yield (0, migrations_1.runMigrations)(db);
+            const authService = new authService_1.AuthService(db);
+            const alertService = new alertService_1.AlertService(db);
+            const portfolioService = new portfolioService_1.PortfolioService(db);
+            yield initializeSetCodeService();
+            setupRoutes(authService, alertService, portfolioService);
+            setTimeout(() => {
+                (0, cardImageBackfillService_1.backfillCardMappingImages)()
+                    .then((result) => logger_1.logger.info('Startup image backfill completed', result))
+                    .catch((error) => logger_1.logger.warn('Startup image backfill failed (non-fatal)', { error: error.message }));
+            }, 15000);
+        }
+        catch (error) {
+            logger_1.logger.error('Failed to start server', { error });
+            process.exit(1);
+        }
+    });
+}
+function shutdown(signal) {
+    logger_1.logger.info(`${signal} received — shutting down gracefully`);
+    if (server) {
+        server.close(() => {
+            logger_1.logger.info('HTTP server closed');
+            process.exit(0);
+        });
+        setTimeout(() => {
+            logger_1.logger.error('Forced shutdown after timeout');
+            process.exit(1);
+        }, 10000);
+    }
+    else {
+        process.exit(0);
+    }
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+bootstrap();
+exports.default = app;

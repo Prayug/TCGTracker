@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { getDb } from '../db/database';
+import { logger } from '../utils/logger';
 import {
   pokemonApiClient,
   CardImageMatchResult,
@@ -23,6 +24,7 @@ import {
   mapLocalRowsToPokemonCards,
 } from '../services/cardDatabase';
 import { getPopulationCounts } from '../services/populationService';
+import { getCardMappingImages } from '../services/cardImageBackfillService';
 
 const router = Router();
 
@@ -61,13 +63,17 @@ const extractMarketPriceFromVariants = (
   return null;
 };
 
-const mapCatalogRowsToPokemonCards = (rows: any[]) =>
-  rows.map((row) => {
+const mapCatalogRowsToPokemonCards = (rows: any[]) => {
+  const seen = new Map<string, any>();
+
+  for (const row of rows) {
+    if (!row.cardId || seen.has(row.cardId)) continue;
+
     const parsedPrices = parsePrices(row.tcgplayerPrices);
     const derivedMarketPrice =
       typeof row.latestPrice === 'number' ? row.latestPrice : extractMarketPriceFromVariants(parsedPrices);
 
-    return {
+    seen.set(row.cardId, {
       id: row.cardId,
       name: row.cardName,
       number: row.cardNumber || '',
@@ -91,8 +97,77 @@ const mapCatalogRowsToPokemonCards = (rows: any[]) =>
         : undefined,
       marketPrice: typeof derivedMarketPrice === 'number' ? derivedMarketPrice : 0,
       source: 'catalog_sync',
-    };
-  });
+    });
+  }
+
+  return Array.from(seen.values());
+};
+
+/**
+ * Read persisted card images from card_mappings (populated by the image backfill pipeline).
+ */
+router.get('/resolve-image', async (req, res) => {
+  try {
+    const { cardId, cardName, setId } = req.query;
+
+    if (cardId && typeof cardId === 'string') {
+      const stored = await getCardMappingImages(cardId);
+      if (stored?.imageSmall || stored?.imageLarge) {
+        return res.json({
+          images: {
+            small: stored.imageSmall || stored.imageLarge || '',
+            large: stored.imageLarge || stored.imageSmall || '',
+          },
+          cardNumber: stored.cardNumber,
+          source: 'card_mappings',
+        });
+      }
+    }
+
+    if (!cardName || typeof cardName !== 'string' || !setId || typeof setId !== 'string') {
+      return res.status(400).json({
+        error: 'Provide cardId, or both cardName and setId',
+      });
+    }
+
+    const db = getDb();
+    const row: any = await new Promise((resolve, reject) => {
+      db.get(
+        `SELECT imageSmall, imageLarge, cardNumber FROM card_mappings
+         WHERE cardName = ? AND setId = ?
+           AND (imageSmall IS NOT NULL OR imageLarge IS NOT NULL)
+         LIMIT 1`,
+        [cardName.trim(), setId.trim()],
+        (err, result) => {
+          if (err) reject(err);
+          else resolve(result);
+        }
+      );
+    });
+
+    if (!row) {
+      return res.status(404).json({
+        error: 'No persisted image found for this card',
+        searched: { cardId, cardName, setId },
+      });
+    }
+
+    res.json({
+      images: {
+        small: row.imageSmall || row.imageLarge || '',
+        large: row.imageLarge || row.imageSmall || '',
+      },
+      cardNumber: row.cardNumber,
+      source: 'card_mappings',
+    });
+  } catch (error) {
+    logger.error('Error reading card image:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: (error as Error).message,
+    });
+  }
+});
 
 /**
  * Search cards from local database
@@ -130,7 +205,7 @@ router.get('/search', async (req, res) => {
       FROM catalog_cards cc
       LEFT JOIN (
         SELECT cm.cardId, ph.marketPrice
-        FROM price_history
+        FROM price_history ph
         JOIN card_mappings cm ON cm.uniqueIdentifier = ph.uniqueIdentifier
         WHERE (ph.productId, ph.date, ph.subTypeName, ph.source) IN (
           SELECT productId, MAX(date), subTypeName, source
@@ -153,7 +228,7 @@ router.get('/search', async (req, res) => {
 
     db.all(sql, params, async (err, rows: any[]) => {
       if (err) {
-        console.error('Error searching cards:', err);
+        logger.error('Error searching cards:', err);
         return res.status(500).json({
           error: 'Database error',
           message: err.message
@@ -208,7 +283,7 @@ router.get('/search', async (req, res) => {
         cards = await mapLocalRowsToPokemonCards(fallbackRows);
       }
 
-      console.log(`✅ Found ${cards.length} cards matching "${query}" from local database`);
+      logger.info(`✅ Found ${cards.length} cards matching "${query}" from local database`);
 
       res.json({
         data: cards,
@@ -218,7 +293,7 @@ router.get('/search', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error in card search:', error);
+    logger.error('Error in card search:', error);
     res.status(500).json({ 
       error: 'Internal server error',
       message: (error as Error).message 
@@ -227,84 +302,23 @@ router.get('/search', async (req, res) => {
 });
 
 /**
- * Get all unique sets from local database
+ * Get all unique sets from local database, enriched with era, series, and logos
  */
 router.get('/sets', async (req, res) => {
   try {
-    const db = getDb();
+    const { getEnrichedSets } = await import('../services/setListService');
+    const sets = await getEnrichedSets();
 
-    const sql = `
-      SELECT DISTINCT 
-        setId as id,
-        setName as name,
-        MAX(setReleaseDate) as releaseDate,
-        COUNT(*) as total
-      FROM catalog_cards
-      GROUP BY setId, setName
-      ORDER BY date(setReleaseDate) DESC, setName ASC
-    `;
-
-    db.all(sql, [], (err, rows: any[]) => {
-      if (err) {
-        console.error('Error fetching sets:', err);
-        return res.status(500).json({ 
-          error: 'Database error',
-          message: err.message 
-        });
-      }
-
-      const mapRowsToSets = (inputRows: any[]) =>
-        inputRows.map(row => ({
-          id: row.id,
-          name: row.name,
-          releaseDate: row.releaseDate || '2020-01-01',
-          total: row.total,
-          images: {
-            symbol: '',
-            logo: ''
-          }
-        }));
-
-      if (rows.length > 0) {
-        const sets = mapRowsToSets(rows);
-        return res.json({
-          data: sets,
-          count: sets.length,
-          source: 'catalog_sync'
-        });
-      }
-
-      const fallbackSql = `
-        SELECT DISTINCT
-          setId as id,
-          setName as name,
-          COUNT(*) as total
-        FROM card_mappings
-        GROUP BY setId, setName
-        ORDER BY setName ASC
-      `;
-      db.all(fallbackSql, [], (fallbackErr, fallbackRows: any[]) => {
-        if (fallbackErr) {
-          return res.status(500).json({
-            error: 'Database error',
-            message: fallbackErr.message
-          });
-        }
-
-        const fallbackSets = mapRowsToSets(fallbackRows);
-        return res.json({
-          data: fallbackSets,
-          count: fallbackSets.length,
-          source: 'local_database_fallback'
-        });
-      });
+    res.json({
+      data: sets,
+      count: sets.length,
+      source: 'catalog_sync_enriched',
     });
-
   } catch (error) {
-    console.error('Error fetching sets:', error);
-    res.status(500).json({ 
+    logger.error('Error fetching sets:', error);
+    res.status(500).json({
       error: 'Internal server error',
-      message: (error as Error).message 
+      message: (error as Error).message,
     });
   }
 });
@@ -326,7 +340,7 @@ router.get('/stats', async (req, res) => {
 
     db.get(sql, [], (err, row: any) => {
       if (err) {
-        console.error('Error fetching stats:', err);
+        logger.error('Error fetching stats:', err);
         return res.status(500).json({ 
           error: 'Database error',
           message: err.message 
@@ -342,7 +356,7 @@ router.get('/stats', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error fetching stats:', error);
+    logger.error('Error fetching stats:', error);
     res.status(500).json({ 
       error: 'Internal server error',
       message: (error as Error).message 
@@ -424,16 +438,26 @@ router.get('/pool', async (req, res) => {
     // Exclude all promo sets (any set with "promo" in name or ID)
     const PROMO_EXCLUSION_CLAUSE = `cm.setName NOT LIKE '%promo%' AND cm.setName NOT LIKE '%Promo%' AND cm.setId NOT LIKE '%promo%' AND cm.setId NOT LIKE '%Promo%'`;
 
-    // Build exclusion clauses
-    const nameExclusionClauses = EXCLUDED_FAKE_SET_NAMES.map(set =>
-      set.includes('%') ? `cm.setName NOT LIKE '${set}'` : `cm.setName != '${set}'`
-    );
+    // Build exclusion clauses with parameterized values (no string interpolation)
+    const exclusionClauses: string[] = [];
+    const exclusionParams: string[] = [];
 
-    const idExclusionClauses = EXCLUDED_FAKE_SET_IDS.map(setId =>
-      `cm.setId != '${setId}'`
-    );
+    for (const setName of EXCLUDED_FAKE_SET_NAMES) {
+      if (setName.includes('%')) {
+        exclusionClauses.push('cm.setName NOT LIKE ?');
+      } else {
+        exclusionClauses.push('cm.setName != ?');
+      }
+      exclusionParams.push(setName);
+    }
 
-    const exclusionClauses = [...nameExclusionClauses, ...idExclusionClauses, PROMO_EXCLUSION_CLAUSE].join(' AND ');
+    for (const setId of EXCLUDED_FAKE_SET_IDS) {
+      exclusionClauses.push('cm.setId != ?');
+      exclusionParams.push(setId);
+    }
+
+    exclusionClauses.push(PROMO_EXCLUSION_CLAUSE);
+    const exclusionSql = exclusionClauses.join(' AND ');
 
     // Select random cards with their latest market price from price_history
     // ONLY from REAL Pokemon TCG sets (excludes product categories and promo sets)
@@ -466,14 +490,14 @@ router.get('/pool', async (req, res) => {
         AND cm.cardName IS NOT NULL AND TRIM(cm.cardName) <> ''
         AND cm.setId IS NOT NULL AND TRIM(cm.setId) <> ''
         AND cm.cardNumber IS NOT NULL AND TRIM(cm.cardNumber) <> ''
-        AND ${exclusionClauses}
+        AND ${exclusionSql}
       ORDER BY RANDOM()
       LIMIT ?
     `;
 
-    db.all(sql, [minPrice, maxPrice, poolLimit], async (err, rows: any[]) => {
+    db.all(sql, [minPrice, maxPrice, ...exclusionParams, poolLimit], async (err, rows: any[]) => {
       if (err) {
-        console.error('Error fetching random card pool:', err);
+        logger.error('Error fetching random card pool:', err);
         return res.status(500).json({
           error: 'Database error',
           message: err.message
@@ -490,7 +514,7 @@ router.get('/pool', async (req, res) => {
       });
     });
   } catch (error) {
-    console.error('Error building card pool:', error);
+    logger.error('Error building card pool:', error);
     res.status(500).json({ 
       error: 'Internal server error',
       message: (error as Error).message 
@@ -517,7 +541,7 @@ router.get('/pokemon', async (req, res) => {
         stale,
       };
     } catch (parseError) {
-      console.error('Failed to parse cached pokemon data', parseError);
+      logger.error('Failed to parse cached pokemon data', parseError);
       return null;
     }
   };
@@ -541,7 +565,7 @@ router.get('/pokemon', async (req, res) => {
     buildLocalFallbackResponse = async () => {
       const rows = await getLocalCardsForQuery(sanitizedQuery, normalizedSetId, limit).catch(
         (err) => {
-          console.error('Local fallback query failed', err);
+          logger.error('Local fallback query failed', err);
           return [] as any[];
         }
       );
@@ -582,7 +606,7 @@ router.get('/pokemon', async (req, res) => {
     }
 
     persistentCacheEntry = await getPersistentPokemonCache(cacheKey).catch((err) => {
-      console.error('Error reading persistent pokemon cache', err);
+      logger.error('Error reading persistent pokemon cache', err);
       return null;
     });
 
@@ -617,14 +641,14 @@ router.get('/pokemon', async (req, res) => {
     const uniqueCards = apiResult.cards;
 
     if (uniqueCards.length === 0) {
-      console.warn(
+      logger.warn(
         `⚠️ No cards from Pokemon API for query "${sanitizedQuery}", trying fallbacks...`
       );
 
       if (buildLocalFallbackResponse) {
         const localPayload = await buildLocalFallbackResponse();
         if (localPayload) {
-          console.log(`✅ Serving ${localPayload.data.length} cards from local database fallback`);
+          logger.info(`✅ Serving ${localPayload.data.length} cards from local database fallback`);
           return res.json(localPayload);
         }
       }
@@ -638,7 +662,7 @@ router.get('/pokemon', async (req, res) => {
           true
         );
         if (payload) {
-          console.log(`✅ Serving ${payload.data.length} stale cached cards as fallback`);
+          logger.info(`✅ Serving ${payload.data.length} stale cached cards as fallback`);
           return res.json(payload);
         }
       }
@@ -680,34 +704,34 @@ router.get('/pokemon', async (req, res) => {
         fetchedAt: Date.now(),
       });
     } catch (cacheError) {
-      console.warn('Failed to persist pokemon search cache', cacheError);
+      logger.warn('Failed to persist pokemon search cache', cacheError);
     }
 
-    console.log(
+    logger.info(
       `✅ Successfully fetched ${uniqueCards.length} cards for "${sanitizedQuery}" from Pokemon API`
     );
     res.json(payload);
   } catch (error) {
-    console.error('❌ Error proxying Pokemon API search:', error);
+    logger.error('❌ Error proxying Pokemon API search:', error);
 
     if (buildLocalFallbackResponse) {
       try {
         const localPayload = await buildLocalFallbackResponse();
         if (localPayload) {
-          console.log(
+          logger.info(
             `✅ Serving ${localPayload.data.length} cards from local database (error fallback)`
           );
           return res.status(200).json(localPayload);
         }
       } catch (fallbackErr) {
-        console.warn('Local fallback also failed:', fallbackErr);
+        logger.warn('Local fallback also failed:', fallbackErr);
       }
     }
 
     if (persistentCacheEntry) {
       const payload = respondWithPersistent(persistentCacheEntry, true);
       if (payload) {
-        console.log(`✅ Serving ${payload.data.length} stale cached cards (error fallback)`);
+        logger.info(`✅ Serving ${payload.data.length} stale cached cards (error fallback)`);
         return res.status(200).json(payload);
       }
     }
@@ -742,7 +766,7 @@ router.get('/search-pokemon', async (req, res) => {
 
     const cached = cardImageCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-      console.log(`💾 Cache hit for ${cardName} from ${setId || setName || 'unknown set'}`);
+      logger.info(`💾 Cache hit for ${cardName} from ${setId || setName || 'unknown set'}`);
       return res.json({
         card: cached.card,
         images: cached.images,
@@ -793,7 +817,7 @@ router.get('/search-pokemon', async (req, res) => {
       timestamp: Date.now(),
     });
 
-    console.log(
+    logger.info(
       `✅ Matched card: ${searchResult.card.name} from ${searchResult.card.set?.name} (#${searchResult.card.number})`
     );
 
@@ -813,9 +837,9 @@ router.get('/search-pokemon', async (req, res) => {
         [card.rarity, uniqueIdentifier],
         (err) => {
           if (err) {
-            console.warn(`Failed to update rarity for ${cardName}:`, err);
+            logger.warn(`Failed to update rarity for ${cardName}:`, err);
           } else {
-            console.log(`✅ Updated rarity for ${cardName}: ${card.rarity}`);
+            logger.info(`✅ Updated rarity for ${cardName}: ${card.rarity}`);
           }
         }
       );
@@ -823,7 +847,7 @@ router.get('/search-pokemon', async (req, res) => {
 
     res.json(responsePayload);
   } catch (error) {
-    console.error('Error searching Pokemon API:', error);
+    logger.error('Error searching Pokemon API:', error);
     res.status(500).json({
       error: 'Internal server error',
       message: (error as Error).message,
@@ -837,7 +861,7 @@ router.get('/search-pokemon', async (req, res) => {
  */
 router.post('/refresh-set-mappings', async (req, res) => {
   try {
-    console.log('🔄 Manual refresh of Pokemon TCG set mappings requested');
+    logger.info('🔄 Manual refresh of Pokemon TCG set mappings requested');
 
     const mappings = await setCodeService.refreshSetMappings();
 
@@ -848,7 +872,7 @@ router.post('/refresh-set-mappings', async (req, res) => {
       source: 'pokemon_tcg_api'
     });
   } catch (error) {
-    console.error('❌ Failed to refresh set mappings:', error);
+    logger.error('❌ Failed to refresh set mappings:', error);
     res.status(500).json({
       error: 'Failed to refresh set mappings',
       message: (error as Error).message
@@ -871,7 +895,7 @@ router.get('/set-mappings/stats', async (req, res) => {
       cacheTtl: stats.cacheTtl
     });
   } catch (error) {
-    console.error('Error fetching set mapping stats:', error);
+    logger.error('Error fetching set mapping stats:', error);
     res.status(500).json({
       error: 'Internal server error',
       message: (error as Error).message

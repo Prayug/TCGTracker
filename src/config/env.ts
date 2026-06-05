@@ -27,10 +27,34 @@ const getBooleanEnvVar = (key: string, defaultValue: boolean = false): boolean =
   return value === 'true' || value === '1';
 };
 
+const configuredApiUrl = getEnvVar('VITE_API_URL', 'http://localhost:3001');
+
+/** Resolves backend base URL — in dev uses Vite origin so /api/* hits the proxy. */
+export function getApiUrl(): string {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    if (import.meta.env.DEV) {
+      return window.location.origin;
+    }
+    if (!configuredApiUrl || /localhost|127\.0\.0\.1/.test(configuredApiUrl)) {
+      return window.location.origin;
+    }
+  }
+  return configuredApiUrl || 'http://localhost:3001';
+}
+
+/** Build an absolute API URL (safe for `new URL()` and `fetch`). */
+export function buildApiUrl(path: string): string {
+  const base = getApiUrl().replace(/\/$/, '');
+  const normalized = path.startsWith('/') ? path : `/${path}`;
+  return `${base}${normalized}`;
+}
+
 export const env: EnvConfig = {
   appName: getEnvVar('VITE_APP_NAME', 'Pokemon TCG Tracker'),
   appVersion: getEnvVar('VITE_APP_VERSION', '1.0.0'),
-  apiUrl: getEnvVar('VITE_API_URL', 'http://localhost:3001'),
+  get apiUrl() {
+    return getApiUrl();
+  },
   pokemonTcgApiKey: getEnvVar('VITE_POKEMON_TCG_API_KEY'),
   enableAuth: getBooleanEnvVar('VITE_ENABLE_AUTH', true),
   enableAnalytics: getBooleanEnvVar('VITE_ENABLE_ANALYTICS', false),

@@ -1,233 +1,155 @@
-import { useState } from 'react';
-import { PokemonCard } from './types/pokemon';
-import { AppView } from './types/ui';
+import { Suspense, lazy } from 'react';
+import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { HeroSection } from './components/common/HeroSection';
-import { SearchFilters } from './features/cards/components/SearchAndSort';
-import { CardGrid, CardViewMode, ViewModeToggle } from './features/cards/components/CardGrid';
-import { countActiveMarketplaceFilters } from './utils/marketplaceFilters';
-import { SectionLabel } from './components/common/SectionLabel';
-import { FilterSidebar, MarketplaceFilters } from './features/cards/components/FilterSidebar';
-import { InvestmentModal } from './features/market/components/InvestmentModal';
-import { LoadingGrid } from './components/common/LoadingSpinner';
-import { ErrorMessage } from './components/common/ErrorMessage';
-import { EmptyState } from './components/common/EmptyState';
-import { PriceTrackingDashboard } from './features/market/components/PriceTrackingDashboard';
-import { VaultView } from './features/vault/components/VaultView';
-import { PackShop } from './features/packs/components/PackShop';
-import { CardScanner } from './features/scanner/components/CardScanner';
-import { usePokemonCards } from './hooks/usePokemonCards';
 import { Header } from './components/layout/Header';
+import { Sidebar } from './components/layout/Sidebar';
 import { Footer } from './components/layout/Footer';
-import { pokemonApi } from './services/pokemonApi';
+import { BottomTabBar } from './components/layout/BottomTabBar';
+import { CommandPalette } from './components/common/CommandPalette';
+import { OnboardingChecklist } from './components/common/OnboardingChecklist';
+import { CardModalProvider } from './contexts/CardModalContext';
+import { BrowsePage } from './pages/BrowsePage';
+import { LoadingSpinner } from './components/common/LoadingSpinner';
+import { VIEW_PATHS, browseSearchPath } from './utils/routes';
+
+const PriceTrackingDashboard = lazy(() =>
+  import('./features/market/components/PriceTrackingDashboard').then((m) => ({
+    default: m.PriceTrackingDashboard,
+  }))
+);
+const MarketInsightsDashboard = lazy(() =>
+  import('./features/market-insights/components/MarketInsightsDashboard').then((m) => ({
+    default: m.MarketInsightsDashboard,
+  }))
+);
+const VaultView = lazy(() =>
+  import('./features/vault/components/VaultView').then((m) => ({ default: m.VaultView }))
+);
+const PackShop = lazy(() =>
+  import('./features/packs/components/PackShop').then((m) => ({ default: m.PackShop }))
+);
+const CardScanner = lazy(() =>
+  import('./features/scanner/components/CardScanner').then((m) => ({ default: m.CardScanner }))
+);
+const SetIndex = lazy(() =>
+  import('./features/sets/components/SetIndex').then((m) => ({ default: m.SetIndex }))
+);
+const SetDetail = lazy(() =>
+  import('./features/sets/components/SetDetail').then((m) => ({ default: m.SetDetail }))
+);
+
+const PAGE_CONTAINER = 'mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8';
+
+function RouteFallback() {
+  return (
+    <div className="flex min-h-[40vh] items-center justify-center">
+      <LoadingSpinner />
+    </div>
+  );
+}
+
+function HomePage() {
+  const navigate = useNavigate();
+  return (
+    <HeroSection
+      onStartSearch={(query) => navigate(browseSearchPath(query))}
+      onViewChange={(view) => navigate(VIEW_PATHS[view])}
+    />
+  );
+}
+
+function SetsPage() {
+  const { setId } = useParams();
+  const navigate = useNavigate();
+  return (
+    <div className={PAGE_CONTAINER}>
+      {setId ? (
+        <SetDetail setId={setId} onBack={() => navigate('/sets')} />
+      ) : (
+        <SetIndex onSelectSet={(id: string) => navigate(`/sets/${id}`)} />
+      )}
+    </div>
+  );
+}
+
+function VaultPage() {
+  const navigate = useNavigate();
+  return (
+    <div className={PAGE_CONTAINER}>
+      <VaultView onOpenSet={(setId) => navigate(`/sets/${setId}`)} />
+    </div>
+  );
+}
 
 function App() {
-  const pageContainerClass = 'mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8';
-  const [selectedCard, setSelectedCard] = useState<PokemonCard | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentView, setCurrentView] = useState<AppView>('home');
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
-  const [cardViewMode, setCardViewMode] = useState<CardViewMode>('grid');
-  const [marketplaceFilters, setMarketplaceFilters] = useState<MarketplaceFilters>({
-    setName: 'all',
-    rarity: 'all',
-    priceRange: 'all',
-    cardType: 'all',
-  });
-
-  const {
-    cards,
-    isLoading,
-    error,
-    searchQuery,
-    sortBy,
-    filterBy,
-    setSearchQuery,
-    setSortBy,
-    setFilterBy,
-    refetch,
-  } = usePokemonCards();
-
-  const handleCardClick = (card: PokemonCard) => {
-    setSelectedCard(card);
-    setIsModalOpen(true);
-  };
-
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setSelectedCard(null);
-  };
-
-  const handleHeroSearch = (query: string) => {
-    setSearchQuery(query);
-    setCurrentView('cards');
-  };
-
-  const handleResetBrowseState = () => {
-    setSearchQuery('');
-    setFilterBy('all');
-    setMarketplaceFilters({
-      setName: 'all',
-      rarity: 'all',
-      priceRange: 'all',
-      cardType: 'all',
-    });
-  };
-
-  const handleAddToCollection = (card: PokemonCard) => {
-    setSelectedCard(card);
-    setCurrentView('vault');
-  };
-
-  const handleViewPriceHistory = (card: PokemonCard) => {
-    handleCardClick(card);
-  };
-
-  const cardSetOptions = Array.from(new Set(cards.map((card) => card.set.name))).sort();
-  const rarityOptions = Array.from(new Set(cards.map((card) => card.rarity).filter(Boolean) as string[])).sort();
-  const typeOptions = Array.from(
-    new Set(cards.flatMap((card) => (card.types && card.types.length > 0 ? card.types : [])))
-  ).sort();
-
-  const cardsWithMarketplaceFilters = cards.filter((card) => {
-    if (marketplaceFilters.setName !== 'all' && card.set.name !== marketplaceFilters.setName) {
-      return false;
-    }
-
-    if (marketplaceFilters.rarity !== 'all' && (card.rarity || '') !== marketplaceFilters.rarity) {
-      return false;
-    }
-
-    if (
-      marketplaceFilters.cardType !== 'all' &&
-      !(card.types || []).some((type) => type === marketplaceFilters.cardType)
-    ) {
-      return false;
-    }
-
-    if (marketplaceFilters.priceRange !== 'all') {
-      const price = card.marketPrice ?? pokemonApi.extractCardPrice(card);
-      if (marketplaceFilters.priceRange === '0-10' && !(price >= 0 && price < 10)) return false;
-      if (marketplaceFilters.priceRange === '10-50' && !(price >= 10 && price < 50)) return false;
-      if (marketplaceFilters.priceRange === '50-150' && !(price >= 50 && price < 150)) return false;
-      if (marketplaceFilters.priceRange === '150+' && !(price >= 150)) return false;
-    }
-
-    return true;
-  });
-
   return (
-    <div className="flex min-h-screen flex-col bg-[#0a0f17] text-slate-100">
-      <Header currentView={currentView} onViewChange={setCurrentView} />
+    <CardModalProvider>
+      <div className="flex min-h-screen min-w-0 bg-surface-base text-ink-primary">
+        <Sidebar />
 
-      <main className="flex-1">
-        {currentView === 'home' ? (
-          <HeroSection onStartSearch={handleHeroSearch} onViewChange={setCurrentView} />
-        ) : currentView === 'tracking' ? (
-          <div className={pageContainerClass}>
-            <PriceTrackingDashboard />
-          </div>
-        ) : currentView === 'vault' ? (
-          <div className={pageContainerClass}>
-            <VaultView />
-          </div>
-        ) : currentView === 'packs' ? (
-          <div className={pageContainerClass}>
-            <PackShop />
-          </div>
-        ) : currentView === 'scanner' ? (
-          <div className={pageContainerClass}>
-            <CardScanner />
-          </div>
-        ) : (
-          <div className={pageContainerClass}>
-            <section className="mb-6 rounded-xl border border-white/10 bg-[linear-gradient(120deg,#161525,#0f1828_42%,#1f1533)] p-4 text-white">
-              <SectionLabel className="text-violet-300/90">Marketplace</SectionLabel>
-              <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
-                <div>
-                  <h1 className="text-2xl font-semibold tracking-tight">Browse Pokemon Cards</h1>
-                  <p className="mt-1 text-sm text-slate-300">
-                    Analyze cards with marketplace filters, pricing surfaces, and collection actions.
-                  </p>
-                </div>
-              </div>
-            </section>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <a
+            href="#main-content"
+            className="sr-only z-[95] rounded-md bg-accent px-4 py-2 text-sm font-medium text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+          >
+            Skip to content
+          </a>
 
-            <SearchFilters
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              sortBy={sortBy}
-              onSortChange={setSortBy}
-              filterBy={filterBy}
-              onFilterChange={setFilterBy}
-              isLoading={isLoading}
-              onOpenAdvancedFilters={() => setMobileFiltersOpen(true)}
-              activeFilterCount={countActiveMarketplaceFilters(marketplaceFilters)}
-            />
+          <Header />
 
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <ViewModeToggle viewMode={cardViewMode} onChange={setCardViewMode} />
-            </div>
-
-            {searchQuery && !isLoading && !error && cardsWithMarketplaceFilters.length > 0 && (
-              <div className="mb-4 flex flex-wrap items-center gap-2">
-                <p className="text-sm text-slate-300">
-                  <span className="font-medium text-white">{cardsWithMarketplaceFilters.length}</span> results for{' '}
-                  <span className="font-medium text-white">"{searchQuery}"</span>
-                </p>
-                {filterBy !== 'all' && (
-                  <span className="badge rounded-full bg-emerald-500/20 px-2.5 py-1 text-emerald-300">{filterBy}</span>
-                )}
-              </div>
-            )}
-
-            <div className="grid min-h-96 gap-5 lg:grid-cols-[270px_1fr]">
-              <FilterSidebar
-                filters={marketplaceFilters}
-                onFiltersChange={setMarketplaceFilters}
-                sortBy={sortBy}
-                onSortChange={setSortBy}
-                setOptions={cardSetOptions}
-                rarityOptions={rarityOptions}
-                typeOptions={typeOptions}
-                onReset={handleResetBrowseState}
-                isMobileOpen={mobileFiltersOpen}
-                onCloseMobile={() => setMobileFiltersOpen(false)}
-              />
-
-              <section>
-              {error ? (
-                <ErrorMessage message={error} onRetry={refetch} />
-              ) : isLoading ? (
-                <LoadingGrid />
-              ) : cardsWithMarketplaceFilters.length > 0 ? (
-                  <CardGrid
-                    cards={cardsWithMarketplaceFilters}
-                    viewMode={cardViewMode}
-                    onCardClick={handleCardClick}
-                    onAddToCollection={handleAddToCollection}
-                    onViewPriceHistory={handleViewPriceHistory}
-                  />
-              ) : (
-                <EmptyState
-                    hasSearchQuery={!!searchQuery || filterBy !== 'all'}
-                  onResetFilters={handleResetBrowseState}
-                  onTrySearch={handleHeroSearch}
+          <main id="main-content" className="min-w-0 flex-1 pb-20 md:pb-0">
+            <Suspense fallback={<RouteFallback />}>
+              <Routes>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/browse" element={<BrowsePage />} />
+                <Route
+                  path="/prices"
+                  element={
+                    <div className={PAGE_CONTAINER}>
+                      <PriceTrackingDashboard />
+                    </div>
+                  }
                 />
-              )}
-              </section>
-            </div>
-          </div>
-        )}
-      </main>
+                <Route
+                  path="/market-insights"
+                  element={
+                    <div className={PAGE_CONTAINER}>
+                      <MarketInsightsDashboard />
+                    </div>
+                  }
+                />
+                <Route path="/vault" element={<VaultPage />} />
+                <Route path="/sets" element={<SetsPage />} />
+                <Route path="/sets/:setId" element={<SetsPage />} />
+                <Route
+                  path="/packs"
+                  element={
+                    <div className={PAGE_CONTAINER}>
+                      <PackShop />
+                    </div>
+                  }
+                />
+                <Route
+                  path="/scanner"
+                  element={
+                    <div className={PAGE_CONTAINER}>
+                      <CardScanner />
+                    </div>
+                  }
+                />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </Suspense>
+          </main>
 
-      <Footer onViewChange={setCurrentView} />
+          <OnboardingChecklist />
+          <Footer />
+        </div>
 
-      <InvestmentModal
-        card={selectedCard}
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
-      />
-    </div>
+        <BottomTabBar />
+        <CommandPalette />
+      </div>
+    </CardModalProvider>
   );
 }
 

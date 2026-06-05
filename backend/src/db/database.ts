@@ -17,6 +17,15 @@ const DB_SOURCE = (() => {
 export const getDatabasePath = () => DB_SOURCE;
 
 let db: sqlite3.Database;
+let dbInitPromise: Promise<void> | null = null;
+
+const runDb = (database: sqlite3.Database, sql: string, params: unknown[] = []): Promise<void> =>
+  new Promise((resolve, reject) => {
+    database.run(sql, params, (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
 
 export const getDb = () => {
   if (!db) {
@@ -30,167 +39,195 @@ export const getDb = () => {
   return db;
 };
 
-export const initializeDatabase = () => {
-  const db = getDb();
-  
-  // NOTE: No longer dropping tables to preserve collected data
-  // Tables will be created only if they don't exist
-  
-  // Card mappings table for proper identification
-  const createCardMappingsTable = `
-    CREATE TABLE IF NOT EXISTS card_mappings (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      cardId TEXT NOT NULL,
-      productId INTEGER,
-      cardName TEXT NOT NULL,
-      setId TEXT NOT NULL,
-      setName TEXT NOT NULL,
-      cardNumber TEXT,
-      rarity TEXT,
-      variantKey TEXT DEFAULT 'normal',
-      tcgplayerProductId TEXT,
-      uniqueIdentifier TEXT NOT NULL UNIQUE,
-      createdAt TEXT DEFAULT (datetime('now')),
-      updatedAt TEXT DEFAULT (datetime('now'))
-    )
-  `;
-  
-  // TCGCSV price history table (ONLY SOURCE OF DATA)
-  const createPriceHistoryTable = `
-    CREATE TABLE IF NOT EXISTS price_history (
-      productId INTEGER,
-      date TEXT,
-      price REAL,
-      subTypeName TEXT,
-      productName TEXT,
-      groupName TEXT,
-      source TEXT DEFAULT 'tcgcsv',
-      lowPrice REAL,
-      highPrice REAL,
-      marketPrice REAL,
-      volume INTEGER,
-      uniqueIdentifier TEXT,
-      PRIMARY KEY (productId, date, subTypeName, source)
-    )
-  `;
+export const initializeDatabase = (): Promise<void> => {
+  if (dbInitPromise) return dbInitPromise;
 
-  // Historical snapshots for analytics
-  const createSnapshotsTable = `
-    CREATE TABLE IF NOT EXISTS price_snapshots (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      date TEXT,
-      totalCards INTEGER,
-      avgPrice REAL,
-      medianPrice REAL,
-      totalVolume INTEGER,
-      topGainers TEXT, -- JSON array
-      topLosers TEXT,  -- JSON array
-      createdAt TEXT DEFAULT (datetime('now'))
-    )
-  `;
+  dbInitPromise = (async () => {
+    const database = getDb();
 
-  const createPokemonCacheTable = `
-    CREATE TABLE IF NOT EXISTS pokemon_cache (
-      cacheKey TEXT PRIMARY KEY,
-      query TEXT,
-      setId TEXT,
-      pageSize INTEGER,
-      fetchAll INTEGER,
-      maxPages INTEGER,
-      data TEXT NOT NULL,
-      totalCount INTEGER,
-      pagesFetched INTEGER,
-      fetchedAt INTEGER
-    )
-  `;
+    await runDb(database, 'PRAGMA journal_mode = WAL');
+    await runDb(database, 'PRAGMA foreign_keys = ON');
+    await runDb(database, 'PRAGMA busy_timeout = 5000');
 
-  const createSyncRunsTable = `
-    CREATE TABLE IF NOT EXISTS sync_runs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      runType TEXT NOT NULL,
-      runDate TEXT,
-      status TEXT NOT NULL,
-      totalPricesProcessed INTEGER DEFAULT 0,
-      groupsProcessed INTEGER DEFAULT 0,
-      groupsFailed INTEGER DEFAULT 0,
-      message TEXT,
-      startedAt TEXT DEFAULT (datetime('now')),
-      completedAt TEXT
-    )
-  `;
+    const tables = [
+      `CREATE TABLE IF NOT EXISTS card_mappings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cardId TEXT NOT NULL,
+        productId INTEGER,
+        cardName TEXT NOT NULL,
+        setId TEXT NOT NULL,
+        setName TEXT NOT NULL,
+        cardNumber TEXT,
+        rarity TEXT,
+        variantKey TEXT DEFAULT 'normal',
+        tcgplayerProductId TEXT,
+        uniqueIdentifier TEXT NOT NULL UNIQUE,
+        createdAt TEXT DEFAULT (datetime('now')),
+        updatedAt TEXT DEFAULT (datetime('now'))
+      )`,
+      `CREATE TABLE IF NOT EXISTS price_history (
+        productId INTEGER,
+        date TEXT,
+        price REAL,
+        subTypeName TEXT,
+        productName TEXT,
+        groupName TEXT,
+        source TEXT DEFAULT 'tcgcsv',
+        lowPrice REAL,
+        highPrice REAL,
+        marketPrice REAL,
+        volume INTEGER,
+        uniqueIdentifier TEXT,
+        PRIMARY KEY (productId, date, subTypeName, source)
+      )`,
+      `CREATE TABLE IF NOT EXISTS price_snapshots (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT,
+        totalCards INTEGER,
+        avgPrice REAL,
+        medianPrice REAL,
+        totalVolume INTEGER,
+        topGainers TEXT,
+        topLosers TEXT,
+        createdAt TEXT DEFAULT (datetime('now'))
+      )`,
+      `CREATE TABLE IF NOT EXISTS pokemon_cache (
+        cacheKey TEXT PRIMARY KEY,
+        query TEXT,
+        setId TEXT,
+        pageSize INTEGER,
+        fetchAll INTEGER,
+        maxPages INTEGER,
+        data TEXT NOT NULL,
+        totalCount INTEGER,
+        pagesFetched INTEGER,
+        fetchedAt INTEGER
+      )`,
+      `CREATE TABLE IF NOT EXISTS sync_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        runType TEXT NOT NULL,
+        runDate TEXT,
+        status TEXT NOT NULL,
+        totalPricesProcessed INTEGER DEFAULT 0,
+        groupsProcessed INTEGER DEFAULT 0,
+        groupsFailed INTEGER DEFAULT 0,
+        message TEXT,
+        startedAt TEXT DEFAULT (datetime('now')),
+        completedAt TEXT
+      )`,
+      `CREATE TABLE IF NOT EXISTS catalog_cards (
+        cardId TEXT PRIMARY KEY,
+        cardName TEXT NOT NULL,
+        setId TEXT NOT NULL,
+        setName TEXT NOT NULL,
+        setReleaseDate TEXT,
+        cardNumber TEXT,
+        rarity TEXT,
+        types TEXT,
+        artist TEXT,
+        imageSmall TEXT,
+        imageLarge TEXT,
+        tcgplayerProductId TEXT,
+        tcgplayerPrices TEXT,
+        syncedAt TEXT DEFAULT (datetime('now'))
+      )`,
+      `CREATE TABLE IF NOT EXISTS population_cache (
+        cacheKey TEXT PRIMARY KEY,
+        payload TEXT NOT NULL,
+        fetchedAt INTEGER NOT NULL
+      )`,
+      `CREATE TABLE IF NOT EXISTS prediction_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created_at TEXT DEFAULT (datetime('now')),
+        model_version TEXT NOT NULL DEFAULT '1.0.0',
+        notes TEXT
+      )`,
+      `CREATE TABLE IF NOT EXISTS card_predictions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        run_id INTEGER NOT NULL,
+        card_id TEXT NOT NULL,
+        prediction_date TEXT NOT NULL,
+        current_price REAL,
+        predicted_7d_low REAL,
+        predicted_7d_mid REAL,
+        predicted_7d_high REAL,
+        predicted_30d_low REAL,
+        predicted_30d_mid REAL,
+        predicted_30d_high REAL,
+        predicted_90d_low REAL,
+        predicted_90d_mid REAL,
+        predicted_90d_high REAL,
+        expected_7d_return REAL,
+        expected_30d_return REAL,
+        expected_90d_return REAL,
+        confidence_score INTEGER DEFAULT 0,
+        risk_score INTEGER DEFAULT 0,
+        category TEXT,
+        suggested_action TEXT,
+        explanation TEXT,
+        risk_factors TEXT,
+        external_signals_json TEXT,
+        model_version TEXT DEFAULT '1.0.0',
+        FOREIGN KEY (run_id) REFERENCES prediction_runs(id) ON DELETE CASCADE
+      )`,
+      `CREATE TABLE IF NOT EXISTS prediction_results (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        prediction_id INTEGER NOT NULL UNIQUE,
+        actual_7d_price REAL,
+        actual_30d_price REAL,
+        actual_90d_price REAL,
+        actual_7d_return REAL,
+        actual_30d_return REAL,
+        actual_90d_return REAL,
+        error_7d REAL,
+        error_30d REAL,
+        error_90d REAL,
+        direction_correct_7d INTEGER DEFAULT 0,
+        direction_correct_30d INTEGER DEFAULT 0,
+        direction_correct_90d INTEGER DEFAULT 0,
+        status TEXT DEFAULT 'pending',
+        FOREIGN KEY (prediction_id) REFERENCES card_predictions(id) ON DELETE CASCADE
+      )`,
+      `CREATE TABLE IF NOT EXISTS external_market_signals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        card_id TEXT,
+        source_url TEXT,
+        source_type TEXT,
+        title TEXT,
+        summary TEXT,
+        sentiment_score INTEGER DEFAULT 0,
+        relevance_score INTEGER DEFAULT 0,
+        risk_type TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        expires_at TEXT
+      )`,
+      `CREATE TABLE IF NOT EXISTS backtest_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        backtest_date TEXT NOT NULL,
+        window_days INTEGER DEFAULT 90,
+        cards_tested INTEGER DEFAULT 0,
+        directional_accuracy REAL,
+        mape REAL,
+        top10_avg_return REAL,
+        market_avg_return REAL,
+        strong_buy_false_positive_rate REAL,
+        avoid_avg_return REAL,
+        category_performance TEXT,
+        created_at TEXT DEFAULT (datetime('now'))
+      )`,
+    ];
 
-  const createCatalogCardsTable = `
-    CREATE TABLE IF NOT EXISTS catalog_cards (
-      cardId TEXT PRIMARY KEY,
-      cardName TEXT NOT NULL,
-      setId TEXT NOT NULL,
-      setName TEXT NOT NULL,
-      setReleaseDate TEXT,
-      cardNumber TEXT,
-      rarity TEXT,
-      types TEXT,
-      artist TEXT,
-      imageSmall TEXT,
-      imageLarge TEXT,
-      tcgplayerProductId TEXT,
-      tcgplayerPrices TEXT,
-      syncedAt TEXT DEFAULT (datetime('now'))
-    )
-  `;
-
-  const createPopulationCacheTable = `
-    CREATE TABLE IF NOT EXISTS population_cache (
-      cacheKey TEXT PRIMARY KEY,
-      payload TEXT NOT NULL,
-      fetchedAt INTEGER NOT NULL
-    )
-  `;
-
-  // Set mappings are now loaded dynamically from Pokemon TCG API (no database table needed)
-
-  const tables = [
-    createCardMappingsTable,
-    createPriceHistoryTable,
-    createSnapshotsTable,
-    createPokemonCacheTable,
-    createSyncRunsTable,
-    createCatalogCardsTable,
-    createPopulationCacheTable
-  ];
-
-  // Create tables sequentially to avoid conflicts
-  let tableIndex = 0;
-  const createNext = () => {
-    if (tableIndex >= tables.length) {
-      console.log('All database tables created successfully.');
-      createIndexes();
-      return;
+    for (let i = 0; i < tables.length; i++) {
+      await runDb(database, tables[i]);
+      console.log(`Database table ${i + 1} created successfully.`);
     }
 
-    const sql = tables[tableIndex];
-    db.run(sql, (err) => {
-      if (err) {
-        console.error(`Error creating table ${tableIndex + 1}:`, err);
-      } else {
-        console.log(`Database table ${tableIndex + 1} created successfully.`);
-      }
-      tableIndex++;
-      createNext();
-    });
-  };
-
-  // Start creating tables
-  createNext(); // No delay needed since we're not dropping tables
-
-  console.log(`Using database at ${DB_SOURCE}`);
-
-  function createIndexes() {
-    // Create indexes for better query performance
     const indexes = [
       'CREATE INDEX IF NOT EXISTS idx_price_history_date ON price_history(date)',
       'CREATE INDEX IF NOT EXISTS idx_price_history_product ON price_history(productId)',
       'CREATE INDEX IF NOT EXISTS idx_price_history_identifier ON price_history(uniqueIdentifier)',
       'CREATE INDEX IF NOT EXISTS idx_card_mappings_identifier ON card_mappings(uniqueIdentifier)',
+      'CREATE INDEX IF NOT EXISTS idx_card_mappings_card_id ON card_mappings(cardId)',
       'CREATE INDEX IF NOT EXISTS idx_card_mappings_card_set ON card_mappings(cardName, setId, cardNumber)',
       'CREATE INDEX IF NOT EXISTS idx_card_mappings_variant ON card_mappings(variantKey)',
       'CREATE INDEX IF NOT EXISTS idx_pokemon_cache_fetched_at ON pokemon_cache(fetchedAt)',
@@ -199,17 +236,35 @@ export const initializeDatabase = () => {
       'CREATE INDEX IF NOT EXISTS idx_catalog_cards_tcgplayer_product ON catalog_cards(tcgplayerProductId)',
       'CREATE INDEX IF NOT EXISTS idx_sync_runs_type_date ON sync_runs(runType, runDate)',
       'CREATE INDEX IF NOT EXISTS idx_sync_runs_status ON sync_runs(status)',
-      'CREATE INDEX IF NOT EXISTS idx_population_cache_fetched_at ON population_cache(fetchedAt)'
+      'CREATE INDEX IF NOT EXISTS idx_population_cache_fetched_at ON population_cache(fetchedAt)',
+      'CREATE INDEX IF NOT EXISTS idx_prediction_runs_date ON prediction_runs(created_at)',
+      'CREATE INDEX IF NOT EXISTS idx_card_predictions_run ON card_predictions(run_id)',
+      'CREATE INDEX IF NOT EXISTS idx_card_predictions_run_return ON card_predictions(run_id, expected_90d_return DESC)',
+      'CREATE INDEX IF NOT EXISTS idx_card_predictions_card ON card_predictions(card_id)',
+      'CREATE INDEX IF NOT EXISTS idx_card_predictions_category ON card_predictions(category)',
+      'CREATE INDEX IF NOT EXISTS idx_prediction_results_status ON prediction_results(status)',
+      'CREATE INDEX IF NOT EXISTS idx_prediction_results_prediction ON prediction_results(prediction_id)',
+      'CREATE INDEX IF NOT EXISTS idx_external_signals_card ON external_market_signals(card_id)',
+      'CREATE INDEX IF NOT EXISTS idx_backtest_runs_date ON backtest_runs(created_at)',
     ];
 
-    indexes.forEach((indexSql, index) => {
-      db.run(indexSql, (err) => {
-        if (err) {
-          console.error(`Error creating index ${index + 1}:`, err);
+    for (const indexSql of indexes) {
+      await runDb(database, indexSql);
+    }
+
+    console.log('All database tables and indexes ready.');
+    console.log(`Using database at ${DB_SOURCE}`);
+
+    setTimeout(() => {
+      database.run('PRAGMA auto_vacuum = INCREMENTAL', (vacuumErr) => {
+        if (vacuumErr) {
+          console.error('Failed to set auto_vacuum mode:', vacuumErr);
         } else {
-          console.log(`Database index ${index + 1} created successfully.`);
+          database.run('PRAGMA incremental_vacuum(100)', () => {});
         }
       });
-    });
-  }
+    }, 10000);
+  })();
+
+  return dbInitPromise;
 };

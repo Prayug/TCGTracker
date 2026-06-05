@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/database';
+import { logger } from '../utils/logger';
 import {
   generateUniqueIdentifier,
   findCardByDetails,
@@ -155,10 +156,8 @@ router.get('/match', (req: Request, res: Response): void => {
             },
             priceHistory
           }));
-      } else {
-        // Fallback to old matching logic for backward compatibility
-        return fallbackMatch(safeCardName, safeSetName, safeCardNumber, db);
       }
+      return fallbackMatch(safeCardName, safeSetName, safeCardNumber, db);
     })
     .then(result => {
       res.json(result);
@@ -197,9 +196,15 @@ router.get('/history', async (req: Request, res: Response) => {
     });
 
     if (exactCard) {
-      const priceHistory = exactCard.productId
-        ? await getCardPriceHistoryForProduct(exactCard.productId, safeVariant)
-        : await getCardPriceHistory(exactCard.uniqueIdentifier);
+      let priceHistory: Awaited<ReturnType<typeof getCardPriceHistory>> = [];
+      if (exactCard.productId) {
+        priceHistory = await getCardPriceHistoryForProduct(exactCard.productId, safeVariant);
+      }
+      const byIdentifier = await getCardPriceHistory(exactCard.uniqueIdentifier);
+      if (byIdentifier.length > priceHistory.length) {
+        priceHistory = byIdentifier;
+      }
+
       return res.json({
         priceHistory,
         productId: exactCard.productId,
@@ -218,9 +223,15 @@ router.get('/history', async (req: Request, res: Response) => {
     );
 
     if (card) {
-      const priceHistory = card.productId
-        ? await getCardPriceHistoryForProduct(card.productId, safeVariant)
-        : await getCardPriceHistory(card.uniqueIdentifier);
+      let priceHistory: Awaited<ReturnType<typeof getCardPriceHistory>> = [];
+      if (card.productId) {
+        priceHistory = await getCardPriceHistoryForProduct(card.productId, safeVariant);
+      }
+      const byIdentifier = await getCardPriceHistory(card.uniqueIdentifier);
+      if (byIdentifier.length > priceHistory.length) {
+        priceHistory = byIdentifier;
+      }
+
       if (priceHistory.length === 0) {
         return res.status(404).json({
           message: 'No exact price history found for this card variant.',
@@ -248,7 +259,7 @@ router.get('/history', async (req: Request, res: Response) => {
     });
 
   } catch (error) {
-    console.error('Error fetching price history:', error);
+    logger.error('Error fetching price history:', error);
     res.status(500).json({ error: 'Failed to fetch price history.' });
   }
 });
@@ -335,7 +346,13 @@ router.get('/:productId', (req: Request, res: Response) => {
   const params: any[] = [productId];
   
   if (days) {
-    sql += ' AND date >= date("now", "-' + parseInt(days as string) + ' days")';
+    const daysNum = parseInt(days as string, 10);
+    if (isNaN(daysNum) || daysNum < 1) {
+      res.status(400).json({ error: 'Invalid days parameter' });
+      return;
+    }
+    sql += ' AND date >= date("now", ?)';
+    params.push(`-${daysNum} days`);
   }
   
   sql += ' ORDER BY date ASC';
@@ -365,6 +382,7 @@ router.get('/search/:cardName', (req: Request, res: Response) => {
            source
     FROM price_history 
     WHERE productName LIKE ?
+      AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
   `;
   const params: any[] = [`%${cardName}%`];
   
@@ -380,11 +398,16 @@ router.get('/search/:cardName', (req: Request, res: Response) => {
   
   sql += ` GROUP BY productId, productName, groupName, source`;
   
-  // Add sorting
-  const validSortColumns = ['avgPrice', 'minPrice', 'maxPrice', 'latestDate', 'dataPoints'];
-  if (validSortColumns.includes(sortBy as string)) {
-    sql += ` ORDER BY ${sortBy} DESC`;
-  }
+  // Add sorting using whitelist mapping (never interpolate raw input)
+  const orderMap: Record<string, string> = {
+    avgPrice: 'avgPrice DESC',
+    minPrice: 'minPrice DESC',
+    maxPrice: 'maxPrice DESC',
+    latestDate: 'latestDate DESC',
+    dataPoints: 'dataPoints DESC',
+  };
+  const orderClause = orderMap[sortBy as string] || 'avgPrice DESC';
+  sql += ` ORDER BY ${orderClause}`;
   
   sql += ' LIMIT 20';
 
@@ -400,48 +423,45 @@ router.get('/search/:cardName', (req: Request, res: Response) => {
 // Get price comparison between two time periods
 router.get('/compare/:productId', (req: Request, res: Response) => {
   const { productId } = req.params;
-  const { period1, period2 } = req.query; // e.g., "30", "90" for days ago
+  const { outer, inner } = req.query; // e.g., "90" (outer window) and "7" (inner window) for days ago
   const db = getDb();
 
-  const period1Days = clampNumber(parseInt(period1 as string, 10) || 30, 1, 365);
-  const period2Days = clampNumber(parseInt(period2 as string, 10) || 7, 1, 365);
-  const comparisonBoundary = clampNumber(
-    Math.min(period1Days, period2Days),
-    1,
-    Math.max(period1Days, period2Days)
-  );
+  const outerDays = clampNumber(parseInt(outer as string, 10) || 90, 2, 365);
+  const innerDays = clampNumber(parseInt(inner as string, 10) || 7, 1, outerDays - 1);
 
   const sql = `
     SELECT 
-      'period1' as period,
+      'outer' as period,
       AVG(price) as avgPrice,
       MIN(price) as minPrice,
       MAX(price) as maxPrice,
       COUNT(*) as dataPoints
     FROM price_history 
     WHERE productId = ? 
+      AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
       AND date >= date('now', ?)
       AND date < date('now', ?)
     
     UNION ALL
     
     SELECT 
-      'period2' as period,
+      'inner' as period,
       AVG(price) as avgPrice,
       MIN(price) as minPrice,
       MAX(price) as maxPrice,
       COUNT(*) as dataPoints
     FROM price_history 
     WHERE productId = ? 
+      AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
       AND date >= date('now', ?)
   `;
 
   const params = [
     productId,
-    `-${period1Days} days`,
-    `-${comparisonBoundary} days`,
+    `-${outerDays} days`,
+    `-${innerDays} days`,
     productId,
-    `-${period2Days} days`,
+    `-${innerDays} days`,
   ];
 
   db.all(sql, params, (err, rows) => {
@@ -485,6 +505,7 @@ router.get('/snapshots/daily', (req: Request, res: Response) => {
       SUM(volume) as totalVolume
     FROM price_history
     WHERE date >= date('now', ?)
+      AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
     GROUP BY date
     ORDER BY date ASC
   `;
@@ -512,6 +533,7 @@ router.get('/analytics/trends', (req: Request, res: Response) => {
       AVG(price) as avgPrice
     FROM price_history
     WHERE date >= date('now', ?)
+      AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
   `;
   const params: any[] = [`-${days} days`];
 
@@ -554,8 +576,15 @@ router.get('/export/:productId', (req: Request, res: Response) => {
         return res.send('');
       }
       
-      const headers = Object.keys(rows[0]).join(',');
-      const csvRows = rows.map(row => Object.values(row).join(',')).join('\n');
+      const escapeCsv = (val: unknown): string => {
+        const str = val == null ? '' : String(val);
+        if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+      const headers = Object.keys(rows[0]).map(escapeCsv).join(',');
+      const csvRows = rows.map(row => Object.values(row).map(escapeCsv).join(',')).join('\n');
       return res.send(`${headers}\n${csvRows}`);
     } else {
       res.json({ data: rows as PriceHistoryRow[] });

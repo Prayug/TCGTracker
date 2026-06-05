@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -11,6 +44,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const database_1 = require("../db/database");
+const logger_1 = require("../utils/logger");
 const pokemonApiClient_1 = require("../services/pokemonApiClient");
 const cardIdentifier_1 = require("../services/cardIdentifier");
 const setCodeService_1 = require("../services/setCodeService");
@@ -18,6 +52,7 @@ const cardCache_1 = require("../services/cardCache");
 const cardImageUtils_1 = require("../services/cardImageUtils");
 const cardDatabase_1 = require("../services/cardDatabase");
 const populationService_1 = require("../services/populationService");
+const cardImageBackfillService_1 = require("../services/cardImageBackfillService");
 const router = (0, express_1.Router)();
 const parsePrices = (value) => {
     if (!value) {
@@ -49,35 +84,100 @@ const extractMarketPriceFromVariants = (prices) => {
     }
     return null;
 };
-const mapCatalogRowsToPokemonCards = (rows) => rows.map((row) => {
-    const parsedPrices = parsePrices(row.tcgplayerPrices);
-    const derivedMarketPrice = typeof row.latestPrice === 'number' ? row.latestPrice : extractMarketPriceFromVariants(parsedPrices);
-    return {
-        id: row.cardId,
-        name: row.cardName,
-        number: row.cardNumber || '',
-        rarity: row.rarity || undefined,
-        artist: row.artist || undefined,
-        images: {
-            small: row.imageSmall || row.imageLarge || '',
-            large: row.imageLarge || row.imageSmall || '',
-        },
-        set: {
-            id: row.setId,
-            name: row.setName,
-            releaseDate: row.setReleaseDate || '2020-01-01',
-            total: 0,
-        },
-        tcgplayer: row.tcgplayerProductId
-            ? {
-                productId: row.tcgplayerProductId,
-                prices: parsedPrices,
+const mapCatalogRowsToPokemonCards = (rows) => {
+    const seen = new Map();
+    for (const row of rows) {
+        if (!row.cardId || seen.has(row.cardId))
+            continue;
+        const parsedPrices = parsePrices(row.tcgplayerPrices);
+        const derivedMarketPrice = typeof row.latestPrice === 'number' ? row.latestPrice : extractMarketPriceFromVariants(parsedPrices);
+        seen.set(row.cardId, {
+            id: row.cardId,
+            name: row.cardName,
+            number: row.cardNumber || '',
+            rarity: row.rarity || undefined,
+            artist: row.artist || undefined,
+            images: {
+                small: row.imageSmall || row.imageLarge || '',
+                large: row.imageLarge || row.imageSmall || '',
+            },
+            set: {
+                id: row.setId,
+                name: row.setName,
+                releaseDate: row.setReleaseDate || '2020-01-01',
+                total: 0,
+            },
+            tcgplayer: row.tcgplayerProductId
+                ? {
+                    productId: row.tcgplayerProductId,
+                    prices: parsedPrices,
+                }
+                : undefined,
+            marketPrice: typeof derivedMarketPrice === 'number' ? derivedMarketPrice : 0,
+            source: 'catalog_sync',
+        });
+    }
+    return Array.from(seen.values());
+};
+/**
+ * Read persisted card images from card_mappings (populated by the image backfill pipeline).
+ */
+router.get('/resolve-image', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { cardId, cardName, setId } = req.query;
+        if (cardId && typeof cardId === 'string') {
+            const stored = yield (0, cardImageBackfillService_1.getCardMappingImages)(cardId);
+            if ((stored === null || stored === void 0 ? void 0 : stored.imageSmall) || (stored === null || stored === void 0 ? void 0 : stored.imageLarge)) {
+                return res.json({
+                    images: {
+                        small: stored.imageSmall || stored.imageLarge || '',
+                        large: stored.imageLarge || stored.imageSmall || '',
+                    },
+                    cardNumber: stored.cardNumber,
+                    source: 'card_mappings',
+                });
             }
-            : undefined,
-        marketPrice: typeof derivedMarketPrice === 'number' ? derivedMarketPrice : 0,
-        source: 'catalog_sync',
-    };
-});
+        }
+        if (!cardName || typeof cardName !== 'string' || !setId || typeof setId !== 'string') {
+            return res.status(400).json({
+                error: 'Provide cardId, or both cardName and setId',
+            });
+        }
+        const db = (0, database_1.getDb)();
+        const row = yield new Promise((resolve, reject) => {
+            db.get(`SELECT imageSmall, imageLarge, cardNumber FROM card_mappings
+         WHERE cardName = ? AND setId = ?
+           AND (imageSmall IS NOT NULL OR imageLarge IS NOT NULL)
+         LIMIT 1`, [cardName.trim(), setId.trim()], (err, result) => {
+                if (err)
+                    reject(err);
+                else
+                    resolve(result);
+            });
+        });
+        if (!row) {
+            return res.status(404).json({
+                error: 'No persisted image found for this card',
+                searched: { cardId, cardName, setId },
+            });
+        }
+        res.json({
+            images: {
+                small: row.imageSmall || row.imageLarge || '',
+                large: row.imageLarge || row.imageSmall || '',
+            },
+            cardNumber: row.cardNumber,
+            source: 'card_mappings',
+        });
+    }
+    catch (error) {
+        logger_1.logger.error('Error reading card image:', error);
+        res.status(500).json({
+            error: 'Internal server error',
+            message: error.message,
+        });
+    }
+}));
 /**
  * Search cards from local database
  * Much faster and more reliable than Pokemon TCG API
@@ -111,7 +211,7 @@ router.get('/search', (req, res) => __awaiter(void 0, void 0, void 0, function* 
       FROM catalog_cards cc
       LEFT JOIN (
         SELECT cm.cardId, ph.marketPrice
-        FROM price_history
+        FROM price_history ph
         JOIN card_mappings cm ON cm.uniqueIdentifier = ph.uniqueIdentifier
         WHERE (ph.productId, ph.date, ph.subTypeName, ph.source) IN (
           SELECT productId, MAX(date), subTypeName, source
@@ -130,7 +230,7 @@ router.get('/search', (req, res) => __awaiter(void 0, void 0, void 0, function* 
         params.push(searchLimit);
         db.all(sql, params, (err, rows) => __awaiter(void 0, void 0, void 0, function* () {
             if (err) {
-                console.error('Error searching cards:', err);
+                logger_1.logger.error('Error searching cards:', err);
                 return res.status(500).json({
                     error: 'Database error',
                     message: err.message
@@ -184,7 +284,7 @@ router.get('/search', (req, res) => __awaiter(void 0, void 0, void 0, function* 
                 });
                 cards = yield (0, cardDatabase_1.mapLocalRowsToPokemonCards)(fallbackRows);
             }
-            console.log(`✅ Found ${cards.length} cards matching "${query}" from local database`);
+            logger_1.logger.info(`✅ Found ${cards.length} cards matching "${query}" from local database`);
             res.json({
                 data: cards,
                 count: cards.length,
@@ -193,7 +293,7 @@ router.get('/search', (req, res) => __awaiter(void 0, void 0, void 0, function* 
         }));
     }
     catch (error) {
-        console.error('Error in card search:', error);
+        logger_1.logger.error('Error in card search:', error);
         res.status(500).json({
             error: 'Internal server error',
             message: error.message
@@ -201,77 +301,23 @@ router.get('/search', (req, res) => __awaiter(void 0, void 0, void 0, function* 
     }
 }));
 /**
- * Get all unique sets from local database
+ * Get all unique sets from local database, enriched with era, series, and logos
  */
 router.get('/sets', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const db = (0, database_1.getDb)();
-        const sql = `
-      SELECT DISTINCT 
-        setId as id,
-        setName as name,
-        MAX(setReleaseDate) as releaseDate,
-        COUNT(*) as total
-      FROM catalog_cards
-      GROUP BY setId, setName
-      ORDER BY date(setReleaseDate) DESC, setName ASC
-    `;
-        db.all(sql, [], (err, rows) => {
-            if (err) {
-                console.error('Error fetching sets:', err);
-                return res.status(500).json({
-                    error: 'Database error',
-                    message: err.message
-                });
-            }
-            const mapRowsToSets = (inputRows) => inputRows.map(row => ({
-                id: row.id,
-                name: row.name,
-                releaseDate: row.releaseDate || '2020-01-01',
-                total: row.total,
-                images: {
-                    symbol: '',
-                    logo: ''
-                }
-            }));
-            if (rows.length > 0) {
-                const sets = mapRowsToSets(rows);
-                return res.json({
-                    data: sets,
-                    count: sets.length,
-                    source: 'catalog_sync'
-                });
-            }
-            const fallbackSql = `
-        SELECT DISTINCT
-          setId as id,
-          setName as name,
-          COUNT(*) as total
-        FROM card_mappings
-        GROUP BY setId, setName
-        ORDER BY setName ASC
-      `;
-            db.all(fallbackSql, [], (fallbackErr, fallbackRows) => {
-                if (fallbackErr) {
-                    return res.status(500).json({
-                        error: 'Database error',
-                        message: fallbackErr.message
-                    });
-                }
-                const fallbackSets = mapRowsToSets(fallbackRows);
-                return res.json({
-                    data: fallbackSets,
-                    count: fallbackSets.length,
-                    source: 'local_database_fallback'
-                });
-            });
+        const { getEnrichedSets } = yield Promise.resolve().then(() => __importStar(require('../services/setListService')));
+        const sets = yield getEnrichedSets();
+        res.json({
+            data: sets,
+            count: sets.length,
+            source: 'catalog_sync_enriched',
         });
     }
     catch (error) {
-        console.error('Error fetching sets:', error);
+        logger_1.logger.error('Error fetching sets:', error);
         res.status(500).json({
             error: 'Internal server error',
-            message: error.message
+            message: error.message,
         });
     }
 }));
@@ -290,7 +336,7 @@ router.get('/stats', (req, res) => __awaiter(void 0, void 0, void 0, function* (
     `;
         db.get(sql, [], (err, row) => {
             if (err) {
-                console.error('Error fetching stats:', err);
+                logger_1.logger.error('Error fetching stats:', err);
                 return res.status(500).json({
                     error: 'Database error',
                     message: err.message
@@ -305,7 +351,7 @@ router.get('/stats', (req, res) => __awaiter(void 0, void 0, void 0, function* (
         });
     }
     catch (error) {
-        console.error('Error fetching stats:', error);
+        logger_1.logger.error('Error fetching stats:', error);
         res.status(500).json({
             error: 'Internal server error',
             message: error.message
@@ -378,10 +424,24 @@ router.get('/pool', (req, res) => __awaiter(void 0, void 0, void 0, function* ()
         ];
         // Exclude all promo sets (any set with "promo" in name or ID)
         const PROMO_EXCLUSION_CLAUSE = `cm.setName NOT LIKE '%promo%' AND cm.setName NOT LIKE '%Promo%' AND cm.setId NOT LIKE '%promo%' AND cm.setId NOT LIKE '%Promo%'`;
-        // Build exclusion clauses
-        const nameExclusionClauses = EXCLUDED_FAKE_SET_NAMES.map(set => set.includes('%') ? `cm.setName NOT LIKE '${set}'` : `cm.setName != '${set}'`);
-        const idExclusionClauses = EXCLUDED_FAKE_SET_IDS.map(setId => `cm.setId != '${setId}'`);
-        const exclusionClauses = [...nameExclusionClauses, ...idExclusionClauses, PROMO_EXCLUSION_CLAUSE].join(' AND ');
+        // Build exclusion clauses with parameterized values (no string interpolation)
+        const exclusionClauses = [];
+        const exclusionParams = [];
+        for (const setName of EXCLUDED_FAKE_SET_NAMES) {
+            if (setName.includes('%')) {
+                exclusionClauses.push('cm.setName NOT LIKE ?');
+            }
+            else {
+                exclusionClauses.push('cm.setName != ?');
+            }
+            exclusionParams.push(setName);
+        }
+        for (const setId of EXCLUDED_FAKE_SET_IDS) {
+            exclusionClauses.push('cm.setId != ?');
+            exclusionParams.push(setId);
+        }
+        exclusionClauses.push(PROMO_EXCLUSION_CLAUSE);
+        const exclusionSql = exclusionClauses.join(' AND ');
         // Select random cards with their latest market price from price_history
         // ONLY from REAL Pokemon TCG sets (excludes product categories and promo sets)
         const sql = `
@@ -413,13 +473,13 @@ router.get('/pool', (req, res) => __awaiter(void 0, void 0, void 0, function* ()
         AND cm.cardName IS NOT NULL AND TRIM(cm.cardName) <> ''
         AND cm.setId IS NOT NULL AND TRIM(cm.setId) <> ''
         AND cm.cardNumber IS NOT NULL AND TRIM(cm.cardNumber) <> ''
-        AND ${exclusionClauses}
+        AND ${exclusionSql}
       ORDER BY RANDOM()
       LIMIT ?
     `;
-        db.all(sql, [minPrice, maxPrice, poolLimit], (err, rows) => __awaiter(void 0, void 0, void 0, function* () {
+        db.all(sql, [minPrice, maxPrice, ...exclusionParams, poolLimit], (err, rows) => __awaiter(void 0, void 0, void 0, function* () {
             if (err) {
-                console.error('Error fetching random card pool:', err);
+                logger_1.logger.error('Error fetching random card pool:', err);
                 return res.status(500).json({
                     error: 'Database error',
                     message: err.message
@@ -435,7 +495,7 @@ router.get('/pool', (req, res) => __awaiter(void 0, void 0, void 0, function* ()
         }));
     }
     catch (error) {
-        console.error('Error building card pool:', error);
+        logger_1.logger.error('Error building card pool:', error);
         res.status(500).json({
             error: 'Internal server error',
             message: error.message
@@ -460,7 +520,7 @@ router.get('/pokemon', (req, res) => __awaiter(void 0, void 0, void 0, function*
             };
         }
         catch (parseError) {
-            console.error('Failed to parse cached pokemon data', parseError);
+            logger_1.logger.error('Failed to parse cached pokemon data', parseError);
             return null;
         }
     };
@@ -478,7 +538,7 @@ router.get('/pokemon', (req, res) => __awaiter(void 0, void 0, void 0, function*
         const maxPagesToFetch = Math.min(Math.max(parseInt(maxPages, 10) || 4, 1), 10);
         buildLocalFallbackResponse = () => __awaiter(void 0, void 0, void 0, function* () {
             const rows = yield (0, cardDatabase_1.getLocalCardsForQuery)(sanitizedQuery, normalizedSetId, limit).catch((err) => {
-                console.error('Local fallback query failed', err);
+                logger_1.logger.error('Local fallback query failed', err);
                 return [];
             });
             if (!rows || rows.length === 0) {
@@ -515,7 +575,7 @@ router.get('/pokemon', (req, res) => __awaiter(void 0, void 0, void 0, function*
             });
         }
         persistentCacheEntry = yield (0, cardCache_1.getPersistentPokemonCache)(cacheKey).catch((err) => {
-            console.error('Error reading persistent pokemon cache', err);
+            logger_1.logger.error('Error reading persistent pokemon cache', err);
             return null;
         });
         if (persistentCacheEntry &&
@@ -541,18 +601,18 @@ router.get('/pokemon', (req, res) => __awaiter(void 0, void 0, void 0, function*
         });
         const uniqueCards = apiResult.cards;
         if (uniqueCards.length === 0) {
-            console.warn(`⚠️ No cards from Pokemon API for query "${sanitizedQuery}", trying fallbacks...`);
+            logger_1.logger.warn(`⚠️ No cards from Pokemon API for query "${sanitizedQuery}", trying fallbacks...`);
             if (buildLocalFallbackResponse) {
                 const localPayload = yield buildLocalFallbackResponse();
                 if (localPayload) {
-                    console.log(`✅ Serving ${localPayload.data.length} cards from local database fallback`);
+                    logger_1.logger.info(`✅ Serving ${localPayload.data.length} cards from local database fallback`);
                     return res.json(localPayload);
                 }
             }
             if (persistentCacheEntry) {
                 const payload = respondWithPersistent(Object.assign(Object.assign({}, persistentCacheEntry), { pageSize: persistentCacheEntry.pageSize || limit }), true);
                 if (payload) {
-                    console.log(`✅ Serving ${payload.data.length} stale cached cards as fallback`);
+                    logger_1.logger.info(`✅ Serving ${payload.data.length} stale cached cards as fallback`);
                     return res.json(payload);
                 }
             }
@@ -591,29 +651,29 @@ router.get('/pokemon', (req, res) => __awaiter(void 0, void 0, void 0, function*
             });
         }
         catch (cacheError) {
-            console.warn('Failed to persist pokemon search cache', cacheError);
+            logger_1.logger.warn('Failed to persist pokemon search cache', cacheError);
         }
-        console.log(`✅ Successfully fetched ${uniqueCards.length} cards for "${sanitizedQuery}" from Pokemon API`);
+        logger_1.logger.info(`✅ Successfully fetched ${uniqueCards.length} cards for "${sanitizedQuery}" from Pokemon API`);
         res.json(payload);
     }
     catch (error) {
-        console.error('❌ Error proxying Pokemon API search:', error);
+        logger_1.logger.error('❌ Error proxying Pokemon API search:', error);
         if (buildLocalFallbackResponse) {
             try {
                 const localPayload = yield buildLocalFallbackResponse();
                 if (localPayload) {
-                    console.log(`✅ Serving ${localPayload.data.length} cards from local database (error fallback)`);
+                    logger_1.logger.info(`✅ Serving ${localPayload.data.length} cards from local database (error fallback)`);
                     return res.status(200).json(localPayload);
                 }
             }
             catch (fallbackErr) {
-                console.warn('Local fallback also failed:', fallbackErr);
+                logger_1.logger.warn('Local fallback also failed:', fallbackErr);
             }
         }
         if (persistentCacheEntry) {
             const payload = respondWithPersistent(persistentCacheEntry, true);
             if (payload) {
-                console.log(`✅ Serving ${payload.data.length} stale cached cards (error fallback)`);
+                logger_1.logger.info(`✅ Serving ${payload.data.length} stale cached cards (error fallback)`);
                 return res.status(200).json(payload);
             }
         }
@@ -640,7 +700,7 @@ router.get('/search-pokemon', (req, res) => __awaiter(void 0, void 0, void 0, fu
             : setName || 'unknown', cardNumber);
         const cached = cardCache_1.cardImageCache.get(cacheKey);
         if (cached && Date.now() - cached.timestamp < cardCache_1.CACHE_TTL) {
-            console.log(`💾 Cache hit for ${cardName} from ${setId || setName || 'unknown set'}`);
+            logger_1.logger.info(`💾 Cache hit for ${cardName} from ${setId || setName || 'unknown set'}`);
             return res.json({
                 card: cached.card,
                 images: cached.images,
@@ -686,7 +746,7 @@ router.get('/search-pokemon', (req, res) => __awaiter(void 0, void 0, void 0, fu
             usedFallback: searchResult.usedFallback,
         };
         cardCache_1.cardImageCache.set(cacheKey, Object.assign(Object.assign({}, responsePayload), { timestamp: Date.now() }));
-        console.log(`✅ Matched card: ${searchResult.card.name} from ${(_d = searchResult.card.set) === null || _d === void 0 ? void 0 : _d.name} (#${searchResult.card.number})`);
+        logger_1.logger.info(`✅ Matched card: ${searchResult.card.name} from ${(_d = searchResult.card.set) === null || _d === void 0 ? void 0 : _d.name} (#${searchResult.card.number})`);
         // Update rarity in database if available
         if (((_e = searchResult.card) === null || _e === void 0 ? void 0 : _e.rarity) && searchResult.card.rarity.trim()) {
             const card = searchResult.card; // Store reference to avoid null checks in callback
@@ -699,17 +759,17 @@ router.get('/search-pokemon', (req, res) => __awaiter(void 0, void 0, void 0, fu
             const uniqueIdentifier = (0, cardIdentifier_1.generateUniqueIdentifier)(setIdNormalized, cardNumber, cardName);
             db.run('UPDATE card_mappings SET rarity = ? WHERE uniqueIdentifier = ?', [card.rarity, uniqueIdentifier], (err) => {
                 if (err) {
-                    console.warn(`Failed to update rarity for ${cardName}:`, err);
+                    logger_1.logger.warn(`Failed to update rarity for ${cardName}:`, err);
                 }
                 else {
-                    console.log(`✅ Updated rarity for ${cardName}: ${card.rarity}`);
+                    logger_1.logger.info(`✅ Updated rarity for ${cardName}: ${card.rarity}`);
                 }
             });
         }
         res.json(responsePayload);
     }
     catch (error) {
-        console.error('Error searching Pokemon API:', error);
+        logger_1.logger.error('Error searching Pokemon API:', error);
         res.status(500).json({
             error: 'Internal server error',
             message: error.message,
@@ -722,7 +782,7 @@ router.get('/search-pokemon', (req, res) => __awaiter(void 0, void 0, void 0, fu
  */
 router.post('/refresh-set-mappings', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        console.log('🔄 Manual refresh of Pokemon TCG set mappings requested');
+        logger_1.logger.info('🔄 Manual refresh of Pokemon TCG set mappings requested');
         const mappings = yield setCodeService_1.setCodeService.refreshSetMappings();
         res.json({
             success: true,
@@ -732,7 +792,7 @@ router.post('/refresh-set-mappings', (req, res) => __awaiter(void 0, void 0, voi
         });
     }
     catch (error) {
-        console.error('❌ Failed to refresh set mappings:', error);
+        logger_1.logger.error('❌ Failed to refresh set mappings:', error);
         res.status(500).json({
             error: 'Failed to refresh set mappings',
             message: error.message
@@ -754,7 +814,7 @@ router.get('/set-mappings/stats', (req, res) => __awaiter(void 0, void 0, void 0
         });
     }
     catch (error) {
-        console.error('Error fetching set mapping stats:', error);
+        logger_1.logger.error('Error fetching set mapping stats:', error);
         res.status(500).json({
             error: 'Internal server error',
             message: error.message

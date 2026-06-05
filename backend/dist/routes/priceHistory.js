@@ -11,6 +11,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const database_1 = require("../db/database");
+const logger_1 = require("../utils/logger");
 const cardIdentifier_1 = require("../services/cardIdentifier");
 const router = (0, express_1.Router)();
 const clampNumber = (value, min, max) => Math.min(Math.max(value, min), max);
@@ -93,10 +94,7 @@ router.get('/match', (req, res) => {
                 priceHistory
             }));
         }
-        else {
-            // Fallback to old matching logic for backward compatibility
-            return fallbackMatch(safeCardName, safeSetName, safeCardNumber, db);
-        }
+        return fallbackMatch(safeCardName, safeSetName, safeCardNumber, db);
     })
         .then(result => {
         res.json(result);
@@ -130,9 +128,14 @@ router.get('/history', (req, res) => __awaiter(void 0, void 0, void 0, function*
             variantKey: safeVariant,
         });
         if (exactCard) {
-            const priceHistory = exactCard.productId
-                ? yield (0, cardIdentifier_1.getCardPriceHistoryForProduct)(exactCard.productId, safeVariant)
-                : yield (0, cardIdentifier_1.getCardPriceHistory)(exactCard.uniqueIdentifier);
+            let priceHistory = [];
+            if (exactCard.productId) {
+                priceHistory = yield (0, cardIdentifier_1.getCardPriceHistoryForProduct)(exactCard.productId, safeVariant);
+            }
+            const byIdentifier = yield (0, cardIdentifier_1.getCardPriceHistory)(exactCard.uniqueIdentifier);
+            if (byIdentifier.length > priceHistory.length) {
+                priceHistory = byIdentifier;
+            }
             return res.json({
                 priceHistory,
                 productId: exactCard.productId,
@@ -142,9 +145,14 @@ router.get('/history', (req, res) => __awaiter(void 0, void 0, void 0, function*
         }
         const card = yield (0, cardIdentifier_1.findCardByDetails)(safeCardName, safeSetId, safeCardNumber, rarity ? String(rarity) : undefined, safeVariant, productId ? String(productId) : undefined);
         if (card) {
-            const priceHistory = card.productId
-                ? yield (0, cardIdentifier_1.getCardPriceHistoryForProduct)(card.productId, safeVariant)
-                : yield (0, cardIdentifier_1.getCardPriceHistory)(card.uniqueIdentifier);
+            let priceHistory = [];
+            if (card.productId) {
+                priceHistory = yield (0, cardIdentifier_1.getCardPriceHistoryForProduct)(card.productId, safeVariant);
+            }
+            const byIdentifier = yield (0, cardIdentifier_1.getCardPriceHistory)(card.uniqueIdentifier);
+            if (byIdentifier.length > priceHistory.length) {
+                priceHistory = byIdentifier;
+            }
             if (priceHistory.length === 0) {
                 return res.status(404).json({
                     message: 'No exact price history found for this card variant.',
@@ -171,7 +179,7 @@ router.get('/history', (req, res) => __awaiter(void 0, void 0, void 0, function*
         });
     }
     catch (error) {
-        console.error('Error fetching price history:', error);
+        logger_1.logger.error('Error fetching price history:', error);
         res.status(500).json({ error: 'Failed to fetch price history.' });
     }
 }));
@@ -247,7 +255,13 @@ router.get('/:productId', (req, res) => {
     let sql = 'SELECT * FROM price_history WHERE productId = ? AND source IN (\'tcgcsv\', \'tcgdex\', \'catalog_fallback\')';
     const params = [productId];
     if (days) {
-        sql += ' AND date >= date("now", "-' + parseInt(days) + ' days")';
+        const daysNum = parseInt(days, 10);
+        if (isNaN(daysNum) || daysNum < 1) {
+            res.status(400).json({ error: 'Invalid days parameter' });
+            return;
+        }
+        sql += ' AND date >= date("now", ?)';
+        params.push(`-${daysNum} days`);
     }
     sql += ' ORDER BY date ASC';
     db.all(sql, params, (err, rows) => {
@@ -273,6 +287,7 @@ router.get('/search/:cardName', (req, res) => {
            source
     FROM price_history 
     WHERE productName LIKE ?
+      AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
   `;
     const params = [`%${cardName}%`];
     if (minPrice) {
@@ -284,11 +299,16 @@ router.get('/search/:cardName', (req, res) => {
         params.push(maxPrice);
     }
     sql += ` GROUP BY productId, productName, groupName, source`;
-    // Add sorting
-    const validSortColumns = ['avgPrice', 'minPrice', 'maxPrice', 'latestDate', 'dataPoints'];
-    if (validSortColumns.includes(sortBy)) {
-        sql += ` ORDER BY ${sortBy} DESC`;
-    }
+    // Add sorting using whitelist mapping (never interpolate raw input)
+    const orderMap = {
+        avgPrice: 'avgPrice DESC',
+        minPrice: 'minPrice DESC',
+        maxPrice: 'maxPrice DESC',
+        latestDate: 'latestDate DESC',
+        dataPoints: 'dataPoints DESC',
+    };
+    const orderClause = orderMap[sortBy] || 'avgPrice DESC';
+    sql += ` ORDER BY ${orderClause}`;
     sql += ' LIMIT 20';
     db.all(sql, params, (err, rows) => {
         if (err) {
@@ -301,41 +321,42 @@ router.get('/search/:cardName', (req, res) => {
 // Get price comparison between two time periods
 router.get('/compare/:productId', (req, res) => {
     const { productId } = req.params;
-    const { period1, period2 } = req.query; // e.g., "30", "90" for days ago
+    const { outer, inner } = req.query; // e.g., "90" (outer window) and "7" (inner window) for days ago
     const db = (0, database_1.getDb)();
-    const period1Days = clampNumber(parseInt(period1, 10) || 30, 1, 365);
-    const period2Days = clampNumber(parseInt(period2, 10) || 7, 1, 365);
-    const comparisonBoundary = clampNumber(Math.min(period1Days, period2Days), 1, Math.max(period1Days, period2Days));
+    const outerDays = clampNumber(parseInt(outer, 10) || 90, 2, 365);
+    const innerDays = clampNumber(parseInt(inner, 10) || 7, 1, outerDays - 1);
     const sql = `
     SELECT 
-      'period1' as period,
+      'outer' as period,
       AVG(price) as avgPrice,
       MIN(price) as minPrice,
       MAX(price) as maxPrice,
       COUNT(*) as dataPoints
     FROM price_history 
     WHERE productId = ? 
+      AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
       AND date >= date('now', ?)
       AND date < date('now', ?)
     
     UNION ALL
     
     SELECT 
-      'period2' as period,
+      'inner' as period,
       AVG(price) as avgPrice,
       MIN(price) as minPrice,
       MAX(price) as maxPrice,
       COUNT(*) as dataPoints
     FROM price_history 
     WHERE productId = ? 
+      AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
       AND date >= date('now', ?)
   `;
     const params = [
         productId,
-        `-${period1Days} days`,
-        `-${comparisonBoundary} days`,
+        `-${outerDays} days`,
+        `-${innerDays} days`,
         productId,
-        `-${period2Days} days`,
+        `-${innerDays} days`,
     ];
     db.all(sql, params, (err, rows) => {
         if (err) {
@@ -372,6 +393,7 @@ router.get('/snapshots/daily', (req, res) => {
       SUM(volume) as totalVolume
     FROM price_history
     WHERE date >= date('now', ?)
+      AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
     GROUP BY date
     ORDER BY date ASC
   `;
@@ -396,6 +418,7 @@ router.get('/analytics/trends', (req, res) => {
       AVG(price) as avgPrice
     FROM price_history
     WHERE date >= date('now', ?)
+      AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
   `;
     const params = [`-${days} days`];
     if (groupName) {
@@ -428,8 +451,15 @@ router.get('/export/:productId', (req, res) => {
             if (rows.length === 0) {
                 return res.send('');
             }
-            const headers = Object.keys(rows[0]).join(',');
-            const csvRows = rows.map(row => Object.values(row).join(',')).join('\n');
+            const escapeCsv = (val) => {
+                const str = val == null ? '' : String(val);
+                if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+                    return `"${str.replace(/"/g, '""')}"`;
+                }
+                return str;
+            };
+            const headers = Object.keys(rows[0]).map(escapeCsv).join(',');
+            const csvRows = rows.map(row => Object.values(row).map(escapeCsv).join(',')).join('\n');
             return res.send(`${headers}\n${csvRows}`);
         }
         else {

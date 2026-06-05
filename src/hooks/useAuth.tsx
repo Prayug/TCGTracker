@@ -1,9 +1,11 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { authService, User } from '../services/authService';
+import { syncVaultOnLogin } from '../services/vaultSyncService';
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
+  isAdmin: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (username: string, email: string, password: string) => Promise<void>;
@@ -23,6 +25,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         const currentUser = await authService.getCurrentUser();
         setUser(currentUser);
+        if (currentUser) await syncVaultOnLogin();
       } catch (error) {
         console.error('Failed to get current user:', error);
       } finally {
@@ -36,11 +39,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = async (email: string, password: string) => {
     const response = await authService.login(email, password);
     setUser(response.user);
+    await syncVaultOnLogin();
   };
 
   const register = async (username: string, email: string, password: string) => {
     const response = await authService.register(username, email, password);
     setUser(response.user);
+    await syncVaultOnLogin();
   };
 
   const logout = () => {
@@ -58,6 +63,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       value={{
         user,
         isAuthenticated: !!user,
+        isAdmin: !!user?.isAdmin,
         isLoading,
         login,
         register,
