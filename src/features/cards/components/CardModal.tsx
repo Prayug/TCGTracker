@@ -21,11 +21,11 @@ export const CardModal: React.FC<CardModalProps> = ({ card, isOpen, onClose }) =
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
-      <div className="p-6 text-center">
+      <div className="space-y-6">
         <img
           src={card.images.large}
           alt={card.name}
-          className="w-full max-w-xs mx-auto rounded-xl shadow-lg mb-6"
+          className="mx-auto w-full max-w-[min(16rem,50vw)] rounded-xl border border-border-subtle bg-black/30 shadow-lg"
           loading="lazy"
           onError={(e) => {
             const target = e.target as HTMLImageElement;
@@ -36,14 +36,14 @@ export const CardModal: React.FC<CardModalProps> = ({ card, isOpen, onClose }) =
         />
         
         <div className="space-y-4">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-1">{card.name}</h2>
+          <div className="text-center">
+            <h2 className="text-xl font-bold text-white">{card.name}</h2>
             {card.types && card.types.length > 0 && (
-              <div className="flex justify-center gap-2 mb-2">
+              <div className="mt-2 flex justify-center gap-2">
                 {card.types.map((type) => (
                   <span
                     key={type}
-                    className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium"
+                    className="rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-0.5 text-xs font-medium text-sky-200"
                   >
                     {type}
                   </span>
@@ -52,34 +52,34 @@ export const CardModal: React.FC<CardModalProps> = ({ card, isOpen, onClose }) =
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div className="text-left">
-              <p className="font-semibold text-gray-700 mb-1">Set</p>
-              <p className="text-gray-900">{card.set.name}</p>
+          <div className="grid grid-cols-2 gap-4 rounded-xl border border-border-subtle bg-surface-inset p-4 text-sm">
+            <div>
+              <p className="section-label mb-0.5">Set</p>
+              <p className="font-medium text-ink-secondary">{card.set.name}</p>
             </div>
             
-            <div className="text-left">
-              <p className="font-semibold text-gray-700 mb-1">Rarity</p>
-              <p className="text-gray-900">{card.rarity || 'N/A'}</p>
+            <div>
+              <p className="section-label mb-0.5">Rarity</p>
+              <p className="font-medium text-ink-secondary">{card.rarity || 'N/A'}</p>
             </div>
             
-            <div className="text-left">
-              <p className="font-semibold text-gray-700 mb-1">Release Date</p>
-              <p className="text-gray-900">{formattedDate}</p>
+            <div>
+              <p className="section-label mb-0.5">Release Date</p>
+              <p className="font-medium text-ink-secondary">{formattedDate}</p>
             </div>
             
-            <div className="text-left">
-              <p className="font-semibold text-gray-700 mb-1">Price</p>
-              <p className="text-green-600 font-semibold">
+            <div>
+              <p className="section-label mb-0.5">Price</p>
+              <p className="font-semibold text-emerald-300">
                 {price > 0 ? `$${price.toFixed(2)}` : 'N/A'}
               </p>
             </div>
           </div>
 
           {card.artist && (
-            <div className="text-center pt-2 border-t border-gray-200">
-              <p className="text-sm text-gray-600">
-                <span className="font-semibold">Artist:</span> {card.artist}
+            <div className="text-center border-t border-border-subtle pt-3">
+              <p className="text-sm text-ink-muted">
+                <span className="font-semibold text-ink-secondary">Artist:</span> {card.artist}
               </p>
             </div>
           )}

@@ -4,36 +4,60 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          200: '#bfdbfe',
-          300: '#93c5fd',
-          400: '#60a5fa',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
-          800: '#1e40af',
-          900: '#1e3a8a',
-          950: '#172554',
+        surface: {
+          inset: 'var(--surface-inset)',
+          base: 'var(--surface-base)',
+          raised: 'var(--surface-raised)',
+          overlay: 'var(--surface-overlay)',
+          hover: 'var(--surface-hover)',
+        },
+        ink: {
+          primary: 'var(--ink-primary)',
+          secondary: 'var(--ink-secondary)',
+          muted: 'var(--ink-muted)',
         },
         accent: {
-          50: '#eef2ff',
-          100: '#e0e7ff',
-          200: '#c7d2fe',
-          300: '#a5b4fc',
-          400: '#818cf8',
-          500: '#6366f1',
-          600: '#4f46e5',
-          700: '#4338ca',
-          800: '#3730a3',
-          900: '#312e81',
-          950: '#1e1b4b',
+          DEFAULT: 'var(--accent)',
+          hover: 'var(--accent-hover)',
+          muted: 'var(--accent-muted)',
+        },
+        gain: {
+          DEFAULT: 'var(--gain)',
+          muted: 'var(--gain-muted)',
+        },
+        loss: {
+          DEFAULT: 'var(--loss)',
+          muted: 'var(--loss-muted)',
+        },
+        gold: 'var(--gold)',
+        border: {
+          subtle: 'var(--border-subtle)',
+          DEFAULT: 'var(--border-default)',
+          strong: 'var(--border-strong)',
+        },
+        chart: {
+          grid: 'var(--chart-grid)',
+          tick: 'var(--chart-tick)',
         },
       },
+      borderColor: {
+        DEFAULT: 'var(--border-default)',
+        subtle: 'var(--border-subtle)',
+        strong: 'var(--border-strong)',
+      },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        display: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['"DM Sans"', 'system-ui', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+        display: ['"DM Sans"', 'system-ui', 'sans-serif'],
+      },
+      fontSize: {
+        display: [
+          '2.25rem',
+          { lineHeight: '2.5rem', letterSpacing: '-0.025em', fontWeight: '700' },
+        ],
+        h1: ['1.75rem', { lineHeight: '2.125rem', letterSpacing: '-0.02em', fontWeight: '700' }],
+        h2: ['1.375rem', { lineHeight: '1.75rem', letterSpacing: '-0.01em', fontWeight: '600' }],
+        h3: ['1.0625rem', { lineHeight: '1.5rem', fontWeight: '600' }],
       },
       fontVariantNumeric: {
         tabular: 'tabular-nums',
@@ -43,8 +67,7 @@ export default {
         'slide-down': 'slideDown 0.2s ease-out',
         'slide-up': 'slideUp 0.2s ease-out',
         'scale-in': 'scaleIn 0.15s ease-out',
-        'glow': 'glowPulse 2.2s ease-in-out infinite',
-        'shimmer': 'shimmer 1.5s infinite linear',
+        shimmer: 'shimmer 1.5s infinite linear',
       },
       keyframes: {
         fadeIn: {
@@ -63,20 +86,17 @@ export default {
           '0%': { opacity: '0', transform: 'scale(0.97)' },
           '100%': { opacity: '1', transform: 'scale(1)' },
         },
-        glowPulse: {
-          '0%': { boxShadow: '0 0 0 rgba(37, 99, 235, 0.15)' },
-          '50%': { boxShadow: '0 0 24px rgba(37, 99, 235, 0.28)' },
-          '100%': { boxShadow: '0 0 0 rgba(37, 99, 235, 0.15)' },
-        },
         shimmer: {
           '0%': { backgroundPosition: '-1000px 0' },
           '100%': { backgroundPosition: '1000px 0' },
         },
       },
       boxShadow: {
-        'card': '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
-        'card-hover': '0 4px 12px 0 rgb(0 0 0 / 0.1), 0 2px 4px -1px rgb(0 0 0 / 0.06)',
-        'popover': '0 8px 30px rgb(0 0 0 / 0.12)',
+        xs: '0 1px 2px 0 rgb(0 0 0 / 0.04)',
+        sm: '0 1px 3px 0 rgb(0 0 0 / 0.08), 0 1px 2px -1px rgb(0 0 0 / 0.06)',
+        md: '0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.06)',
+        lg: '0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.06)',
+        popover: '0 8px 30px rgb(0 0 0 / 0.12)',
       },
     },
   },

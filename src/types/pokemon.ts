@@ -36,6 +36,9 @@ export interface PokemonCard {
       averageSellPrice?: number;
       lowPrice?: number;
       trendPrice?: number;
+      avg1?: number;
+      avg7?: number;
+      avg30?: number;
     };
   };
   // Enhanced data for investment tracking
@@ -95,6 +98,9 @@ export interface PokemonSet {
   name: string;
   releaseDate: string;
   total: number;
+  series?: string;
+  era?: string;
+  eraLabel?: string;
   images: {
     symbol: string;
     logo: string;

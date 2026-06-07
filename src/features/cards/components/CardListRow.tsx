@@ -1,8 +1,13 @@
 import React from 'react';
-import { BookPlus, Eye, LineChart } from 'lucide-react';
+import { BookPlus, Eye, LineChart, TrendingDown, TrendingUp } from 'lucide-react';
 import { PokemonCard as PokemonCardType } from '../../../types/pokemon';
 import { pokemonApi } from '../../../services/pokemonApi';
-import { formatCurrency, getRarityBadgeClass } from '../../../utils/cardDisplay';
+import {
+  formatCurrency,
+  formatPercent,
+  getRarityBadgeClass,
+  getSevenDayDeltaPct,
+} from '../../../utils/cardDisplay';
 
 interface CardListRowProps {
   card: PokemonCardType;
@@ -18,61 +23,106 @@ export const CardListRow: React.FC<CardListRowProps> = ({
   onViewPriceHistory,
 }) => {
   const price = card.marketPrice ?? pokemonApi.extractCardPrice(card);
+  const deltaPct = getSevenDayDeltaPct(card);
+  const imageUrl = card.images?.small || card.images?.large;
 
   return (
-    <article className="group flex items-center gap-4 rounded-xl border border-white/10 bg-white/[0.04] p-4 transition-transform duration-300 hover:-translate-y-0.5 hover:bg-white/[0.06]">
-      <button type="button" onClick={onClick} className="flex min-w-0 flex-1 items-center gap-4 text-left">
-        <img
-          src={card.images.small}
-          alt={card.name}
-          className="h-16 w-11 shrink-0 rounded object-contain"
-          loading="lazy"
-        />
-        <div className="min-w-0 flex-1">
-          <h3 className="truncate font-semibold text-white">{card.name}</h3>
-          <p className="truncate text-xs text-slate-400">{card.set.name}</p>
-          {card.rarity && (
-            <span
-              className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${getRarityBadgeClass(card.rarity)}`}
-            >
-              {card.rarity}
-            </span>
-          )}
-        </div>
-        <div className="shrink-0 text-right">
-          <p className="text-[10px] uppercase tracking-wider text-slate-500">Market</p>
-          <p className="text-lg font-bold tabular-nums text-emerald-300">
-            {price > 0 ? formatCurrency(price) : '—'}
-          </p>
+    <article className="group grid grid-cols-[minmax(0,1fr)_minmax(88px,120px)_minmax(72px,96px)_minmax(88px,112px)_auto] items-center gap-3 rounded-lg border border-border-default bg-surface-raised px-3 py-2.5 shadow-sm transition-colors hover:border-border-strong md:gap-4 md:px-4">
+      <button type="button" onClick={onClick} className="flex min-w-0 items-center gap-3 text-left">
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt=""
+            className="h-12 w-9 shrink-0 rounded object-contain"
+            loading="lazy"
+          />
+        ) : (
+          <div className="flex h-12 w-9 shrink-0 items-center justify-center rounded border border-border-default text-[9px] text-ink-muted">
+            —
+          </div>
+        )}
+        <div className="min-w-0">
+          <h3 className="truncate text-sm font-semibold text-white">{card.name}</h3>
+          <p className="truncate text-xs text-ink-muted">{card.set.name}</p>
         </div>
       </button>
 
-      <div className="flex shrink-0 gap-1.5 opacity-0 transition-opacity duration-500 group-hover:opacity-100">
+      <span className="hidden truncate text-xs text-ink-muted sm:block">
+        {card.rarity ? (
+          <span
+            className={`inline-flex max-w-full truncate rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${getRarityBadgeClass(card.rarity)}`}
+          >
+            {card.rarity}
+          </span>
+        ) : (
+          '—'
+        )}
+      </span>
+
+      <span className="hidden font-mono text-xs tabular-nums text-ink-muted md:block">
+        #{card.number || '—'}
+      </span>
+
+      <div className="text-right">
+        <p className="text-sm font-bold tabular-nums text-ink-primary">
+          {price > 0 ? formatCurrency(price) : '—'}
+        </p>
+        {deltaPct !== null && Math.abs(deltaPct) >= 0.05 && (
+          <p
+            className={`inline-flex items-center justify-end gap-0.5 text-[10px] font-semibold tabular-nums ${
+              deltaPct > 0 ? 'text-gain' : 'text-loss'
+            }`}
+          >
+            {deltaPct > 0 ? (
+              <TrendingUp className="h-2.5 w-2.5" aria-hidden="true" />
+            ) : (
+              <TrendingDown className="h-2.5 w-2.5" aria-hidden="true" />
+            )}
+            {formatPercent(deltaPct, { signed: true })}
+          </p>
+        )}
+      </div>
+
+      <div className="flex shrink-0 gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
         <button
           type="button"
           onClick={onClick}
-          className="rounded-lg border border-white/15 bg-black/50 p-2 text-slate-200 hover:bg-white/10"
-          aria-label="View"
+          className="rounded-lg border border-border-default bg-surface-inset p-2 text-ink-secondary hover:text-ink-primary"
+          aria-label={`View ${card.name}`}
         >
-          <Eye className="h-4 w-4" />
+          <Eye className="h-3.5 w-3.5" />
         </button>
         <button
           type="button"
           onClick={() => (onAddToCollection ? onAddToCollection() : onClick())}
-          className="rounded-lg border border-white/15 bg-black/50 p-2 text-slate-200 hover:bg-white/10"
-          aria-label="Add"
+          className="rounded-lg border border-border-default bg-surface-inset p-2 text-ink-secondary hover:text-ink-primary"
+          aria-label={`Add ${card.name} to collection`}
         >
-          <BookPlus className="h-4 w-4" />
+          <BookPlus className="h-3.5 w-3.5" />
         </button>
         <button
           type="button"
           onClick={() => (onViewPriceHistory ? onViewPriceHistory() : onClick())}
-          className="rounded-lg border border-white/15 bg-black/50 p-2 text-slate-200 hover:bg-white/10"
-          aria-label="History"
+          className="rounded-lg border border-border-default bg-surface-inset p-2 text-ink-secondary hover:text-ink-primary"
+          aria-label={`Price history for ${card.name}`}
         >
-          <LineChart className="h-4 w-4" />
+          <LineChart className="h-3.5 w-3.5" />
         </button>
       </div>
     </article>
   );
 };
+
+/** Column headers for list-as-table browse mode (hidden on narrow viewports). */
+export const CardListHeader: React.FC = () => (
+  <div
+    className="mb-2 hidden grid-cols-[minmax(0,1fr)_minmax(88px,120px)_minmax(72px,96px)_minmax(88px,112px)_auto] gap-3 px-3 text-[10px] font-semibold uppercase tracking-wider text-ink-muted md:grid md:gap-4 md:px-4"
+    aria-hidden="true"
+  >
+    <span>Card</span>
+    <span className="hidden sm:block">Rarity</span>
+    <span className="hidden md:block">#</span>
+    <span className="text-right">Price</span>
+    <span className="w-[104px]" />
+  </div>
+);

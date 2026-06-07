@@ -1,5 +1,5 @@
-import React from 'react';
-import { LayoutGrid, List } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { ChevronDown, LayoutGrid, List } from 'lucide-react';
 import { PokemonCard } from './PokemonCard';
 import { CardListRow } from './CardListRow';
 import { PokemonCard as PokemonCardType } from '../../../types/pokemon';
@@ -14,6 +14,83 @@ interface CardGridProps {
   onViewPriceHistory?: (card: PokemonCardType) => void;
 }
 
+const PAGE_SIZE = 60;
+const AUTO_PAGES = 3;
+
+/**
+ * Hybrid pagination: the first 3 "pages" reveal automatically as you scroll
+ * (IntersectionObserver sentinel), then an explicit Load more button takes
+ * over so the footer stays reachable and scroll position stays predictable.
+ */
+function useIncrementalReveal(cards: PokemonCardType[]) {
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const listKey = `${cards.length}:${cards[0]?.id ?? ''}`;
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [listKey]);
+
+  const autoLimit = PAGE_SIZE * AUTO_PAGES;
+  const hasMore = visibleCount < cards.length;
+  const autoMode = hasMore && visibleCount < autoLimit;
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !autoMode) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setVisibleCount((count) => Math.min(count + PAGE_SIZE, cards.length));
+        }
+      },
+      { rootMargin: '600px 0px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [autoMode, cards.length, listKey]);
+
+  return {
+    visibleCards: cards.slice(0, visibleCount),
+    hasMore,
+    autoMode,
+    sentinelRef,
+    loadMore: () => setVisibleCount((count) => Math.min(count + PAGE_SIZE, cards.length)),
+    visibleCount: Math.min(visibleCount, cards.length),
+  };
+}
+
+function RevealFooter({
+  total,
+  visibleCount,
+  hasMore,
+  autoMode,
+  sentinelRef,
+  loadMore,
+}: {
+  total: number;
+  visibleCount: number;
+  hasMore: boolean;
+  autoMode: boolean;
+  sentinelRef: React.RefObject<HTMLDivElement>;
+  loadMore: () => void;
+}) {
+  return (
+    <div className="mt-6 flex flex-col items-center gap-3">
+      {autoMode && <div ref={sentinelRef} className="h-px w-full" aria-hidden="true" />}
+      <p className="text-center text-xs tabular-nums text-ink-muted" aria-live="polite">
+        Showing {visibleCount} of {total} cards
+      </p>
+      {hasMore && !autoMode && (
+        <button type="button" onClick={loadMore} className="btn-secondary">
+          <ChevronDown className="h-4 w-4" aria-hidden="true" />
+          Load {Math.min(PAGE_SIZE, total - visibleCount)} more
+        </button>
+      )}
+    </div>
+  );
+}
+
 export const CardGrid: React.FC<CardGridProps> = ({
   cards,
   viewMode = 'grid',
@@ -21,10 +98,12 @@ export const CardGrid: React.FC<CardGridProps> = ({
   onAddToCollection,
   onViewPriceHistory,
 }) => {
+  const reveal = useIncrementalReveal(cards);
+
   if (viewMode === 'list') {
     return (
       <section className="animate-fade-in space-y-3">
-        {cards.map((card) => (
+        {reveal.visibleCards.map((card) => (
           <CardListRow
             key={card.id}
             card={card}
@@ -33,7 +112,14 @@ export const CardGrid: React.FC<CardGridProps> = ({
             onViewPriceHistory={onViewPriceHistory ? () => onViewPriceHistory(card) : undefined}
           />
         ))}
-        <p className="pt-2 text-center text-xs text-slate-400">Showing {cards.length} cards</p>
+        <RevealFooter
+          total={cards.length}
+          visibleCount={reveal.visibleCount}
+          hasMore={reveal.hasMore}
+          autoMode={reveal.autoMode}
+          sentinelRef={reveal.sentinelRef}
+          loadMore={reveal.loadMore}
+        />
       </section>
     );
   }
@@ -41,7 +127,7 @@ export const CardGrid: React.FC<CardGridProps> = ({
   return (
     <section className="animate-fade-in">
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-        {cards.map((card) => (
+        {reveal.visibleCards.map((card) => (
           <PokemonCard
             key={card.id}
             card={card}
@@ -51,7 +137,14 @@ export const CardGrid: React.FC<CardGridProps> = ({
           />
         ))}
       </div>
-      <p className="mt-6 text-center text-xs text-slate-400">Showing {cards.length} cards</p>
+      <RevealFooter
+        total={cards.length}
+        visibleCount={reveal.visibleCount}
+        hasMore={reveal.hasMore}
+        autoMode={reveal.autoMode}
+        sentinelRef={reveal.sentinelRef}
+        loadMore={reveal.loadMore}
+      />
     </section>
   );
 };
@@ -62,12 +155,12 @@ interface ViewModeToggleProps {
 }
 
 export const ViewModeToggle: React.FC<ViewModeToggleProps> = ({ viewMode, onChange }) => (
-  <div className="inline-flex rounded-lg border border-white/15 bg-white/[0.04] p-0.5">
+  <div className="inline-flex rounded-lg border border-border-default bg-surface-inset p-0.5">
     <button
       type="button"
       onClick={() => onChange('grid')}
       className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
-        viewMode === 'grid' ? 'bg-white/12 text-white' : 'text-slate-400 hover:text-slate-200'
+        viewMode === 'grid' ? 'bg-white/12 text-white' : 'text-ink-muted hover:text-ink-secondary'
       }`}
       aria-pressed={viewMode === 'grid'}
     >
@@ -78,7 +171,7 @@ export const ViewModeToggle: React.FC<ViewModeToggleProps> = ({ viewMode, onChan
       type="button"
       onClick={() => onChange('list')}
       className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
-        viewMode === 'list' ? 'bg-white/12 text-white' : 'text-slate-400 hover:text-slate-200'
+        viewMode === 'list' ? 'bg-white/12 text-white' : 'text-ink-muted hover:text-ink-secondary'
       }`}
       aria-pressed={viewMode === 'list'}
     >

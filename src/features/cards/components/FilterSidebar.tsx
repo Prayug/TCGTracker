@@ -44,15 +44,15 @@ function FilterGroup({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div className="border-b border-white/10 last:border-0">
+    <div className="border-b border-border-subtle last:border-0">
       <button
         type="button"
         onClick={() => setOpen(!open)}
         className="flex w-full items-center justify-between py-3 text-left"
       >
-        <span className="text-xs font-medium text-slate-300">{title}</span>
+        <span className="text-xs font-medium text-ink-secondary">{title}</span>
         <ChevronDown
-          className={`h-4 w-4 text-slate-500 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          className={`h-4 w-4 text-ink-muted transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
         />
       </button>
       <div
@@ -83,19 +83,19 @@ function SidebarPanel({
   };
 
   const selectClass =
-    'h-10 w-full rounded-lg border border-white/15 bg-[#0f1624] px-3 text-sm text-slate-100 focus:border-violet-400 focus:outline-none';
+    'h-10 w-full rounded-lg border border-border-default bg-surface-inset px-3 text-sm text-ink-primary focus:border-accent focus:outline-none';
 
   return (
-    <div className="h-full rounded-xl border border-white/10 bg-white/[0.03] p-4 backdrop-blur">
+    <div className="h-full rounded-xl border border-border-default bg-surface-raised p-4 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
-        <SectionLabel className="!flex items-center gap-2 !text-slate-300">
+        <SectionLabel className="!flex items-center gap-2 !text-ink-secondary">
           <SlidersHorizontal className="h-3.5 w-3.5 text-violet-300" />
           Filters
         </SectionLabel>
         <button
           type="button"
           onClick={onReset}
-          className="text-xs font-medium text-slate-400 transition-colors hover:text-slate-200"
+          className="text-xs font-medium text-ink-muted transition-colors hover:text-ink-secondary"
         >
           Reset
         </button>
@@ -177,12 +177,12 @@ export const FilterSidebar: React.FC<FilterSidebarProps> = ({
 
     {isMobileOpen && (
       <div className="fixed inset-0 z-40 bg-black/55 lg:hidden" role="dialog" aria-modal="true">
-        <div className="absolute right-0 top-0 h-full w-[88%] max-w-sm border-l border-white/10 bg-[#0b111d] p-4">
+        <div className="absolute right-0 top-0 h-full w-[88%] max-w-sm border-l border-border-subtle bg-[#0b111d] p-4">
           <div className="mb-3 flex justify-end">
             <button
               type="button"
               onClick={onCloseMobile}
-              className="rounded-lg border border-white/15 p-2 text-slate-200"
+              className="rounded-lg border border-border-default p-2 text-ink-secondary"
               aria-label="Close filters"
             >
               <X className="h-4 w-4" />

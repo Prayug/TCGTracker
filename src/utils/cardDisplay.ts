@@ -28,7 +28,6 @@ export function getRarityTier(rarity?: string): RarityTier {
   return 'common';
 }
 
-/** Premium rarities get holographic hover treatment */
 export function isPremiumRarity(rarity?: string): boolean {
   const tier = getRarityTier(rarity);
   return tier === 'holo' || tier === 'ultra' || tier === 'secret';
@@ -37,25 +36,36 @@ export function isPremiumRarity(rarity?: string): boolean {
 export function getRarityBadgeClass(rarity?: string): string {
   const tier = getRarityTier(rarity);
   const map: Record<RarityTier, string> = {
-    common: 'bg-white/10 text-slate-300 border-white/10',
-    uncommon: 'bg-emerald-400/15 text-emerald-300 border-emerald-400/25',
-    rare: 'bg-sky-400/15 text-sky-300 border-sky-400/25',
-    holo: 'bg-violet-400/15 text-violet-200 border-violet-400/30',
-    ultra: 'bg-amber-400/15 text-amber-200 border-amber-400/30',
-    secret: 'bg-rose-400/15 text-rose-200 border-rose-400/30',
+    common: 'bg-surface-hover text-ink-secondary border-border-subtle',
+    uncommon: 'bg-gain-muted text-gain border-gain/25',
+    rare: 'bg-accent-muted text-accent border-accent/25',
+    holo: 'bg-accent-muted text-gold border-gold/30',
+    ultra: 'bg-accent-muted text-gold border-gold/35',
+    secret: 'bg-loss-muted text-loss border-loss/25',
   };
   return map[tier];
+}
+
+export function getSevenDayDeltaPct(card: {
+  cardmarket?: { prices?: { trendPrice?: number; averageSellPrice?: number; avg7?: number } };
+}): number | null {
+  const prices = card.cardmarket?.prices;
+  if (!prices) return null;
+  const current = prices.trendPrice ?? prices.averageSellPrice;
+  const avg7 = prices.avg7;
+  if (!current || !avg7 || avg7 <= 0) return null;
+  return ((current - avg7) / avg7) * 100;
 }
 
 export function getPremiumBorderClass(rarity?: string): string {
   const tier = getRarityTier(rarity);
   const map: Record<RarityTier, string> = {
-    common: 'group-hover:border-white/20',
-    uncommon: 'group-hover:border-emerald-400/35',
-    rare: 'group-hover:border-sky-400/35',
-    holo: 'group-hover:border-violet-400/50 group-hover:shadow-[0_0_28px_rgba(139,92,246,0.25)]',
-    ultra: 'group-hover:border-amber-400/50 group-hover:shadow-[0_0_28px_rgba(251,191,36,0.22)]',
-    secret: 'group-hover:border-rose-400/55 group-hover:shadow-[0_0_32px_rgba(244,63,94,0.28)]',
+    common: 'group-hover:border-border-strong',
+    uncommon: 'group-hover:border-gain/35',
+    rare: 'group-hover:border-accent/35',
+    holo: 'group-hover:border-gold/40',
+    ultra: 'group-hover:border-gold/50',
+    secret: 'group-hover:border-loss/40',
   };
   return map[tier];
 }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { PokemonCard, CardCondition } from '../../../types/pokemon';
 import { vaultService } from '../../../services/vaultService';
+import { markOnboardingStep } from '../../../components/common/OnboardingChecklist';
 import { Modal } from '../../../components/common/Modal';
 import { Vault, DollarSign, Package, FileText } from 'lucide-react';
 import { pokemonApi } from '../../../services/pokemonApi';
@@ -50,6 +51,7 @@ export const AddToVaultModal: React.FC<AddToVaultModalProps> = ({
     
     try {
       vaultService.addToVault(card, price, quantity, condition, notes || undefined);
+      markOnboardingStep('vault');
       
       // Show success message
       alert(`✅ Added ${quantity}x ${card.name} to your vault!`);
