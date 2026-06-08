@@ -9,6 +9,7 @@ import { PageEmptyState } from '../../../components/common/PageEmptyState';
 import { MiniSparkline } from '../../../components/common/MiniSparkline';
 import { TrackerStatCard, buildSparklinePrices } from './TrackerStatCard';
 import { formatCurrency, formatPercent } from '../../../utils/cardDisplay';
+import { markOnboardingStep } from '../../../components/common/OnboardingChecklist';
 
 export const PriceTrackingDashboard: React.FC = () => {
   const [trackedCards, setTrackedCards] = useState<TrackedCard[]>([]);
@@ -46,6 +47,7 @@ export const PriceTrackingDashboard: React.FC = () => {
 
   const handleTrackCard = (card: PokemonCard) => {
     priceTrackingService.trackCard(card);
+    markOnboardingStep('track');
     loadData();
     setSearchResults([]);
     setSearchQuery('');
@@ -89,7 +91,7 @@ export const PriceTrackingDashboard: React.FC = () => {
       <div className="animate-slide-up">
         <SectionLabel className="text-violet-300/90">Price tracker</SectionLabel>
         <h2 className="mt-2 text-3xl font-bold tracking-tight text-white">Watchlist & alerts</h2>
-        <p className="mt-2 text-sm text-slate-400">
+        <p className="mt-2 text-sm text-ink-muted">
           Monitor favorites, spot 7-day moves, and set price triggers.
         </p>
       </div>
@@ -132,7 +134,7 @@ export const PriceTrackingDashboard: React.FC = () => {
 
         <div className="flex flex-col gap-3 sm:flex-row">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
             <input
               type="text"
               value={searchQuery}
@@ -162,7 +164,7 @@ export const PriceTrackingDashboard: React.FC = () => {
               return (
                 <div
                   key={card.id}
-                  className="flex items-center gap-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 hover:bg-white/[0.06]"
+                  className="flex items-center gap-4 rounded-xl border border-border-subtle bg-surface-inset p-3 hover:bg-surface-hover"
                 >
                   <img
                     src={card.images.small}
@@ -171,7 +173,7 @@ export const PriceTrackingDashboard: React.FC = () => {
                   />
                   <div className="min-w-0 flex-1">
                     <h4 className="truncate font-semibold text-white">{card.name}</h4>
-                    <p className="text-xs text-slate-400">{card.set.name}</p>
+                    <p className="text-xs text-ink-muted">{card.set.name}</p>
                     {price > 0 && (
                       <p className="mt-1 text-sm font-bold text-emerald-300">{formatCurrency(price)}</p>
                     )}
@@ -182,7 +184,7 @@ export const PriceTrackingDashboard: React.FC = () => {
                     disabled={isTracked}
                     className={`rounded-lg px-4 py-2 text-sm font-semibold ${
                       isTracked
-                        ? 'cursor-not-allowed border border-white/10 text-slate-500'
+                        ? 'cursor-not-allowed border border-border-subtle text-ink-muted'
                         : 'btn-primary'
                     }`}
                   >
@@ -227,11 +229,11 @@ export const PriceTrackingDashboard: React.FC = () => {
                     />
                     <div className="flex-1">
                       <h4 className="line-clamp-1 text-sm font-semibold text-white">{mover.card.name}</h4>
-                      <p className="text-xs text-slate-400">{formatCurrency(mover.currentPrice)}</p>
+                      <p className="text-xs text-ink-muted">{formatCurrency(mover.currentPrice)}</p>
                     </div>
                     <div className="text-right">
                       <p className="font-bold text-emerald-300">+{mover.changePercent.toFixed(1)}%</p>
-                      <p className="text-xs text-slate-400">+{formatCurrency(Math.abs(mover.change))}</p>
+                      <p className="text-xs text-ink-muted">+{formatCurrency(Math.abs(mover.change))}</p>
                     </div>
                   </motion.div>
                 ))}
@@ -268,11 +270,11 @@ export const PriceTrackingDashboard: React.FC = () => {
                     />
                     <div className="flex-1">
                       <h4 className="line-clamp-1 text-sm font-semibold text-white">{mover.card.name}</h4>
-                      <p className="text-xs text-slate-400">{formatCurrency(mover.currentPrice)}</p>
+                      <p className="text-xs text-ink-muted">{formatCurrency(mover.currentPrice)}</p>
                     </div>
                     <div className="text-right">
                       <p className="font-bold text-rose-300">{mover.changePercent.toFixed(1)}%</p>
-                      <p className="text-xs text-slate-400">-{formatCurrency(Math.abs(mover.change))}</p>
+                      <p className="text-xs text-ink-muted">-{formatCurrency(Math.abs(mover.change))}</p>
                     </div>
                   </motion.div>
                 ))}
@@ -307,7 +309,7 @@ export const PriceTrackingDashboard: React.FC = () => {
               return (
                 <div
                   key={tracked.id}
-                  className="rounded-xl border border-white/10 bg-white/[0.03] p-4"
+                  className="rounded-xl border border-border-subtle bg-surface-inset p-4"
                 >
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
                     <img
@@ -320,7 +322,7 @@ export const PriceTrackingDashboard: React.FC = () => {
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
                           <h4 className="text-lg font-semibold text-white">{tracked.card.name}</h4>
-                          <p className="text-sm text-slate-400">{tracked.card.set.name}</p>
+                          <p className="text-sm text-ink-muted">{tracked.card.set.name}</p>
                         </div>
                         <div className="text-right">
                           <p className="section-label !text-[10px]">7-day trend</p>
@@ -330,7 +332,7 @@ export const PriceTrackingDashboard: React.FC = () => {
 
                       <div className="mt-3 grid grid-cols-3 gap-3">
                         <div>
-                          <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500">
+                          <p className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">
                             Initial
                           </p>
                           <p className="text-sm font-bold tabular-nums text-white">
@@ -338,7 +340,7 @@ export const PriceTrackingDashboard: React.FC = () => {
                           </p>
                         </div>
                         <div>
-                          <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500">
+                          <p className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">
                             Current
                           </p>
                           <p className="text-sm font-bold tabular-nums text-white">
@@ -346,7 +348,7 @@ export const PriceTrackingDashboard: React.FC = () => {
                           </p>
                         </div>
                         <div>
-                          <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500">
+                          <p className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">
                             Change
                           </p>
                           <p
@@ -362,6 +364,9 @@ export const PriceTrackingDashboard: React.FC = () => {
                           type="button"
                           onClick={() => {
                             setSelectedCardForAlert(tracked);
+                            setAlertType('above');
+                            // Prefill at +10% of current — most alerts are "tell me when it pops".
+                            setAlertTarget(currentPrice > 0 ? (currentPrice * 1.1).toFixed(2) : '');
                             setShowAlertForm(true);
                           }}
                           className="btn-alert"
@@ -401,12 +406,19 @@ export const PriceTrackingDashboard: React.FC = () => {
               .map((alert) => (
                 <div
                   key={alert.id}
-                  className="flex items-center justify-between rounded-lg border border-amber-500/20 bg-amber-500/10 p-4"
+                  className="flex items-center justify-between gap-3 rounded-lg border border-border-default bg-surface-inset p-4"
                 >
-                  <div>
-                    <h4 className="font-semibold text-white">{alert.cardName}</h4>
-                    <p className="text-sm text-slate-400">
-                      When price goes {alert.alertType} {formatCurrency(alert.targetPrice)}
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h4 className="truncate font-semibold text-white">{alert.cardName}</h4>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-400" aria-hidden="true" />
+                        Armed
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-sm tabular-nums text-ink-muted">
+                      Triggers {alert.alertType === 'above' ? '≥' : '≤'}{' '}
+                      <span className="font-semibold text-ink-secondary">{formatCurrency(alert.targetPrice)}</span>
                     </p>
                   </div>
                   <button
@@ -424,36 +436,53 @@ export const PriceTrackingDashboard: React.FC = () => {
 
       {/* Create Alert Modal */}
       {showAlertForm && selectedCardForAlert && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4 ">
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="w-full max-w-md rounded-xl border border-white/15 bg-[#0f1624] p-6"
+            className="w-full max-w-md rounded-2xl border border-border-strong bg-surface-overlay p-6"
           >
             <h3 className="text-xl font-bold text-white">Create price alert</h3>
-            <p className="mt-1 text-sm text-slate-400">{selectedCardForAlert.card.name}</p>
+            <p className="mt-1 text-sm text-ink-muted">{selectedCardForAlert.card.name}</p>
 
             <div className="mt-4 space-y-4">
-              <label className="block">
-                <span className="section-label mb-2 block">Alert type</span>
-                <select
-                  value={alertType}
-                  onChange={(e) => setAlertType(e.target.value as 'above' | 'below')}
-                  className="input"
+              <div>
+                <span className="section-label mb-2 block">Trigger when price goes</span>
+                <div
+                  className="inline-flex w-full rounded-lg border border-border-default bg-surface-inset p-1"
+                  role="radiogroup"
+                  aria-label="Alert condition"
                 >
-                  <option value="above">Above target price</option>
-                  <option value="below">Below target price</option>
-                </select>
-              </label>
+                  {(['above', 'below'] as const).map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      role="radio"
+                      aria-checked={alertType === type}
+                      onClick={() => setAlertType(type)}
+                      className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium capitalize transition-colors ${
+                        alertType === type
+                          ? 'bg-surface-hover text-white'
+                          : 'text-ink-muted hover:text-ink-secondary'
+                      }`}
+                    >
+                      {type === 'above' ? '↑ Above' : '↓ Below'}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <label className="block">
                 <span className="section-label mb-2 block">Target price ($)</span>
                 <input
                   type="number"
                   step="0.01"
+                  inputMode="decimal"
                   value={alertTarget}
                   onChange={(e) => setAlertTarget(e.target.value)}
                   placeholder="0.00"
-                  className="input"
+                  className="input tabular-nums"
+                  // eslint-disable-next-line jsx-a11y/no-autofocus
+                  autoFocus
                 />
               </label>
             </div>

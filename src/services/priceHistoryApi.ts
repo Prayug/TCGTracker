@@ -1,6 +1,6 @@
 import { PricePoint } from '../types/pokemon';
 import { CardIdentifier } from '../types/identifiers';
-import { fillPriceHistoryGaps } from '../utils/priceHistory';
+import { env } from '../config/env';
 
 interface PriceHistoryPoint {
   date: string;
@@ -43,7 +43,7 @@ interface CardMatchResponse {
 }
 
 export class PriceHistoryApi {
-  private static baseUrl = 'http://localhost:3001/api/prices';
+  private static baseUrl = `${env.apiUrl}/api/prices`;
   public static dataMode: 'live' | 'static' = 'live'; // Use live mode by default (backend server)
   private static staticMappings: CardIdentifier[] | null = null;
   private static latestPrices: { [uniqueIdentifier: string]: PricePoint } | null = null;
@@ -309,24 +309,63 @@ export class PriceHistoryApi {
   }
 
   /**
-   * Converts raw price history to the format expected by the frontend
+   * Deduplicate to one price per calendar day. Does NOT gap-fill — that's for chart display only.
    */
-  static formatPriceHistory(priceHistory: PriceHistoryPoint[]): Array<{ date: string; price: number }> {
-    const byDate = new Map<string, number>();
+  static formatPriceHistory(
+    priceHistory: PriceHistoryPoint[],
+    preferredVariant?: string
+  ): Array<{ date: string; price: number }> {
+    const preferred = this.normalizeVariantKey(preferredVariant);
+    const byDate = new Map<string, { price: number; score: number }>();
+
+    const scoreVariant = (subTypeName?: string): number => {
+      const rowVariant = this.normalizeVariantKey(subTypeName);
+      if (rowVariant === preferred) return 3;
+      if (preferred !== 'normal' && rowVariant.includes(preferred)) return 2;
+      if (preferred === 'normal' && (rowVariant === 'normal' || rowVariant === 'unlimited')) return 2;
+      return rowVariant === 'normal' ? 1 : 0;
+    };
 
     priceHistory
       .filter((point) => (point.marketPrice || point.price) > 0)
       .forEach((point) => {
         const pointDate = point.date.includes('T') ? point.date.split('T')[0] : point.date;
         const normalizedPrice = point.marketPrice || point.price;
-        byDate.set(pointDate, normalizedPrice);
+        const score = scoreVariant(point.subTypeName);
+        const existing = byDate.get(pointDate);
+        if (!existing || score > existing.score) {
+          byDate.set(pointDate, { price: normalizedPrice, score });
+        }
       });
 
     const deduped = Array.from(byDate.entries())
-      .map(([date, price]) => ({ date, price }))
+      .filter(([, { score }]) => score > 0)
+      .map(([date, { price }]) => ({ date, price }))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    return fillPriceHistoryGaps(deduped).points;
+    // If variant filter was too strict, keep best available row per day.
+    if (
+      deduped.length === 0 ||
+      deduped.length < Math.min(10, priceHistory.filter((p) => (p.marketPrice || p.price) > 0).length * 0.25)
+    ) {
+      byDate.clear();
+      priceHistory
+        .filter((point) => (point.marketPrice || point.price) > 0)
+        .forEach((point) => {
+          const pointDate = point.date.includes('T') ? point.date.split('T')[0] : point.date;
+          const normalizedPrice = point.marketPrice || point.price;
+          const score = scoreVariant(point.subTypeName);
+          const existing = byDate.get(pointDate);
+          if (!existing || score > existing.score) {
+            byDate.set(pointDate, { price: normalizedPrice, score });
+          }
+        });
+      return Array.from(byDate.entries())
+        .map(([date, { price }]) => ({ date, price }))
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    }
+
+    return deduped;
   }
 
   /**
@@ -343,6 +382,7 @@ export class PriceHistoryApi {
   }): Promise<Array<{ date: string; price: number }>> {
     const cardNumber = card.number || this.extractCardNumber(card.id);
     return this.getPriceHistory({
+      id: card.id,
       name: card.name,
       set: card.set,
       number: cardNumber,
@@ -387,8 +427,8 @@ export class PriceHistoryApi {
           const pointVariant = this.normalizeVariantKey(point.subTypeName);
           return variantKey === 'normal' ? true : pointVariant === variantKey;
         });
-        return this.formatPriceHistory(normalizedData);
-      } catch (error) {
+        return this.formatPriceHistory(normalizedData, card.variant);
+      } catch {
         // Silently fail - price file doesn't exist or is invalid
         return [];
       }
@@ -419,7 +459,16 @@ export class PriceHistoryApi {
           return [];
         }
         const data = await response.json();
-        return data?.priceHistory ? this.formatPriceHistory(data.priceHistory) : [];
+        const raw = data?.priceHistory ?? [];
+        const formatted = this.formatPriceHistory(raw, variantToUse);
+        // If variant-specific result is sparse, retry using all subtype rows from the same product.
+        if (formatted.length < 14 && raw.length > formatted.length) {
+          const fallback = this.formatPriceHistory(raw, undefined);
+          if (fallback.length > formatted.length) {
+            return fallback;
+          }
+        }
+        return formatted;
       };
 
       return await fetchHistory(variantKey);

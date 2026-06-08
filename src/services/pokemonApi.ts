@@ -1,14 +1,10 @@
 import { PokemonCard, PokemonSet } from '../types/pokemon';
 import { cacheService } from './cacheService';
+import { env, buildApiUrl } from '../config/env';
 
-const BACKEND_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
-
-// How many results a query is expected to have — drives pagination strategy
 function estimateResultVolume(query?: string): 'small' | 'large' {
   if (!query) return 'large';
-  // Single well-known cards typically have small result sets; generic terms are large
   const trimmed = query.trim();
-  // Short queries or exact names → likely small set
   if (trimmed.length >= 6 && !trimmed.includes('*')) return 'small';
   return 'large';
 }
@@ -17,7 +13,7 @@ class PokemonApiService {
   private pendingRequests = new Map<string, Promise<PokemonCard[]>>();
 
   private async fetchBackend<T>(endpoint: string, params?: Record<string, string>, retries = 2): Promise<T> {
-    const url = new URL(`${BACKEND_BASE_URL}${endpoint}`);
+    const url = new URL(buildApiUrl(endpoint));
     if (params) {
       Object.entries(params).forEach(([k, v]) => {
         if (v) url.searchParams.append(k, v);

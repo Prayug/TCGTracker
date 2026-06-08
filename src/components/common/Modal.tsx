@@ -6,7 +6,7 @@ interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   children: React.ReactNode;
-  size?: 'small' | 'medium' | 'large';
+  size?: 'small' | 'medium' | 'large' | 'detail';
 }
 
 export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, size = 'medium' }) => {
@@ -22,15 +22,22 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, size = 
 
     return () => {
       document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'unset';
+      document.body.style.overflow = '';
     };
   }, [isOpen, onClose]);
 
   const sizeClasses = {
-    small: 'max-w-md',
-    medium: 'max-w-2xl',
-    large: 'max-w-6xl',
+    small: 'max-w-[min(24rem,calc(100vw-1rem))]',
+    medium: 'max-w-[min(32rem,calc(100vw-1rem))]',
+    large: 'max-w-[min(42rem,calc(100vw-1.5rem))]',
+    /** Card detail — wide enough for chart, not full-screen */
+    detail: 'max-w-[min(48rem,calc(100vw-1.5rem))]',
   };
+
+  const maxHeightClass =
+    size === 'detail'
+      ? 'max-h-[min(calc(100dvh-1.5rem),52rem)]'
+      : 'max-h-[min(calc(100dvh-1rem),40rem)]';
 
   return (
     <AnimatePresence>
@@ -40,34 +47,37 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, size = 
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-md"
+          className="fixed inset-0 z-[70] overflow-y-auto bg-black/75 p-3  sm:p-4"
           onClick={onClose}
         >
-          <motion.div
-            initial={{ scale: 0.96, opacity: 0, y: 16 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.98, opacity: 0, y: 8 }}
-            transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-            className={`relative w-full ${sizeClasses[size]} max-h-[90vh] overflow-hidden rounded-xl border border-white/15 bg-[#0f1624] shadow-2xl`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-br from-violet-500/10 via-transparent to-emerald-500/10" />
-
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              type="button"
-              onClick={onClose}
-              className="absolute right-4 top-4 z-20 rounded-lg border border-white/15 bg-white/[0.06] p-2 text-slate-300 transition-colors hover:bg-white/[0.12] hover:text-white"
-              aria-label="Close modal"
+          {/* Scrollable backdrop wrapper — keeps modal usable at browser zoom levels */}
+          <div className="flex min-h-full items-start justify-center py-3 sm:items-center sm:py-6">
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+              className={`relative flex w-full flex-col ${sizeClasses[size]} ${maxHeightClass} rounded-2xl border border-border-strong bg-surface-overlay shadow-2xl`}
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
             >
-              <X className="h-5 w-5" />
-            </motion.button>
+              <div className="flex shrink-0 items-center justify-end px-2 pt-2 sm:px-3 sm:pt-3">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-lg border border-border-default bg-surface-hover p-2 text-ink-secondary transition-colors hover:bg-surface-hover hover:text-ink-primary"
+                  aria-label="Close modal"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
 
-            <div className="custom-scrollbar relative max-h-[90vh] overflow-y-auto rounded-xl">
-              {children}
-            </div>
-          </motion.div>
+              <div className="custom-scrollbar min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-4 sm:px-6 sm:pb-6">
+                {children}
+              </div>
+            </motion.div>
+          </div>
         </motion.div>
       )}
     </AnimatePresence>

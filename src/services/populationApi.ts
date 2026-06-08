@@ -1,4 +1,4 @@
-const BACKEND_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+import { buildApiUrl } from '../config/env';
 
 export interface PopulationCompanyResult {
   grader: 'psa' | 'cgc' | 'beckett';
@@ -33,7 +33,7 @@ export const fetchCardPopulation = async (params: {
   cardNumber?: string;
   variant?: string;
 }): Promise<PopulationLookupResponse | null> => {
-  const url = new URL(`${BACKEND_BASE_URL}/api/cards/population`);
+  const url = new URL(buildApiUrl('/api/cards/population'));
   if (params.cardId) url.searchParams.set('cardId', params.cardId);
   url.searchParams.set('cardName', params.cardName);
   if (params.setId) url.searchParams.set('setId', params.setId);
