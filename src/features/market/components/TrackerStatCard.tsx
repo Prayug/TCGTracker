@@ -29,13 +29,13 @@ export const TrackerStatCard: React.FC<TrackerStatCardProps> = ({
   return (
     <article className="card">
       <div className="mb-3 flex items-center gap-2">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/[0.06]">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border-default bg-surface-hover">
           <Icon className="h-4 w-4 text-violet-300" />
         </div>
-        <p className="section-label !normal-case !tracking-normal text-slate-400">{label}</p>
+        <p className="section-label !normal-case !tracking-normal text-ink-muted">{label}</p>
       </div>
       <p className={`text-3xl font-bold tabular-nums ${tones[tone]}`}>{display}</p>
-      <p className="mt-1 text-xs text-slate-500">{helper}</p>
+      <p className="mt-1 text-xs text-ink-muted">{helper}</p>
     </article>
   );
 };
