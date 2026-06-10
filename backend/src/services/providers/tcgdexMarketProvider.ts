@@ -8,6 +8,7 @@ interface TcgdexPriceEntry {
   marketPrice?: number;
   lowPrice?: number;
   highPrice?: number;
+  volume?: number;
 }
 
 interface TcgdexCardResponse {
@@ -34,9 +35,13 @@ const normalizeVariantKey = (raw: string): string => {
 };
 
 export class TcgdexMarketProvider implements MarketPriceProvider {
-  private readonly timeoutMs = 8000;
+  readonly timeoutMs = 8000;
   private fetchFailureCount = 0;
-  private nextFailureLogAt = 25;
+  private nextFailureLogAt = 5;
+
+  get failureCount(): number {
+    return this.fetchFailureCount;
+  }
 
   private async fetchCard(cardId: string): Promise<TcgdexCardResponse | null> {
     const url = `${TCGDEX_BASE_URL}/cards/${encodeURIComponent(cardId)}`;
@@ -81,6 +86,7 @@ export class TcgdexMarketProvider implements MarketPriceProvider {
             marketPrice,
             lowPrice: value.lowPrice,
             highPrice: value.highPrice,
+            volume: value.volume,
           };
         })
         .filter((point): point is NonNullable<typeof point> => Boolean(point));
@@ -100,12 +106,12 @@ export class TcgdexMarketProvider implements MarketPriceProvider {
     } catch (error) {
       this.fetchFailureCount += 1;
       if (this.fetchFailureCount >= this.nextFailureLogAt) {
-        logger.warn('TCGdex market fetch failing repeatedly', {
+        logger.error('TCGdex market fetch failing repeatedly', {
           failures: this.fetchFailureCount,
           sampleCardId: cardId,
           error: (error as Error).message,
         });
-        this.nextFailureLogAt += 50;
+        this.nextFailureLogAt += 25;
       }
       return null;
     }

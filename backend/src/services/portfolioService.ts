@@ -1,5 +1,5 @@
 import { Database } from 'sqlite3';
-import { logger } from '../utils/logger';
+import { allDbRows, getDbRow, runDb } from '../utils/dbAsync';
 
 export interface PortfolioItem {
   id: number;
@@ -11,8 +11,20 @@ export interface PortfolioItem {
   purchase_date?: string;
   condition?: string;
   notes?: string;
+  card_data?: string | null;
+  client_vault_id?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface VaultSyncEntry {
+  id: string;
+  card: unknown;
+  purchasePrice: number;
+  purchaseDate: string;
+  quantity: number;
+  condition: string;
+  notes?: string;
 }
 
 export interface PortfolioStats {
@@ -21,76 +33,107 @@ export interface PortfolioStats {
   totalInvestment: number;
   profitLoss: number;
   profitLossPercentage: number;
-  topGainers: Array<{
-    card_name: string;
-    gain: number;
-    gainPercentage: number;
-  }>;
-  topLosers: Array<{
-    card_name: string;
-    loss: number;
-    lossPercentage: number;
-  }>;
+  topGainers: Array<{ card_name: string; gain: number; gainPercentage: number }>;
+  topLosers: Array<{ card_name: string; loss: number; lossPercentage: number }>;
 }
 
 export class PortfolioService {
-  private db: Database;
-
-  constructor(db: Database) {
-    this.db = db;
-  }
+  constructor(private db: Database) {}
 
   async addToCollection(
     userId: number,
     cardId: string,
     cardName: string,
-    quantity: number = 1,
+    quantity = 1,
     purchasePrice?: number,
     purchaseDate?: string,
     condition?: string,
-    notes?: string
+    notes?: string,
+    cardData?: string,
+    clientVaultId?: string
   ): Promise<PortfolioItem> {
-    return new Promise((resolve, reject) => {
-      this.db.run(
-        `INSERT INTO user_collections (user_id, card_id, card_name, quantity, purchase_price, purchase_date, condition, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(user_id, card_id, condition) DO UPDATE SET
-           quantity = quantity + excluded.quantity,
-           updated_at = CURRENT_TIMESTAMP`,
-        [userId, cardId, cardName, quantity, purchasePrice, purchaseDate, condition, notes],
-        function (this: any, err: Error | null) {
-          if (err) return reject(err);
+    const { lastID } = await runDb(
+      this.db,
+      `INSERT INTO user_collections
+         (user_id, card_id, card_name, quantity, purchase_price, purchase_date, condition, notes, card_data, client_vault_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(user_id, card_id, condition) DO UPDATE SET
+         quantity = excluded.quantity,
+         purchase_price = excluded.purchase_price,
+         purchase_date = excluded.purchase_date,
+         notes = excluded.notes,
+         card_data = excluded.card_data,
+         client_vault_id = excluded.client_vault_id,
+         updated_at = CURRENT_TIMESTAMP`,
+      [
+        userId,
+        cardId,
+        cardName,
+        quantity,
+        purchasePrice ?? null,
+        purchaseDate ?? null,
+        condition ?? null,
+        notes ?? null,
+        cardData ?? null,
+        clientVaultId ?? null,
+      ]
+    );
 
-          const itemId = this.lastID;
-          resolve({
-            id: itemId,
-            user_id: userId,
-            card_id: cardId,
-            card_name: cardName,
-            quantity,
-            purchase_price: purchasePrice,
-            purchase_date: purchaseDate,
-            condition,
-            notes,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          });
-        }
-      );
-    });
+    const row = await this.getItemById(lastID, userId);
+    if (!row) throw new Error('Failed to load created portfolio item');
+    return row;
+  }
+
+  async getItemById(itemId: number, userId: number): Promise<PortfolioItem | undefined> {
+    return getDbRow<PortfolioItem>(
+      this.db,
+      'SELECT * FROM user_collections WHERE id = ? AND user_id = ?',
+      [itemId, userId]
+    );
   }
 
   async getCollection(userId: number): Promise<PortfolioItem[]> {
-    return new Promise((resolve, reject) => {
-      this.db.all(
-        'SELECT * FROM user_collections WHERE user_id = ? ORDER BY created_at DESC',
-        [userId],
-        (err: Error | null, rows: PortfolioItem[]) => {
-          if (err) return reject(err);
-          resolve(rows || []);
-        }
-      );
-    });
+    return allDbRows<PortfolioItem>(
+      this.db,
+      'SELECT * FROM user_collections WHERE user_id = ? ORDER BY created_at DESC',
+      [userId]
+    );
+  }
+
+  async syncVault(userId: number, cards: VaultSyncEntry[]): Promise<PortfolioItem[]> {
+    await runDb(this.db, 'BEGIN IMMEDIATE');
+    try {
+      await runDb(this.db, 'DELETE FROM user_collections WHERE user_id = ?', [userId]);
+
+      for (const entry of cards) {
+        const card = entry.card as { id?: string; name?: string };
+        await runDb(
+          this.db,
+          `INSERT INTO user_collections
+             (user_id, card_id, card_name, quantity, purchase_price, purchase_date, condition, notes, card_data, client_vault_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            userId,
+            card?.id || entry.id,
+            card?.name || 'Unknown',
+            entry.quantity,
+            entry.purchasePrice,
+            entry.purchaseDate,
+            entry.condition,
+            entry.notes ?? null,
+            JSON.stringify(entry),
+            entry.id,
+          ]
+        );
+      }
+
+      await runDb(this.db, 'COMMIT');
+    } catch (error) {
+      await runDb(this.db, 'ROLLBACK');
+      throw error;
+    }
+
+    return this.getCollection(userId);
   }
 
   async updateItem(
@@ -99,7 +142,7 @@ export class PortfolioService {
     updates: Partial<Omit<PortfolioItem, 'id' | 'user_id' | 'created_at' | 'updated_at'>>
   ): Promise<void> {
     const fields: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
 
     Object.entries(updates).forEach(([key, value]) => {
       if (value !== undefined) {
@@ -113,93 +156,72 @@ export class PortfolioService {
     fields.push('updated_at = CURRENT_TIMESTAMP');
     values.push(itemId, userId);
 
-    return new Promise((resolve, reject) => {
-      this.db.run(
-        `UPDATE user_collections SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`,
-        values,
-        (err: Error | null) => {
-          if (err) return reject(err);
-          resolve();
-        }
-      );
-    });
+    await runDb(
+      this.db,
+      `UPDATE user_collections SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`,
+      values
+    );
   }
 
   async removeFromCollection(itemId: number, userId: number): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.db.run(
-        'DELETE FROM user_collections WHERE id = ? AND user_id = ?',
-        [itemId, userId],
-        (err: Error | null) => {
-          if (err) return reject(err);
-          resolve();
-        }
-      );
-    });
+    await runDb(this.db, 'DELETE FROM user_collections WHERE id = ? AND user_id = ?', [
+      itemId,
+      userId,
+    ]);
   }
 
   async getPortfolioStats(userId: number): Promise<PortfolioStats> {
-    return new Promise(async (resolve, reject) => {
-      try {
-        const collection = await this.getCollection(userId);
+    const collection = await this.getCollection(userId);
 
-        let totalCards = 0;
-        let totalInvestment = 0;
-        let totalValue = 0; // This would come from current market prices
+    let totalCards = 0;
+    let totalInvestment = 0;
+    let totalValue = 0;
 
-        const cardPerformance: Array<{
-          card_name: string;
-          gain: number;
-          gainPercentage: number;
-        }> = [];
+    const cardPerformance: Array<{ card_name: string; gain: number; gainPercentage: number }> = [];
 
-        collection.forEach((item) => {
-          totalCards += item.quantity;
-          if (item.purchase_price) {
-            totalInvestment += item.purchase_price * item.quantity;
-          }
+    collection.forEach((item) => {
+      totalCards += item.quantity;
+      const purchasePrice = item.purchase_price || 0;
+      totalInvestment += purchasePrice * item.quantity;
 
-          // TODO: Fetch current market price for accurate calculation
-          // For now, using mock calculation
-          const currentPrice = item.purchase_price || 0;
-          const purchasePrice = item.purchase_price || 0;
-          const gain = (currentPrice - purchasePrice) * item.quantity;
-          const gainPercentage =
-            purchasePrice > 0 ? ((currentPrice - purchasePrice) / purchasePrice) * 100 : 0;
-
-          cardPerformance.push({
-            card_name: item.card_name,
-            gain,
-            gainPercentage,
-          });
-        });
-
-        const profitLoss = totalValue - totalInvestment;
-        const profitLossPercentage =
-          totalInvestment > 0 ? (profitLoss / totalInvestment) * 100 : 0;
-
-        cardPerformance.sort((a, b) => b.gainPercentage - a.gainPercentage);
-
-        resolve({
-          totalCards,
-          totalValue,
-          totalInvestment,
-          profitLoss,
-          profitLossPercentage,
-          topGainers: cardPerformance.filter((p) => p.gain > 0).slice(0, 5),
-          topLosers: cardPerformance
-            .filter((p) => p.gain < 0)
-            .map((p) => ({
-              card_name: p.card_name,
-              loss: Math.abs(p.gain),
-              lossPercentage: Math.abs(p.gainPercentage),
-            }))
-            .slice(0, 5),
-        });
-      } catch (error) {
-        reject(error);
+      let currentPrice = purchasePrice;
+      if (item.card_data) {
+        try {
+          const parsed = JSON.parse(item.card_data) as VaultSyncEntry;
+          const market = (parsed.card as { marketPrice?: number })?.marketPrice;
+          if (market && market > 0) currentPrice = market;
+        } catch {
+          /* use purchase price */
+        }
       }
+
+      totalValue += currentPrice * item.quantity;
+      const gain = (currentPrice - purchasePrice) * item.quantity;
+      const gainPercentage = purchasePrice > 0 ? ((currentPrice - purchasePrice) / purchasePrice) * 100 : 0;
+
+      cardPerformance.push({ card_name: item.card_name, gain, gainPercentage });
     });
+
+    const profitLoss = totalValue - totalInvestment;
+    const profitLossPercentage = totalInvestment > 0 ? (profitLoss / totalInvestment) * 100 : 0;
+
+    cardPerformance.sort((a, b) => b.gainPercentage - a.gainPercentage);
+
+    return {
+      totalCards,
+      totalValue,
+      totalInvestment,
+      profitLoss,
+      profitLossPercentage,
+      topGainers: cardPerformance.filter((p) => p.gain > 0).slice(0, 5),
+      topLosers: cardPerformance
+        .filter((p) => p.gain < 0)
+        .map((p) => ({
+          card_name: p.card_name,
+          loss: Math.abs(p.gain),
+          lossPercentage: Math.abs(p.gainPercentage),
+        }))
+        .slice(0, 5),
+    };
   }
 }
-

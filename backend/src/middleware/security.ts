@@ -21,8 +21,13 @@ export const securityMiddleware = () => {
 };
 
 export const corsMiddleware = () => {
+  const origins = env.cors.origin
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+
   return cors({
-    origin: env.cors.origin,
+    origin: origins.length === 1 ? origins[0] : origins,
     credentials: true,
     optionsSuccessStatus: 200,
   });

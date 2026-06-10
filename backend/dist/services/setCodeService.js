@@ -20,6 +20,7 @@ const database_1 = require("../db/database");
 class SetCodeService {
     constructor() {
         this.dynamicSetMap = new Map();
+        this.setById = new Map();
         this.initialized = false;
         this.initializationPromise = null;
         this.lastRefresh = 0;
@@ -61,7 +62,11 @@ class SetCodeService {
                     throw new Error('Pokemon TCG API returned no sets');
                 }
                 this.dynamicSetMap.clear();
-                allSets.forEach((set) => this.addSetMappings(set));
+                this.setById.clear();
+                allSets.forEach((set) => {
+                    this.setById.set(set.id, set);
+                    this.addSetMappings(set);
+                });
                 this.initialized = true;
                 this.lastRefresh = Date.now();
                 logger_1.logger.info(`✅ Loaded ${allSets.length} sets, created ${this.dynamicSetMap.size} mappings from Pokemon TCG API`);
@@ -84,6 +89,32 @@ class SetCodeService {
                 throw error; // Re-throw to allow caller to handle
             }
         });
+    }
+    getSetById(setId) {
+        if (!setId)
+            return undefined;
+        return (this.setById.get(setId) ||
+            this.setById.get(setId.toLowerCase()) ||
+            [...this.setById.values()].find((set) => set.id.toLowerCase() === setId.toLowerCase()));
+    }
+    getSetByName(setName) {
+        if (!setName)
+            return undefined;
+        const exact = [...this.setById.values()].find((set) => set.name.toLowerCase() === setName.toLowerCase());
+        if (exact)
+            return exact;
+        const normalized = setName.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const mappedId = this.dynamicSetMap.get(normalized);
+        if (mappedId)
+            return this.setById.get(mappedId);
+        return [...this.setById.values()].find((set) => {
+            const setNorm = set.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return setNorm === normalized || setNorm.includes(normalized) || normalized.includes(setNorm);
+        });
+    }
+    resolveApiSet(catalogId, setName) {
+        return (this.getSetById(catalogId) ||
+            (setName ? this.getSetByName(setName) : undefined));
     }
     addSetMappings(set) {
         if (!set.id || !set.name) {
@@ -315,9 +346,3 @@ class SetCodeService {
 }
 exports.SetCodeService = SetCodeService;
 exports.setCodeService = new SetCodeService();
-// Auto-refresh every 24 hours
-setInterval(() => {
-    exports.setCodeService.ensureFresh().catch((error) => {
-        logger_1.logger.error('Failed to auto-refresh set mappings', { error: error.message });
-    });
-}, 24 * 60 * 60 * 1000);

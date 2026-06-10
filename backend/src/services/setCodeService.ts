@@ -8,6 +8,7 @@ import { getDb } from '../db/database';
  */
 export class SetCodeService {
   private dynamicSetMap: Map<string, string> = new Map();
+  private setById: Map<string, PokemonApiSet> = new Map();
   private initialized = false;
   private initializationPromise: Promise<void> | null = null;
   private lastRefresh = 0;
@@ -50,7 +51,11 @@ export class SetCodeService {
       }
 
       this.dynamicSetMap.clear();
-      allSets.forEach((set) => this.addSetMappings(set));
+      this.setById.clear();
+      allSets.forEach((set) => {
+        this.setById.set(set.id, set);
+        this.addSetMappings(set);
+      });
 
       this.initialized = true;
       this.lastRefresh = Date.now();
@@ -76,6 +81,42 @@ export class SetCodeService {
       this.initialized = false;
       throw error; // Re-throw to allow caller to handle
     }
+  }
+
+  getSetById(setId: string): PokemonApiSet | undefined {
+    if (!setId) return undefined;
+    return (
+      this.setById.get(setId) ||
+      this.setById.get(setId.toLowerCase()) ||
+      [...this.setById.values()].find(
+        (set) => set.id.toLowerCase() === setId.toLowerCase()
+      )
+    );
+  }
+
+  getSetByName(setName: string): PokemonApiSet | undefined {
+    if (!setName) return undefined;
+
+    const exact = [...this.setById.values()].find(
+      (set) => set.name.toLowerCase() === setName.toLowerCase()
+    );
+    if (exact) return exact;
+
+    const normalized = setName.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const mappedId = this.dynamicSetMap.get(normalized);
+    if (mappedId) return this.setById.get(mappedId);
+
+    return [...this.setById.values()].find((set) => {
+      const setNorm = set.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+      return setNorm === normalized || setNorm.includes(normalized) || normalized.includes(setNorm);
+    });
+  }
+
+  resolveApiSet(catalogId: string, setName?: string): PokemonApiSet | undefined {
+    return (
+      this.getSetById(catalogId) ||
+      (setName ? this.getSetByName(setName) : undefined)
+    );
   }
 
   private addSetMappings(set: PokemonApiSet): void {
@@ -328,10 +369,3 @@ export class SetCodeService {
 }
 
 export const setCodeService = new SetCodeService();
-
-// Auto-refresh every 24 hours
-setInterval(() => {
-  setCodeService.ensureFresh().catch((error) => {
-    logger.error('Failed to auto-refresh set mappings', { error: (error as Error).message });
-  });
-}, 24 * 60 * 60 * 1000);

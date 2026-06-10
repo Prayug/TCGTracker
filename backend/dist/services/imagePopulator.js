@@ -45,6 +45,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.imagePopulatorService = void 0;
 const database_1 = require("../db/database");
 const logger_1 = require("../utils/logger");
+const cardImageBackfillService_1 = require("./cardImageBackfillService");
 /**
  * Image Populator Service
  *
@@ -132,7 +133,11 @@ class ImagePopulatorService {
         return __awaiter(this, void 0, void 0, function* () {
             var _a, _b;
             try {
-                // Try multiple search strategies
+                const catalogImages = yield (0, cardImageBackfillService_1.copyCatalogImagesToMapping)(card.cardName, card.setId, card.setName, card.cardNumber);
+                if ((catalogImages === null || catalogImages === void 0 ? void 0 : catalogImages.imageSmall) || (catalogImages === null || catalogImages === void 0 ? void 0 : catalogImages.imageLarge)) {
+                    yield this.storeCardImages(card.id, catalogImages.imageSmall || catalogImages.imageLarge || '', catalogImages.imageLarge || catalogImages.imageSmall || '', 'catalog_match');
+                    return 'success';
+                }
                 const apiCard = yield this.searchPokemonApi(card);
                 if (!apiCard || !((_a = apiCard.images) === null || _a === void 0 ? void 0 : _a.large) || !((_b = apiCard.images) === null || _b === void 0 ? void 0 : _b.small)) {
                     // Card not found in API - this is common for promo cards
@@ -159,13 +164,16 @@ class ImagePopulatorService {
             if (this.apiKey) {
                 headers['X-Api-Key'] = this.apiKey;
             }
-            // Strategy: Name + Number ONLY (ignore set ID - DB set IDs don't match Pokemon API)
             if (card.cardNumber) {
                 try {
                     const url = new URL(this.baseUrl);
                     const cardNumberBase = card.cardNumber.split('/')[0].trim();
-                    // Search by name and number only - set IDs in DB don't match Pokemon API format
-                    url.searchParams.append('q', `name:"${card.cardName}" number:${cardNumberBase}`);
+                    // Search by name, number, and set ID to avoid cross-set matches
+                    let query = `name:"${card.cardName}" number:${cardNumberBase}`;
+                    if (card.setId) {
+                        query += ` set.id:${card.setId}`;
+                    }
+                    url.searchParams.append('q', query);
                     url.searchParams.append('pageSize', '5');
                     const result = yield this.fetchWithRetry(url.toString(), headers);
                     if (result && result.length > 0) {
@@ -174,6 +182,25 @@ class ImagePopulatorService {
                 }
                 catch (error) {
                     // Fail fast - don't log debug
+                    return null;
+                }
+            }
+            // Fallback: try without set ID (in case DB set ID format differs)
+            if (!card.cardNumber) {
+                try {
+                    const url = new URL(this.baseUrl);
+                    let query = `name:"${card.cardName}"`;
+                    if (card.setId) {
+                        query += ` set.id:${card.setId}`;
+                    }
+                    url.searchParams.append('q', query);
+                    url.searchParams.append('pageSize', '5');
+                    const result = yield this.fetchWithRetry(url.toString(), headers);
+                    if (result && result.length > 0) {
+                        return this.findBestMatch(result, card);
+                    }
+                }
+                catch (error) {
                     return null;
                 }
             }

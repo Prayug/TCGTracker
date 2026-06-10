@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Pack, PackPull } from '../../../types/pokemon';
 import { Modal } from '../../../components/common/Modal';
 import { tieredPackService } from '../../../services/tieredPackService';
 import { vaultService } from '../../../services/vaultService';
-import { Sparkles, TrendingUp, TrendingDown, Vault, X } from 'lucide-react';
+import { FastForward, Sparkles, Vault, X } from 'lucide-react';
 import { pokemonApi } from '../../../services/pokemonApi';
+import { markOnboardingStep } from '../../../components/common/OnboardingChecklist';
 
 interface PackOpeningModalProps {
   pack: Pack | null;
@@ -18,10 +19,28 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
   const [packPull, setPackPull] = useState<PackPull | null>(null);
   const [revealedCards, setRevealedCards] = useState<number>(0);
   const [showResults, setShowResults] = useState(false);
+  const skipRef = useRef(false);
+
+  /** Delay that resolves early when the user hits Skip. */
+  const wait = (ms: number) =>
+    new Promise<void>((resolve) => {
+      const started = Date.now();
+      const tick = () => {
+        if (skipRef.current || Date.now() - started >= ms) resolve();
+        else window.setTimeout(tick, 50);
+      };
+      tick();
+    });
+
+  const handleSkip = () => {
+    skipRef.current = true;
+  };
 
   const handleOpenPack = async () => {
     if (!pack) return;
 
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    skipRef.current = reducedMotion;
     setIsOpening(true);
     setPackPull(null);
     setRevealedCards(0);
@@ -30,21 +49,25 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
     try {
       // Start fetching the pack while showing animation
       const packPromise = tieredPackService.openPack(pack);
-      
-      // Show dramatic opening animation for at least 2 seconds
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+
+      // Dramatic opening pause — skippable, and skipped entirely for reduced motion.
+      await wait(2000);
+
       // Wait for pack to finish opening
       const pull = await packPromise;
       setPackPull(pull);
 
       const cardCount = pull.cards.length;
       for (let i = 0; i < cardCount; i++) {
-        await new Promise((resolve) => setTimeout(resolve, 450));
+        if (skipRef.current) {
+          setRevealedCards(cardCount);
+          break;
+        }
+        await wait(450);
         setRevealedCards(i + 1);
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      await wait(600);
       setShowResults(true);
     } catch (error) {
       console.error('Error opening pack:', error);
@@ -68,6 +91,7 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
       const price = card.marketPrice || pokemonApi.extractCardPrice(card);
       vaultService.addToVault(card, price, 1, 'raw', `Pulled from ${packPull.pack.name}`);
     });
+    markOnboardingStep('vault');
 
     alert(`✅ Added all ${packPull.cards.length} cards to your vault!`);
   };
@@ -110,12 +134,12 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
     <Modal isOpen={isOpen} onClose={handleClose} size="large">
       <div className="relative">
         {/* Close button */}
-        <button
-          onClick={handleClose}
-          className="absolute top-4 right-4 z-10 p-2 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
-        >
-          <X className="w-5 h-5" />
-        </button>
+          <button
+            onClick={handleClose}
+            className="absolute top-4 right-4 z-10 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+          >
+            <X className="w-5 h-5 text-white" />
+          </button>
 
         {/* Not opened yet - Show pack and buy button */}
         {!packPull && (
@@ -132,38 +156,40 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
             <h2 className={`text-4xl font-black mb-2 bg-gradient-to-r ${getTierColor(pack.tier)} bg-clip-text text-transparent`}>
               {pack.name}
             </h2>
-            <p className="text-gray-600 mb-6 text-lg">{pack.description}</p>
+            <p className="text-ink-muted mb-6 text-lg">{pack.description}</p>
 
             <div className="flex items-center justify-center gap-8 mb-6 text-sm">
               <div>
-                <p className="text-gray-500 mb-1">Cards per pack</p>
-                <p className="text-2xl font-bold text-gray-900">{pack.cardsPerPack}</p>
+                <p className="text-ink-muted mb-1">Cards per pack</p>
+                <p className="text-2xl font-bold text-white">{pack.cardsPerPack}</p>
               </div>
-              <div className="w-px h-12 bg-gray-300" />
+              <div className="w-px h-12 bg-white/10" />
               <div>
-                <p className="text-gray-500 mb-1">Pack Price</p>
-                <p className="text-3xl font-bold text-green-600">${pack.price}</p>
+                <p className="text-ink-muted mb-1">Pack Price</p>
+                <p className="text-3xl font-bold text-emerald-400">${pack.price}</p>
               </div>
-              <div className="w-px h-12 bg-gray-300" />
+              <div className="w-px h-12 bg-white/10" />
               <div>
-                <p className="text-gray-500 mb-1">Avg Value</p>
-                <p className="text-2xl font-bold text-purple-600">${pack.averageValue}</p>
+                <p className="text-ink-muted mb-1">Avg Value</p>
+                <p className="text-2xl font-bold text-purple-400">${pack.averageValue}</p>
               </div>
             </div>
 
             {/* Odds Preview */}
-            <div className="mb-8 bg-gray-50 rounded-xl p-4 max-w-md mx-auto">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">Value Odds</h3>
+            <div className="mb-8 bg-surface-inset rounded-xl p-4 max-w-md mx-auto">
+              <h3 className="text-sm font-semibold text-ink-secondary mb-3">Value Odds</h3>
               <div className="space-y-2">
-                {pack.valueRanges.slice(0, 3).map((range, idx) => (
+                {pack.valueRanges.map((range, idx) => (
                   <div key={idx} className="flex items-center justify-between text-xs">
-                    <span className="text-gray-600">{range.label}</span>
-                    <span className="font-bold text-gray-900">{range.probability}%</span>
+                    <span className="text-ink-muted">{range.label}</span>
+                    <span className="font-bold tabular-nums text-white">
+                      {range.probability.toFixed(1)}%
+                    </span>
                   </div>
                 ))}
-                {pack.valueRanges.length > 3 && (
-                  <p className="text-xs text-gray-400 italic">+ more rare tiers...</p>
-                )}
+                <p className="pt-1 text-[10px] italic text-ink-muted">
+                  Exact simulated odds — every tier disclosed.
+                </p>
               </div>
             </div>
 
@@ -181,21 +207,23 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
             {isOpening && (
               <div className="mt-8">
                 <div className="flex flex-col items-center gap-4">
-                  {/* Animated pack icon */}
                   <div className="relative">
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 rounded-2xl blur-2xl opacity-50 animate-pulse" />
-                    <div className={`relative bg-gradient-to-br ${getTierColor(pack.tier)} p-12 rounded-2xl shadow-2xl animate-bounce`}>
-                      <Sparkles className="w-24 h-24 text-white animate-spin" />
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 opacity-50 blur-2xl motion-safe:animate-pulse" />
+                    <div className={`relative rounded-2xl bg-gradient-to-br p-12 shadow-2xl ${getTierColor(pack.tier)} motion-safe:animate-bounce`}>
+                      <Sparkles className="h-24 w-24 text-white motion-safe:animate-spin" />
                     </div>
                   </div>
-                  
-                  {/* Loading text */}
+
                   <div className="text-center">
-                    <p className="font-black text-2xl bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent animate-pulse">
+                    <p className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-2xl font-black text-transparent motion-safe:animate-pulse">
                       OPENING PACK...
                     </p>
-                    <p className="text-gray-600 mt-2 animate-pulse">Rolling the odds...</p>
+                    <p className="mt-2 text-ink-muted motion-safe:animate-pulse">Rolling the odds...</p>
                   </div>
+                  <button type="button" onClick={handleSkip} className="btn-secondary mt-2">
+                    <FastForward className="h-4 w-4" aria-hidden="true" />
+                    Skip animation
+                  </button>
                 </div>
               </div>
             )}
@@ -204,8 +232,16 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
 
         {/* Card being revealed */}
         {packPull && !showResults && (
-          <div className="p-8">
-            <h3 className="text-3xl font-bold text-center mb-8 bg-gradient-to-r from-yellow-400 via-pink-400 to-purple-600 bg-clip-text text-transparent animate-pulse">
+          <div className="relative p-8">
+            <button
+              type="button"
+              onClick={handleSkip}
+              className="absolute right-4 top-4 z-20 inline-flex items-center gap-1.5 rounded-lg border border-border-default bg-surface-overlay/90 px-3 py-1.5 text-xs font-medium text-ink-secondary  transition-colors hover:text-ink-primary"
+            >
+              <FastForward className="h-3.5 w-3.5" aria-hidden="true" />
+              Skip
+            </button>
+            <h3 className="mb-8 text-center text-3xl font-bold bg-gradient-to-r from-yellow-400 via-pink-400 to-purple-600 bg-clip-text text-transparent motion-safe:animate-pulse">
               ✨ YOU PULLED ✨
             </h3>
             <div className="flex min-h-[320px] items-end justify-center gap-2 px-4 pb-4">
@@ -312,28 +348,23 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
               <h3 className="text-3xl font-black mb-2 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 Pack Opened!
               </h3>
-              <p className="text-gray-600">Here's what you pulled:</p>
+              <p className="text-ink-muted">Here's what you pulled:</p>
             </div>
 
             {/* Stats */}
             <div className="grid grid-cols-3 gap-4 mb-6">
-              <div className="bg-gray-50 rounded-xl p-4 text-center">
-                <p className="text-sm text-gray-600 mb-1">Total Value</p>
-                <p className="text-2xl font-bold text-gray-900">${packPull.totalValue.toFixed(2)}</p>
+              <div className="bg-surface-inset rounded-xl p-4 text-center">
+                <p className="text-sm text-ink-muted mb-1">Total Value</p>
+                <p className="text-2xl font-bold text-white">${packPull.totalValue.toFixed(2)}</p>
               </div>
-              <div className="bg-gray-50 rounded-xl p-4 text-center">
-                <p className="text-sm text-gray-600 mb-1">Pack Cost</p>
-                <p className="text-2xl font-bold text-gray-900">${packPull.pack.price.toFixed(2)}</p>
+              <div className="bg-surface-inset rounded-xl p-4 text-center">
+                <p className="text-sm text-ink-muted mb-1">Pack Cost</p>
+                <p className="text-2xl font-bold text-white">${packPull.pack.price.toFixed(2)}</p>
               </div>
-              <div className={`rounded-xl p-4 text-center ${packPull.profit >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
-                <p className="text-sm text-gray-600 mb-1">Profit/Loss</p>
+              <div className={`rounded-xl p-4 text-center ${packPull.profit >= 0 ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
+                <p className={`text-sm ${packPull.profit >= 0 ? 'text-green-400' : 'text-red-400'} mb-1`}>Profit/Loss</p>
                 <div className="flex items-center justify-center gap-1">
-                  {packPull.profit >= 0 ? (
-                    <TrendingUp className="w-5 h-5 text-green-600" />
-                  ) : (
-                    <TrendingDown className="w-5 h-5 text-red-600" />
-                  )}
-                  <p className={`text-2xl font-bold ${packPull.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  <p className={`text-2xl font-bold ${packPull.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {packPull.profit >= 0 ? '+' : ''}${packPull.profit.toFixed(2)}
                   </p>
                 </div>
@@ -381,15 +412,15 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
                       )}
                     </div>
                     <div className="mt-4 text-center">
-                      <p className="text-xl font-bold text-gray-900 mb-1">{card.name}</p>
-                      <p className="text-sm text-gray-600 mb-2">{card.set.name} • #{card.number}</p>
+                      <p className="text-xl font-bold text-white mb-1">{card.name}</p>
+                      <p className="text-sm text-ink-muted mb-2">{card.set.name} • #{card.number}</p>
                       {card.rarity && (
-                        <span className="inline-block px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-semibold mb-2">
+                        <span className="inline-block px-3 py-1 bg-purple-500/10 text-purple-300 rounded-full text-sm font-semibold mb-2">
                           {card.rarity}
                         </span>
                       )}
                       {price > 0 && (
-                        <p className="text-3xl text-green-600 font-black">${price.toFixed(2)}</p>
+                        <p className="text-3xl text-emerald-400 font-black">${price.toFixed(2)}</p>
                       )}
                     </div>
                   </div>

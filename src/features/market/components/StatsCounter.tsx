@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion';
-import { Package, TrendingUp, Users, Zap } from 'lucide-react';
+import { Package, TrendingUp } from 'lucide-react';
 
 interface StatItemProps {
   icon: React.ReactNode;
@@ -33,8 +33,8 @@ const StatItem: React.FC<StatItemProps> = ({ icon, value, label, suffix = '', pr
       viewport={{ once: true }}
       className="group relative"
     >
-      <div className="relative bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-gray-100 hover:border-primary-200">
-        <div className={`absolute inset-0 bg-gradient-to-br ${gradient} rounded-2xl opacity-0 group-hover:opacity-5 transition-opacity`} />
+      <div className="relative rounded-2xl border border-border-subtle bg-surface-inset p-6 shadow-lg transition-all duration-300 hover:border-violet-500/40">
+        <div className={`absolute inset-0 bg-gradient-to-br ${gradient} rounded-2xl opacity-0 group-hover:opacity-10 transition-opacity`} />
         
         <div className="relative flex items-center gap-4">
           <div className={`p-3 bg-gradient-to-br ${gradient} rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300`}>
@@ -42,12 +42,12 @@ const StatItem: React.FC<StatItemProps> = ({ icon, value, label, suffix = '', pr
           </div>
           
           <div>
-            <div className="text-3xl md:text-4xl font-black text-gray-900 mb-1">
+            <div className="mb-1 text-3xl font-black text-white md:text-4xl">
               {prefix}
               {displayValue.toLocaleString()}
               {suffix}
             </div>
-            <div className="text-sm font-semibold text-gray-600">
+            <div className="text-sm font-semibold text-ink-muted">
               {label}
             </div>
           </div>
@@ -63,7 +63,7 @@ export const StatsCounter: React.FC = () => {
       icon: <Package className="w-6 h-6 text-white" />,
       value: 30000,
       label: 'Cards Available',
-      gradient: 'from-primary-500 to-primary-600'
+      gradient: 'from-violet-500 to-violet-600'
     },
     {
       icon: <TrendingUp className="w-6 h-6 text-white" />,
@@ -73,14 +73,14 @@ export const StatsCounter: React.FC = () => {
       gradient: 'from-green-500 to-emerald-600'
     },
     {
-      icon: <Users className="w-6 h-6 text-white" />,
+      icon: <TrendingUp className="w-6 h-6 text-white" />,
       value: 1000,
       label: 'Active Users',
       suffix: '+',
-      gradient: 'from-accent-500 to-accent-600'
+      gradient: 'from-amber-500 to-orange-600'
     },
     {
-      icon: <Zap className="w-6 h-6 text-white" />,
+      icon: <TrendingUp className="w-6 h-6 text-white" />,
       value: 95,
       label: 'TCGPlayer Accuracy',
       suffix: '%',
@@ -89,23 +89,23 @@ export const StatsCounter: React.FC = () => {
   ];
 
   return (
-    <section className="py-16 bg-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section className="py-16">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="text-center mb-12"
+          className="mb-12 text-center"
         >
-          <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">
+          <h2 className="mb-4 text-3xl font-black text-white md:text-4xl">
             TCGPlayer Integration
           </h2>
-          <p className="text-xl text-gray-600 font-medium">
+          <p className="text-xl font-medium text-ink-muted">
             Real market data • Live price tracking
           </p>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
           {stats.map((stat, index) => (
             <StatItem key={index} {...stat} />
           ))}
@@ -114,4 +114,3 @@ export const StatsCounter: React.FC = () => {
     </section>
   );
 };
-

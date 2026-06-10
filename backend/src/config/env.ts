@@ -4,15 +4,13 @@ import { z } from 'zod';
 // Load environment variables
 dotenv.config();
 
-const DEFAULT_DEV_JWT_SECRET = 'dev-secret-change-me-please-1234567890';
-
 // Define environment schema with validation
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.string().default('3001'),
   HOST: z.string().default('localhost'),
   DATABASE_PATH: z.string().default('./tcg-prices.db'),
-  JWT_SECRET: z.string().min(32).optional(),
+  JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
   JWT_EXPIRES_IN: z.string().default('7d'),
   BCRYPT_ROUNDS: z.string().default('10'),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
@@ -30,6 +28,7 @@ const envSchema = z.object({
   EMAIL_FROM: z.string().optional(),
   SENTRY_DSN: z.string().optional(),
   SENTRY_ENVIRONMENT: z.string().default('development'),
+  ADMIN_USERNAME: z.string().default('admin'),
   CLOUD_SYNC_ENABLED: z.string().default('false'),
   SUPABASE_URL: z.string().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
@@ -37,15 +36,7 @@ const envSchema = z.object({
 });
 
 // Parse and validate environment variables
-const parsedEnv = envSchema.superRefine((data, ctx) => {
-  if (!data.JWT_SECRET && data.NODE_ENV === 'production') {
-    ctx.addIssue({
-      path: ['JWT_SECRET'],
-      code: z.ZodIssueCode.custom,
-      message: 'JWT_SECRET must be provided in production.',
-    });
-  }
-}).safeParse(process.env);
+const parsedEnv = envSchema.safeParse(process.env);
 
 if (!parsedEnv.success) {
   console.error('❌ Invalid environment variables:');
@@ -53,11 +44,7 @@ if (!parsedEnv.success) {
   process.exit(1);
 }
 
-const jwtSecret = parsedEnv.data.JWT_SECRET ?? DEFAULT_DEV_JWT_SECRET;
-
-if (!parsedEnv.data.JWT_SECRET) {
-  console.warn('Warning: JWT_SECRET not provided. Using default development secret. Set JWT_SECRET in production.');
-}
+const jwtSecret = parsedEnv.data.JWT_SECRET;
 
 export const env = {
   nodeEnv: parsedEnv.data.NODE_ENV,
@@ -103,6 +90,9 @@ export const env = {
     supabaseUrl: parsedEnv.data.SUPABASE_URL,
     serviceRoleKey: parsedEnv.data.SUPABASE_SERVICE_ROLE_KEY,
     bucket: parsedEnv.data.SUPABASE_BUCKET,
+  },
+  admin: {
+    username: parsedEnv.data.ADMIN_USERNAME,
   },
   isDevelopment: parsedEnv.data.NODE_ENV === 'development',
   isProduction: parsedEnv.data.NODE_ENV === 'production',

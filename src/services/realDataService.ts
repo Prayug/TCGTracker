@@ -1,10 +1,12 @@
 import axios, { AxiosError } from 'axios';
-import { load, CheerioAPI } from 'cheerio';
+import { load } from 'cheerio';
 import { PSAData, PricePoint, RealData } from '../types/pokemon';
+import { buildApiUrl } from '../config/env';
 
 class RealDataService {
-  private readonly API_BASE = '/api/pokemonprice';
-  private readonly BACKEND_API = 'http://localhost:3001/api';
+  private backendApi = buildApiUrl('/api');
+  /** Same-origin proxy path — works in dev (Vite) and prod (nginx). */
+  private readonly pokemonPriceBase = '/api/pokemonprice';
 
   async fetchRealData(cardName: string, setName: string, cardNumber: string, cardId?: string): Promise<RealData | null> {
     try {
@@ -13,6 +15,7 @@ class RealDataService {
       
       // Try to get PSA data from pokemonprice.com (if available)
       let psaData: PSAData | null = null;
+      let scrapedPriceHistory: PricePoint[] = [];
       try {
         const searchHtml = await this.searchForCard(cardName, setName);
         if (searchHtml) {
@@ -21,21 +24,20 @@ class RealDataService {
             const cardPageHtml = await this.getCardPage(cardPageLink);
             if (cardPageHtml) {
               psaData = this.parseCardPage(cardPageHtml);
+              scrapedPriceHistory = await this.fetchRealPriceHistory(cardPageHtml);
             }
           }
         }
       } catch (error) {
-        console.log('Could not fetch PSA data from pokemonprice.com, using fallback', error);
+        console.log('Could not fetch PSA data from pokemonprice.com', error);
       }
 
-      // If no PSA data, create fallback data
-      if (!psaData) {
-        psaData = this.createFallbackPSAData();
-      }
+      const priceHistory =
+        backendPriceHistory.length > 0 ? backendPriceHistory : scrapedPriceHistory;
 
       return {
         psaData,
-        priceHistory: backendPriceHistory,
+        priceHistory,
       };
 
     } catch (error) {
@@ -49,7 +51,7 @@ class RealDataService {
       console.log(`Searching for price history: "${cardName}" from "${setName}" (#${cardNumber})`);
 
       // Use the new, more precise matching endpoint
-      const response = await axios.get(`${this.BACKEND_API}/prices/match`, {
+      const response = await axios.get(`${this.backendApi}/prices/match`, {
         params: { cardName, setName, cardNumber },
       });
 
@@ -72,7 +74,7 @@ class RealDataService {
       if (priceHistory.length === 0 && cardId) {
         console.log(`No specific match found. Falling back to Pokemon TCG API rolling averages for cardId: ${cardId}`);
         try {
-          const rollingResponse = await axios.get(`${this.BACKEND_API}/prices/rolling/${cardId}`);
+          const rollingResponse = await axios.get(`${this.backendApi}/prices/rolling/${cardId}`);
           
           if (rollingResponse.data?.data?.length > 0) {
             priceHistory = rollingResponse.data.data.map((item: { date: string; marketPrice?: number; avg30?: number; avg7?: number; avg1?: number }) => ({
@@ -110,20 +112,10 @@ class RealDataService {
     }
   }
 
-  private createFallbackPSAData(): PSAData {
-    // Create reasonable fallback PSA data based on common patterns
-    const grade10 = Math.floor(Math.random() * 1000) + 100; // 100-1100
-    const grade9 = Math.floor(grade10 * 1.5); // Usually more 9s than 10s
-    const grade8 = Math.floor(grade9 * 0.8);
-    const grade7 = Math.floor(grade8 * 0.6);
-    
-    return this.buildPSAData(grade10, grade9, grade8, grade7);
-  }
-  
   private async searchForCard(cardName: string, setName: string): Promise<string | null> {
     // pokemonprice.com uses a simple GET request for search
     const searchQuery = `${cardName} ${setName}`;
-    const searchUrl = `${this.API_BASE}/?s=${encodeURIComponent(searchQuery)}`;
+    const searchUrl = `${this.pokemonPriceBase}/?s=${encodeURIComponent(searchQuery)}`;
 
     try {
       const response = await axios.get(searchUrl);
@@ -191,7 +183,7 @@ class RealDataService {
 
   private async getCardPage(cardLink: string): Promise<string | null> {
     try {
-      const response = await axios.get(`${this.API_BASE}${cardLink}`);
+      const response = await axios.get(`${this.pokemonPriceBase}${cardLink}`);
       return response.data;
     } catch (error) {
       console.error(`Failed to fetch card page: ${cardLink}`, (error as AxiosError).message);
@@ -283,7 +275,7 @@ class RealDataService {
   // New method to get market snapshots for dashboard
   async getMarketSnapshots(days: number = 30) {
     try {
-      const response = await axios.get(`${this.BACKEND_API}/prices/snapshots/daily?days=${days}`);
+      const response = await axios.get(`${this.backendApi}/prices/snapshots/daily?days=${days}`);
       return response.data?.data || [];
     } catch (error) {
       console.error('Error fetching market snapshots:', error);
@@ -294,7 +286,7 @@ class RealDataService {
   // New method to create price alerts
   async createPriceAlert(cardId: string, productId: number, targetPrice: number, alertType: string) {
     try {
-      const response = await axios.post(`${this.BACKEND_API}/prices/alerts`, {
+      const response = await axios.post(`${this.backendApi}/prices/alerts`, {
         cardId,
         productId,
         targetPrice,
@@ -321,7 +313,7 @@ class RealDataService {
     for (const nameVariation of nameVariations) {
       try {
         // Use the same matching endpoint as fetchRealData
-        const response = await axios.get(`${this.BACKEND_API}/prices/match`, {
+        const response = await axios.get(`${this.backendApi}/prices/match`, {
           params: { cardName: nameVariation, setName, cardNumber },
         });
 

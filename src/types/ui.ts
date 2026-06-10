@@ -1,2 +1,2 @@
-export type AppView = 'home' | 'cards' | 'tracking' | 'vault' | 'packs' | 'scanner';
+export type AppView = 'home' | 'cards' | 'tracking' | 'vault' | 'packs' | 'scanner' | 'sets' | 'insights';
 

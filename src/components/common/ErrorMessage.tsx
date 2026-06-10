@@ -13,9 +13,9 @@ export const ErrorMessage: React.FC<ErrorMessageProps> = ({ message, onRetry }) 
         <AlertCircle className="w-7 h-7 text-red-500" />
       </div>
 
-      <h3 className="mb-2 text-lg font-semibold text-slate-100">Something went wrong</h3>
+      <h3 className="mb-2 text-lg font-semibold text-ink-primary">Something went wrong</h3>
 
-      <p className="mb-6 max-w-sm text-sm text-slate-400">{message}</p>
+      <p className="mb-6 max-w-sm text-sm text-ink-muted">{message}</p>
 
       {onRetry && (
         <button onClick={onRetry} className="btn-primary">

@@ -3,68 +3,62 @@ import { PokemonCard } from '../../types/pokemon';
 import { pokemonApi } from '../../services/pokemonApi';
 import { formatCurrency } from '../../utils/cardDisplay';
 
-interface MarketTickerProps {
+interface MarketPulseListProps {
   cards: PokemonCard[];
   onCardClick: (card: PokemonCard) => void;
 }
 
-function TickerItem({
-  card,
-  price,
-  onCardClick,
-}: {
-  card: PokemonCard;
-  price: number;
-  onCardClick: (card: PokemonCard) => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => onCardClick(card)}
-      className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-left transition-colors hover:border-emerald-500/25 hover:bg-white/[0.08]"
-    >
-      <img
-        src={card.images.small}
-        alt=""
-        className="h-9 w-6 rounded object-cover object-top"
-        loading="lazy"
-      />
-      <span className="max-w-[120px] truncate text-xs font-semibold text-slate-100">{card.name}</span>
-      <span className="text-xs font-bold tabular-nums text-emerald-300">{formatCurrency(price)}</span>
-    </button>
-  );
-}
-
-export const MarketTicker: React.FC<MarketTickerProps> = ({ cards, onCardClick }) => {
+export const MarketPulseList: React.FC<MarketPulseListProps> = ({ cards, onCardClick }) => {
   const rows = cards
     .map((card) => ({
       card,
       price: card.marketPrice ?? pokemonApi.extractCardPrice(card),
     }))
     .filter((entry) => entry.price > 0)
-    .slice(0, 14);
+    .slice(0, 8);
 
   if (rows.length === 0) {
     return (
-      <section className="mt-6 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-400">
-        Market ticker loads after live card results are available.
+      <section className="rounded-lg border border-border-subtle bg-surface-inset px-4 py-6 text-sm text-ink-muted">
+        Market prices appear after cards load.
       </section>
     );
   }
 
-  const loop = [...rows, ...rows];
-
   return (
-    <section className="relative mt-6 overflow-hidden rounded-xl border border-white/10 bg-black/30">
-      <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-[#0a0f17] to-transparent" />
-      <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-[#0a0f17] to-transparent" />
-      <div className="flex overflow-hidden py-2.5">
-        <div className="ticker-track flex min-w-max gap-2 px-3">
-          {loop.map(({ card, price }, i) => (
-            <TickerItem key={`${card.id}-${i}`} card={card} price={price} onCardClick={onCardClick} />
-          ))}
-        </div>
+    <section className="rounded-lg border border-border-default bg-surface-raised">
+      <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3">
+        <h2 className="text-sm font-semibold text-ink-primary">Market pulse</h2>
+        <span className="text-xs text-ink-muted">{rows.length} cards</span>
       </div>
+      <ul className="divide-y divide-border-subtle">
+        {rows.map(({ card, price }) => (
+          <li key={card.id}>
+            <button
+              type="button"
+              onClick={() => onCardClick(card)}
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-surface-hover"
+            >
+              <img
+                src={card.images.small}
+                alt=""
+                className="h-10 w-7 shrink-0 rounded object-cover object-top"
+                loading="lazy"
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium text-ink-primary">{card.name}</span>
+                <span className="block truncate text-xs text-ink-muted">{card.set.name}</span>
+              </span>
+              <span className="shrink-0 font-mono text-sm font-medium tabular-nums text-gain">
+                {formatCurrency(price)}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 };
+
+/** @deprecated Use MarketPulseList */
+export const MarketTicker = MarketPulseList;

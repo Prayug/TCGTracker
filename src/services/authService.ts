@@ -1,7 +1,7 @@
 import axios from 'axios';
-import { env } from '../config/env';
+import { buildApiUrl } from '../config/env';
 
-const API_URL = env.apiUrl;
+import '../config/apiClient';
 
 export interface User {
   id: number;
@@ -9,86 +9,75 @@ export interface User {
   email: string;
   created_at: string;
   updated_at: string;
+  isAdmin?: boolean;
 }
 
 export interface AuthResponse {
   user: User;
-  token: string;
+  token?: string;
 }
 
 class AuthService {
-  private readonly TOKEN_KEY = 'tcgtracker_token';
   private readonly USER_KEY = 'tcgtracker_user';
 
   async register(username: string, email: string, password: string): Promise<AuthResponse> {
-    const response = await axios.post<AuthResponse>(`${API_URL}/api/auth/register`, {
+    const response = await axios.post<AuthResponse>(buildApiUrl('/api/auth/register'), {
       username,
       email,
       password,
     });
-    
-    this.setSession(response.data);
+
+    this.setUser(response.data.user);
     return response.data;
   }
 
   async login(email: string, password: string): Promise<AuthResponse> {
-    const response = await axios.post<AuthResponse>(`${API_URL}/api/auth/login`, {
+    const response = await axios.post<AuthResponse>(buildApiUrl('/api/auth/login'), {
       email,
       password,
     });
-    
-    this.setSession(response.data);
+
+    this.setUser(response.data.user);
     return response.data;
   }
 
-  logout(): void {
-    localStorage.removeItem(this.TOKEN_KEY);
+  async logout(): Promise<void> {
+    try {
+      await axios.post(buildApiUrl('/api/auth/logout'));
+    } catch {
+      /* clear local state regardless */
+    }
     localStorage.removeItem(this.USER_KEY);
+    localStorage.removeItem('tcgtracker_token');
   }
 
   async getCurrentUser(): Promise<User | null> {
-    const token = this.getToken();
-    if (!token) return null;
-
     try {
-      const response = await axios.get<{ user: User }>(`${API_URL}/api/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await axios.get<{ user: User }>(buildApiUrl('/api/auth/me'));
+      this.setUser(response.data.user);
       return response.data.user;
-    } catch (error) {
-      this.logout();
+    } catch {
+      this.clearUser();
       return null;
     }
   }
 
   async updateProfile(username?: string, email?: string): Promise<User> {
-    const token = this.getToken();
-    if (!token) throw new Error('Not authenticated');
+    const response = await axios.put<{ user: User }>(buildApiUrl('/api/auth/update'), {
+      username,
+      email,
+    });
 
-    const response = await axios.put<{ user: User }>(
-      `${API_URL}/api/auth/update`,
-      { username, email },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-
-    const user = response.data.user;
-    localStorage.setItem(this.USER_KEY, JSON.stringify(user));
-    return user;
+    this.setUser(response.data.user);
+    return response.data.user;
   }
 
   async changePassword(oldPassword: string, newPassword: string): Promise<void> {
-    const token = this.getToken();
-    if (!token) throw new Error('Not authenticated');
-
-    await axios.post(
-      `${API_URL}/api/auth/change-password`,
-      { oldPassword, newPassword },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
+    await axios.post(buildApiUrl('/api/auth/change-password'), { oldPassword, newPassword });
   }
 
   getToken(): string | null {
-    return localStorage.getItem(this.TOKEN_KEY);
+    return null;
   }
 
   getUser(): User | null {
@@ -97,19 +86,20 @@ class AuthService {
   }
 
   isAuthenticated(): boolean {
-    return !!this.getToken();
+    return !!this.getUser();
   }
 
-  private setSession(authResponse: AuthResponse): void {
-    localStorage.setItem(this.TOKEN_KEY, authResponse.token);
-    localStorage.setItem(this.USER_KEY, JSON.stringify(authResponse.user));
+  private setUser(user: User): void {
+    localStorage.setItem(this.USER_KEY, JSON.stringify(user));
+  }
+
+  private clearUser(): void {
+    localStorage.removeItem(this.USER_KEY);
   }
 
   getAuthHeaders(): Record<string, string> {
-    const token = this.getToken();
-    return token ? { Authorization: `Bearer ${token}` } : {};
+    return {};
   }
 }
 
 export const authService = new AuthService();
-

@@ -3,15 +3,15 @@ import React from 'react';
 export const LoadingSpinner: React.FC = () => {
   return (
     <div className="flex flex-col items-center justify-center gap-4 py-20">
-      <div className="h-9 w-9 animate-spin rounded-full border-2 border-white/20 border-t-emerald-300" />
-      <p className="text-sm text-slate-400">Streaming live card market data...</p>
+      <div className="h-9 w-9 animate-spin rounded-full border-2 border-border-subtle border-t-accent" />
+      <p className="text-sm text-ink-muted">Loading…</p>
     </div>
   );
 };
 
 export const LoadingSkeleton: React.FC = () => {
   return (
-    <div className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.05]">
+    <div className="overflow-hidden rounded-lg border border-border-subtle bg-surface-raised shadow-sm">
       <div className="skeleton aspect-[63/88]" />
       <div className="space-y-2 p-3.5">
         <div className="skeleton h-4 w-4/5 rounded" />

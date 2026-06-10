@@ -7,14 +7,13 @@ interface FeatureCardProps {
   description: string;
 }
 
+/** Simple content block — avoid icon-grid marketing cards on landing pages. */
 export const FeatureCard: React.FC<FeatureCardProps> = ({ icon: Icon, title, description }) => {
   return (
-    <article className="group rounded-xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur transition-transform duration-300 hover:-translate-y-0.5 hover:border-violet-300/40 hover:bg-white/[0.07]">
-      <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-black/30 text-violet-300 transition-colors group-hover:bg-violet-500/20">
-        <Icon className="h-5 w-5" aria-hidden="true" />
-      </div>
-      <h3 className="text-base font-semibold text-white">{title}</h3>
-      <p className="mt-2 text-sm leading-relaxed text-slate-300">{description}</p>
+    <article className="rounded-lg border border-border-default bg-surface-raised p-5 shadow-sm">
+      <Icon className="mb-3 h-5 w-5 text-accent" aria-hidden="true" />
+      <h3 className="text-base font-semibold text-ink-primary">{title}</h3>
+      <p className="mt-2 text-sm leading-relaxed text-ink-secondary">{description}</p>
     </article>
   );
 };

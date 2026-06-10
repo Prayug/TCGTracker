@@ -1,0 +1,6 @@
+backend/
+card-scanner-backend/
+node_modules/
+.git/
+*.log
+public/data/prices/

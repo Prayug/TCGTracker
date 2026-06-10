@@ -66,17 +66,14 @@ export class EnhancedPackService {
   };
 
   /**
-   * Open a pack using enhanced logic with fallback to local database
+   * Open a pack using Pokemon TCG API card data.
    */
   async openPack(setId: string, config: Partial<PackConfiguration> = {}): Promise<PackResult> {
     const packConfig = { ...this.defaultPackConfig, ...config };
     logger.info(`Opening enhanced pack for set ${setId} with config: ${packConfig.name}`);
 
     try {
-      // Try to get cards from Pokemon API first
       let apiCards = await pokemonApiClient.getCardsFromSet(setId, 500);
-
-      // If API fails or returns no cards, fall back to local database
       if (apiCards.length === 0) {
         logger.warn(`No cards from Pokemon API for set ${setId}, using local database`);
         apiCards = await this.getCardsFromLocalDb(setId);
@@ -85,7 +82,6 @@ export class EnhancedPackService {
       if (apiCards.length === 0) {
         throw new Error(`No cards available for set ${setId}`);
       }
-
       // Group cards by rarity
       const cardsByRarity = this.groupCardsByRarity(apiCards);
 

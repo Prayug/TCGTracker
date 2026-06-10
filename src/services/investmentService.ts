@@ -1,6 +1,7 @@
 import { PricePoint } from '../types/pokemon';
+import { env } from '../config/env';
 
-const BACKEND_API_URL = 'http://localhost:3001/api';
+const BACKEND_API_URL = `${env.apiUrl}/api`;
 
 interface BackendPriceData {
   productId: number;

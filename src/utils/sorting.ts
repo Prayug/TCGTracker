@@ -29,13 +29,14 @@ export const sortCards = (cards: PokemonCard[], sortBy: SortOption): PokemonCard
     case 'date-old':
       return sorted.sort((a, b) => new Date(a.set.releaseDate).getTime() - new Date(b.set.releaseDate).getTime());
     
-    case 'rarity':
+    case 'rarity': {
       const rarityOrder = ['Common', 'Uncommon', 'Rare', 'Rare Holo', 'Rare Ultra', 'Rare Secret'];
       return sorted.sort((a, b) => {
         const aIndex = rarityOrder.indexOf(a.rarity || '');
         const bIndex = rarityOrder.indexOf(b.rarity || '');
         return bIndex - aIndex;
       });
+    }
 
     case 'investment-score':
       return sorted.sort((a, b) => {

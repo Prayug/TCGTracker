@@ -4,8 +4,27 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Pokemon TCG Explorer</title>
-    <meta name="description" content="Discover and explore Pokemon trading cards with pricing information and detailed views" />
+    <title>TCGTracker</title>
+    <meta
+      name="description"
+      content="Track your Pokemon TCG collection, prices, and portfolio value."
+    />
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('tcg.theme');
+          var theme =
+            stored === 'light' || stored === 'dark'
+              ? stored
+              : window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light';
+          document.documentElement.setAttribute('data-theme', theme);
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

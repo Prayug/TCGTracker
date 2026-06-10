@@ -30,7 +30,10 @@ class TcgdexMarketProvider {
     constructor() {
         this.timeoutMs = 8000;
         this.fetchFailureCount = 0;
-        this.nextFailureLogAt = 25;
+        this.nextFailureLogAt = 5;
+    }
+    get failureCount() {
+        return this.fetchFailureCount;
     }
     fetchCard(cardId) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -74,6 +77,7 @@ class TcgdexMarketProvider {
                         marketPrice,
                         lowPrice: value.lowPrice,
                         highPrice: value.highPrice,
+                        volume: value.volume,
                     };
                 })
                     .filter((point) => Boolean(point));
@@ -92,12 +96,12 @@ class TcgdexMarketProvider {
             catch (error) {
                 this.fetchFailureCount += 1;
                 if (this.fetchFailureCount >= this.nextFailureLogAt) {
-                    logger_1.logger.warn('TCGdex market fetch failing repeatedly', {
+                    logger_1.logger.error('TCGdex market fetch failing repeatedly', {
                         failures: this.fetchFailureCount,
                         sampleCardId: cardId,
                         error: error.message,
                     });
-                    this.nextFailureLogAt += 50;
+                    this.nextFailureLogAt += 25;
                 }
                 return null;
             }

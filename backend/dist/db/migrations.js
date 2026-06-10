@@ -369,6 +369,154 @@ exports.migrations = [
             logger_1.logger.info('Rolled back catalog_cards table');
         }),
     },
+    {
+        id: 8,
+        name: 'standardize_unique_identifier_as_primary_key',
+        up: (db) => __awaiter(void 0, void 0, void 0, function* () {
+            const run = (sql, params = []) => {
+                return new Promise((resolve, reject) => {
+                    db.run(sql, params, (err) => {
+                        if (err)
+                            reject(err);
+                        else
+                            resolve();
+                    });
+                });
+            };
+            yield run('DROP TABLE IF EXISTS price_history_v2');
+            yield run(`CREATE TABLE price_history_v2 (
+        uniqueIdentifier TEXT NOT NULL DEFAULT '',
+        date TEXT NOT NULL,
+        source TEXT NOT NULL DEFAULT 'tcgcsv',
+        productId INTEGER,
+        price REAL,
+        subTypeName TEXT,
+        productName TEXT,
+        groupName TEXT,
+        lowPrice REAL,
+        highPrice REAL,
+        marketPrice REAL,
+        volume INTEGER,
+        PRIMARY KEY (uniqueIdentifier, date, source)
+      )`);
+            logger_1.logger.info('Copying and deduplicating price_history data, this may take a moment...');
+            yield run(`INSERT INTO price_history_v2
+        SELECT
+          COALESCE(uniqueIdentifier, 'legacy|' || COALESCE(productId, '0') || '|' || COALESCE(subTypeName, 'normal')) as uid,
+          date, source,
+          MAX(productId), AVG(price), MAX(subTypeName),
+          MAX(productName), MAX(groupName),
+          AVG(lowPrice), AVG(highPrice), AVG(marketPrice), MAX(volume)
+        FROM price_history
+        GROUP BY uid, date, source`);
+            yield run('DROP TABLE price_history');
+            yield run('ALTER TABLE price_history_v2 RENAME TO price_history');
+            yield run('CREATE INDEX IF NOT EXISTS idx_price_history_date ON price_history(date)');
+            yield run('CREATE INDEX IF NOT EXISTS idx_price_history_product ON price_history(productId)');
+            logger_1.logger.info('Standardized price_history primary key to (uniqueIdentifier, date, source)');
+        }),
+        down: (db) => __awaiter(void 0, void 0, void 0, function* () {
+            // Reverse: recreate table with original PK
+            yield new Promise((resolve, reject) => {
+                db.run(`CREATE TABLE IF NOT EXISTS price_history_old (
+            productId INTEGER, date TEXT, price REAL, subTypeName TEXT,
+            productName TEXT, groupName TEXT, source TEXT DEFAULT 'tcgcsv',
+            lowPrice REAL, highPrice REAL, marketPrice REAL, volume INTEGER,
+            uniqueIdentifier TEXT,
+            PRIMARY KEY (productId, date, subTypeName, source)
+          )`, (err) => {
+                    if (err) {
+                        reject(err);
+                        return;
+                    }
+                    db.run(`INSERT INTO price_history_old SELECT DISTINCT
+                productId, date, price, subTypeName, productName, groupName,
+                source, lowPrice, highPrice, marketPrice, volume, uniqueIdentifier
+               FROM price_history`, (copyErr) => {
+                        if (copyErr) {
+                            reject(copyErr);
+                            return;
+                        }
+                        db.run('DROP TABLE price_history', (dropErr) => {
+                            if (dropErr) {
+                                reject(dropErr);
+                                return;
+                            }
+                            db.run('ALTER TABLE price_history_old RENAME TO price_history', (renameErr) => {
+                                if (renameErr) {
+                                    reject(renameErr);
+                                    return;
+                                }
+                                db.run('CREATE INDEX IF NOT EXISTS idx_price_history_date ON price_history(date)', () => { });
+                                resolve();
+                            });
+                        });
+                    });
+                });
+            });
+        }),
+    },
+    {
+        id: 9,
+        name: 'add_card_data_to_user_collections',
+        up: (db) => __awaiter(void 0, void 0, void 0, function* () {
+            yield new Promise((resolve, reject) => {
+                db.run('ALTER TABLE user_collections ADD COLUMN card_data TEXT', (err) => {
+                    if (err && !err.message.includes('duplicate column'))
+                        reject(err);
+                    else
+                        resolve();
+                });
+            });
+            yield new Promise((resolve, reject) => {
+                db.run('ALTER TABLE user_collections ADD COLUMN client_vault_id TEXT', (err) => {
+                    if (err && !err.message.includes('duplicate column'))
+                        reject(err);
+                    else
+                        resolve();
+                });
+            });
+            logger_1.logger.info('Added card_data and client_vault_id to user_collections');
+        }),
+        down: () => __awaiter(void 0, void 0, void 0, function* () {
+            logger_1.logger.info('Skipping rollback of card_data columns (SQLite limitation)');
+        }),
+    },
+    {
+        id: 10,
+        name: 'add_set_id_aliases_and_catalog_set_id',
+        up: (db) => __awaiter(void 0, void 0, void 0, function* () {
+            const run = (sql) => new Promise((resolve, reject) => {
+                db.run(sql, (err) => {
+                    if (err && !err.message.includes('duplicate column'))
+                        reject(err);
+                    else
+                        resolve();
+                });
+            });
+            yield run('ALTER TABLE card_mappings ADD COLUMN catalogSetId TEXT');
+            yield new Promise((resolve, reject) => {
+                db.run(`CREATE TABLE IF NOT EXISTS set_id_aliases (
+            sourceSetId TEXT PRIMARY KEY,
+            sourceSetName TEXT,
+            catalogSetId TEXT NOT NULL,
+            updatedAt TEXT DEFAULT (datetime('now'))
+          )`, (err) => (err ? reject(err) : resolve()));
+            });
+            const indexes = [
+                'CREATE INDEX IF NOT EXISTS idx_set_id_aliases_catalog ON set_id_aliases(catalogSetId)',
+                'CREATE INDEX IF NOT EXISTS idx_card_mappings_catalog_set ON card_mappings(catalogSetId)',
+                'CREATE INDEX IF NOT EXISTS idx_catalog_cards_name_set ON catalog_cards(cardName, setId)',
+            ];
+            for (const indexSql of indexes) {
+                yield run(indexSql);
+            }
+            logger_1.logger.info('Added set_id_aliases table and catalogSetId column');
+        }),
+        down: () => __awaiter(void 0, void 0, void 0, function* () {
+            logger_1.logger.info('Skipping rollback of set_id_aliases (SQLite limitation)');
+        }),
+    },
 ];
 // Run pending migrations
 const runMigrations = (db) => __awaiter(void 0, void 0, void 0, function* () {

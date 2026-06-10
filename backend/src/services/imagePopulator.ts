@@ -1,5 +1,6 @@
 import { getDb } from '../db/database';
 import { logger } from '../utils/logger';
+import { copyCatalogImagesToMapping } from './cardImageBackfillService';
 
 interface CardRow {
   id: number;
@@ -115,7 +116,23 @@ class ImagePopulatorService {
    */
   async fetchAndStoreImage(card: CardRow): Promise<'success' | 'skipped'> {
     try {
-      // Try multiple search strategies
+      const catalogImages = await copyCatalogImagesToMapping(
+        card.cardName,
+        card.setId,
+        card.setName,
+        card.cardNumber
+      );
+
+      if (catalogImages?.imageSmall || catalogImages?.imageLarge) {
+        await this.storeCardImages(
+          card.id,
+          catalogImages.imageSmall || catalogImages.imageLarge || '',
+          catalogImages.imageLarge || catalogImages.imageSmall || '',
+          'catalog_match'
+        );
+        return 'success';
+      }
+
       const apiCard = await this.searchPokemonApi(card);
 
       if (!apiCard || !apiCard.images?.large || !apiCard.images?.small) {
@@ -149,13 +166,16 @@ class ImagePopulatorService {
       headers['X-Api-Key'] = this.apiKey;
     }
 
-    // Strategy: Name + Number ONLY (ignore set ID - DB set IDs don't match Pokemon API)
     if (card.cardNumber) {
       try {
         const url = new URL(this.baseUrl);
         const cardNumberBase = card.cardNumber.split('/')[0].trim();
-        // Search by name and number only - set IDs in DB don't match Pokemon API format
-        url.searchParams.append('q', `name:"${card.cardName}" number:${cardNumberBase}`);
+        // Search by name, number, and set ID to avoid cross-set matches
+        let query = `name:"${card.cardName}" number:${cardNumberBase}`;
+        if (card.setId) {
+          query += ` set.id:${card.setId}`;
+        }
+        url.searchParams.append('q', query);
         url.searchParams.append('pageSize', '5');
 
         const result = await this.fetchWithRetry(url.toString(), headers);
@@ -164,6 +184,26 @@ class ImagePopulatorService {
         }
       } catch (error) {
         // Fail fast - don't log debug
+        return null;
+      }
+    }
+
+    // Fallback: try without set ID (in case DB set ID format differs)
+    if (!card.cardNumber) {
+      try {
+        const url = new URL(this.baseUrl);
+        let query = `name:"${card.cardName}"`;
+        if (card.setId) {
+          query += ` set.id:${card.setId}`;
+        }
+        url.searchParams.append('q', query);
+        url.searchParams.append('pageSize', '5');
+
+        const result = await this.fetchWithRetry(url.toString(), headers);
+        if (result && result.length > 0) {
+          return this.findBestMatch(result, card);
+        }
+      } catch (error) {
         return null;
       }
     }

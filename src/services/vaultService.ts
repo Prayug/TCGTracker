@@ -1,4 +1,5 @@
 import { VaultCard, VaultStats, PokemonCard, CardCondition } from '../types/pokemon';
+import { syncVaultToServer } from './vaultSyncService';
 
 const VAULT_STORAGE_KEY = 'tcg_vault_cards';
 
@@ -36,6 +37,7 @@ class VaultService {
 
     vaultCards.push(vaultCard);
     this.saveVaultCards(vaultCards);
+    void syncVaultToServer(vaultCards);
     
     console.log(`✅ Added ${quantity}x ${card.name} to vault at $${purchasePrice}`);
     return vaultCard;
@@ -49,6 +51,7 @@ class VaultService {
     if (index !== -1) {
       vaultCards[index] = { ...vaultCards[index], ...updates };
       this.saveVaultCards(vaultCards);
+      void syncVaultToServer(vaultCards);
       console.log(`✅ Updated vault card ${id}`);
     }
   }
@@ -58,6 +61,7 @@ class VaultService {
     const vaultCards = this.getVaultCards();
     const filtered = vaultCards.filter(vc => vc.id !== id);
     this.saveVaultCards(filtered);
+    void syncVaultToServer(filtered);
     console.log(`✅ Removed card from vault: ${id}`);
   }
 
@@ -122,18 +126,6 @@ class VaultService {
         }
       }
       
-      // Fallback to any available price
-      for (const priceData of Object.values(prices)) {
-        if (priceData.market) return priceData.market;
-        if (priceData.mid) return priceData.mid;
-        if (priceData.high) return priceData.high;
-        if (priceData.low) return priceData.low;
-      }
-    }
-
-    // Try CardMarket as fallback
-    if (card.cardmarket?.prices?.averageSellPrice) {
-      return card.cardmarket.prices.averageSellPrice;
     }
 
     return 0;
@@ -142,6 +134,7 @@ class VaultService {
   // Clear entire vault (useful for testing)
   clearVault(): void {
     localStorage.removeItem(VAULT_STORAGE_KEY);
+    void syncVaultToServer([]);
     console.log('🗑️ Vault cleared');
   }
 
@@ -156,6 +149,7 @@ class VaultService {
     try {
       const vaultCards = JSON.parse(jsonData) as VaultCard[];
       this.saveVaultCards(vaultCards);
+      void syncVaultToServer(vaultCards);
       console.log(`✅ Imported ${vaultCards.length} cards to vault`);
     } catch (error) {
       console.error('Error importing vault data:', error);

@@ -13,7 +13,10 @@ exports.createAuthRouter = void 0;
 const express_1 = require("express");
 const zod_1 = require("zod");
 const auth_1 = require("../middleware/auth");
+const env_1 = require("../config/env");
 const validation_1 = require("../middleware/validation");
+const rateLimiter_1 = require("../middleware/rateLimiter");
+const cookies_1 = require("../utils/cookies");
 const router = (0, express_1.Router)();
 // Validation schemas
 const registerSchema = zod_1.z.object({
@@ -75,7 +78,8 @@ const createAuthRouter = (authService) => {
         try {
             const { username, email, password } = req.body;
             const result = yield authService.register(username, email, password);
-            res.status(201).json(result);
+            (0, cookies_1.setAuthCookie)(res, result.token);
+            res.status(201).json({ user: result.user });
         }
         catch (error) {
             res.status(400).json({ error: error.message });
@@ -111,12 +115,17 @@ const createAuthRouter = (authService) => {
         try {
             const { email, password } = req.body;
             const result = yield authService.login(email, password);
-            res.json(result);
+            (0, cookies_1.setAuthCookie)(res, result.token);
+            res.json({ user: result.user });
         }
         catch (error) {
             res.status(401).json({ error: error.message });
         }
     }));
+    router.post('/logout', (_req, res) => {
+        (0, cookies_1.clearAuthCookie)(res);
+        res.json({ success: true });
+    });
     /**
      * @swagger
      * /api/auth/me:
@@ -137,7 +146,9 @@ const createAuthRouter = (authService) => {
             if (!user) {
                 return res.status(404).json({ error: 'User not found' });
             }
-            res.json({ user });
+            res.json({
+                user: Object.assign(Object.assign({}, user), { isAdmin: user.username === env_1.env.admin.username }),
+            });
         }
         catch (error) {
             res.status(500).json({ error: error.message });
@@ -208,7 +219,7 @@ const createAuthRouter = (authService) => {
      *       401:
      *         description: Unauthorized
      */
-    router.post('/change-password', auth_1.authenticate, (0, validation_1.validate)(changePasswordSchema), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    router.post('/change-password', rateLimiter_1.passwordChangeLimiter, auth_1.authenticate, (0, validation_1.validate)(changePasswordSchema), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         try {
             const { oldPassword, newPassword } = req.body;
             yield authService.changePassword(req.user.id, oldPassword, newPassword);

@@ -48,3 +48,4 @@ backend/*.db-*
 *.bak
 *.backup
 
+.vercel

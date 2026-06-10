@@ -1,4 +1,5 @@
 import React from 'react';
+import { computeSparklineRange } from '../../utils/chartDomain';
 
 interface MiniSparklineProps {
   data: number[];
@@ -16,7 +17,7 @@ export const MiniSparkline: React.FC<MiniSparklineProps> = ({
   if (data.length < 2) {
     return (
       <div
-        className="flex items-center justify-center rounded-md border border-white/10 bg-white/[0.03] text-[10px] text-slate-500"
+        className="flex items-center justify-center rounded-md border border-border-subtle bg-surface-inset text-[10px] text-ink-muted"
         style={{ width, height }}
       >
         —
@@ -24,8 +25,7 @@ export const MiniSparkline: React.FC<MiniSparklineProps> = ({
     );
   }
 
-  const min = Math.min(...data);
-  const max = Math.max(...data);
+  const { min, max } = computeSparklineRange(data);
   const range = max - min || 1;
   const pad = 2;
 

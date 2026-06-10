@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.syncCatalogData = void 0;
 const database_1 = require("../db/database");
 const pokemonCatalogProvider_1 = require("./providers/pokemonCatalogProvider");
+const logger_1 = require("../utils/logger");
 const upsertCatalogCardSql = `
   INSERT INTO catalog_cards (
     cardId,
@@ -91,19 +92,53 @@ const upsertCards = (cards, setMeta) => __awaiter(void 0, void 0, void 0, functi
         });
     });
 });
+const SET_DELAY_MS = 300;
+const YIELD_EVERY_N_SETS = 5;
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const yieldToEventLoop = () => new Promise((resolve) => setImmediate(resolve));
+let isCatalogSyncRunning = false;
 const syncCatalogData = (...args_1) => __awaiter(void 0, [...args_1], void 0, function* (provider = pokemonCatalogProvider_1.pokemonCatalogProvider) {
-    const sets = yield provider.getSets(250);
-    let setsProcessed = 0;
-    let cardsUpserted = 0;
-    for (const set of sets) {
-        const setCards = yield provider.getCardsForSet(set.id);
-        if (!setCards.length) {
-            continue;
-        }
-        const inserted = yield upsertCards(setCards, set);
-        cardsUpserted += inserted;
-        setsProcessed += 1;
+    if (isCatalogSyncRunning) {
+        logger_1.logger.warn('Catalog sync already in progress, skipping duplicate');
+        return { setsProcessed: 0, cardsUpserted: 0 };
     }
-    return { setsProcessed, cardsUpserted };
+    isCatalogSyncRunning = true;
+    try {
+        const sets = yield provider.getSets(250);
+        let setsProcessed = 0;
+        let cardsUpserted = 0;
+        for (const set of sets) {
+            // Yield to event loop periodically to avoid blocking API requests
+            if (setsProcessed > 0 && setsProcessed % YIELD_EVERY_N_SETS === 0) {
+                yield yieldToEventLoop();
+            }
+            try {
+                const setCards = yield provider.getCardsForSet(set.id);
+                if (!setCards.length) {
+                    logger_1.logger.debug(`Skipping empty set: ${set.name}`);
+                    setsProcessed += 1;
+                    continue;
+                }
+                // Yield again before heavy DB work
+                yield yieldToEventLoop();
+                const inserted = yield upsertCards(setCards, set);
+                cardsUpserted += inserted;
+                setsProcessed += 1;
+                if (setsProcessed % 25 === 0) {
+                    logger_1.logger.info(`Catalog sync progress: ${setsProcessed}/${sets.length} sets processed`);
+                }
+            }
+            catch (error) {
+                logger_1.logger.warn(`Failed to sync set ${set.name || set.id}`, {
+                    error: error.message,
+                });
+            }
+            yield delay(SET_DELAY_MS);
+        }
+        return { setsProcessed, cardsUpserted };
+    }
+    finally {
+        isCatalogSyncRunning = false;
+    }
 });
 exports.syncCatalogData = syncCatalogData;

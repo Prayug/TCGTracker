@@ -24,13 +24,13 @@ export const usePokemonCards = (): UsePokemonCardsReturn => {
   const [sortBy, setSortBy] = useState<SortOption>('price-high');
   const [filterBy, setFilterBy] = useState<FilterOption>('all');
 
-  const loadCards = async (query?: string, setId?: string) => {
+  const loadCards = async (query?: string, _setId?: string) => {
     setIsLoading(true);
     setError(null);
     
     try {
       // Get cards from Pokemon TCG API (with built-in retry logic)
-      let pokemonCards = await pokemonApi.searchCards(query, setId, 250);
+      let pokemonCards = await pokemonApi.searchCards(query, _setId, 250);
       
       // If no cards returned, show helpful message
       if (pokemonCards.length === 0) {

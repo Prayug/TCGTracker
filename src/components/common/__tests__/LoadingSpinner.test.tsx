@@ -10,7 +10,7 @@ describe('LoadingSpinner', () => {
 
   it('displays loading message', () => {
     render(<LoadingSpinner />);
-    expect(screen.getByText(/discovering amazing cards/i)).toBeInTheDocument();
+    expect(screen.getByText(/loading/i)).toBeInTheDocument();
   });
 });
 

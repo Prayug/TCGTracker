@@ -39,6 +39,7 @@ export interface MarketPricePoint {
   marketPrice: number;
   lowPrice?: number;
   highPrice?: number;
+  volume?: number;
   rawVariantName?: string;
 }
 

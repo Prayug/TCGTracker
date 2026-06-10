@@ -6,5 +6,5 @@ interface SectionLabelProps {
 }
 
 export const SectionLabel: React.FC<SectionLabelProps> = ({ children, className = '' }) => (
-  <p className={`section-label ${className}`}>{children}</p>
+  <p className={`text-xs font-medium text-ink-muted ${className}`}>{children}</p>
 );

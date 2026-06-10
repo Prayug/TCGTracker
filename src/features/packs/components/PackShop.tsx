@@ -57,7 +57,7 @@ export const PackShop: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
-        <div className="h-9 w-9 animate-spin rounded-full border-2 border-white/20 border-t-violet-400" />
+        <div className="h-9 w-9 animate-spin rounded-full border-2 border-border-default border-t-accent" />
       </div>
     );
   }
@@ -67,7 +67,7 @@ export const PackShop: React.FC = () => {
       <div>
         <SectionLabel className="text-violet-300/90">Simulated rip lab</SectionLabel>
         <h2 className="mt-2 text-3xl font-bold text-white">Pack shop</h2>
-        <p className="mt-2 text-sm text-slate-400">
+        <p className="mt-2 text-sm text-ink-muted">
           Open tiered packs with play-money odds — results are simulated, not financial advice.
         </p>
       </div>
@@ -89,7 +89,7 @@ export const PackShop: React.FC = () => {
           <article className="card border-rose-500/20 bg-rose-950/20">
             <div className="mb-2 flex items-center justify-between gap-2">
               <p className="section-label">Session P/L</p>
-              <span className="rounded-md border border-white/10 bg-white/[0.06] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-slate-400">
+              <span className="rounded-md border border-border-subtle bg-surface-hover px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-ink-muted">
                 Simulated
               </span>
             </div>
@@ -97,7 +97,7 @@ export const PackShop: React.FC = () => {
               {history.totalProfit >= 0 ? '+' : ''}
               {formatCurrency(history.totalProfit)}
             </p>
-            <p className="mt-1 text-xs text-slate-500">Play-money session only</p>
+            <p className="mt-1 text-xs text-ink-muted">Play-money session only</p>
           </article>
         </div>
       )}
@@ -119,7 +119,7 @@ export const PackShop: React.FC = () => {
             {packs.map((pack) => (
               <div
                 key={pack.id}
-                className="group overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] transition-transform hover:-translate-y-0.5"
+                className="group overflow-hidden rounded-xl border border-border-subtle bg-surface-inset transition-transform hover:-translate-y-0.5"
               >
                 <div className={`relative bg-gradient-to-br ${getTierColor(pack.tier)} p-4 text-white`}>
                   <div className="absolute inset-0 bg-black/20" />
@@ -133,37 +133,52 @@ export const PackShop: React.FC = () => {
                       <span className="text-3xl font-black">{formatCurrency(pack.price)}</span>
                       <span className="text-xs text-white/70">per pack</span>
                     </div>
-                    <p className="mt-2 inline-flex rounded-md border border-white/20 bg-black/25 px-2 py-0.5 text-[10px] font-medium text-white/90">
+                    <p className="mt-2 inline-flex rounded-md border border-border-default bg-black/25 px-2 py-0.5 text-[10px] font-medium text-white/90">
                       EV: ${evRatio(pack).toFixed(2)}/dollar spent
                     </p>
                   </div>
                 </div>
 
                 <div className="space-y-4 p-4">
-                  <div className="flex justify-between border-b border-white/10 pb-3 text-center text-sm">
+                  <div className="flex justify-between border-b border-border-subtle pb-3 text-center text-sm">
                     <div>
-                      <p className="text-[10px] uppercase tracking-wider text-slate-500">Cards</p>
+                      <p className="text-[10px] uppercase tracking-wider text-ink-muted">Cards</p>
                       <p className="font-bold text-white">{pack.cardsPerPack}</p>
                     </div>
                     <div>
-                      <p className="text-[10px] uppercase tracking-wider text-slate-500">Avg value</p>
+                      <p className="text-[10px] uppercase tracking-wider text-ink-muted">Avg value</p>
                       <p className="font-bold text-emerald-300">{formatCurrency(pack.averageValue)}</p>
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    {pack.valueRanges.slice(0, 3).map((range, idx) => (
-                      <div key={idx} className="flex items-center gap-2 text-xs">
-                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
-                          <div
-                            className={`h-full bg-gradient-to-r ${getTierColor(pack.tier)}`}
-                            style={{ width: `${Math.min(range.probability * 2, 100)}%` }}
-                          />
+                  <details className="group/odds">
+                    <summary className="flex cursor-pointer list-none items-center justify-between text-xs font-medium text-ink-secondary transition-colors hover:text-ink-primary [&::-webkit-details-marker]:hidden">
+                      <span>Pull rates (full disclosure)</span>
+                      <span className="text-ink-muted transition-transform group-open/odds:rotate-180">▾</span>
+                    </summary>
+                    <div className="mt-3 space-y-2" role="table" aria-label={`${pack.name} pull rates`}>
+                      {pack.valueRanges.map((range, idx) => (
+                        <div key={idx} className="flex items-center gap-2 text-xs" role="row">
+                          <span className="w-24 truncate text-ink-muted" title={range.label}>
+                            {range.label}
+                          </span>
+                          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
+                            <div
+                              className={`h-full rounded-full bg-gradient-to-r ${getTierColor(pack.tier)}`}
+                              style={{ width: `${Math.min(range.probability, 100)}%` }}
+                            />
+                          </div>
+                          <span className="w-12 text-right font-semibold tabular-nums text-ink-secondary">
+                            {range.probability.toFixed(1)}%
+                          </span>
                         </div>
-                        <span className="w-16 text-slate-400">{range.label}</span>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                      <p className="pt-1 text-[10px] leading-relaxed text-ink-muted">
+                        Simulated odds. Every pull uses these exact probabilities — no hidden
+                        modifiers.
+                      </p>
+                    </div>
+                  </details>
 
                   <button
                     type="button"
@@ -190,7 +205,7 @@ export const PackShop: React.FC = () => {
             {history.pulls.slice(0, 5).map((pull, index) => (
               <div
                 key={index}
-                className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] p-4"
+                className="flex items-center justify-between rounded-xl border border-border-subtle bg-surface-inset p-4"
               >
                 <div className="flex items-center gap-3">
                   <img
@@ -200,13 +215,13 @@ export const PackShop: React.FC = () => {
                   />
                   <div>
                     <p className="font-medium text-white">{pull.pack.name}</p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-ink-muted">
                       {new Date(pull.openedAt).toLocaleString()}
                     </p>
                   </div>
                 </div>
                 <div className="text-right text-sm">
-                  <p className="text-slate-400">{formatCurrency(pull.totalValue)}</p>
+                  <p className="text-ink-muted">{formatCurrency(pull.totalValue)}</p>
                   <p className={pull.profit >= 0 ? 'text-emerald-300' : 'text-rose-300/80'}>
                     {pull.profit >= 0 ? '+' : ''}
                     {formatCurrency(pull.profit)}

@@ -221,7 +221,7 @@ class PokemonApiClient {
             }
             catch (error) {
                 logger_1.logger.warn('Pokemon API failed, falling back to cached/empty data', { error: error.message });
-                // Return empty array to allow fallback logic to handle this
+                // Return empty array so callers can surface the API miss directly.
                 return [];
             }
         });
@@ -298,22 +298,7 @@ class PokemonApiClient {
             if (strictMatch) {
                 return { card: strictMatch, usedFallback: false };
             }
-            const numericRequested = /^\d+$/.test(requestedNumber)
-                ? parseInt(requestedNumber, 10)
-                : null;
-            if (numericRequested !== null) {
-                const closeMatch = nameMatches.find((card) => {
-                    const cardNumber = this.normalizeCardNumber(card.number);
-                    if (!/^\d+$/.test(cardNumber)) {
-                        return false;
-                    }
-                    const numericCard = parseInt(cardNumber, 10);
-                    return Math.abs(numericCard - numericRequested) <= 1;
-                });
-                if (closeMatch) {
-                    return { card: closeMatch, usedFallback: true };
-                }
-            }
+            return { card: null, usedFallback: false };
         }
         if (!options.cardNumber && options.setId) {
             const sameSet = nameMatches.find((card) => { var _a, _b; return ((_b = (_a = card.set) === null || _a === void 0 ? void 0 : _a.id) === null || _b === void 0 ? void 0 : _b.toLowerCase()) === options.setId.toLowerCase(); });
@@ -328,18 +313,7 @@ class PokemonApiClient {
                 return { card: sameSetName, usedFallback: false };
             }
         }
-        if (!options.cardNumber && exactNameMatches.length > 0) {
-            return { card: exactNameMatches[0], usedFallback: true };
-        }
-        if (!options.cardNumber) {
-            const fuzzyMatch = nameMatches.find((card) => card.name.toLowerCase().includes(normalizedName) ||
-                normalizedName.includes(card.name.toLowerCase()));
-            if (fuzzyMatch) {
-                return { card: fuzzyMatch, usedFallback: true };
-            }
-        }
-        const fallback = nameMatches[0];
-        return { card: fallback, usedFallback: true };
+        return { card: null, usedFallback: false };
     }
     buildImageSearchStrategies(options) {
         const cardName = options.cardName.replace(/"/g, '').trim();

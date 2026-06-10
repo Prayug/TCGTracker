@@ -6,7 +6,6 @@ import { PortfolioMetricCard } from './PortfolioMetricCard';
 
 interface PortfolioSnapshotProps {
   stats: VaultStats;
-  /** Optional daily P/L when price history is wired up */
   dailyChange?: number | null;
   className?: string;
 }
@@ -18,31 +17,24 @@ export const PortfolioSnapshot: React.FC<PortfolioSnapshotProps> = ({
 }) => {
   const plTrend = stats.profit >= 0 ? 'up' : 'down';
   const dailyTrend =
-    dailyChange === null || dailyChange === 0
-      ? 'neutral'
-      : dailyChange > 0
-        ? 'up'
-        : 'down';
+    dailyChange === null || dailyChange === 0 ? 'neutral' : dailyChange > 0 ? 'up' : 'down';
 
-  const dailyDisplay =
-    dailyChange === null
-      ? '—'
-      : formatCurrency(dailyChange, { signed: true });
+  const dailyDisplay = dailyChange === null ? '—' : formatCurrency(dailyChange, { signed: true });
 
   return (
-    <div className={className}>
+    <div className={`grid grid-cols-2 gap-3 ${className}`}>
       <PortfolioMetricCard
-        label="Market Value"
+        label="Market value"
         value={formatCurrency(stats.currentValue)}
         subValue={
           stats.totalValue > 0
-            ? `Cost basis ${formatCurrency(stats.totalValue)}`
-            : 'Add cards to your vault'
+            ? `Cost ${formatCurrency(stats.totalValue)}`
+            : 'No cards in vault'
         }
         trend="neutral"
         size="hero"
         icon={Wallet}
-        className="col-span-2 border-violet-500/20 shadow-[0_0_32px_rgba(139,92,246,0.12)]"
+        className="col-span-2"
       />
 
       <PortfolioMetricCard
@@ -54,18 +46,19 @@ export const PortfolioSnapshot: React.FC<PortfolioSnapshotProps> = ({
       />
 
       <PortfolioMetricCard
-        label="Daily Gain/Loss"
+        label="Daily change"
         value={dailyDisplay}
-        subValue={dailyChange === null ? 'Requires price history' : 'Last 24h'}
+        subValue={dailyChange === null ? 'No history yet' : 'Last 24h'}
         trend={dailyTrend}
       />
 
       <PortfolioMetricCard
-        label="Cards Tracked"
+        label="Cards"
         value={String(stats.totalCards)}
-        subValue={stats.totalCards === 1 ? '1 unique holding' : `${stats.totalCards} in vault`}
+        subValue={stats.totalCards === 1 ? '1 in vault' : `${stats.totalCards} in vault`}
         trend="neutral"
         icon={Layers}
+        className="col-span-2"
       />
     </div>
   );

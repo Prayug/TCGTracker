@@ -2,7 +2,10 @@ import { Router, Response } from 'express';
 import { z } from 'zod';
 import { AuthService } from '../services/authService';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { env } from '../config/env';
 import { validate } from '../middleware/validation';
+import { passwordChangeLimiter } from '../middleware/rateLimiter';
+import { setAuthCookie, clearAuthCookie } from '../utils/cookies';
 
 const router = Router();
 
@@ -70,7 +73,8 @@ export const createAuthRouter = (authService: AuthService) => {
     try {
       const { username, email, password } = req.body;
       const result = await authService.register(username, email, password);
-      res.status(201).json(result);
+      setAuthCookie(res, result.token);
+      res.status(201).json({ user: result.user });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
@@ -106,10 +110,16 @@ export const createAuthRouter = (authService: AuthService) => {
     try {
       const { email, password } = req.body;
       const result = await authService.login(email, password);
-      res.json(result);
+      setAuthCookie(res, result.token);
+      res.json({ user: result.user });
     } catch (error: any) {
       res.status(401).json({ error: error.message });
     }
+  });
+
+  router.post('/logout', (_req, res: Response) => {
+    clearAuthCookie(res);
+    res.json({ success: true });
   });
 
   /**
@@ -132,7 +142,12 @@ export const createAuthRouter = (authService: AuthService) => {
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
       }
-      res.json({ user });
+      res.json({
+        user: {
+          ...user,
+          isAdmin: user.username === env.admin.username,
+        },
+      });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -205,6 +220,7 @@ export const createAuthRouter = (authService: AuthService) => {
    */
   router.post(
     '/change-password',
+    passwordChangeLimiter,
     authenticate,
     validate(changePasswordSchema),
     async (req: AuthRequest, res: Response) => {

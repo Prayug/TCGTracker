@@ -5,17 +5,21 @@ import { CountUp } from './CountUp';
 interface StatCardProps {
   icon: LucideIcon;
   label: string;
-  /** Numeric value for count-up animation */
   numericValue?: number;
-  /** Static display when not numeric (overrides numeric) */
   value?: string;
   suffix?: string;
   prefix?: string;
   tone?: 'default' | 'success' | 'accent';
 }
 
+const toneClasses = {
+  default: 'text-ink-primary',
+  success: 'text-gain',
+  accent: 'text-accent',
+};
+
+/** Inline stat for use in stats bars — not a boxed card grid item. */
 export const StatCard: React.FC<StatCardProps> = ({
-  icon: Icon,
   label,
   numericValue,
   value,
@@ -23,21 +27,9 @@ export const StatCard: React.FC<StatCardProps> = ({
   prefix = '',
   tone = 'default',
 }) => {
-  const iconClass =
-    tone === 'success'
-      ? 'bg-emerald-400/15 text-emerald-300 border-emerald-400/30'
-      : tone === 'accent'
-        ? 'bg-violet-400/15 text-violet-300 border-violet-400/30'
-        : 'bg-white/10 text-slate-200 border-white/15';
-
   return (
-    <article className="card transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/[0.06]">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div className={`flex h-9 w-9 items-center justify-center rounded-lg border ${iconClass}`}>
-          <Icon className="h-4 w-4" aria-hidden="true" />
-        </div>
-      </div>
-      <p className="text-xl font-semibold tracking-tight text-white">
+    <div className="flex flex-col gap-0.5">
+      <p className={`font-mono text-2xl font-semibold tabular-nums tracking-tight ${toneClasses[tone]}`}>
         {value !== undefined ? (
           value
         ) : numericValue !== undefined ? (
@@ -46,7 +38,20 @@ export const StatCard: React.FC<StatCardProps> = ({
           '—'
         )}
       </p>
-      <p className="mt-1 text-sm text-slate-400">{label}</p>
-    </article>
+      <p className="text-sm text-ink-muted">{label}</p>
+    </div>
   );
 };
+
+interface StatsBarProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+export const StatsBar: React.FC<StatsBarProps> = ({ children, className = '' }) => (
+  <div
+    className={`flex flex-wrap items-start gap-x-10 gap-y-6 border-y border-border-subtle py-6 ${className}`}
+  >
+    {children}
+  </div>
+);

@@ -70,7 +70,7 @@ export function memoize<T extends (...args: any[]) => any>(fn: T): T {
 }
 
 // Batch multiple state updates
-export function batchUpdates<T>(
+export function batchUpdates(
   updates: Array<() => void>,
   callback?: () => void
 ): void {

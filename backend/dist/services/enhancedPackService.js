@@ -37,16 +37,14 @@ class EnhancedPackService {
         };
     }
     /**
-     * Open a pack using enhanced logic with fallback to local database
+     * Open a pack using Pokemon TCG API card data.
      */
     openPack(setId_1) {
         return __awaiter(this, arguments, void 0, function* (setId, config = {}) {
             const packConfig = Object.assign(Object.assign({}, this.defaultPackConfig), config);
             logger_1.logger.info(`Opening enhanced pack for set ${setId} with config: ${packConfig.name}`);
             try {
-                // Try to get cards from Pokemon API first
                 let apiCards = yield pokemonApiClient_1.pokemonApiClient.getCardsFromSet(setId, 500);
-                // If API fails or returns no cards, fall back to local database
                 if (apiCards.length === 0) {
                     logger_1.logger.warn(`No cards from Pokemon API for set ${setId}, using local database`);
                     apiCards = yield this.getCardsFromLocalDb(setId);

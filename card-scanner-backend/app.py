@@ -389,9 +389,11 @@ def _cleanup(path: str | None) -> None:
 if __name__ == "__main__":
     import sys
     port = int(os.environ.get("PORT", 5001))
+    debug = os.environ.get("FLASK_DEBUG", "false").lower() in ("1", "true", "yes")
     print(f"Card Scanner Backend  →  http://localhost:{port}", flush=True)
     print(f"Health check          →  http://localhost:{port}/health", flush=True)
     print(f"Temp uploads          →  {os.path.abspath(UPLOAD_FOLDER)}", flush=True)
+    print(f"Debug mode            →  {debug}", flush=True)
     print("Press Ctrl+C to stop.\n", flush=True)
     sys.stdout.flush()
-    app.run(debug=True, host="0.0.0.0", port=port, use_reloader=False)
+    app.run(debug=debug, host="0.0.0.0", port=port, use_reloader=False)

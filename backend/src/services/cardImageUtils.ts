@@ -1,4 +1,3 @@
-// Card image handling utilities
 import { setCodeService } from './setCodeService';
 
 export const buildPlaceholderImage = (name: string, set: string) => (

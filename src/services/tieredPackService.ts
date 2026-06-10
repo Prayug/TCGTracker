@@ -1,5 +1,6 @@
 import { Pack, PackPull, PokemonCard, PackOpeningHistory, ValueRange } from '../types/pokemon';
 import { pokemonApi } from './pokemonApi';
+import { env } from '../config/env';
 
 const PACK_HISTORY_KEY = 'tcg_tiered_pack_history';
 
@@ -115,7 +116,7 @@ class TieredPackService {
         throw new Error('Unable to fetch cards. Please check your connection.');
       }
 
-      const selectedCard = this.selectCardFromRange(cardPool, pack.valueRanges, pack.price);
+      const selectedCard = this.selectCardFromRange(cardPool, pack.valueRanges);
       console.log("selectedCard: ", selectedCard);
       if (!selectedCard) {
         throw new Error('No suitable card found in the pool for this value range.');
@@ -161,9 +162,7 @@ class TieredPackService {
 
   // Fetch a large pool of cards from various sets
   private async fetchCardPool(): Promise<PokemonCard[]> {
-    const backendBase = window.location.origin.replace(':5173', ':3001');
-    // Increased limit from 2000 to 10000 for better pool diversity
-    const resp = await fetch(`${backendBase}/api/cards/pool?limit=10000`);
+    const resp = await fetch(`${env.apiUrl}/api/cards/pool?limit=10000`);
     
     if (!resp.ok) {
       throw new Error(`Failed to fetch card pool: ${resp.status}`);
@@ -208,15 +207,10 @@ class TieredPackService {
   // Select a random card from the pool based on rolled value range
   private selectCardFromRange(
     cardPool: PokemonCard[],
-    ranges: ValueRange[],
-    packPrice?: number
+    ranges: ValueRange[]
   ): PokemonCard | null {
     const rolledRange = this.selectValueRange(ranges);
     
-    // Calculate absolute minimum value based on pack price
-    // For expensive packs, enforce a minimum that's at least 30% of pack price
-    const absoluteMinimum = packPrice ? Math.max(rolledRange.min, packPrice * 0.3) : rolledRange.min;
-
     // Filter cards to this specific range
     let candidates = cardPool.filter(card => {
       const price = card.marketPrice || pokemonApi.extractCardPrice(card);
@@ -227,7 +221,7 @@ class TieredPackService {
     // This prevents cards from different sets with same name/number from collapsing
     const seenIds = new Set<string>();
     candidates = candidates.filter(card => {
-      // Use card.id if available, otherwise fallback to uniqueIdentifier, then construct one
+      // Use the most specific stable identifier available for duplicate removal.
       const cardId = card.id || 
         (card as PokemonCard & { uniqueIdentifier?: string }).uniqueIdentifier ||
         `${card.set?.id || 'unknown'}-${card.number || 'unknown'}-${card.name || 'unknown'}`;
@@ -237,81 +231,8 @@ class TieredPackService {
       return true;
     });
 
-    // Fallback 1: expand range by 20% if no matches (but respect absolute minimum)
     if (candidates.length === 0) {
-      const expandedMin = Math.max(rolledRange.min * 0.8, absoluteMinimum);
-      const expandedMax = rolledRange.max * 1.2;
-      candidates = cardPool.filter(card => {
-        const price = card.marketPrice || pokemonApi.extractCardPrice(card);
-        return price >= expandedMin && price <= expandedMax;
-      });
-      
-      const seenExpanded = new Set<string>();
-      candidates = candidates.filter(card => {
-        const cardId = card.id || 
-          (card as PokemonCard & { uniqueIdentifier?: string }).uniqueIdentifier ||
-          `${card.set?.id || 'unknown'}-${card.number || 'unknown'}-${card.name || 'unknown'}`;
-        if (seenExpanded.has(cardId)) return false;
-        seenExpanded.add(cardId);
-        return true;
-      });
-    }
-
-    // Fallback 2: If still no matches, select from top N most expensive cards
-    // This handles cases where the requested range is above the database's max price
-    if (candidates.length === 0) {
-      // Sort cards by price descending and take top cards that are >= rolledRange.min * 0.5
-      const sortedByPrice = [...cardPool].sort((a, b) => {
-        const priceA = a.marketPrice || pokemonApi.extractCardPrice(a);
-        const priceB = b.marketPrice || pokemonApi.extractCardPrice(b);
-        return priceB - priceA;
-      });
-
-      // Take top cards that are at least the absolute minimum (or top 100, whichever is smaller)
-      // For expensive packs, this ensures we don't go below the pack's minimum threshold
-      const minPriceThreshold = Math.max(rolledRange.min * 0.5, absoluteMinimum);
-      candidates = sortedByPrice
-        .filter(card => {
-          const price = card.marketPrice || pokemonApi.extractCardPrice(card);
-          return price >= minPriceThreshold;
-        })
-        .slice(0, 100); // Top 100 most expensive cards
-
-      // Remove duplicates
-      const seenTop = new Set<string>();
-      candidates = candidates.filter(card => {
-        const cardId = card.id || 
-          (card as PokemonCard & { uniqueIdentifier?: string }).uniqueIdentifier ||
-          `${card.set?.id || 'unknown'}-${card.number || 'unknown'}-${card.name || 'unknown'}`;
-        if (seenTop.has(cardId)) return false;
-        seenTop.add(cardId);
-        return true;
-      });
-
-      if (candidates.length > 0) {
-        console.log(`⚠️ No cards in range $${rolledRange.min}-$${rolledRange.max}, selected from top ${candidates.length} expensive cards (min: $${minPriceThreshold.toFixed(2)})`);
-      }
-    }
-
-    // Last resort: pick from cards that meet the absolute minimum (never go below pack threshold)
-    if (candidates.length === 0) {
-      candidates = cardPool.filter(card => {
-        const price = card.marketPrice || pokemonApi.extractCardPrice(card);
-        return price >= absoluteMinimum;
-      });
-      
-      if (candidates.length === 0) {
-        // If even this fails, we have a problem - log it and use top expensive cards
-        console.error(`❌ No cards found above minimum $${absoluteMinimum.toFixed(2)} for pack. Using top expensive cards.`);
-        const sortedByPrice = [...cardPool].sort((a, b) => {
-          const priceA = a.marketPrice || pokemonApi.extractCardPrice(a);
-          const priceB = b.marketPrice || pokemonApi.extractCardPrice(b);
-          return priceB - priceA;
-        });
-        candidates = sortedByPrice.slice(0, 50); // Top 50 as last resort
-      } else {
-        console.warn(`⚠️ No candidates found after all fallbacks, using cards above minimum $${absoluteMinimum.toFixed(2)} (${candidates.length} cards)`);
-      }
+      return null;
     }
 
     const shuffled = this.shuffleArray(candidates);

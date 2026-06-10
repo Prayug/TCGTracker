@@ -1,6 +1,7 @@
 import { getDb } from '../db/database';
 import { CatalogCardSummary, CatalogProvider, CatalogSetSummary } from './providers/contracts';
 import { pokemonCatalogProvider } from './providers/pokemonCatalogProvider';
+import { logger } from '../utils/logger';
 
 interface SyncCatalogResult {
   setsProcessed: number;
@@ -93,24 +94,65 @@ const upsertCards = async (
   });
 };
 
+const SET_DELAY_MS = 300;
+const YIELD_EVERY_N_SETS = 5;
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const yieldToEventLoop = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+let isCatalogSyncRunning = false;
+
 export const syncCatalogData = async (
   provider: CatalogProvider = pokemonCatalogProvider
 ): Promise<SyncCatalogResult> => {
-  const sets = await provider.getSets(250);
-  let setsProcessed = 0;
-  let cardsUpserted = 0;
-
-  for (const set of sets) {
-    const setCards = await provider.getCardsForSet(set.id);
-
-    if (!setCards.length) {
-      continue;
-    }
-
-    const inserted = await upsertCards(setCards, set);
-    cardsUpserted += inserted;
-    setsProcessed += 1;
+  if (isCatalogSyncRunning) {
+    logger.warn('Catalog sync already in progress, skipping duplicate');
+    return { setsProcessed: 0, cardsUpserted: 0 };
   }
 
-  return { setsProcessed, cardsUpserted };
+  isCatalogSyncRunning = true;
+
+  try {
+    const sets = await provider.getSets(250);
+    let setsProcessed = 0;
+    let cardsUpserted = 0;
+
+    for (const set of sets) {
+      // Yield to event loop periodically to avoid blocking API requests
+      if (setsProcessed > 0 && setsProcessed % YIELD_EVERY_N_SETS === 0) {
+        await yieldToEventLoop();
+      }
+
+      try {
+        const setCards = await provider.getCardsForSet(set.id);
+
+        if (!setCards.length) {
+          logger.debug(`Skipping empty set: ${set.name}`);
+          setsProcessed += 1;
+          continue;
+        }
+
+        // Yield again before heavy DB work
+        await yieldToEventLoop();
+
+        const inserted = await upsertCards(setCards, set);
+        cardsUpserted += inserted;
+        setsProcessed += 1;
+
+        if (setsProcessed % 25 === 0) {
+          logger.info(`Catalog sync progress: ${setsProcessed}/${sets.length} sets processed`);
+        }
+      } catch (error) {
+        logger.warn(`Failed to sync set ${set.name || set.id}`, {
+          error: (error as Error).message,
+        });
+      }
+
+      await delay(SET_DELAY_MS);
+    }
+
+    return { setsProcessed, cardsUpserted };
+  } finally {
+    isCatalogSyncRunning = false;
+  }
 };

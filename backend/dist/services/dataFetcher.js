@@ -8,8 +8,11 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updatePriceData = void 0;
+exports.updatePriceData = exports.deterministicProductId = exports.getRunDate = exports.normalizeVariantKey = void 0;
 const database_1 = require("../db/database");
 const cardIdentifier_1 = require("./cardIdentifier");
 const cloudBackupService_1 = require("./cloudBackupService");
@@ -24,6 +27,7 @@ const normalizeVariantKey = (value) => {
     const normalized = value.toLowerCase().replace(/[^a-z0-9]/g, '');
     return normalized || 'normal';
 };
+exports.normalizeVariantKey = normalizeVariantKey;
 const getRunDate = () => {
     const formatter = new Intl.DateTimeFormat('en-CA', {
         timeZone: SYNC_TIMEZONE,
@@ -33,6 +37,7 @@ const getRunDate = () => {
     });
     return formatter.format(new Date());
 };
+exports.getRunDate = getRunDate;
 const createSyncRun = (runType, runDate) => __awaiter(void 0, void 0, void 0, function* () {
     const db = (0, database_1.getDb)();
     return new Promise((resolve, reject) => {
@@ -77,7 +82,8 @@ const finalizeSyncRun = (runId, status, payload) => __awaiter(void 0, void 0, vo
 const loadCatalogCards = () => __awaiter(void 0, void 0, void 0, function* () {
     const db = (0, database_1.getDb)();
     const fetchRows = () => new Promise((resolve, reject) => {
-        db.all(`SELECT cardId, cardName, setId, setName, cardNumber, tcgplayerProductId, tcgplayerPrices
+        db.all(`SELECT cardId, cardName, setId, setName, cardNumber, tcgplayerProductId, tcgplayerPrices,
+                imageSmall, imageLarge
          FROM catalog_cards`, [], (err, rows) => {
             if (err)
                 reject(err);
@@ -106,13 +112,13 @@ const extractCatalogFallbackPoints = (row) => {
             if (!marketPrice || marketPrice <= 0) {
                 return null;
             }
-            const variantKey = normalizeVariantKey(rawVariant);
+            const variantKey = (0, exports.normalizeVariantKey)(rawVariant);
             const parsedProductId = row.tcgplayerProductId
                 ? Number.parseInt(String(row.tcgplayerProductId), 10)
                 : Number.NaN;
             const productId = Number.isFinite(parsedProductId)
                 ? parsedProductId
-                : deterministicProductId(row.cardId, variantKey);
+                : (0, exports.deterministicProductId)(row.cardId, variantKey);
             return {
                 variantKey,
                 subTypeName: rawVariant,
@@ -145,66 +151,85 @@ const createDailySnapshot = (date) => __awaiter(void 0, void 0, void 0, function
                 reject(err);
                 return;
             }
-            // Get top gainers and losers
-            const gainersSql = `
-        SELECT 
-          ph1.productName,
-          ph1.price as currentPrice,
-          ph2.price as previousPrice,
-          ((ph1.price - ph2.price) / ph2.price * 100) as changePercent
-        FROM price_history ph1
-        JOIN price_history ph2 ON ph1.productId = ph2.productId
-        WHERE ph1.date = ? 
-          AND ph2.date = date(?, '-1 day')
-          AND ph1.price > 0 AND ph2.price > 0
-        ORDER BY changePercent DESC
-        LIMIT 10
+            // Compute median price using SQLite's PERCENTILE-style approach
+            const medianSql = `
+        SELECT AVG(price) as medianPrice FROM (
+          SELECT price FROM price_history
+          WHERE date = ? AND price > 0
+          ORDER BY price
+          LIMIT 2 - (SELECT COUNT(*) FROM price_history WHERE date = ? AND price > 0) % 2
+          OFFSET (SELECT (COUNT(*) - 1) / 2 FROM price_history WHERE date = ? AND price > 0)
+        )
       `;
-            db.all(gainersSql, [date, date], (err, gainers) => {
+            db.get(medianSql, [date, date, date], (err, medianRow) => {
                 if (err) {
                     reject(err);
                     return;
                 }
-                const losersSql = gainersSql.replace('DESC', 'ASC');
-                db.all(losersSql, [date, date], (err, losers) => {
+                // Get top gainers and losers
+                const gainersSql = `
+          SELECT 
+            ph1.productName,
+            ph1.price as currentPrice,
+            ph2.price as previousPrice,
+            ((ph1.price - ph2.price) / ph2.price * 100) as changePercent
+          FROM price_history ph1
+          JOIN price_history ph2 ON ph1.productId = ph2.productId
+          WHERE ph1.date = ? 
+            AND ph2.date = date(?, '-1 day')
+            AND ph1.price > 0 AND ph2.price > 0
+          ORDER BY changePercent DESC
+          LIMIT 10
+        `;
+                db.all(gainersSql, [date, date], (err, gainers) => {
                     if (err) {
                         reject(err);
                         return;
                     }
-                    // Insert snapshot
-                    const insertSnapshotSql = `
-            INSERT OR REPLACE INTO price_snapshots 
-            (date, totalCards, avgPrice, totalVolume, topGainers, topLosers)
-            VALUES (?, ?, ?, ?, ?, ?)
-          `;
-                    db.run(insertSnapshotSql, [
-                        date,
-                        (stats === null || stats === void 0 ? void 0 : stats.totalCards) || 0,
-                        (stats === null || stats === void 0 ? void 0 : stats.avgPrice) || 0,
-                        (stats === null || stats === void 0 ? void 0 : stats.totalVolume) || 0,
-                        JSON.stringify(gainers || []),
-                        JSON.stringify(losers || [])
-                    ], (err) => {
+                    const losersSql = gainersSql.replace('DESC', 'ASC');
+                    db.all(losersSql, [date, date], (err, losers) => {
+                        var _a;
                         if (err) {
                             reject(err);
+                            return;
                         }
-                        else {
-                            resolve();
-                        }
+                        // Insert snapshot
+                        const insertSnapshotSql = `
+              INSERT OR REPLACE INTO price_snapshots 
+              (date, totalCards, avgPrice, medianPrice, totalVolume, topGainers, topLosers)
+              VALUES (?, ?, ?, ?, ?, ?, ?)
+            `;
+                        db.run(insertSnapshotSql, [
+                            date,
+                            (stats === null || stats === void 0 ? void 0 : stats.totalCards) || 0,
+                            (stats === null || stats === void 0 ? void 0 : stats.avgPrice) || 0,
+                            (_a = medianRow === null || medianRow === void 0 ? void 0 : medianRow.medianPrice) !== null && _a !== void 0 ? _a : null,
+                            (stats === null || stats === void 0 ? void 0 : stats.totalVolume) || 0,
+                            JSON.stringify(gainers || []),
+                            JSON.stringify(losers || [])
+                        ], (err) => {
+                            if (err) {
+                                reject(err);
+                            }
+                            else {
+                                resolve();
+                            }
+                        });
                     });
                 });
             });
         });
     });
 });
+const crypto_1 = __importDefault(require("crypto"));
 const deterministicProductId = (cardId, variantKey) => {
     const input = `${cardId}|${variantKey}`;
-    let hash = 0;
-    for (let i = 0; i < input.length; i++) {
-        hash = ((hash << 5) - hash + input.charCodeAt(i)) | 0;
-    }
-    return Math.abs(hash) + 1;
+    const hash = crypto_1.default.createHash('sha256').update(input).digest();
+    // Use first 4 bytes as a 32-bit unsigned integer
+    // SHA-256 collision probability for N items is ~N^2 / 2^257, negligible for ~20k cards
+    return (hash.readUInt32BE(0) >>> 0) % 100000000 + 1;
 };
+exports.deterministicProductId = deterministicProductId;
 const snapshotFromPokemonCatalog = (date) => __awaiter(void 0, void 0, void 0, function* () {
     const db = (0, database_1.getDb)();
     const priceInsertSql = `
@@ -213,14 +238,14 @@ const snapshotFromPokemonCatalog = (date) => __awaiter(void 0, void 0, void 0, f
       source, lowPrice, highPrice, marketPrice, volume, uniqueIdentifier
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(productId, date, source, subTypeName) DO UPDATE SET
+    ON CONFLICT(uniqueIdentifier, date, source) DO UPDATE SET
       price = excluded.price,
       lowPrice = excluded.lowPrice,
       highPrice = excluded.highPrice,
       marketPrice = excluded.marketPrice,
       productName = excluded.productName,
       groupName = excluded.groupName,
-      uniqueIdentifier = excluded.uniqueIdentifier;
+      productId = excluded.productId;
   `;
     const rows = yield new Promise((resolve, reject) => {
         db.all(`SELECT cardId, cardName, setId, setName, cardNumber, tcgplayerProductId, tcgplayerPrices
@@ -263,19 +288,20 @@ const snapshotFromPokemonCatalog = (date) => __awaiter(void 0, void 0, void 0, f
             try {
                 for (const row of refreshedRows) {
                     const parsedPrices = JSON.parse(row.tcgplayerPrices || '{}');
-                    for (const [variantKey, variantValue] of Object.entries(parsedPrices)) {
+                    for (const [rawVariantKey, variantValue] of Object.entries(parsedPrices)) {
                         const priceData = variantValue;
                         const market = (_c = (_b = (_a = priceData.market) !== null && _a !== void 0 ? _a : priceData.mid) !== null && _b !== void 0 ? _b : priceData.low) !== null && _c !== void 0 ? _c : 0;
                         if (!market || market <= 0) {
                             continue;
                         }
+                        const variantKey = (0, exports.normalizeVariantKey)(rawVariantKey);
                         const uniqueIdentifier = (0, cardIdentifier_1.generateUniqueIdentifier)(row.setId, row.cardNumber, row.cardName, variantKey);
                         const parsedProductId = row.tcgplayerProductId
                             ? Number.parseInt(String(row.tcgplayerProductId), 10)
                             : Number.NaN;
                         const productId = Number.isFinite(parsedProductId)
                             ? parsedProductId
-                            : deterministicProductId(row.cardId || `${row.setId}-${row.cardNumber}-${row.cardName}`, variantKey);
+                            : (0, exports.deterministicProductId)(row.cardId || `${row.setId}-${row.cardNumber}-${row.cardName}`, variantKey);
                         stmt.run([
                             productId,
                             date,
@@ -322,89 +348,93 @@ const snapshotFromMarketProvider = (date, marketProvider) => __awaiter(void 0, v
       source, lowPrice, highPrice, marketPrice, volume, uniqueIdentifier
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(productId, date, source, subTypeName) DO UPDATE SET
+    ON CONFLICT(uniqueIdentifier, date, source) DO UPDATE SET
       price = excluded.price,
       lowPrice = excluded.lowPrice,
       highPrice = excluded.highPrice,
       marketPrice = excluded.marketPrice,
       productName = excluded.productName,
       groupName = excluded.groupName,
-      uniqueIdentifier = excluded.uniqueIdentifier;
+      productId = excluded.productId;
   `;
     const mappingInsertSql = `
     INSERT OR REPLACE INTO card_mappings 
-    (cardId, productId, cardName, setId, setName, cardNumber, rarity, variantKey, tcgplayerProductId, uniqueIdentifier, updatedAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    (cardId, productId, cardName, setId, setName, cardNumber, rarity, variantKey, tcgplayerProductId,
+     uniqueIdentifier, catalogSetId, imageSmall, imageLarge, imageSource, imageLastUpdated, updatedAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
   `;
     const priceStmt = db.prepare(priceInsertSql);
     const mappingStmt = db.prepare(mappingInsertSql);
     const concurrency = 6;
-    let index = 0;
-    const collected = [];
-    let cardsProcessed = 0;
-    let cardsFailed = 0;
-    let tcgdexAttempted = 0;
-    let tcgdexSuccessful = 0;
-    let tcgdexDisabledForRun = false;
-    yield Promise.all(Array.from({ length: concurrency }).map(() => __awaiter(void 0, void 0, void 0, function* () {
-        var _a;
-        while (true) {
-            const nextIndex = index;
-            index += 1;
-            if (nextIndex >= rows.length) {
-                return;
-            }
-            const row = rows[nextIndex];
-            const snapshot = tcgdexDisabledForRun
-                ? null
-                : yield marketProvider.getSnapshotForCard(row.cardId);
+    const chunkSize = Math.ceil(rows.length / concurrency);
+    const chunks = Array.from({ length: concurrency }, (_, i) => rows.slice(i * chunkSize, (i + 1) * chunkSize));
+    const workerResults = yield Promise.all(chunks.map((chunk) => __awaiter(void 0, void 0, void 0, function* () {
+        var _a, _b, _c;
+        const entries = [];
+        let cardsProcessed = 0;
+        let cardsFailed = 0;
+        let tcgdexAttempted = 0;
+        let tcgdexSuccessful = 0;
+        for (const row of chunk) {
+            const snapshot = yield marketProvider.getSnapshotForCard(row.cardId);
             const tcgdexPoints = (_a = snapshot === null || snapshot === void 0 ? void 0 : snapshot.points) !== null && _a !== void 0 ? _a : [];
-            if (!tcgdexDisabledForRun) {
-                tcgdexAttempted += 1;
-                if (tcgdexPoints.length > 0) {
-                    tcgdexSuccessful += 1;
+            tcgdexAttempted += 1;
+            if (tcgdexPoints.length > 0) {
+                tcgdexSuccessful += 1;
+            }
+            if (tcgdexPoints.length === 0) {
+                const fallbackPoints = extractCatalogFallbackPoints(row);
+                if (fallbackPoints.length === 0) {
+                    cardsFailed += 1;
+                    continue;
                 }
-                if (tcgdexAttempted >= 200 && tcgdexSuccessful === 0) {
-                    tcgdexDisabledForRun = true;
-                    logger_1.logger.warn('TCGdex appears unavailable for this run; switching to catalog fallback only', {
-                        attempted: tcgdexAttempted,
+                for (const point of fallbackPoints) {
+                    const variantKey = (0, exports.normalizeVariantKey)(point.subTypeName || point.variantKey);
+                    entries.push({
+                        row,
+                        variantKey,
+                        subTypeName: point.subTypeName || variantKey,
+                        productId: point.productId,
+                        marketPrice: point.marketPrice,
+                        lowPrice: point.lowPrice,
+                        highPrice: point.highPrice,
+                        source: 'catalog_fallback',
                     });
                 }
-            }
-            const fallbackPoints = tcgdexPoints.length > 0 ? [] : extractCatalogFallbackPoints(row);
-            const chosenPoints = tcgdexPoints.length > 0 ? tcgdexPoints : fallbackPoints;
-            if (chosenPoints.length === 0) {
-                cardsFailed += 1;
+                cardsProcessed += 1;
                 continue;
             }
-            for (const point of chosenPoints) {
-                const rawVariantName = 'rawVariantName' in point
-                    ? point.rawVariantName
-                    : 'subTypeName' in point
-                        ? point.subTypeName
-                        : point.variantKey;
-                const variantKey = normalizeVariantKey(rawVariantName || point.variantKey);
+            for (const point of tcgdexPoints) {
+                const rawVariantName = String((_c = (_b = point.rawVariantName) !== null && _b !== void 0 ? _b : point.subTypeName) !== null && _c !== void 0 ? _c : point.variantKey);
+                const variantKey = (0, exports.normalizeVariantKey)(rawVariantName || point.variantKey);
                 const candidateProductId = Number(point.productId);
                 const productId = Number.isFinite(candidateProductId) && candidateProductId > 0
                     ? candidateProductId
-                    : deterministicProductId(row.cardId, variantKey);
-                collected.push({
+                    : (0, exports.deterministicProductId)(row.cardId, variantKey);
+                entries.push({
                     row,
                     variantKey,
-                    subTypeName: rawVariantName || variantKey,
+                    subTypeName: variantKey,
                     productId,
                     marketPrice: point.marketPrice,
                     lowPrice: point.lowPrice,
                     highPrice: point.highPrice,
-                    source: tcgdexPoints.length > 0 ? 'tcgdex' : 'catalog_fallback',
+                    volume: point.volume,
+                    source: 'tcgdex',
                 });
             }
             cardsProcessed += 1;
         }
+        return { entries, cardsProcessed, cardsFailed, tcgdexAttempted, tcgdexSuccessful };
     })));
+    const collected = workerResults.flatMap((r) => r.entries);
+    let cardsProcessed = workerResults.reduce((s, r) => s + r.cardsProcessed, 0);
+    let cardsFailed = workerResults.reduce((s, r) => s + r.cardsFailed, 0);
+    let tcgdexAttempted = workerResults.reduce((s, r) => s + r.tcgdexAttempted, 0);
+    let tcgdexSuccessful = workerResults.reduce((s, r) => s + r.tcgdexSuccessful, 0);
     yield new Promise((resolve, reject) => {
         db.serialize(() => {
-            var _a, _b;
+            var _a, _b, _c;
             db.run('BEGIN TRANSACTION');
             try {
                 for (const entry of collected) {
@@ -420,7 +450,7 @@ const snapshotFromMarketProvider = (date, marketProvider) => __awaiter(void 0, v
                         (_a = entry.lowPrice) !== null && _a !== void 0 ? _a : null,
                         (_b = entry.highPrice) !== null && _b !== void 0 ? _b : null,
                         entry.marketPrice,
-                        null,
+                        (_c = entry.volume) !== null && _c !== void 0 ? _c : null,
                         uniqueIdentifier,
                     ]);
                     mappingStmt.run([
@@ -434,6 +464,10 @@ const snapshotFromMarketProvider = (date, marketProvider) => __awaiter(void 0, v
                         entry.variantKey,
                         entry.row.tcgplayerProductId || null,
                         uniqueIdentifier,
+                        entry.row.setId,
+                        entry.row.imageSmall || null,
+                        entry.row.imageLarge || null,
+                        entry.row.imageSmall || entry.row.imageLarge ? 'catalog_sync' : null,
                     ]);
                 }
                 priceStmt.finalize();
@@ -468,7 +502,7 @@ const updatePriceData = () => __awaiter(void 0, void 0, void 0, function* () {
         };
     }
     isUpdateRunning = true;
-    const runDate = getRunDate();
+    const runDate = (0, exports.getRunDate)();
     let syncRunId = null;
     try {
         logger_1.logger.info('Starting market price data update...', { runDate, timezone: SYNC_TIMEZONE });
@@ -510,6 +544,7 @@ const updatePriceData = () => __awaiter(void 0, void 0, void 0, function* () {
             });
         }
         return {
+            syncRunId,
             started: true,
             skipped: false,
             runDate,
@@ -531,6 +566,7 @@ const updatePriceData = () => __awaiter(void 0, void 0, void 0, function* () {
             });
         }
         return {
+            syncRunId,
             started: true,
             skipped: false,
             runDate,
