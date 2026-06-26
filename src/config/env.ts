@@ -27,17 +27,30 @@ const getBooleanEnvVar = (key: string, defaultValue: boolean = false): boolean =
   return value === 'true' || value === '1';
 };
 
-const configuredApiUrl = getEnvVar('VITE_API_URL', 'http://localhost:3001');
+const isLocalhostUrl = (url: string): boolean => /localhost|127\.0\.0\.1/.test(url);
+
+/** VITE_API_URL is canonical; VITE_BACKEND_URL is supported for older Vercel configs. */
+const resolveConfiguredApiUrl = (): string => {
+  const configured =
+    getEnvVar('VITE_API_URL') ||
+    getEnvVar('VITE_BACKEND_URL') ||
+    'http://localhost:3001';
+  return configured.replace(/\/$/, '');
+};
 
 /** Resolves backend base URL — in dev uses Vite origin so /api/* hits the proxy. */
 export function getApiUrl(): string {
+  const configuredApiUrl = resolveConfiguredApiUrl();
+
   if (typeof window !== 'undefined' && window.location?.origin) {
     if (import.meta.env.DEV) {
       return window.location.origin;
     }
-    if (!configuredApiUrl || /localhost|127\.0\.0\.1/.test(configuredApiUrl)) {
-      return window.location.origin;
+    if (configuredApiUrl && !isLocalhostUrl(configuredApiUrl)) {
+      return configuredApiUrl;
     }
+    // Same-origin fallback when nginx/Vercel proxies /api to the backend.
+    return window.location.origin;
   }
   return configuredApiUrl || 'http://localhost:3001';
 }

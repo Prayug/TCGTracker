@@ -27,6 +27,8 @@ jobs:
         run: npm run build
         env:
           NODE_ENV: production
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_BACKEND_URL: ${{ secrets.VITE_BACKEND_URL }}
 
       - name: Deploy to Vercel (Frontend)
         uses: amondnet/vercel-action@v25
