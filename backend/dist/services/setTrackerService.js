@@ -42,7 +42,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.fetchSetValueHistory = exports.computeSetSummary = exports.getCardMarketPrice = exports.rowToSetCardDto = exports.fetchSetCatalogRows = exports.resolveSetMeta = exports.extractMarketPriceFromVariants = exports.parsePrices = exports.CATALOG_PRODUCT_EXCLUSIONS = void 0;
+exports.fetchSetValueHistory = exports.trimUnreliableSetValueHistory = exports.computeSetSummary = exports.getCardMarketPrice = exports.rowToSetCardDto = exports.fetchSetCatalogRows = exports.resolveSetMeta = exports.extractMarketPriceFromVariants = exports.parsePrices = exports.CATALOG_PRODUCT_EXCLUSIONS = void 0;
 const database_1 = require("../db/database");
 const setAliasResolver_1 = require("./setAliasResolver");
 const PRICE_SOURCES = "('tcgcsv', 'tcgdex', 'catalog_fallback')";
@@ -376,6 +376,30 @@ const computeSetSummary = (cards, ownedIds, wishlistIds) => {
     };
 };
 exports.computeSetSummary = computeSetSummary;
+/** Minimum catalog coverage and value share before a daily total is chart-worthy. */
+const SET_VALUE_HISTORY_MIN_COVERAGE = 0.5;
+const SET_VALUE_HISTORY_MIN_VALUE_RATIO = 0.25;
+/**
+ * Drop leading days where only a handful of cards had prices (pre-sync noise).
+ * Requires both enough cards priced and a total value near the series peak.
+ */
+const trimUnreliableSetValueHistory = (history, totalCatalogCards) => {
+    if (history.length <= 1)
+        return history;
+    const peakPriced = totalCatalogCards && totalCatalogCards > 0
+        ? totalCatalogCards
+        : Math.max(...history.map((p) => p.cardsPriced));
+    const peakValue = Math.max(...history.map((p) => p.setValue));
+    if (peakPriced <= 0 || peakValue <= 0)
+        return history;
+    const minCards = Math.ceil(peakPriced * SET_VALUE_HISTORY_MIN_COVERAGE);
+    const minValue = peakValue * SET_VALUE_HISTORY_MIN_VALUE_RATIO;
+    const startIdx = history.findIndex((p) => p.cardsPriced >= minCards && p.setValue >= minValue);
+    if (startIdx <= 0)
+        return startIdx === -1 ? [] : history;
+    return history.slice(startIdx);
+};
+exports.trimUnreliableSetValueHistory = trimUnreliableSetValueHistory;
 const rangeToCutoff = (range) => {
     const now = new Date();
     const days = range === '30d' ? 30 : range === '90d' ? 90 : range === '1y' ? 365 : null;
@@ -504,6 +528,6 @@ const fetchSetValueHistory = (setId_1, ...args_1) => __awaiter(void 0, [setId_1,
         }
         result.push({ date, setValue, cardsPriced });
     }
-    return result;
+    return (0, exports.trimUnreliableSetValueHistory)(result, catalogCards.length);
 });
 exports.fetchSetValueHistory = fetchSetValueHistory;

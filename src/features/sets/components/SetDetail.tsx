@@ -65,7 +65,7 @@ export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
       setSetMeta(cardsRes.set);
       setCards(cardsRes.cards);
       setSummary(summaryRes.summary);
-      setPriceHistory(setTrackerService.toPricePoints(history));
+      setPriceHistory(setTrackerService.toPricePoints(history, summaryRes.summary.totalCards));
     } catch (e) {
       setError((e as Error).message);
     } finally {

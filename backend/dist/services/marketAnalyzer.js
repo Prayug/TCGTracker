@@ -8,6 +8,12 @@ exports.computeVolatility = computeVolatility;
 exports.findSupportResistance = findSupportResistance;
 exports.computeRecoveryMetrics = computeRecoveryMetrics;
 exports.analyzeSimilarCards = analyzeSimilarCards;
+function formatDate(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
 function getLatestPrice(points) {
     var _a;
     if (points.length === 0)
@@ -17,7 +23,7 @@ function getLatestPrice(points) {
 }
 function getPriceAtDate(points, targetDate) {
     var _a;
-    const target = targetDate.toISOString().split('T')[0];
+    const target = formatDate(targetDate);
     const sorted = [...points].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     const match = sorted.find(p => p.date <= target);
     if (match)
@@ -45,7 +51,7 @@ function computePriceChanges(points) {
         const currentPrice = (_a = now.marketPrice) !== null && _a !== void 0 ? _a : now.price;
         if (!currentPrice || currentPrice <= 0)
             return null;
-        const targetDate = new Date();
+        const targetDate = new Date(now.date);
         targetDate.setDate(targetDate.getDate() - days);
         const target = getPriceAtDate(sorted, targetDate);
         if (!target || target <= 0)

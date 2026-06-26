@@ -209,14 +209,11 @@ function computeExternalSignalScore(signals) {
             totalScore += 5;
         else if (signal.type === 'leak')
             totalScore += 3;
-        if (signal.sentiment > 0)
-            totalScore += signal.sentiment * 5;
-        else if (signal.sentiment < 0)
-            totalScore += signal.sentiment * 5;
+        totalScore += signal.sentiment * 5;
     }
     return Math.max(-30, Math.min(20, totalScore));
 }
-function computeExpectedReturns(scores, currentPrice) {
+function computeExpectedReturns(scores) {
     const trendN = scores.trendScore / 100;
     const recoveryN = scores.recoveryScore / 100;
     const demandN = scores.demandScore / 100;
@@ -287,6 +284,8 @@ function generateSuggestedAction(category, scores) {
             return 'Avoid / Reduce position';
         case 'downtrend':
             return 'Sell / Avoid';
+        default:
+            return 'No recommendation available';
     }
 }
 function generateExplanation(category, scores, priceChanges, recoveryMetrics, movingAverages, currentPrice, externalSignals) {
@@ -419,7 +418,7 @@ function predictSingleCard(card, allCardReturns) {
                 riskScore,
                 externalSignalScore,
             };
-            const expectedReturns = computeExpectedReturns(scores, currentPrice);
+            const expectedReturns = computeExpectedReturns(scores);
             const baseConfidence = Math.max(20, Math.min(95, 50
                 + (trendScore > 60 ? 10 : trendScore > 40 ? 5 : 0)
                 + (priceHistory.length > 90 ? 15 : priceHistory.length > 30 ? 8 : 0)

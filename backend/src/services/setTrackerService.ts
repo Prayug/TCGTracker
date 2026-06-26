@@ -481,6 +481,45 @@ export const computeSetSummary = (
 
 export type ValueHistoryRange = '30d' | '90d' | '1y' | 'all';
 
+export type SetValueHistoryRow = {
+  date: string;
+  setValue: number;
+  cardsPriced: number;
+};
+
+/** Minimum catalog coverage and value share before a daily total is chart-worthy. */
+const SET_VALUE_HISTORY_MIN_COVERAGE = 0.5;
+const SET_VALUE_HISTORY_MIN_VALUE_RATIO = 0.25;
+
+/**
+ * Drop leading days where only a handful of cards had prices (pre-sync noise).
+ * Requires both enough cards priced and a total value near the series peak.
+ */
+export const trimUnreliableSetValueHistory = <T extends SetValueHistoryRow>(
+  history: T[],
+  totalCatalogCards?: number
+): T[] => {
+  if (history.length <= 1) return history;
+
+  const peakPriced =
+    totalCatalogCards && totalCatalogCards > 0
+      ? totalCatalogCards
+      : Math.max(...history.map((p) => p.cardsPriced));
+
+  const peakValue = Math.max(...history.map((p) => p.setValue));
+  if (peakPriced <= 0 || peakValue <= 0) return history;
+
+  const minCards = Math.ceil(peakPriced * SET_VALUE_HISTORY_MIN_COVERAGE);
+  const minValue = peakValue * SET_VALUE_HISTORY_MIN_VALUE_RATIO;
+
+  const startIdx = history.findIndex(
+    (p) => p.cardsPriced >= minCards && p.setValue >= minValue
+  );
+
+  if (startIdx <= 0) return startIdx === -1 ? [] : history;
+  return history.slice(startIdx);
+};
+
 const rangeToCutoff = (range: ValueHistoryRange): string | null => {
   const now = new Date();
   const days =
@@ -666,5 +705,5 @@ export const fetchSetValueHistory = async (
     result.push({ date, setValue, cardsPriced });
   }
 
-  return result;
+  return trimUnreliableSetValueHistory(result, catalogCards.length);
 };
