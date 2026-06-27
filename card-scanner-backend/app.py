@@ -26,7 +26,7 @@ except ImportError:
         raise SystemExit(1)
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, supports_credentials=True)
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "temp_uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -34,6 +34,26 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 # Lazy-loaded recognizer
 _recognizer: CardRecognizer | None = None
 _recognizer_error: str | None = None
+_reference_ready: bool | None = None
+
+
+def _check_reference_db() -> dict:
+    """Check if the reference database is built and return status."""
+    global _reference_ready
+    try:
+        from pokemon_card_recognizer.reference.core.build import ReferenceBuild
+        ref_path = ReferenceBuild.get_path()
+        if not os.path.exists(ref_path):
+            _reference_ready = False
+            return {"ready": False, "error": "Reference directory not found", "path": ref_path}
+        pkl_files = [f for f in os.listdir(ref_path) if f.endswith(".pkl")]
+        _reference_ready = len(pkl_files) > 0
+        if not _reference_ready:
+            return {"ready": False, "error": "Reference database empty -- run build_reference.py", "path": ref_path}
+        return {"ready": True, "set_files": len(pkl_files), "path": ref_path}
+    except Exception as e:
+        _reference_ready = False
+        return {"ready": False, "error": str(e)}
 
 # Regex for Pokémon card numbers:
 # XY84, XY124, SM01, SWSH001, SV001, GG01, TG01, RC01, 123, 123/165 …
@@ -71,9 +91,9 @@ def get_recognizer() -> CardRecognizer:
         _recognizer_error = msg
         if "Reference build not found" in msg or "No such file" in msg:
             raise RuntimeError(
-                "Card reference database not found. "
-                "Run  python -m pokemon_card_recognizer.reference.core.build  "
-                "to build it first, then restart the server."
+                "Card reference database not built. "
+                "Run: python build_reference.py  (takes 30-60 min, requires Pokemon TCG API key). "
+                "Then restart this server."
             )
         raise
 
@@ -163,13 +183,17 @@ def _lookup_by_number(number: str, recognizer: CardRecognizer) -> dict | None:
     for card in ref.cards:
         card_num = str(getattr(card, "number", "") or "").upper()
         if card_num == number_upper:
-            return {
+            result = {
                 "name": _safe_str(card, "name"),
                 "set": _safe_set_name(card),
                 "number": _safe_str(card, "number", ""),
                 "id": getattr(card, "id", None),
                 "source": "card_number_direct",
             }
+            image = _safe_card_image(card)
+            if image:
+                result["image"] = image
+            return result
     return None
 
 
@@ -194,6 +218,18 @@ def _safe_set_name(card) -> str:
 def _safe_str(card, attr: str, fallback: str = "Unknown") -> str:
     val = getattr(card, attr, None)
     return str(val) if val is not None else fallback
+
+
+def _safe_card_image(card) -> dict | None:
+    """Extract image URLs from a card's .images attribute."""
+    images = getattr(card, "images", None)
+    if images is None:
+        return None
+    small = getattr(images, "small", None)
+    large = getattr(images, "large", None)
+    if not small and not large:
+        return None
+    return {"small": small, "large": large}
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -348,6 +384,9 @@ def scan_card():
                 "id": getattr(detected, "id", None),
                 "source": "word_match",
             }
+            image = _safe_card_image(detected)
+            if image:
+                card_info["image"] = image
         else:
             print("\n[SCAN DEBUG] No prediction returned — no vocab words matched.\n", flush=True)
             return jsonify({"success": False, "message": "No card detected in image", "debug": debug})
@@ -386,14 +425,30 @@ def _cleanup(path: str | None) -> None:
             pass
 
 
+@app.route("/api/reference-status", methods=["GET"])
+def reference_status():
+    """Check if the card reference database is built and ready."""
+    status = _check_reference_db()
+    return jsonify({"success": True, **status})
+
+
 if __name__ == "__main__":
     import sys
     port = int(os.environ.get("PORT", 5001))
     debug = os.environ.get("FLASK_DEBUG", "false").lower() in ("1", "true", "yes")
     print(f"Card Scanner Backend  →  http://localhost:{port}", flush=True)
     print(f"Health check          →  http://localhost:{port}/health", flush=True)
+    print(f"Reference status      →  http://localhost:{port}/api/reference-status", flush=True)
     print(f"Temp uploads          →  {os.path.abspath(UPLOAD_FOLDER)}", flush=True)
     print(f"Debug mode            →  {debug}", flush=True)
-    print("Press Ctrl+C to stop.\n", flush=True)
+
+    ref_status = _check_reference_db()
+    if ref_status["ready"]:
+        print(f"Reference database    →  Ready ({ref_status['set_files']} set files)")
+    else:
+        print(f"Reference database    →  NOT READY: {ref_status['error']}")
+        print(f"                       Run: python build_reference.py")
+
+    print("\nPress Ctrl+C to stop.\n", flush=True)
     sys.stdout.flush()
     app.run(debug=debug, host="0.0.0.0", port=port, use_reloader=False)

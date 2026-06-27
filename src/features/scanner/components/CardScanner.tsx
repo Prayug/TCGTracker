@@ -27,7 +27,7 @@ function ConfidenceBadge({ value }: { value: number }) {
 
 function ScanResultSheet({ result }: { result: ScanResult }) {
   if (!result.success || !result.card) return null;
-  const { name, set, number, confidence, id } = result.card;
+  const { name, set, number, confidence, id, image } = result.card;
 
   return (
     <div
@@ -49,26 +49,35 @@ function ScanResultSheet({ result }: { result: ScanResult }) {
         <ConfidenceBadge value={confidence} />
       </div>
 
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-border-subtle bg-surface-inset p-3">
-        <div>
-          <dt className="mb-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-muted">Name</dt>
-          <dd className="text-sm font-semibold text-ink-primary">{name}</dd>
-        </div>
-        <div>
-          <dt className="mb-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-muted">Set</dt>
-          <dd className="text-sm font-semibold text-ink-primary">{set}</dd>
-        </div>
-        <div>
-          <dt className="mb-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-muted">Number</dt>
-          <dd className="text-sm font-semibold tabular-nums text-ink-primary">{number || '—'}</dd>
-        </div>
-        {id && (
-          <div>
-            <dt className="mb-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-muted">ID</dt>
-            <dd className="truncate text-sm font-mono text-ink-secondary">{id}</dd>
-          </div>
+      <div className="mb-4 flex gap-4">
+        {image && (
+          <img
+            src={image.small}
+            alt={`${name} card`}
+            className="h-48 w-auto shrink-0 rounded-lg border border-border-subtle object-contain"
+          />
         )}
-      </dl>
+        <dl className="grid flex-1 grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-border-subtle bg-surface-inset p-3">
+          <div>
+            <dt className="mb-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-muted">Name</dt>
+            <dd className="text-sm font-semibold text-ink-primary">{name}</dd>
+          </div>
+          <div>
+            <dt className="mb-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-muted">Set</dt>
+            <dd className="text-sm font-semibold text-ink-primary">{set}</dd>
+          </div>
+          <div>
+            <dt className="mb-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-muted">Number</dt>
+            <dd className="text-sm font-semibold tabular-nums text-ink-primary">{number || '—'}</dd>
+          </div>
+          {id && (
+            <div>
+              <dt className="mb-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-muted">ID</dt>
+              <dd className="truncate text-sm font-mono text-ink-secondary">{id}</dd>
+            </div>
+          )}
+        </dl>
+      </div>
       <ScanResultActions result={result} />
     </div>
   );

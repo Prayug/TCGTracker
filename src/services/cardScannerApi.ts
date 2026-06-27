@@ -2,6 +2,10 @@ import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_CARD_SCANNER_API_URL || 'http://localhost:5001';
 
+// Scanner API uses its own axios instance to avoid inheriting withCredentials
+// from the global defaults (which is for Node backend auth cookies).
+const scannerAxios = axios.create({ withCredentials: false });
+
 export interface ScanResult {
   success: boolean;
   card?: {
@@ -10,6 +14,10 @@ export interface ScanResult {
     number: string;
     confidence: number;
     id: string | null;
+    image?: {
+      small: string;
+      large: string;
+    };
   };
   message?: string;
   error?: string;
@@ -29,7 +37,7 @@ export async function scanCardFromFile(file: File): Promise<ScanResult> {
   formData.append('image', file);
 
   try {
-    const response = await axios.post<ScanResult>(
+    const response = await scannerAxios.post<ScanResult>(
       `${API_BASE_URL}/api/scan-card`,
       formData,
       {
@@ -52,7 +60,7 @@ export async function scanCardFromFile(file: File): Promise<ScanResult> {
  */
 export async function scanCardFromBase64(base64Image: string): Promise<ScanResult> {
   try {
-    const response = await axios.post<ScanResult>(
+    const response = await scannerAxios.post<ScanResult>(
       `${API_BASE_URL}/api/scan-card`,
       {
         image: base64Image,
@@ -77,7 +85,7 @@ export async function scanCardFromBase64(base64Image: string): Promise<ScanResul
  */
 export async function getAvailableSets(): Promise<AvailableSets> {
   try {
-    const response = await axios.get<AvailableSets>(
+    const response = await scannerAxios.get<AvailableSets>(
       `${API_BASE_URL}/api/available-sets`
     );
     return response.data;
@@ -94,7 +102,7 @@ export async function getAvailableSets(): Promise<AvailableSets> {
  */
 export async function checkBackendHealth(): Promise<boolean> {
   try {
-    const response = await axios.get(`${API_BASE_URL}/health`, {
+    const response = await scannerAxios.get(`${API_BASE_URL}/health`, {
       timeout: 5000,
     });
     return response.data.status === 'ok';
