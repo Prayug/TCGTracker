@@ -12,22 +12,27 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updatePriceData = exports.deterministicProductId = exports.getRunDate = exports.normalizeVariantKey = void 0;
+exports.updatePriceData = exports.deterministicProductId = exports.getRunDate = exports.isValidPrice = exports.normalizeVariantKey = void 0;
 const database_1 = require("../db/database");
 const cardIdentifier_1 = require("./cardIdentifier");
 const cloudBackupService_1 = require("./cloudBackupService");
 const logger_1 = require("../utils/logger");
 const catalogSync_1 = require("./catalogSync");
 const tcgdexMarketProvider_1 = require("./providers/tcgdexMarketProvider");
+const normalizeVariantKey_1 = require("../utils/normalizeVariantKey");
+var normalizeVariantKey_2 = require("../utils/normalizeVariantKey");
+Object.defineProperty(exports, "normalizeVariantKey", { enumerable: true, get: function () { return normalizeVariantKey_2.normalizeVariantKey; } });
 const SYNC_TIMEZONE = 'America/New_York';
 let isUpdateRunning = false;
-const normalizeVariantKey = (value) => {
-    if (!value)
-        return 'normal';
-    const normalized = value.toLowerCase().replace(/[^a-z0-9]/g, '');
-    return normalized || 'normal';
+let updateQueue = null;
+const MAX_REASONABLE_PRICE = 50000;
+const MIN_PRICE = 0.01;
+const isValidPrice = (price) => {
+    if (price == null || !Number.isFinite(price))
+        return false;
+    return price >= MIN_PRICE && price <= MAX_REASONABLE_PRICE;
 };
-exports.normalizeVariantKey = normalizeVariantKey;
+exports.isValidPrice = isValidPrice;
 const getRunDate = () => {
     const formatter = new Intl.DateTimeFormat('en-CA', {
         timeZone: SYNC_TIMEZONE,
@@ -112,7 +117,7 @@ const extractCatalogFallbackPoints = (row) => {
             if (!marketPrice || marketPrice <= 0) {
                 return null;
             }
-            const variantKey = (0, exports.normalizeVariantKey)(rawVariant);
+            const variantKey = (0, normalizeVariantKey_1.normalizeVariantKey)(rawVariant);
             const parsedProductId = row.tcgplayerProductId
                 ? Number.parseInt(String(row.tcgplayerProductId), 10)
                 : Number.NaN;
@@ -294,7 +299,10 @@ const snapshotFromPokemonCatalog = (date) => __awaiter(void 0, void 0, void 0, f
                         if (!market || market <= 0) {
                             continue;
                         }
-                        const variantKey = (0, exports.normalizeVariantKey)(rawVariantKey);
+                        if (!(0, exports.isValidPrice)(market)) {
+                            continue;
+                        }
+                        const variantKey = (0, normalizeVariantKey_1.normalizeVariantKey)(rawVariantKey);
                         const uniqueIdentifier = (0, cardIdentifier_1.generateUniqueIdentifier)(row.setId, row.cardNumber, row.cardName, variantKey);
                         const parsedProductId = row.tcgplayerProductId
                             ? Number.parseInt(String(row.tcgplayerProductId), 10)
@@ -389,15 +397,18 @@ const snapshotFromMarketProvider = (date, marketProvider) => __awaiter(void 0, v
                     continue;
                 }
                 for (const point of fallbackPoints) {
-                    const variantKey = (0, exports.normalizeVariantKey)(point.subTypeName || point.variantKey);
+                    const variantKey = (0, normalizeVariantKey_1.normalizeVariantKey)(point.subTypeName || point.variantKey);
+                    if (!(0, exports.isValidPrice)(point.marketPrice)) {
+                        continue;
+                    }
                     entries.push({
                         row,
                         variantKey,
                         subTypeName: point.subTypeName || variantKey,
                         productId: point.productId,
                         marketPrice: point.marketPrice,
-                        lowPrice: point.lowPrice,
-                        highPrice: point.highPrice,
+                        lowPrice: (0, exports.isValidPrice)(point.lowPrice) ? point.lowPrice : undefined,
+                        highPrice: (0, exports.isValidPrice)(point.highPrice) ? point.highPrice : undefined,
                         source: 'catalog_fallback',
                     });
                 }
@@ -406,19 +417,22 @@ const snapshotFromMarketProvider = (date, marketProvider) => __awaiter(void 0, v
             }
             for (const point of tcgdexPoints) {
                 const rawVariantName = String((_c = (_b = point.rawVariantName) !== null && _b !== void 0 ? _b : point.subTypeName) !== null && _c !== void 0 ? _c : point.variantKey);
-                const variantKey = (0, exports.normalizeVariantKey)(rawVariantName || point.variantKey);
+                const variantKey = (0, normalizeVariantKey_1.normalizeVariantKey)(rawVariantName || point.variantKey);
                 const candidateProductId = Number(point.productId);
                 const productId = Number.isFinite(candidateProductId) && candidateProductId > 0
                     ? candidateProductId
                     : (0, exports.deterministicProductId)(row.cardId, variantKey);
+                if (!(0, exports.isValidPrice)(point.marketPrice)) {
+                    continue;
+                }
                 entries.push({
                     row,
                     variantKey,
                     subTypeName: variantKey,
                     productId,
                     marketPrice: point.marketPrice,
-                    lowPrice: point.lowPrice,
-                    highPrice: point.highPrice,
+                    lowPrice: (0, exports.isValidPrice)(point.lowPrice) ? point.lowPrice : undefined,
+                    highPrice: (0, exports.isValidPrice)(point.highPrice) ? point.highPrice : undefined,
                     volume: point.volume,
                     source: 'tcgdex',
                 });
@@ -495,13 +509,30 @@ const snapshotFromMarketProvider = (date, marketProvider) => __awaiter(void 0, v
 });
 const updatePriceData = () => __awaiter(void 0, void 0, void 0, function* () {
     if (isUpdateRunning) {
+        if (updateQueue) {
+            yield updateQueue;
+        }
         return {
+            syncRunId: null,
             started: false,
             skipped: true,
+            runDate: (0, exports.getRunDate)(),
             reason: 'Update already running',
         };
     }
     isUpdateRunning = true;
+    const updatePromise = performPriceUpdate();
+    updateQueue = updatePromise;
+    try {
+        return yield updatePromise;
+    }
+    finally {
+        isUpdateRunning = false;
+        updateQueue = null;
+    }
+});
+exports.updatePriceData = updatePriceData;
+const performPriceUpdate = () => __awaiter(void 0, void 0, void 0, function* () {
     const runDate = (0, exports.getRunDate)();
     let syncRunId = null;
     try {
@@ -573,8 +604,4 @@ const updatePriceData = () => __awaiter(void 0, void 0, void 0, function* () {
             error: error.message,
         };
     }
-    finally {
-        isUpdateRunning = false;
-    }
 });
-exports.updatePriceData = updatePriceData;

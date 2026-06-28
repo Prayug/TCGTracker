@@ -5,14 +5,20 @@ import { logger } from '../utils/logger';
 import { syncCatalogData } from './catalogSync';
 import { tcgdexMarketProvider } from './providers/tcgdexMarketProvider';
 import { MarketPriceProvider } from './providers/contracts';
+import { normalizeVariantKey } from '../utils/normalizeVariantKey';
+
+export { normalizeVariantKey } from '../utils/normalizeVariantKey';
 
 const SYNC_TIMEZONE = 'America/New_York';
 let isUpdateRunning = false;
+let updateQueue: Promise<any> | null = null;
 
-export const normalizeVariantKey = (value?: string): string => {
-  if (!value) return 'normal';
-  const normalized = value.toLowerCase().replace(/[^a-z0-9]/g, '');
-  return normalized || 'normal';
+const MAX_REASONABLE_PRICE = 50000;
+const MIN_PRICE = 0.01;
+
+export const isValidPrice = (price: number | null | undefined): boolean => {
+  if (price == null || !Number.isFinite(price)) return false;
+  return price >= MIN_PRICE && price <= MAX_REASONABLE_PRICE;
 };
 
 export const getRunDate = (): string => {
@@ -349,6 +355,10 @@ const snapshotFromPokemonCatalog = async (date: string) => {
               continue;
             }
 
+            if (!isValidPrice(market)) {
+              continue;
+            }
+
             const variantKey = normalizeVariantKey(rawVariantKey);
             const uniqueIdentifier = generateUniqueIdentifier(
               row.setId,
@@ -485,14 +495,17 @@ const snapshotFromMarketProvider = async (
 
           for (const point of fallbackPoints) {
             const variantKey = normalizeVariantKey(point.subTypeName || point.variantKey);
+            if (!isValidPrice(point.marketPrice)) {
+              continue;
+            }
             entries.push({
               row,
               variantKey,
               subTypeName: point.subTypeName || variantKey,
               productId: point.productId,
               marketPrice: point.marketPrice,
-              lowPrice: point.lowPrice,
-              highPrice: point.highPrice,
+              lowPrice: isValidPrice(point.lowPrice) ? point.lowPrice : undefined,
+              highPrice: isValidPrice(point.highPrice) ? point.highPrice : undefined,
               source: 'catalog_fallback',
             });
           }
@@ -511,14 +524,18 @@ const snapshotFromMarketProvider = async (
               ? candidateProductId
               : deterministicProductId(row.cardId, variantKey);
 
+          if (!isValidPrice(point.marketPrice)) {
+            continue;
+          }
+
           entries.push({
             row,
             variantKey,
             subTypeName: variantKey,
             productId,
             marketPrice: point.marketPrice,
-            lowPrice: point.lowPrice,
-            highPrice: point.highPrice,
+            lowPrice: isValidPrice(point.lowPrice) ? point.lowPrice : undefined,
+            highPrice: isValidPrice(point.highPrice) ? point.highPrice : undefined,
             volume: point.volume,
             source: 'tcgdex',
           });
@@ -607,14 +624,31 @@ const snapshotFromMarketProvider = async (
 
 export const updatePriceData = async () => {
   if (isUpdateRunning) {
+    if (updateQueue) {
+      await updateQueue;
+    }
     return {
+      syncRunId: null,
       started: false,
       skipped: true,
+      runDate: getRunDate(),
       reason: 'Update already running',
     };
   }
 
   isUpdateRunning = true;
+  const updatePromise = performPriceUpdate();
+  updateQueue = updatePromise;
+
+  try {
+    return await updatePromise;
+  } finally {
+    isUpdateRunning = false;
+    updateQueue = null;
+  }
+};
+
+const performPriceUpdate = async () => {
   const runDate = getRunDate();
   let syncRunId: number | null = null;
 
@@ -671,7 +705,6 @@ export const updatePriceData = async () => {
       groupsFailed,
       cloudBackup,
     };
-    
   } catch (error) {
     logger.error('An error occurred during the price data update process', {
       error: (error as Error).message,
@@ -691,7 +724,5 @@ export const updatePriceData = async () => {
       runDate,
       error: (error as Error).message,
     };
-  } finally {
-    isUpdateRunning = false;
   }
 };

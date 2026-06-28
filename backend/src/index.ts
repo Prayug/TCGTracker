@@ -3,6 +3,8 @@ import cron from 'node-cron';
 import swaggerUi from 'swagger-ui-express';
 import priceHistoryRouter from './routes/priceHistory';
 import cardSearchRouter from './routes/cardSearch';
+import onePieceCardsRouter from './routes/onePieceCards';
+import { syncOnePieceData, isOnePieceCatalogIncomplete } from './services/onePieceSync';
 import setTrackerRouter from './routes/setTracker';
 import enhancedPacksRouter from './routes/enhancedPacks';
 import marketInsightsRouter from './routes/marketInsights';
@@ -117,12 +119,27 @@ function setupRoutes(
     { timezone: 'America/New_York' }
   );
 
+  cron.schedule(
+    '45 1 * * *',
+    async () => {
+      logger.info('Running scheduled One Piece catalog and price sync...');
+      try {
+        const result = await syncOnePieceData();
+        logger.info('One Piece sync completed', result);
+      } catch (error: any) {
+        logger.error('Failed to sync One Piece data', { error: error.message });
+      }
+    },
+    { timezone: 'America/New_York' }
+  );
+
   app.use('/api/auth', authLimiter, createAuthRouter(authService));
   app.use('/api/alerts', createAlertsRouter(alertService));
   app.use('/api/portfolio', createPortfolioRouter(portfolioService));
   app.use('/api/prices', priceHistoryRouter);
   app.use('/api/cards', setTrackerRouter);
   app.use('/api/cards', cardSearchRouter);
+  app.use('/api/cards', onePieceCardsRouter);
   app.use('/api/packs', enhancedPacksRouter);
   app.use('/api/market-insights', marketInsightsRouter);
 
@@ -152,10 +169,11 @@ function setupRoutes(
         return;
       }
       logger.info('Manual update finished', result);
+      const successResult = result as { syncRunId: number; totalPricesProcessed: number };
       res.status(202).json({
         success: true,
-        syncRunId: result.syncRunId,
-        message: `Data update process completed. Prices processed: ${result.totalPricesProcessed}`,
+        syncRunId: successResult.syncRunId,
+        message: `Data update process completed. Prices processed: ${successResult.totalPricesProcessed}`,
       });
     } catch (error: any) {
       logger.error('Error during manual update', { error: error.message });
@@ -228,6 +246,20 @@ function setupRoutes(
     }
   });
 
+  app.post('/api/sync-onepiece', authenticate, requireAdmin, async (_req, res) => {
+    try {
+      logger.info('Manual One Piece sync requested');
+      syncOnePieceData()
+        .then((result) => logger.info('Manual One Piece sync completed', result))
+        .catch((error: any) => logger.error('Manual One Piece sync failed', { error: error.message }));
+
+      res.status(202).json({ success: true, message: 'One Piece sync started in background.' });
+    } catch (error: any) {
+      logger.error('Error starting manual One Piece sync', { error: error.message });
+      res.status(500).json({ success: false, error: 'Failed to start One Piece sync process' });
+    }
+  });
+
   app.get('/health', (_req, res) => {
     res.status(200).json({
       status: 'healthy',
@@ -254,6 +286,7 @@ function setupRoutes(
         version: '1.0.0',
         scheduledTasks: {
           catalogSync: 'Daily at 1:30 AM EST',
+          onePieceSync: 'Daily at 1:45 AM EST',
           dataUpdate: 'Daily at 2:00 AM EST',
           predictions: 'Daily at 3:00 AM EST',
         },
@@ -324,6 +357,22 @@ async function bootstrap() {
           logger.warn('Startup image backfill failed (non-fatal)', { error: (error as Error).message })
         );
     }, 15_000);
+
+    setTimeout(async () => {
+      try {
+        const incomplete = await isOnePieceCatalogIncomplete();
+        if (incomplete) {
+          logger.info('One Piece catalog incomplete — running sync in background');
+          syncOnePieceData()
+            .then((result) => logger.info('One Piece sync completed', result))
+            .catch((error) =>
+              logger.warn('One Piece sync failed (non-fatal)', { error: (error as Error).message })
+            );
+        }
+      } catch (error) {
+        logger.warn('One Piece catalog check failed (non-fatal)', { error: (error as Error).message });
+      }
+    }, 20_000);
   } catch (error) {
     logger.error('Failed to start server', { error });
     process.exit(1);

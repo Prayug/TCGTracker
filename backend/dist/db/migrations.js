@@ -517,6 +517,61 @@ exports.migrations = [
             logger_1.logger.info('Skipping rollback of set_id_aliases (SQLite limitation)');
         }),
     },
+    {
+        id: 11,
+        name: 'onepiece_catalog_variant_schema',
+        up: (db) => __awaiter(void 0, void 0, void 0, function* () {
+            const run = (sql) => new Promise((resolve, reject) => {
+                db.run(sql, (err) => {
+                    if (err)
+                        reject(err);
+                    else
+                        resolve();
+                });
+            });
+            yield run('DROP TABLE IF EXISTS onepiece_price_history');
+            yield run('DROP TABLE IF EXISTS onepiece_catalog');
+            yield run(`CREATE TABLE onepiece_catalog (
+        catalogId TEXT PRIMARY KEY,
+        cardSetId TEXT NOT NULL,
+        cardImageId TEXT NOT NULL,
+        cardName TEXT NOT NULL,
+        setId TEXT NOT NULL,
+        setName TEXT NOT NULL,
+        rarity TEXT,
+        cardColor TEXT,
+        cardType TEXT,
+        cardCost TEXT,
+        cardPower TEXT,
+        counterAmount INTEGER,
+        life TEXT,
+        subTypes TEXT,
+        attribute TEXT,
+        cardText TEXT,
+        imageUrl TEXT,
+        marketPrice REAL,
+        inventoryPrice REAL,
+        syncedAt TEXT DEFAULT (datetime('now'))
+      )`);
+            yield run(`CREATE TABLE onepiece_price_history (
+        catalogId TEXT NOT NULL,
+        date TEXT NOT NULL,
+        marketPrice REAL,
+        inventoryPrice REAL,
+        source TEXT NOT NULL DEFAULT 'optcg',
+        PRIMARY KEY (catalogId, date, source)
+      )`);
+            yield run('CREATE INDEX IF NOT EXISTS idx_onepiece_catalog_name ON onepiece_catalog(cardName)');
+            yield run('CREATE INDEX IF NOT EXISTS idx_onepiece_catalog_set ON onepiece_catalog(setId, setName)');
+            yield run('CREATE INDEX IF NOT EXISTS idx_onepiece_catalog_card_set_id ON onepiece_catalog(cardSetId)');
+            yield run('CREATE INDEX IF NOT EXISTS idx_onepiece_price_history_card ON onepiece_price_history(catalogId)');
+            yield run('CREATE INDEX IF NOT EXISTS idx_onepiece_price_history_date ON onepiece_price_history(date)');
+            logger_1.logger.info('Rebuilt One Piece catalog tables with per-variant catalogId primary key');
+        }),
+        down: () => __awaiter(void 0, void 0, void 0, function* () {
+            logger_1.logger.info('Skipping rollback of One Piece variant schema');
+        }),
+    },
 ];
 // Run pending migrations
 const runMigrations = (db) => __awaiter(void 0, void 0, void 0, function* () {

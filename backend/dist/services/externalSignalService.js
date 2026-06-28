@@ -14,7 +14,13 @@ exports.getExternalSignalsForCard = getExternalSignalsForCard;
 const database_1 = require("../db/database");
 const logger_1 = require("../utils/logger");
 const SIGNAL_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-/** External market signals are not yet integrated — returns cached or empty. */
+/**
+ * External market signals are not yet integrated.
+ * Returns cached signals from the database or an empty array.
+ *
+ * TODO: Implement real signal sources (news RSS, social media sentiment, tournament data).
+ * When implemented, populate the external_market_signals table via a separate cron job.
+ */
 function searchExternalSignals(cardName, setName) {
     return __awaiter(this, void 0, void 0, function* () {
         try {

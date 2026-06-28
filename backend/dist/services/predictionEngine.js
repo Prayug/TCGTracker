@@ -217,17 +217,14 @@ function computeExpectedReturns(scores) {
     const trendN = scores.trendScore / 100;
     const recoveryN = scores.recoveryScore / 100;
     const demandN = scores.demandScore / 100;
-    const externalN = (scores.externalSignalScore + 30) / 50;
     const riskN = scores.riskScore / 100;
-    const raw30d = 0.30 * trendN +
-        0.25 * recoveryN +
-        0.20 * demandN +
-        0.15 * externalN -
+    const raw30d = 0.35 * trendN +
+        0.30 * recoveryN +
+        0.25 * demandN -
         0.10 * riskN;
-    const scaled30d = (raw30d - 0.5) * 0.4;
-    const expected30dReturn = scaled30d;
-    const expected7dReturn = scaled30d * 0.35;
-    const expected90dReturn = scaled30d * 1.8;
+    const expected30dReturn = (raw30d - 0.40) * 0.4;
+    const expected7dReturn = expected30dReturn * 0.35;
+    const expected90dReturn = expected30dReturn * 1.8;
     return { expected7dReturn, expected30dReturn, expected90dReturn };
 }
 function computePriceRanges(currentPrice, expectedReturn, volatility, days, confidence) {
@@ -395,7 +392,7 @@ function predictSingleCard(card, allCardReturns) {
             if (!uid)
                 return null;
             const priceHistory = yield fetchCardPriceHistory(uid);
-            if (priceHistory.length < 14)
+            if (priceHistory.length < 7)
                 return null;
             const currentPrice = (0, marketAnalyzer_1.getLatestPrice)(priceHistory);
             if (!currentPrice || currentPrice <= 0)
@@ -421,9 +418,10 @@ function predictSingleCard(card, allCardReturns) {
             const expectedReturns = computeExpectedReturns(scores);
             const baseConfidence = Math.max(20, Math.min(95, 50
                 + (trendScore > 60 ? 10 : trendScore > 40 ? 5 : 0)
-                + (priceHistory.length > 90 ? 15 : priceHistory.length > 30 ? 8 : 0)
+                + (priceHistory.length > 90 ? 15 : priceHistory.length > 30 ? 8 : priceHistory.length > 14 ? 3 : 0)
                 + (demandScore > 60 ? 10 : 0)
-                - (riskScore > 70 ? 10 : riskScore > 50 ? 5 : 0)));
+                - (riskScore > 70 ? 10 : riskScore > 50 ? 5 : 0)
+                - (priceHistory.length < 14 ? 15 : priceHistory.length < 30 ? 5 : 0)));
             const volatilityAdjust = volatility.monthlyVolatility;
             const confidenceScore = Math.max(10, Math.min(95, Math.round(baseConfidence * (1 - volatilityAdjust * 0.5))));
             const category = determineCategory(scores, expectedReturns.expected90dReturn, priceChanges, recoveryMetrics);

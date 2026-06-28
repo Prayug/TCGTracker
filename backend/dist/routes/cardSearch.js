@@ -53,6 +53,7 @@ const cardImageUtils_1 = require("../services/cardImageUtils");
 const cardDatabase_1 = require("../services/cardDatabase");
 const populationService_1 = require("../services/populationService");
 const cardImageBackfillService_1 = require("../services/cardImageBackfillService");
+const cardEnrichment_1 = require("../services/cardEnrichment");
 const router = (0, express_1.Router)();
 const parsePrices = (value) => {
     if (!value) {
@@ -544,7 +545,7 @@ router.get('/pokemon', (req, res) => __awaiter(void 0, void 0, void 0, function*
             if (!rows || rows.length === 0) {
                 return null;
             }
-            const cards = yield (0, cardDatabase_1.mapLocalRowsToPokemonCards)(rows);
+            const cards = yield (0, cardEnrichment_1.enrichCardsWithInvestmentData)(yield (0, cardDatabase_1.mapLocalRowsToPokemonCards)(rows));
             return {
                 data: cards,
                 totalCount: cards.length,
@@ -565,8 +566,9 @@ router.get('/pokemon', (req, res) => __awaiter(void 0, void 0, void 0, function*
         const now = Date.now();
         const inMemory = cardCache_1.pokemonApiCache.get(cacheKey);
         if (inMemory && now - inMemory.fetchedAt < cardCache_1.POKEMON_CACHE_TTL) {
+            const enrichedData = yield (0, cardEnrichment_1.enrichCardsWithInvestmentData)(inMemory.data);
             return res.json({
-                data: inMemory.data,
+                data: enrichedData,
                 totalCount: inMemory.totalCount,
                 pageSize: inMemory.pageSize,
                 pagesFetched: inMemory.pagesFetched,
@@ -582,6 +584,7 @@ router.get('/pokemon', (req, res) => __awaiter(void 0, void 0, void 0, function*
             now - (persistentCacheEntry.fetchedAt || 0) < cardCache_1.POKEMON_PERSISTENT_CACHE_TTL) {
             const payload = respondWithPersistent(Object.assign(Object.assign({}, persistentCacheEntry), { pageSize: persistentCacheEntry.pageSize || limit }));
             if (payload) {
+                payload.data = yield (0, cardEnrichment_1.enrichCardsWithInvestmentData)(payload.data);
                 cardCache_1.pokemonApiCache.set(cacheKey, {
                     data: payload.data,
                     totalCount: payload.totalCount,
@@ -599,7 +602,7 @@ router.get('/pokemon', (req, res) => __awaiter(void 0, void 0, void 0, function*
             fetchAll: shouldFetchAll,
             maxPages: maxPagesToFetch,
         });
-        const uniqueCards = apiResult.cards;
+        const uniqueCards = yield (0, cardEnrichment_1.enrichCardsWithInvestmentData)(apiResult.cards);
         if (uniqueCards.length === 0) {
             logger_1.logger.warn(`⚠️ No cards from Pokemon API for query "${sanitizedQuery}", trying fallbacks...`);
             if (buildLocalFallbackResponse) {
@@ -612,6 +615,7 @@ router.get('/pokemon', (req, res) => __awaiter(void 0, void 0, void 0, function*
             if (persistentCacheEntry) {
                 const payload = respondWithPersistent(Object.assign(Object.assign({}, persistentCacheEntry), { pageSize: persistentCacheEntry.pageSize || limit }), true);
                 if (payload) {
+                    payload.data = yield (0, cardEnrichment_1.enrichCardsWithInvestmentData)(payload.data);
                     logger_1.logger.info(`✅ Serving ${payload.data.length} stale cached cards as fallback`);
                     return res.json(payload);
                 }
@@ -673,6 +677,7 @@ router.get('/pokemon', (req, res) => __awaiter(void 0, void 0, void 0, function*
         if (persistentCacheEntry) {
             const payload = respondWithPersistent(persistentCacheEntry, true);
             if (payload) {
+                payload.data = yield (0, cardEnrichment_1.enrichCardsWithInvestmentData)(payload.data);
                 logger_1.logger.info(`✅ Serving ${payload.data.length} stale cached cards (error fallback)`);
                 return res.status(200).json(payload);
             }

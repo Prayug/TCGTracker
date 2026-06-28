@@ -11,21 +11,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.tcgdexMarketProvider = exports.TcgdexMarketProvider = void 0;
 const logger_1 = require("../../utils/logger");
+const normalizeVariantKey_1 = require("../../utils/normalizeVariantKey");
 const TCGDEX_BASE_URL = 'https://api.tcgdex.net/v2/en';
-const normalizeVariantKey = (raw) => {
-    const cleaned = raw.toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (!cleaned)
-        return 'normal';
-    if (cleaned.includes('firstedition'))
-        return '1stedition';
-    if (cleaned.includes('reverse'))
-        return 'reverseholofoil';
-    if (cleaned.includes('holo'))
-        return 'holofoil';
-    if (cleaned.includes('normal'))
-        return 'normal';
-    return cleaned;
-};
 class TcgdexMarketProvider {
     constructor() {
         this.timeoutMs = 8000;
@@ -71,7 +58,7 @@ class TcgdexMarketProvider {
                         return null;
                     }
                     return {
-                        variantKey: normalizeVariantKey(rawVariantName),
+                        variantKey: (0, normalizeVariantKey_1.normalizeVariantKey)(rawVariantName),
                         rawVariantName,
                         productId: (_b = value.productId) !== null && _b !== void 0 ? _b : 0,
                         marketPrice,
