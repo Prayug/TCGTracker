@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { Filter, Search, Sparkles, X } from 'lucide-react';
 import { SortOption, FilterOption } from '../../../types/pokemon';
+import { OnePieceSortOption } from '../../../types/onepiece';
 
 interface SearchAndSortProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  sortBy: SortOption;
-  onSortChange: (sort: SortOption) => void;
+  sortBy: SortOption | OnePieceSortOption;
+  onSortChange: (sort: SortOption | OnePieceSortOption) => void;
   filterBy: FilterOption;
   onFilterChange: (filter: FilterOption) => void;
   isLoading?: boolean;
   onOpenAdvancedFilters?: () => void;
   activeFilterCount?: number;
+  isOnePiece?: boolean;
 }
 
 const FILTER_OPTIONS: { value: FilterOption; label: string }[] = [
@@ -41,6 +43,7 @@ export const SearchFilters: React.FC<SearchAndSortProps> = ({
   isLoading = false,
   onOpenAdvancedFilters,
   activeFilterCount = 0,
+  isOnePiece = false,
 }) => {
   const [inputValue, setInputValue] = useState(searchQuery);
 
@@ -101,7 +104,7 @@ export const SearchFilters: React.FC<SearchAndSortProps> = ({
           </button>
           <select
             value={sortBy}
-            onChange={(e) => onSortChange(e.target.value as SortOption)}
+            onChange={(e) => onSortChange(e.target.value as SortOption | OnePieceSortOption)}
             disabled={isLoading}
             className="h-9 min-w-0 flex-1 rounded-lg border border-border-default bg-surface-inset px-3 text-xs font-semibold uppercase tracking-wider text-ink-secondary focus:border-accent focus:outline-none sm:min-w-[140px] sm:flex-none lg:min-w-[160px]"
           >
@@ -109,46 +112,56 @@ export const SearchFilters: React.FC<SearchAndSortProps> = ({
             <option value="price-low">Sort: Price Low</option>
             <option value="name-asc">Sort: Name A-Z</option>
             <option value="name-desc">Sort: Name Z-A</option>
-            <option value="date-new">Sort: Newest Set</option>
-            <option value="date-old">Sort: Oldest Set</option>
+            {!isOnePiece && (
+              <>
+                <option value="date-new">Sort: Newest Set</option>
+                <option value="date-old">Sort: Oldest Set</option>
+              </>
+            )}
             <option value="rarity">Sort: Rarity</option>
           </select>
-          <select
-            value={filterBy}
-            onChange={(e) => onFilterChange(e.target.value as FilterOption)}
-            disabled={isLoading}
-            className="h-9 min-w-0 flex-1 rounded-lg border border-border-default bg-surface-inset px-3 text-xs font-semibold uppercase tracking-wider text-ink-secondary focus:border-accent focus:outline-none sm:min-w-[140px] sm:flex-none lg:min-w-[160px]"
-          >
-            {FILTER_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+          {!isOnePiece && (
+            <select
+              value={filterBy}
+              onChange={(e) => onFilterChange(e.target.value as FilterOption)}
+              disabled={isLoading}
+              className="h-9 min-w-0 flex-1 rounded-lg border border-border-default bg-surface-inset px-3 text-xs font-semibold uppercase tracking-wider text-ink-secondary focus:border-accent focus:outline-none sm:min-w-[140px] sm:flex-none lg:min-w-[160px]"
+            >
+              {FILTER_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        {FILTER_CHIPS.map((chip) => (
-          <button
-            key={chip.value}
-            onClick={() => onFilterChange(chip.value)}
-            disabled={isLoading}
-            className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-              filterBy === chip.value
-                ? 'bg-emerald-500/20 text-emerald-300'
-                : 'bg-surface-hover text-ink-secondary hover:bg-surface-hover'
-            } disabled:cursor-not-allowed disabled:opacity-60`}
-          >
-            {chip.label}
-          </button>
-        ))}
-      </div>
+      {!isOnePiece && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {FILTER_CHIPS.map((chip) => (
+            <button
+              key={chip.value}
+              onClick={() => onFilterChange(chip.value)}
+              disabled={isLoading}
+              className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                filterBy === chip.value
+                  ? 'bg-emerald-500/20 text-emerald-300'
+                  : 'bg-surface-hover text-ink-secondary hover:bg-surface-hover'
+              } disabled:cursor-not-allowed disabled:opacity-60`}
+            >
+              {chip.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {!searchQuery && !isLoading && (
         <p className="mt-3 inline-flex items-center gap-1.5 text-xs text-ink-muted">
           <Sparkles className="h-3.5 w-3.5 text-emerald-300" />
-          Try searching for Charizard, Pikachu, Gengar, or your favorite set.
+          {isOnePiece
+            ? 'Try searching for Shanks, Luffy, Zoro, or your favorite set.'
+            : 'Try searching for Charizard, Pikachu, Gengar, or your favorite set.'}
         </p>
       )}
     </section>
