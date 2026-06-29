@@ -8,6 +8,7 @@ import { BottomTabBar } from './components/layout/BottomTabBar';
 import { CommandPalette } from './components/common/CommandPalette';
 import { OnboardingChecklist } from './components/common/OnboardingChecklist';
 import { CardModalProvider } from './contexts/CardModalContext';
+import { GameProvider } from './contexts/GameContext';
 import { BrowsePage } from './pages/BrowsePage';
 import { LoadingSpinner } from './components/common/LoadingSpinner';
 import { VIEW_PATHS, browseSearchPath } from './utils/routes';
@@ -83,73 +84,75 @@ function VaultPage() {
 
 function App() {
   return (
-    <CardModalProvider>
-      <div className="flex min-h-screen min-w-0 bg-surface-base text-ink-primary">
-        <Sidebar />
+    <GameProvider>
+      <CardModalProvider>
+        <div className="flex min-h-screen min-w-0 bg-surface-base text-ink-primary">
+          <Sidebar />
 
-        <div className="flex min-w-0 flex-1 flex-col">
-          <a
-            href="#main-content"
-            className="sr-only z-[95] rounded-md bg-accent px-4 py-2 text-sm font-medium text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
-          >
-            Skip to content
-          </a>
+          <div className="flex min-w-0 flex-1 flex-col">
+            <a
+              href="#main-content"
+              className="sr-only z-[95] rounded-md bg-accent px-4 py-2 text-sm font-medium text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+            >
+              Skip to content
+            </a>
 
-          <Header />
+            <Header />
 
-          <main id="main-content" className="min-w-0 flex-1 pb-20 md:pb-0">
-            <Suspense fallback={<RouteFallback />}>
-              <Routes>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/browse" element={<BrowsePage />} />
-                <Route
-                  path="/prices"
-                  element={
-                    <div className={PAGE_CONTAINER}>
-                      <PriceTrackingDashboard />
-                    </div>
-                  }
-                />
-                <Route
-                  path="/market-insights"
-                  element={
-                    <div className={PAGE_CONTAINER}>
-                      <MarketInsightsDashboard />
-                    </div>
-                  }
-                />
-                <Route path="/vault" element={<VaultPage />} />
-                <Route path="/sets" element={<SetsPage />} />
-                <Route path="/sets/:setId" element={<SetsPage />} />
-                <Route
-                  path="/packs"
-                  element={
-                    <div className={PAGE_CONTAINER}>
-                      <PackShop />
-                    </div>
-                  }
-                />
-                <Route
-                  path="/scanner"
-                  element={
-                    <div className={PAGE_CONTAINER}>
-                      <CardScanner />
-                    </div>
-                  }
-                />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </Suspense>
-          </main>
+            <main id="main-content" className="min-w-0 flex-1 pb-20 md:pb-0">
+              <Suspense fallback={<RouteFallback />}>
+                <Routes>
+                  <Route path="/" element={<HomePage />} />
+                  <Route path="/browse" element={<BrowsePage />} />
+                  <Route
+                    path="/prices"
+                    element={
+                      <div className={PAGE_CONTAINER}>
+                        <PriceTrackingDashboard />
+                      </div>
+                    }
+                  />
+                  <Route
+                    path="/market-insights"
+                    element={
+                      <div className={PAGE_CONTAINER}>
+                        <MarketInsightsDashboard />
+                      </div>
+                    }
+                  />
+                  <Route path="/vault" element={<VaultPage />} />
+                  <Route path="/sets" element={<SetsPage />} />
+                  <Route path="/sets/:setId" element={<SetsPage />} />
+                  <Route
+                    path="/packs"
+                    element={
+                      <div className={PAGE_CONTAINER}>
+                        <PackShop />
+                      </div>
+                    }
+                  />
+                  <Route
+                    path="/scanner"
+                    element={
+                      <div className={PAGE_CONTAINER}>
+                        <CardScanner />
+                      </div>
+                    }
+                  />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </Suspense>
+            </main>
 
-          <OnboardingChecklist />
-          <Footer />
+            <OnboardingChecklist />
+            <Footer />
+          </div>
+
+          <BottomTabBar />
+          <CommandPalette />
         </div>
-
-        <BottomTabBar />
-        <CommandPalette />
-      </div>
-    </CardModalProvider>
+      </CardModalProvider>
+    </GameProvider>
   );
 }
 

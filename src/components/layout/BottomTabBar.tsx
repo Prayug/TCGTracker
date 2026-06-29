@@ -6,8 +6,10 @@ import {
   LayoutGrid,
   LineChart,
   MoreHorizontal,
+  Swords,
   TrendingUp,
 } from 'lucide-react';
+import { useGame, GameType } from '../../contexts/GameContext';
 
 const PRIMARY_TABS: { to: string; label: string; icon: React.ElementType; end?: boolean }[] = [
   { to: '/', label: 'Home', icon: LayoutGrid, end: true },
@@ -25,6 +27,11 @@ const MORE_ITEMS: { to: string; label: string; icon: React.ElementType }[] = [
   { to: '/market-insights', label: 'Insights', icon: TrendingUp },
 ];
 
+const GAME_OPTIONS: { value: GameType; label: string; icon: React.ElementType }[] = [
+  { value: 'pokemon', label: 'Pokemon', icon: LayoutGrid },
+  { value: 'onepiece', label: 'One Piece', icon: Swords },
+];
+
 const tabClass = ({ isActive }: { isActive: boolean }) =>
   `flex h-full min-w-[56px] flex-col items-center justify-center gap-1 text-[10px] font-medium transition-colors ${
     isActive ? 'text-accent' : 'text-ink-muted hover:text-ink-secondary'
@@ -32,6 +39,7 @@ const tabClass = ({ isActive }: { isActive: boolean }) =>
 
 export const BottomTabBar: React.FC = () => {
   const [moreOpen, setMoreOpen] = useState(false);
+  const { game, setGame } = useGame();
   const location = useLocation();
   const sheetRef = useRef<HTMLDivElement>(null);
 
@@ -58,6 +66,25 @@ export const BottomTabBar: React.FC = () => {
           aria-label="More destinations"
           className="fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-50 animate-slide-up rounded-lg border border-border-default bg-surface-overlay p-2 shadow-lg md:hidden"
         >
+          {/* Game Switcher in More menu */}
+          <div className="mb-2 flex rounded-lg border border-border-default bg-surface-inset p-0.5">
+            {GAME_OPTIONS.map(({ value, label, icon: Icon }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setGame(value)}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-all ${
+                  game === value
+                    ? 'bg-accent text-white shadow-sm'
+                    : 'text-ink-muted hover:text-ink-secondary'
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {label}
+              </button>
+            ))}
+          </div>
+
           {MORE_ITEMS.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
