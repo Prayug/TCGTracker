@@ -6,6 +6,7 @@ import { env } from '../config/env';
 import { validate } from '../middleware/validation';
 import { passwordChangeLimiter } from '../middleware/rateLimiter';
 import { setAuthCookie, clearAuthCookie } from '../utils/cookies';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -149,35 +150,11 @@ export const createAuthRouter = (authService: AuthService) => {
         },
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error('Get me failed', { error: error.message });
+      res.status(500).json({ error: 'Failed to fetch user data' });
     }
   });
 
-  /**
-   * @swagger
-   * /api/auth/update:
-   *   put:
-   *     summary: Update user profile
-   *     tags: [Auth]
-   *     security:
-   *       - bearerAuth: []
-   *     requestBody:
-   *       required: true
-   *       content:
-   *         application/json:
-   *           schema:
-   *             type: object
-   *             properties:
-   *               username:
-   *                 type: string
-   *               email:
-   *                 type: string
-   *     responses:
-   *       200:
-   *         description: User updated successfully
-   *       401:
-   *         description: Unauthorized
-   */
   router.put('/update', authenticate, validate(updateUserSchema), async (req: AuthRequest, res: Response) => {
     try {
       const updates = req.body;

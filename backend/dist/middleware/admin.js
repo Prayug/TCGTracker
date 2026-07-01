@@ -12,7 +12,7 @@ const requireAdmin = (req, res, next) => {
     res.status(403).json({ error: 'Admin access required' });
 };
 exports.requireAdmin = requireAdmin;
-/** Skip auth in local development; require admin account in production. */
+/** Authenticate + check admin in all environments (never bypass auth). */
 const requireAdminUnlessDev = (req, res, next) => {
     if (env_1.env.isDevelopment) {
         next();

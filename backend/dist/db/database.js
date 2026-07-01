@@ -17,6 +17,7 @@ const sqlite3_1 = __importDefault(require("sqlite3"));
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const env_1 = require("../config/env");
+const logger_1 = require("../utils/logger");
 const DB_SOURCE = (() => {
     const resolvedPath = path_1.default.resolve(env_1.env.databasePath);
     const directory = path_1.default.dirname(resolvedPath);
@@ -41,7 +42,7 @@ const getDb = () => {
     if (!db) {
         db = new sqlite3_1.default.Database(DB_SOURCE, (err) => {
             if (err) {
-                console.error(err.message);
+                logger_1.logger.error('Failed to open database', { error: err.message });
                 throw err;
             }
         });
@@ -197,6 +198,19 @@ const initializeDatabase = () => {
         status TEXT DEFAULT 'pending',
         FOREIGN KEY (prediction_id) REFERENCES card_predictions(id) ON DELETE CASCADE
       )`,
+            `CREATE TABLE IF NOT EXISTS graded_prices (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cardId TEXT NOT NULL,
+        cardName TEXT,
+        setId TEXT,
+        setName TEXT,
+        grader TEXT NOT NULL,
+        grade TEXT NOT NULL,
+        price REAL,
+        soldListings INTEGER DEFAULT 0,
+        fetchedAt TEXT DEFAULT (datetime('now')),
+        UNIQUE(cardId, grader, grade)
+      )`,
             `CREATE TABLE IF NOT EXISTS external_market_signals (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         card_id TEXT,
@@ -257,7 +271,7 @@ const initializeDatabase = () => {
         ];
         for (let i = 0; i < tables.length; i++) {
             yield runDb(database, tables[i]);
-            console.log(`Database table ${i + 1} created successfully.`);
+            logger_1.logger.info(`Database table ${i + 1} created successfully.`);
         }
         const indexes = [
             'CREATE INDEX IF NOT EXISTS idx_price_history_date ON price_history(date)',
@@ -288,22 +302,31 @@ const initializeDatabase = () => {
             'CREATE INDEX IF NOT EXISTS idx_onepiece_catalog_card_set_id ON onepiece_catalog(cardSetId)',
             'CREATE INDEX IF NOT EXISTS idx_onepiece_price_history_card ON onepiece_price_history(catalogId)',
             'CREATE INDEX IF NOT EXISTS idx_onepiece_price_history_date ON onepiece_price_history(date)',
+            'CREATE INDEX IF NOT EXISTS idx_graded_prices_card ON graded_prices(cardId)',
+            'CREATE INDEX IF NOT EXISTS idx_graded_prices_grader ON graded_prices(grader, grade)',
         ];
         for (const indexSql of indexes) {
             yield runDb(database, indexSql);
         }
-        console.log('All database tables and indexes ready.');
-        console.log(`Using database at ${DB_SOURCE}`);
+        logger_1.logger.info('All database tables and indexes ready.');
+        logger_1.logger.info(`Using database at ${DB_SOURCE}`);
         setTimeout(() => {
             database.run('PRAGMA auto_vacuum = INCREMENTAL', (vacuumErr) => {
                 if (vacuumErr) {
-                    console.error('Failed to set auto_vacuum mode:', vacuumErr);
+                    logger_1.logger.error('Failed to set auto_vacuum mode:', { error: vacuumErr.message });
                 }
                 else {
                     database.run('PRAGMA incremental_vacuum(100)', () => { });
                 }
             });
         }, 10000);
+        setInterval(() => {
+            database.run('PRAGMA wal_checkpoint(TRUNCATE)', (err) => {
+                if (err) {
+                    logger_1.logger.warn('WAL checkpoint failed', { error: err.message });
+                }
+            });
+        }, 30 * 60 * 1000);
     }))();
     return dbInitPromise;
 };
