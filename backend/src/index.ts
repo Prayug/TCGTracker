@@ -17,6 +17,7 @@ import { backfillCardMappingImages } from './services/cardImageBackfillService';
 import { env } from './config/env';
 import { swaggerSpec } from './config/swagger';
 import { corsMiddleware, securityMiddleware } from './middleware/security';
+import { csrfProtection } from './middleware/csrf';
 import { apiLimiter, authLimiter } from './middleware/rateLimiter';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { authenticate, AuthRequest } from './middleware/auth';
@@ -41,6 +42,7 @@ app.set('trust proxy', 1);
 
 app.use(securityMiddleware());
 app.use(corsMiddleware());
+app.use(csrfProtection);
 app.use(express.json({ limit: BODY_LIMIT }));
 app.use(express.urlencoded({ extended: true, limit: BODY_LIMIT }));
 
@@ -165,7 +167,13 @@ function setupRoutes(
       logger.info('Manual price data update requested');
       const result = await updatePriceData();
       if (result.skipped) {
-        res.status(409).json({ success: false, message: 'Update already running' });
+        const skippedResult = result as { reason?: string };
+        res.status(409).json({ success: false, message: skippedResult.reason || 'Update already running' });
+        return;
+      }
+      if (result.syncRunId == null) {
+        const errorResult = result as { error?: string };
+        res.status(409).json({ success: false, message: errorResult.error || 'Update failed to start' });
         return;
       }
       logger.info('Manual update finished', result);
@@ -177,7 +185,7 @@ function setupRoutes(
       });
     } catch (error: any) {
       logger.error('Error during manual update', { error: error.message });
-      res.status(500).json({ success: false, error: 'Update failed: ' + error.message });
+      res.status(500).json({ success: false, error: 'Update failed' });
     }
   });
 
@@ -235,10 +243,14 @@ function setupRoutes(
   app.post('/api/sync-catalog', authenticate, requireAdmin, async (_req, res) => {
     try {
       logger.info('Manual catalog sync requested');
-      syncCatalogData()
-        .then((result) => logger.info('Manual catalog sync completed', result))
-        .catch((error: any) => logger.error('Manual catalog sync failed', { error: error.message }));
-
+      (async () => {
+        try {
+          const result = await syncCatalogData();
+          logger.info('Manual catalog sync completed', result);
+        } catch (error: any) {
+          logger.error('Manual catalog sync failed', { error: error.message });
+        }
+      })();
       res.status(202).json({ success: true, message: 'Catalog sync started in background.' });
     } catch (error: any) {
       logger.error('Error starting manual catalog sync', { error: error.message });
@@ -249,10 +261,14 @@ function setupRoutes(
   app.post('/api/sync-onepiece', authenticate, requireAdmin, async (_req, res) => {
     try {
       logger.info('Manual One Piece sync requested');
-      syncOnePieceData()
-        .then((result) => logger.info('Manual One Piece sync completed', result))
-        .catch((error: any) => logger.error('Manual One Piece sync failed', { error: error.message }));
-
+      (async () => {
+        try {
+          const result = await syncOnePieceData();
+          logger.info('Manual One Piece sync completed', result);
+        } catch (error: any) {
+          logger.error('Manual One Piece sync failed', { error: error.message });
+        }
+      })();
       res.status(202).json({ success: true, message: 'One Piece sync started in background.' });
     } catch (error: any) {
       logger.error('Error starting manual One Piece sync', { error: error.message });
@@ -347,32 +363,37 @@ async function bootstrap() {
     const alertService = new AlertService(db);
     const portfolioService = new PortfolioService(db);
 
+    await Promise.all([
+      authService.init(),
+      alertService.init(),
+    ]);
+
     await initializeSetCodeService();
     setupRoutes(authService, alertService, portfolioService);
 
-    setTimeout(() => {
-      backfillCardMappingImages()
-        .then((result) => logger.info('Startup image backfill completed', result))
-        .catch((error) =>
-          logger.warn('Startup image backfill failed (non-fatal)', { error: (error as Error).message })
-        );
-    }, 15_000);
+    (async () => {
+      await new Promise((r) => setTimeout(r, 15_000));
+      try {
+        const result = await backfillCardMappingImages();
+        logger.info('Startup image backfill completed', result);
+      } catch (error) {
+        logger.warn('Startup image backfill failed (non-fatal)', { error: (error as Error).message });
+      }
+    })();
 
-    setTimeout(async () => {
+    (async () => {
+      await new Promise((r) => setTimeout(r, 20_000));
       try {
         const incomplete = await isOnePieceCatalogIncomplete();
         if (incomplete) {
           logger.info('One Piece catalog incomplete — running sync in background');
-          syncOnePieceData()
-            .then((result) => logger.info('One Piece sync completed', result))
-            .catch((error) =>
-              logger.warn('One Piece sync failed (non-fatal)', { error: (error as Error).message })
-            );
+          const result = await syncOnePieceData();
+          logger.info('One Piece sync completed', result);
         }
       } catch (error) {
-        logger.warn('One Piece catalog check failed (non-fatal)', { error: (error as Error).message });
+        logger.warn('One Piece catalog check / sync failed (non-fatal)', { error: (error as Error).message });
       }
-    }, 20_000);
+    })();
   } catch (error) {
     logger.error('Failed to start server', { error });
     process.exit(1);
