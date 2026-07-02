@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { getDb } from '../db/database';
 import { enhancedPackService } from '../services/enhancedPackService';
 import { setCodeService } from '../services/setCodeService';
 import { logger } from '../utils/logger';
@@ -112,7 +113,7 @@ router.get('/stats/:setId', async (req, res) => {
       });
     }
 
-    const db = require('../db/database').getDb();
+    const db = getDb();
 
     // Get card count and average price for the set
     const stats = await new Promise((resolve, reject) => {
