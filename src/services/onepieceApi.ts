@@ -62,6 +62,7 @@ function mapCard(raw: OPTCGCardResponse): OnePieceCard {
     cardText: raw.card_text || undefined,
     marketPrice: raw.market_price ?? undefined,
     inventoryPrice: raw.inventory_price ?? undefined,
+    cardImageId: raw.card_image_id,
   };
 }
 
@@ -146,18 +147,28 @@ class OnePieceApiService {
   }
 
   async getSetCards(setId: string): Promise<OnePieceCard[]> {
-    const cacheKey = `op_cards_${setId}`;
+    const cacheKey = `op_cards_v2_${setId}`;
     const cached = cacheService.get<OnePieceCard[]>(cacheKey);
     if (cached) return cached;
 
     try {
-      const raw = await fetchOptcgFallback<OPTCGCardResponse[]>(`/sets/${encodeURIComponent(setId)}/`);
-      const cards = raw.map(mapCard);
+      const response = await fetchBackend<{ data?: OnePieceCard[] }>(
+        `/api/cards/onepiece/set/${encodeURIComponent(setId)}`
+      );
+      const cards = response.data ?? [];
       cacheService.set(cacheKey, cards, 15 * 60 * 1000);
       return cards;
     } catch (err) {
-      console.error(`Error fetching One Piece cards for set ${setId}:`, err);
-      return [];
+      console.error(`Error fetching One Piece cards for set ${setId} from backend, trying OPTCG:`, err);
+      try {
+        const raw = await fetchOptcgFallback<OPTCGCardResponse[]>(`/sets/${encodeURIComponent(setId)}/`);
+        const cards = raw.map(mapCard);
+        cacheService.set(cacheKey, cards, 15 * 60 * 1000);
+        return cards;
+      } catch (fallbackErr) {
+        console.error(`One Piece set cards fallback failed for ${setId}:`, fallbackErr);
+        return [];
+      }
     }
   }
 
@@ -231,17 +242,21 @@ class OnePieceApiService {
     return card.marketPrice ?? card.inventoryPrice ?? 0;
   }
 
-  async getPriceHistory(catalogId: string): Promise<{ date: string; price: number }[]> {
-    const cacheKey = `op_price_history_${catalogId}`;
+  async getPriceHistory(
+    catalogId: string,
+    currentPrice?: number
+  ): Promise<{ date: string; price: number }[]> {
+    const cacheKey = `op_price_history_v2_${catalogId}_${currentPrice ?? 'auto'}`;
     const cached = cacheService.get<{ date: string; price: number }[]>(cacheKey);
     if (cached) return cached;
 
     try {
-      const response = await fetchBackend<{ priceHistory?: { date: string; price: number }[] }>(
-        `/api/prices/onepiece/${encodeURIComponent(catalogId)}`
-      );
+      const response = await fetchBackend<{
+        priceHistory?: { date: string; price: number }[];
+        currentPrice?: number;
+      }>(`/api/prices/onepiece/${encodeURIComponent(catalogId)}`);
       const history = (response.priceHistory || []).filter((e) => e.price > 0 && e.date);
-      cacheService.set(cacheKey, history, 30 * 60 * 1000);
+      cacheService.set(cacheKey, history, 5 * 60 * 1000);
       return history;
     } catch (err) {
       console.error(`Error fetching price history for ${catalogId}:`, err);

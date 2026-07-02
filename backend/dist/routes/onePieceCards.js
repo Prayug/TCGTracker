@@ -15,6 +15,7 @@ const logger_1 = require("../utils/logger");
 const dbAsync_1 = require("../utils/dbAsync");
 const onePieceOptcgClient_1 = require("../services/providers/onePieceOptcgClient");
 const onePieceCatalogId_1 = require("../services/onePieceCatalogId");
+const onePiecePriceResolver_1 = require("../services/onePiecePriceResolver");
 const onePieceMapper_1 = require("../services/onePieceMapper");
 const router = (0, express_1.Router)();
 router.get('/onepiece', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -32,14 +33,14 @@ router.get('/onepiece', (req, res) => __awaiter(void 0, void 0, void 0, function
             matches = matches.filter((c) => c.set_id === normalizedSetId || c.set_name.toLowerCase().includes(normalizedSetId.toLowerCase()));
         }
         const apiCards = matches.map((raw) => (0, onePieceMapper_1.mapRawToApiCard)(raw));
-        const cards = apiCards.slice(0, searchLimit);
+        const cards = yield (0, onePiecePriceResolver_1.enrichOnePieceApiCards)(apiCards.slice(0, searchLimit));
         logger_1.logger.info(`One Piece search: ${cards.length}/${apiCards.length} results for "${sanitizedQuery}" (${allCards.length} catalog)`);
         res.json({
             data: cards,
             count: cards.length,
             totalMatches: apiCards.length,
             catalogSize: allCards.length,
-            source: 'optcg_full_catalog',
+            source: 'optcg_full_catalog_tcgplayer_enriched',
         });
     }
     catch (error) {
@@ -111,11 +112,13 @@ router.get('/onepiece/card/:catalogId', (req, res) => __awaiter(void 0, void 0, 
          ) latest ON oc.catalogId = latest.catalogId
          WHERE oc.catalogId = ?`, [catalogId]);
             if (row) {
-                return res.json({ data: (0, onePieceMapper_1.mapRowToApiCard)(row), source: 'local_database' });
+                const enriched = yield (0, onePiecePriceResolver_1.enrichOnePieceApiCards)([(0, onePieceMapper_1.mapRowToApiCard)(row)]);
+                return res.json({ data: enriched[0], source: 'local_database_tcgplayer_enriched' });
             }
             const live = allCards.find((c) => (0, onePieceCatalogId_1.buildOnePieceCatalogId)(c) === catalogId);
             if (live) {
-                return res.json({ data: (0, onePieceMapper_1.mapRawToApiCard)(live), source: 'optcg_full_catalog' });
+                const enriched = yield (0, onePiecePriceResolver_1.enrichOnePieceApiCards)([(0, onePieceMapper_1.mapRawToApiCard)(live)]);
+                return res.json({ data: enriched[0], source: 'optcg_full_catalog_tcgplayer_enriched' });
             }
         }
         const cardSetId = catalogId;
@@ -133,24 +136,43 @@ router.get('/onepiece/card/:catalogId', (req, res) => __awaiter(void 0, void 0, 
        ) latest ON oc.catalogId = latest.catalogId
        WHERE oc.cardSetId = ?`, [cardSetId]);
         if (rows.length > 0) {
-            const sorted = rows.map((row) => (0, onePieceMapper_1.mapRowToApiCard)(row)).sort((a, b) => { var _a, _b; return ((_a = b.marketPrice) !== null && _a !== void 0 ? _a : 0) - ((_b = a.marketPrice) !== null && _b !== void 0 ? _b : 0); });
-            return res.json({ data: sorted[0], variants: sorted, source: 'local_database' });
+            const sorted = yield (0, onePiecePriceResolver_1.enrichOnePieceApiCards)(rows.map((row) => (0, onePieceMapper_1.mapRowToApiCard)(row)).sort((a, b) => { var _a, _b; return ((_a = b.marketPrice) !== null && _a !== void 0 ? _a : 0) - ((_b = a.marketPrice) !== null && _b !== void 0 ? _b : 0); }));
+            return res.json({ data: sorted[0], variants: sorted, source: 'local_database_tcgplayer_enriched' });
         }
-        const liveVariants = allCards
+        const liveVariants = yield (0, onePiecePriceResolver_1.enrichOnePieceApiCards)(allCards
             .filter((c) => c.card_set_id === cardSetId)
             .map((raw) => (0, onePieceMapper_1.mapRawToApiCard)(raw))
-            .sort((a, b) => { var _a, _b; return ((_a = b.marketPrice) !== null && _a !== void 0 ? _a : 0) - ((_b = a.marketPrice) !== null && _b !== void 0 ? _b : 0); });
+            .sort((a, b) => { var _a, _b; return ((_a = b.marketPrice) !== null && _a !== void 0 ? _a : 0) - ((_b = a.marketPrice) !== null && _b !== void 0 ? _b : 0); }));
         if (!liveVariants.length) {
             return res.status(404).json({ error: 'Card not found', catalogId: cardSetId });
         }
         res.json({
             data: liveVariants[0],
             variants: liveVariants,
-            source: 'optcg_full_catalog',
+            source: 'optcg_full_catalog_tcgplayer_enriched',
         });
     }
     catch (error) {
         logger_1.logger.error(`One Piece card fetch failed for ${req.params.catalogId}:`, error);
+        res.status(500).json({
+            error: 'Internal server error',
+            message: error.message,
+        });
+    }
+}));
+router.get('/onepiece/set/:setId', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const setId = decodeURIComponent(req.params.setId);
+        const rawCards = yield (0, onePieceOptcgClient_1.getOptcgSetCards)(setId);
+        const cards = yield (0, onePiecePriceResolver_1.enrichOnePieceApiCards)(rawCards.map((raw) => (0, onePieceMapper_1.mapRawToApiCard)(raw)));
+        res.json({
+            data: cards,
+            count: cards.length,
+            source: 'optcg_live_tcgplayer_enriched',
+        });
+    }
+    catch (error) {
+        logger_1.logger.error(`One Piece set cards fetch failed for ${req.params.setId}:`, error);
         res.status(500).json({
             error: 'Internal server error',
             message: error.message,

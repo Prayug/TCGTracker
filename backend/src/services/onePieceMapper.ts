@@ -77,6 +77,7 @@ export function mapRawToApiCard(raw: OPTCGCardResponse, source = 'optcg_live') {
     cardText: fields.cardText || undefined,
     marketPrice: fields.marketPrice ?? undefined,
     inventoryPrice: fields.inventoryPrice ?? undefined,
+    cardImageId: fields.cardImageId,
     source,
   };
 }
@@ -114,6 +115,7 @@ export function mapRowToApiCard(row: OnePieceCatalogRow, source = 'local_databas
       typeof row.latestInventoryPrice === 'number'
         ? row.latestInventoryPrice
         : row.inventoryPrice ?? undefined,
+    cardImageId: row.cardImageId,
     source,
   };
 }
