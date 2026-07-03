@@ -17,19 +17,29 @@ import {
   computeExternalSignalScore,
   computeExpectedReturns,
   computePriceRanges,
+  computeLiquidityScore,
+  computeDataQualityScore,
+  isRarityInvestmentWorthy,
+  hasMeaningfulPriceMovement,
   determineCategory,
   PredictionCategory,
   ScoringScores,
+  CardQualityFilter,
+  DEFAULT_CARD_QUALITY_FILTER,
 } from './predictionEngine';
 
 export interface BacktestCardResult {
   cardId: string;
   cardName: string;
+  currentPrice: number;
   predicted90dReturn: number;
   actual90dReturn: number | null;
   error90d: number | null;
   directionCorrect: boolean | null;
   category: PredictionCategory;
+  liquidityScore: number;
+  dataQualityScore: number;
+  riskScore: number;
 }
 
 export interface CategoryPerformance {
@@ -49,6 +59,10 @@ export interface BacktestResult {
   marketAvgReturn: number | null;
   strongBuyFalsePositiveRate: number | null;
   avoidAvgReturn: number | null;
+  sharpeRatio: number | null;
+  maxDrawdown: number | null;
+  winRate: number | null;
+  profitFactor: number | null;
   categoryPerformance: CategoryPerformance[];
   cardResults: BacktestCardResult[];
 }
@@ -102,7 +116,8 @@ function fetchFuturePrice(uniqueIdentifier: string, startDate: string, daysAhead
 export async function runBacktest(
   backtestDate: string,
   windowDays: number = 90,
-  cardIdFilter?: string[]
+  cardIdFilter?: string[],
+  filter: CardQualityFilter = DEFAULT_CARD_QUALITY_FILTER
 ): Promise<BacktestResult> {
   const db = getDb();
 
@@ -129,6 +144,7 @@ export async function runBacktest(
   let totalDirectionalTests = 0;
   let totalMape = 0;
   let totalMapeCount = 0;
+  const returns: number[] = [];
 
   for (const card of cards) {
     try {
@@ -136,15 +152,24 @@ export async function runBacktest(
       if (!uid) continue;
 
       const priceHistory = await fetchPriceHistoryUpToDate(uid, backtestDate);
-      if (priceHistory.length < 14) continue;
+      if (priceHistory.length < filter.minDataPoints) continue;
 
       const currentPrice = getLatestPrice(priceHistory);
       if (!currentPrice || currentPrice <= 0) continue;
+
+      if (currentPrice < filter.minPrice || currentPrice > filter.maxPrice) continue;
+
+      if (!isRarityInvestmentWorthy(card.rarity)) continue;
+
+      if (filter.excludeStagnant && !hasMeaningfulPriceMovement(priceHistory)) continue;
 
       const movingAverages = computeMovingAverages(priceHistory);
       const priceChanges = computePriceChanges(priceHistory);
       const volatility = computeVolatility(priceHistory);
       const recoveryMetrics = computeRecoveryMetrics(priceHistory);
+
+      const liquidityScore = computeLiquidityScore(priceHistory, currentPrice, volatility);
+      const dataQualityScore = computeDataQualityScore(priceHistory);
 
       const trendScore = computeTrendScore(priceChanges, movingAverages, currentPrice);
       const recoveryScore = computeRecoveryScore(recoveryMetrics, priceChanges);
@@ -154,6 +179,8 @@ export async function runBacktest(
       const scores: ScoringScores = {
         trendScore, recoveryScore, demandScore, riskScore,
         externalSignalScore: 0,
+        liquidityScore,
+        dataQualityScore,
       };
 
       const expectedReturns = computeExpectedReturns(scores);
@@ -177,6 +204,7 @@ export async function runBacktest(
         error90d = Math.abs(expectedReturns.expected90dReturn - actual90dReturn);
         totalMape += Math.abs(error90d);
         totalMapeCount++;
+        returns.push(actual90dReturn);
       }
 
       const category = determineCategory(scores, expectedReturns.expected90dReturn, priceChanges, recoveryMetrics);
@@ -184,11 +212,15 @@ export async function runBacktest(
       cardResults.push({
         cardId: card.cardId,
         cardName: card.cardName,
+        currentPrice,
         predicted90dReturn: expectedReturns.expected90dReturn,
         actual90dReturn,
         error90d,
         directionCorrect,
         category,
+        liquidityScore,
+        dataQualityScore,
+        riskScore,
       });
     } catch (err) {
       logger.warn(`Backtest failed for ${card.cardName}:`, err);
@@ -223,6 +255,34 @@ export async function runBacktest(
     ? avoidCards.reduce((s, r) => s + (r.actual90dReturn ?? 0), 0) / avoidCards.length
     : null;
 
+  const winRate = returns.length > 0 ? returns.filter(r => r > 0).length / returns.length : null;
+
+  const gains = returns.filter(r => r > 0);
+  const losses = returns.filter(r => r < 0).map(r => Math.abs(r));
+  const avgGain = gains.length > 0 ? gains.reduce((a, b) => a + b, 0) / gains.length : 0;
+  const avgLoss = losses.length > 0 ? losses.reduce((a, b) => a + b, 0) / losses.length : 0;
+  const profitFactor = avgLoss > 0 ? avgGain / avgLoss : null;
+
+  let sharpeRatio: number | null = null;
+  let maxDrawdown: number | null = null;
+  if (returns.length > 1) {
+    const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+    const variance = returns.reduce((a, r) => a + (r - mean) ** 2, 0) / returns.length;
+    const stdDev = Math.sqrt(variance);
+    sharpeRatio = stdDev > 0 ? (mean / stdDev) * Math.sqrt(252) : null;
+
+    let peak = 0;
+    let maxDd = 0;
+    let cumulative = 0;
+    for (const r of returns) {
+      cumulative += r;
+      if (cumulative > peak) peak = cumulative;
+      const drawdown = peak - cumulative;
+      if (drawdown > maxDd) maxDd = drawdown;
+    }
+    maxDrawdown = maxDd;
+  }
+
   const categories: PredictionCategory[] = ['strong_buy', 'watch_dip', 'recovery', 'momentum', 'stagnant', 'avoid', 'downtrend'];
   const categoryPerformance: CategoryPerformance[] = categories.map(cat => {
     const catCards = cardResults.filter(r => r.category === cat && r.actual90dReturn !== null);
@@ -244,6 +304,10 @@ export async function runBacktest(
     marketAvgReturn,
     strongBuyFalsePositiveRate,
     avoidAvgReturn,
+    sharpeRatio,
+    maxDrawdown,
+    winRate,
+    profitFactor,
     categoryPerformance,
     cardResults,
   };
@@ -260,8 +324,9 @@ async function saveBacktestResult(result: BacktestResult): Promise<void> {
       `INSERT INTO backtest_runs
        (backtest_date, window_days, cards_tested, directional_accuracy, mape,
         top10_avg_return, market_avg_return, strong_buy_false_positive_rate,
-        avoid_avg_return, category_performance)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        avoid_avg_return, sharpe_ratio, max_drawdown, win_rate, profit_factor,
+        category_performance)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         result.backtestDate,
         result.windowDays,
@@ -272,6 +337,10 @@ async function saveBacktestResult(result: BacktestResult): Promise<void> {
         result.marketAvgReturn,
         result.strongBuyFalsePositiveRate,
         result.avoidAvgReturn,
+        result.sharpeRatio,
+        result.maxDrawdown,
+        result.winRate,
+        result.profitFactor,
         JSON.stringify(result.categoryPerformance),
       ],
       function (err) {
