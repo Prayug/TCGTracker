@@ -16,6 +16,9 @@ import {
   XCircle,
   HelpCircle,
   ArrowDown,
+  Filter,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { marketInsightsApi } from '../../../services/marketInsightsApi';
 import {
@@ -26,6 +29,8 @@ import {
   CATEGORY_LABELS,
   CATEGORY_COLORS,
   PREDICTION_THRESHOLDS,
+  PredictionFilters,
+  AVAILABLE_RARITIES,
 } from '../types';
 import { PokemonCard } from '../../../types/pokemon';
 import { PredictionCard } from './PredictionCard';
@@ -86,6 +91,13 @@ export function MarketInsightsDashboard() {
     return d.toISOString().split('T')[0];
   });
   const [message, setMessage] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState<PredictionFilters>({
+    minPrice: 2,
+    maxPrice: 10000,
+    minConfidence: 30,
+    rarities: [...AVAILABLE_RARITIES],
+  });
 
   const showMessage = useCallback((msg: string) => {
     setMessage(msg);
@@ -96,7 +108,7 @@ export function MarketInsightsDashboard() {
     setLoading(true);
     try {
       const [predData, btData, ftStatus] = await Promise.all([
-        marketInsightsApi.getPredictions({ limit: 250 }),
+        marketInsightsApi.getPredictions({ limit: 250, filters }),
         marketInsightsApi.getBacktestResults().catch(() => ({ data: [] })),
         marketInsightsApi.getForwardTestStatus().catch(() => null),
       ]);
@@ -108,7 +120,7 @@ export function MarketInsightsDashboard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filters]);
 
   useEffect(() => {
     loadData();
@@ -241,6 +253,103 @@ export function MarketInsightsDashboard() {
           {message}
         </motion.div>
       )}
+
+      <div className="mb-4 rounded-xl border border-border-default bg-surface-raised">
+        <button
+          onClick={() => setShowFilters(!showFilters)}
+          className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-ink-secondary hover:bg-surface-hover"
+        >
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4" />
+            <span>Filters</span>
+            <span className="rounded-full bg-surface-hover px-2 py-0.5 text-xs text-ink-muted">
+              ${filters.minPrice || 0} - ${filters.maxPrice || '∞'} | {filters.rarities?.length || 0} rarities
+            </span>
+          </div>
+          {showFilters ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </button>
+        
+        {showFilters && (
+          <div className="border-t border-border-default px-4 py-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-ink-muted">Min Price ($)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={filters.minPrice || ''}
+                  onChange={e => setFilters(prev => ({ ...prev, minPrice: e.target.value ? parseFloat(e.target.value) : undefined }))}
+                  className="w-full rounded-lg border border-border-default bg-surface-inset px-3 py-2 text-sm text-white"
+                  placeholder="2"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-ink-muted">Max Price ($)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="10"
+                  value={filters.maxPrice || ''}
+                  onChange={e => setFilters(prev => ({ ...prev, maxPrice: e.target.value ? parseFloat(e.target.value) : undefined }))}
+                  className="w-full rounded-lg border border-border-default bg-surface-inset px-3 py-2 text-sm text-white"
+                  placeholder="10000"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-ink-muted">Min Confidence</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={filters.minConfidence || 0}
+                  onChange={e => setFilters(prev => ({ ...prev, minConfidence: parseInt(e.target.value) }))}
+                  className="w-full"
+                />
+                <div className="text-xs text-ink-muted">{filters.minConfidence || 0}%</div>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-ink-muted">Rarities</label>
+                <div className="max-h-32 overflow-y-auto rounded-lg border border-border-default bg-surface-inset p-2">
+                  {AVAILABLE_RARITIES.map(rarity => (
+                    <label key={rarity} className="flex items-center gap-2 py-1">
+                      <input
+                        type="checkbox"
+                        checked={filters.rarities?.includes(rarity) || false}
+                        onChange={e => {
+                          setFilters(prev => {
+                            const current = prev.rarities || [];
+                            const newRarities = e.target.checked
+                              ? [...current, rarity]
+                              : current.filter(r => r !== rarity);
+                            return { ...prev, rarities: newRarities };
+                          });
+                        }}
+                        className="h-3 w-3 rounded"
+                      />
+                      <span className="text-xs text-ink-secondary">{rarity}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => setFilters({ minPrice: 2, maxPrice: 10000, minConfidence: 30, rarities: [...AVAILABLE_RARITIES] })}
+                className="rounded-lg border border-border-default bg-surface-inset px-3 py-1.5 text-xs font-medium text-ink-secondary hover:bg-surface-hover"
+              >
+                Reset
+              </button>
+              <button
+                onClick={loadData}
+                className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-hover"
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="flex gap-6">
         <nav className="hidden w-48 shrink-0 space-y-1 lg:block">
@@ -404,7 +513,7 @@ function BacktestSection({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
             <MetricCard
               label="Market Avg Return"
               value={latest.market_avg_return != null ? `${(latest.market_avg_return * 100).toFixed(1)}%` : 'N/A'}
@@ -419,6 +528,29 @@ function BacktestSection({
               label="Avoid Avg Return"
               value={latest.avoid_avg_return != null ? `${(latest.avoid_avg_return * 100).toFixed(1)}%` : 'N/A'}
               positive={latest.avoid_avg_return != null && latest.avoid_avg_return < 0}
+            />
+            <MetricCard
+              label="Sharpe Ratio"
+              value={latest.sharpe_ratio != null ? latest.sharpe_ratio.toFixed(2) : 'N/A'}
+              positive={latest.sharpe_ratio != null && latest.sharpe_ratio > 1}
+            />
+            <MetricCard
+              label="Max Drawdown"
+              value={latest.max_drawdown != null ? `${(latest.max_drawdown * 100).toFixed(1)}%` : 'N/A'}
+              positive={latest.max_drawdown != null && latest.max_drawdown < 0.2}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            <MetricCard
+              label="Win Rate"
+              value={latest.win_rate != null ? `${(latest.win_rate * 100).toFixed(1)}%` : 'N/A'}
+              positive={latest.win_rate != null && latest.win_rate > 0.5}
+            />
+            <MetricCard
+              label="Profit Factor"
+              value={latest.profit_factor != null ? latest.profit_factor.toFixed(2) : 'N/A'}
+              positive={latest.profit_factor != null && latest.profit_factor > 1}
             />
             <MetricCard label="Window" value={`${latest.window_days}d`} />
           </div>
@@ -512,7 +644,7 @@ function ForwardSection({ status }: { status: ForwardTestStatus | null }) {
   }
 
   const totalResolved = status.hit + status.missed + status.partiallyCorrect;
-  const accuracy = totalResolved > 0 ? (status.hit + status.partiallyCorrect * 0.5) / totalResolved : 0;
+  const accuracy = status.overallAccuracy ?? (totalResolved > 0 ? (status.hit + status.partiallyCorrect * 0.5) / totalResolved : 0);
 
   return (
     <div>
@@ -563,7 +695,7 @@ function ForwardSection({ status }: { status: ForwardTestStatus | null }) {
         />
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-border-default">
+      <div className="mb-6 overflow-x-auto rounded-xl border border-border-default">
         <table className="w-full text-left text-xs">
           <thead>
             <tr className="border-b border-border-default bg-surface-inset">
@@ -593,6 +725,75 @@ function ForwardSection({ status }: { status: ForwardTestStatus | null }) {
           </tbody>
         </table>
       </div>
+
+      {status.byCategory && status.byCategory.length > 0 && (
+        <div className="mb-6">
+          <h3 className="mb-2 text-sm font-medium text-ink-secondary">Accuracy by Category</h3>
+          <div className="overflow-x-auto rounded-xl border border-border-default">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-border-default bg-surface-inset">
+                  <th className="px-3 py-2 font-medium text-ink-muted">Category</th>
+                  <th className="px-3 py-2 font-medium text-ink-muted">Total</th>
+                  <th className="px-3 py-2 font-medium text-ink-muted">Hit</th>
+                  <th className="px-3 py-2 font-medium text-ink-muted">Missed</th>
+                  <th className="px-3 py-2 font-medium text-ink-muted">Accuracy</th>
+                  <th className="px-3 py-2 font-medium text-ink-muted">Avg Error</th>
+                </tr>
+              </thead>
+              <tbody>
+                {status.byCategory.map((cat) => (
+                  <tr key={cat.category} className="border-b border-border-subtle last:border-0">
+                    <td className="px-3 py-2">
+                      <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${CATEGORY_COLORS[cat.category as PredictionCategory] || ''}`}>
+                        {CATEGORY_LABELS[cat.category as PredictionCategory] || cat.category}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-ink-secondary">{cat.total}</td>
+                    <td className="px-3 py-2 text-emerald-400">{cat.hit}</td>
+                    <td className="px-3 py-2 text-red-400">{cat.missed}</td>
+                    <td className={`px-3 py-2 font-mono ${cat.accuracy != null && cat.accuracy > 0.5 ? 'text-emerald-400' : 'text-ink-muted'}`}>
+                      {cat.accuracy != null ? `${(cat.accuracy * 100).toFixed(1)}%` : 'N/A'}
+                    </td>
+                    <td className="px-3 py-2 font-mono text-ink-muted">
+                      {cat.avgError != null ? `${(cat.avgError * 100).toFixed(1)}%` : 'N/A'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {status.byPriceRange && (
+        <div>
+          <h3 className="mb-2 text-sm font-medium text-ink-secondary">Accuracy by Price Range</h3>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="rounded-xl border border-border-default bg-surface-raised p-3">
+              <div className="text-xs text-ink-muted">Under $5</div>
+              <div className="mt-1 font-mono text-lg font-semibold text-white">
+                {status.byPriceRange.under5.accuracy != null ? `${(status.byPriceRange.under5.accuracy * 100).toFixed(1)}%` : 'N/A'}
+              </div>
+              <div className="text-xs text-ink-muted">{status.byPriceRange.under5.total} cards</div>
+            </div>
+            <div className="rounded-xl border border-border-default bg-surface-raised p-3">
+              <div className="text-xs text-ink-muted">$5 - $50</div>
+              <div className="mt-1 font-mono text-lg font-semibold text-white">
+                {status.byPriceRange.fiveToFifty.accuracy != null ? `${(status.byPriceRange.fiveToFifty.accuracy * 100).toFixed(1)}%` : 'N/A'}
+              </div>
+              <div className="text-xs text-ink-muted">{status.byPriceRange.fiveToFifty.total} cards</div>
+            </div>
+            <div className="rounded-xl border border-border-default bg-surface-raised p-3">
+              <div className="text-xs text-ink-muted">Over $50</div>
+              <div className="mt-1 font-mono text-lg font-semibold text-white">
+                {status.byPriceRange.overFifty.accuracy != null ? `${(status.byPriceRange.overFifty.accuracy * 100).toFixed(1)}%` : 'N/A'}
+              </div>
+              <div className="text-xs text-ink-muted">{status.byPriceRange.overFifty.total} cards</div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
