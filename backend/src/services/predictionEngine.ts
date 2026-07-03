@@ -26,6 +26,8 @@ export interface ScoringScores {
   demandScore: number;
   riskScore: number;
   externalSignalScore: number;
+  liquidityScore: number;
+  dataQualityScore: number;
 }
 
 export interface PriceRange {
@@ -92,7 +94,220 @@ export interface CardPredictionRow {
   modelVersion: string;
 }
 
-const MODEL_VERSION = '1.0.0';
+const MODEL_VERSION = '2.0.0';
+
+export interface CardQualityFilter {
+  minPrice: number;
+  maxPrice: number;
+  minDataPoints: number;
+  minConfidence: number;
+  rarities: string[];
+  excludeStagnant: boolean;
+}
+
+export const DEFAULT_CARD_QUALITY_FILTER: CardQualityFilter = {
+  minPrice: 2.0,
+  maxPrice: 10000,
+  minDataPoints: 14,
+  minConfidence: 30,
+  rarities: [
+    'Rare Holo',
+    'Rare Ultra',
+    'Rare Secret',
+    'Ultra Rare',
+    'Secret Rare',
+    'Double Rare',
+    'Illustration Rare',
+    'Special Illustration Rare',
+    'Hyper Rare',
+  ],
+  excludeStagnant: true,
+};
+
+export interface PredictionQueryFilters {
+  minPrice?: number;
+  maxPrice?: number;
+  rarities?: string[];
+  minConfidence?: number;
+}
+
+const RARITY_SQL_PATTERNS: Record<string, string> = {
+  'Rare Holo': '%Rare Holo%',
+  'Rare Ultra': '%Rare Ultra%',
+  'Rare Secret': '%Rare Secret%',
+  'Ultra Rare': '%Ultra Rare%',
+  'Secret Rare': '%Secret Rare%',
+  'Double Rare': '%Double Rare%',
+  'Illustration Rare': '%Illustration Rare%',
+  'Special Illustration Rare': '%Special Illustration%',
+  'Hyper Rare': '%Hyper Rare%',
+};
+
+function buildRarityWhereClause(
+  column: string,
+  rarities: string[]
+): { clause: string; params: string[] } {
+  if (rarities.length === 0) return { clause: '1=1', params: [] };
+
+  const conditions: string[] = [];
+  const params: string[] = [];
+
+  for (const rarity of rarities) {
+    const pattern = RARITY_SQL_PATTERNS[rarity] ?? `%${rarity}%`;
+    conditions.push(`${column} LIKE ?`);
+    params.push(pattern);
+  }
+
+  return { clause: `(${conditions.join(' OR ')})`, params };
+}
+
+export function isRarityInvestmentWorthy(rarity?: string): boolean {
+  if (!rarity) return false;
+
+  const lower = rarity.toLowerCase().trim();
+  if (lower === 'common' || lower === 'uncommon') return false;
+
+  const worthyPatterns = [
+    'rare holo',
+    'rare ultra',
+    'rare secret',
+    'ultra rare',
+    'secret rare',
+    'double rare',
+    'illustration rare',
+    'special illustration',
+    'hyper rare',
+    'rainbow rare',
+    'gold rare',
+  ];
+
+  if (worthyPatterns.some(p => lower.includes(p))) return true;
+
+  if (lower === 'rare') return false;
+
+  return lower.includes('vmax') || lower.includes('vstar') ||
+    (lower.includes('holo') && lower.includes('rare'));
+}
+
+export function hasMeaningfulPriceMovement(priceHistory: PricePoint[]): boolean {
+  if (priceHistory.length < 2) return false;
+
+  const prices = priceHistory.map(p => p.price ?? p.marketPrice ?? 0).filter(p => p > 0);
+  if (prices.length < 2) return false;
+
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  if (min <= 0) return false;
+
+  const rangePct = ((max - min) / min) * 100;
+  return rangePct >= 5;
+}
+
+export function isCardInvestmentWorthy(
+  card: { rarity?: string },
+  priceHistory: PricePoint[],
+  currentPrice: number | null,
+  filter: CardQualityFilter = DEFAULT_CARD_QUALITY_FILTER
+): boolean {
+  if (!currentPrice || currentPrice < filter.minPrice || currentPrice > filter.maxPrice) {
+    return false;
+  }
+
+  if (!isRarityInvestmentWorthy(card.rarity)) return false;
+
+  if (priceHistory.length < filter.minDataPoints) return false;
+
+  if (filter.excludeStagnant && !hasMeaningfulPriceMovement(priceHistory)) {
+    return false;
+  }
+
+  return true;
+}
+
+export function computeLiquidityScore(
+  priceHistory: PricePoint[],
+  currentPrice: number,
+  volatility: { dailyVolatility: number; monthlyVolatility: number }
+): number {
+  const dataPointScore = Math.min(100, (priceHistory.length / 90) * 100);
+
+  const stabilityScore = Math.max(0, 100 - volatility.monthlyVolatility * 200);
+
+  const priceLevelScore =
+    currentPrice >= 100 ? 100 :
+    currentPrice >= 50 ? 85 :
+    currentPrice >= 20 ? 70 :
+    currentPrice >= 10 ? 55 :
+    currentPrice >= 5 ? 40 :
+    currentPrice >= 2 ? 25 : 10;
+
+  const lastDate = priceHistory[priceHistory.length - 1]?.date;
+  let recencyScore = 50;
+  if (lastDate) {
+    const daysSince = (Date.now() - new Date(lastDate).getTime()) / (1000 * 60 * 60 * 24);
+    if (daysSince <= 3) recencyScore = 100;
+    else if (daysSince <= 7) recencyScore = 85;
+    else if (daysSince <= 14) recencyScore = 65;
+    else if (daysSince <= 30) recencyScore = 40;
+    else recencyScore = 20;
+  }
+
+  const score =
+    0.30 * dataPointScore +
+    0.25 * stabilityScore +
+    0.25 * priceLevelScore +
+    0.20 * recencyScore;
+
+  return Math.round(Math.max(0, Math.min(100, score)));
+}
+
+export function computeDataQualityScore(priceHistory: PricePoint[]): number {
+  if (priceHistory.length < 2) return 0;
+
+  let score = 100;
+
+  const gaps: number[] = [];
+  for (let i = 1; i < priceHistory.length; i++) {
+    const d1 = new Date(priceHistory[i - 1].date).getTime();
+    const d2 = new Date(priceHistory[i].date).getTime();
+    gaps.push((d2 - d1) / (1000 * 60 * 60 * 24));
+  }
+
+  const avgGap = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+  const maxGap = Math.max(...gaps);
+  if (avgGap > 7) score -= 20;
+  else if (avgGap > 4) score -= 10;
+  if (maxGap > 30) score -= 15;
+  else if (maxGap > 14) score -= 8;
+
+  const prices = priceHistory.map(p => p.price ?? p.marketPrice ?? 0).filter(p => p > 0);
+  if (prices.length >= 3) {
+    const mean = prices.reduce((a, b) => a + b, 0) / prices.length;
+    const variance = prices.reduce((a, p) => a + (p - mean) ** 2, 0) / prices.length;
+    const stdDev = Math.sqrt(variance);
+    if (stdDev > 0) {
+      const outlierCount = prices.filter(p => Math.abs(p - mean) > 3 * stdDev).length;
+      score -= Math.min(25, outlierCount * 5);
+    }
+  }
+
+  for (let i = 1; i < priceHistory.length - 1; i++) {
+    const prev = priceHistory[i - 1].price ?? priceHistory[i - 1].marketPrice ?? 0;
+    const curr = priceHistory[i].price ?? priceHistory[i].marketPrice ?? 0;
+    const next = priceHistory[i + 1].price ?? priceHistory[i + 1].marketPrice ?? 0;
+    if (prev > 0 && curr > 0 && next > 0) {
+      const spikeUp = (curr - prev) / prev;
+      const revert = (curr - next) / curr;
+      if (spikeUp > 0.5 && revert > 0.3) score -= 15;
+
+      const spikeDown = (prev - curr) / prev;
+      const recover = (next - curr) / curr;
+      if (spikeDown > 0.5 && recover > 0.3) score -= 10;
+    }
+  }
+
+  return Math.max(0, Math.min(100, score));
+}
 
 /** One mapping row per cardId — images are persisted on card_mappings by the backfill pipeline. */
 const CARD_METADATA_JOIN = `
@@ -292,12 +507,16 @@ export function computeExpectedReturns(
   const recoveryN = scores.recoveryScore / 100;
   const demandN = scores.demandScore / 100;
   const riskN = scores.riskScore / 100;
+  const liquidityN = scores.liquidityScore / 100;
+  const dataQualityN = scores.dataQualityScore / 100;
 
   const raw30d =
-    0.35 * trendN +
-    0.30 * recoveryN +
-    0.25 * demandN -
-    0.10 * riskN;
+    0.30 * trendN +
+    0.25 * recoveryN +
+    0.20 * demandN -
+    0.10 * riskN +
+    0.10 * liquidityN +
+    0.05 * dataQualityN;
 
   const expected30dReturn = (raw30d - 0.40) * 0.4;
   const expected7dReturn = expected30dReturn * 0.35;
@@ -332,23 +551,26 @@ export function determineCategory(
   priceChanges: { change30d: number | null; change90d: number | null },
   recoveryMetrics: { recentDrop: number | null; hasStabilized: boolean }
 ): PredictionCategory {
-  if (expected90dReturn >= 0.20 && scores.riskScore < 65) {
+  const liquidityPenalty = scores.liquidityScore < 30 ? 10 : scores.liquidityScore < 50 ? 5 : 0;
+  const qualityBonus = scores.dataQualityScore > 70 ? -5 : 0;
+
+  if (expected90dReturn >= 0.15 && scores.riskScore < 70 && scores.liquidityScore >= 40) {
     return 'strong_buy';
   }
 
-  if (expected90dReturn >= 0.10 && expected90dReturn < 0.20 && scores.riskScore < 70) {
+  if (expected90dReturn >= 0.08 && expected90dReturn < 0.15 && scores.riskScore < 75 && scores.liquidityScore >= 35) {
     return 'watch_dip';
   }
 
-  if (recoveryMetrics.recentDrop !== null && recoveryMetrics.recentDrop <= -15 && recoveryMetrics.hasStabilized) {
+  if (recoveryMetrics.recentDrop !== null && recoveryMetrics.recentDrop <= -15 && recoveryMetrics.hasStabilized && scores.liquidityScore >= 30) {
     return 'recovery';
   }
 
-  if (priceChanges.change30d !== null && priceChanges.change30d >= 10) {
+  if (priceChanges.change30d !== null && priceChanges.change30d >= 8 && scores.liquidityScore >= 35) {
     return 'momentum';
   }
 
-  if (scores.riskScore > 75) {
+  if (scores.riskScore > 75 + qualityBonus) {
     return 'avoid';
   }
 
@@ -357,7 +579,7 @@ export function determineCategory(
   }
 
   const changeMagnitude = Math.abs(priceChanges.change90d ?? 0);
-  if (changeMagnitude < 5) {
+  if (changeMagnitude < 3 && scores.liquidityScore < 50) {
     return 'stagnant';
   }
 
@@ -496,16 +718,38 @@ function fetchCardPriceHistory(uniqueIdentifier: string): Promise<PricePoint[]> 
   });
 }
 
-function fetchAllCards(): Promise<any[]> {
+function fetchAllCards(filter: CardQualityFilter = DEFAULT_CARD_QUALITY_FILTER): Promise<any[]> {
   const db = getDb();
+  const { clause: rarityClause, params: rarityParams } = buildRarityWhereClause('cm.rarity', filter.rarities);
+
   return new Promise((resolve, reject) => {
     db.all(
       `SELECT cm.cardId, cm.cardName, cm.setId, cm.setName, cm.cardNumber, cm.rarity,
-              cm.uniqueIdentifier
+              cm.uniqueIdentifier, ph_stats.latest_price, ph_stats.data_point_count
        FROM card_mappings cm
+       INNER JOIN (
+         SELECT
+           ph.uniqueIdentifier,
+           COUNT(DISTINCT ph.date) AS data_point_count,
+           (
+             SELECT COALESCE(ph2.marketPrice, ph2.price)
+             FROM price_history ph2
+             WHERE ph2.uniqueIdentifier = ph.uniqueIdentifier
+               AND ph2.source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
+             ORDER BY ph2.date DESC
+             LIMIT 1
+           ) AS latest_price
+         FROM price_history ph
+         WHERE ph.source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
+         GROUP BY ph.uniqueIdentifier
+         HAVING data_point_count >= ?
+           AND latest_price >= ?
+           AND latest_price <= ?
+       ) ph_stats ON ph_stats.uniqueIdentifier = cm.uniqueIdentifier
        WHERE cm.cardName IS NOT NULL AND TRIM(cm.cardName) <> ''
+         AND ${rarityClause}
        ORDER BY cm.cardName ASC`,
-      [],
+      [filter.minDataPoints, filter.minPrice, filter.maxPrice, ...rarityParams],
       (err, rows: any[]) => {
         if (err) return reject(err);
         resolve(rows || []);
@@ -516,23 +760,31 @@ function fetchAllCards(): Promise<any[]> {
 
 export async function predictSingleCard(
   card: { cardId: string; cardName: string; setId: string; setName: string; cardNumber?: string; rarity?: string; uniqueIdentifier?: string },
-  allCardReturns?: Array<{ name: string; rarity: string; avgReturn90d: number }>
+  allCardReturns?: Array<{ name: string; rarity: string; avgReturn90d: number }>,
+  filter: CardQualityFilter = DEFAULT_CARD_QUALITY_FILTER
 ): Promise<CardPrediction | null> {
   try {
     const uid = card.uniqueIdentifier;
     if (!uid) return null;
 
     const priceHistory = await fetchCardPriceHistory(uid);
-    if (priceHistory.length < 7) return null;
+    if (priceHistory.length < filter.minDataPoints) return null;
 
     const currentPrice = getLatestPrice(priceHistory);
     if (!currentPrice || currentPrice <= 0) return null;
+
+    if (!isCardInvestmentWorthy(card, priceHistory, currentPrice, filter)) {
+      return null;
+    }
 
     const movingAverages = computeMovingAverages(priceHistory);
     const priceChanges = computePriceChanges(priceHistory);
     const volatility = computeVolatility(priceHistory);
     const supportResistance = findSupportResistance(priceHistory);
     const recoveryMetrics = computeRecoveryMetrics(priceHistory);
+
+    const liquidityScore = computeLiquidityScore(priceHistory, currentPrice, volatility);
+    const dataQualityScore = computeDataQualityScore(priceHistory);
 
     const externalSignals = await searchExternalSignals(card.cardName, card.setName);
     const externalSignalScore = computeExternalSignalScore(externalSignals);
@@ -549,6 +801,8 @@ export async function predictSingleCard(
       demandScore,
       riskScore,
       externalSignalScore,
+      liquidityScore,
+      dataQualityScore,
     };
 
     const expectedReturns = computeExpectedReturns(scores);
@@ -558,12 +812,17 @@ export async function predictSingleCard(
       + (trendScore > 60 ? 10 : trendScore > 40 ? 5 : 0)
       + (priceHistory.length > 90 ? 15 : priceHistory.length > 30 ? 8 : priceHistory.length > 14 ? 3 : 0)
       + (demandScore > 60 ? 10 : 0)
+      + (liquidityScore > 60 ? 8 : liquidityScore > 40 ? 4 : 0)
+      + (dataQualityScore > 70 ? 5 : dataQualityScore > 50 ? 2 : 0)
       - (riskScore > 70 ? 10 : riskScore > 50 ? 5 : 0)
       - (priceHistory.length < 14 ? 15 : priceHistory.length < 30 ? 5 : 0)
+      - (dataQualityScore < 40 ? 10 : dataQualityScore < 60 ? 5 : 0)
     ));
 
     const volatilityAdjust = volatility.monthlyVolatility;
-    const confidenceScore = Math.max(10, Math.min(95, Math.round(baseConfidence * (1 - volatilityAdjust * 0.5))));
+    let confidenceScore = Math.max(10, Math.min(95, Math.round(baseConfidence * (1 - volatilityAdjust * 0.5))));
+
+    if (confidenceScore < filter.minConfidence) return null;
 
     const category = determineCategory(scores, expectedReturns.expected90dReturn, priceChanges, recoveryMetrics);
 
@@ -671,7 +930,11 @@ export async function runPredictions(): Promise<{ runId: number; total: number; 
   return { runId, total: cards.length, succeeded, failed };
 }
 
-export async function getLatestPredictions(limit: number = 100, category?: string): Promise<CardPredictionRow[]> {
+export async function getLatestPredictions(
+  limit: number = 100,
+  category?: string,
+  filters?: PredictionQueryFilters
+): Promise<CardPredictionRow[]> {
   const db = getDb();
   let sql = `
     SELECT cp.*, cm.cardName, cm.setName, cm.setId, cm.cardNumber, cm.rarity,
@@ -685,6 +948,27 @@ export async function getLatestPredictions(limit: number = 100, category?: strin
   if (category) {
     sql += ' AND cp.category = ?';
     params.push(category);
+  }
+
+  if (filters?.minPrice !== undefined) {
+    sql += ' AND cp.current_price >= ?';
+    params.push(filters.minPrice);
+  }
+
+  if (filters?.maxPrice !== undefined) {
+    sql += ' AND cp.current_price <= ?';
+    params.push(filters.maxPrice);
+  }
+
+  if (filters?.minConfidence !== undefined) {
+    sql += ' AND cp.confidence_score >= ?';
+    params.push(filters.minConfidence);
+  }
+
+  if (filters?.rarities && filters.rarities.length > 0) {
+    const { clause, params: rarityParams } = buildRarityWhereClause('cm.rarity', filters.rarities);
+    sql += ` AND ${clause}`;
+    params.push(...rarityParams);
   }
 
   sql += ' ORDER BY cp.expected_90d_return DESC LIMIT ?';

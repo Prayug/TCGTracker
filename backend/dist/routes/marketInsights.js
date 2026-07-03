@@ -27,11 +27,22 @@ const asyncHandler = (fn) => (req, res) => {
 router.get('/predictions', asyncHandler((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const limit = Math.min(parseInt(req.query.limit) || 100, 500);
     const category = req.query.category;
-    const predictions = yield (0, predictionEngine_1.getLatestPredictions)(limit, category);
+    const minPrice = req.query.minPrice !== undefined ? parseFloat(req.query.minPrice) : undefined;
+    const maxPrice = req.query.maxPrice !== undefined ? parseFloat(req.query.maxPrice) : undefined;
+    const minConfidence = req.query.minConfidence !== undefined ? parseFloat(req.query.minConfidence) : undefined;
+    const rarities = req.query.rarities
+        ? req.query.rarities.split(',').map(r => r.trim()).filter(Boolean)
+        : undefined;
+    const predictions = yield (0, predictionEngine_1.getLatestPredictions)(limit, category, {
+        minPrice,
+        maxPrice,
+        minConfidence,
+        rarities,
+    });
     res.json({
         data: predictions,
         count: predictions.length,
-        modelVersion: '1.0.0',
+        modelVersion: '2.0.0',
     });
 })));
 router.get('/card/:cardId', asyncHandler((req, res) => __awaiter(void 0, void 0, void 0, function* () {

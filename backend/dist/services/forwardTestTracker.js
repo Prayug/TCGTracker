@@ -160,6 +160,8 @@ function getForwardTestStatus() {
             getCountByStatus('missed'),
             getCountByStatus('partially_correct'),
         ]);
+        const totalResolved = hit + missed + partiallyCorrect;
+        const overallAccuracy = totalResolved > 0 ? (hit + partiallyCorrect * 0.5) / totalResolved : null;
         const getWindowStats = (days) => __awaiter(this, void 0, void 0, function* () {
             const cols = WINDOW_COLS[days];
             if (!cols) {
@@ -198,10 +200,75 @@ function getForwardTestStatus() {
             getWindowStats(30),
             getWindowStats(90),
         ]);
+        const getCategoryStats = () => __awaiter(this, void 0, void 0, function* () {
+            const categories = ['strong_buy', 'watch_dip', 'recovery', 'momentum', 'stagnant', 'avoid', 'downtrend'];
+            const results = [];
+            for (const cat of categories) {
+                const stats = yield new Promise((resolve, reject) => {
+                    db.get(`SELECT
+            COUNT(*) as total,
+            COUNT(CASE WHEN pr.status = 'hit' THEN 1 END) as hit,
+            COUNT(CASE WHEN pr.status = 'missed' THEN 1 END) as missed,
+            COUNT(CASE WHEN pr.status = 'partially_correct' THEN 1 END) as partial,
+            AVG(pr.error_90d) as avg_error
+          FROM prediction_results pr
+          JOIN card_predictions cp ON cp.id = pr.prediction_id
+          WHERE cp.run_id = (SELECT MAX(id) FROM prediction_runs)
+          AND cp.category = ?`, [cat], (err, row) => {
+                        if (err)
+                            return reject(err);
+                        resolve(row || { total: 0, hit: 0, missed: 0, partial: 0, avg_error: null });
+                    });
+                });
+                const resolved = stats.hit + stats.missed + stats.partial;
+                results.push({
+                    category: cat,
+                    total: stats.total,
+                    hit: stats.hit,
+                    missed: stats.missed,
+                    partiallyCorrect: stats.partial,
+                    accuracy: resolved > 0 ? (stats.hit + stats.partial * 0.5) / resolved : null,
+                    avgError: stats.avg_error,
+                });
+            }
+            return results;
+        });
+        const getPriceRangeStats = () => __awaiter(this, void 0, void 0, function* () {
+            const getStatsForRange = (minPrice, maxPrice) => {
+                return new Promise((resolve, reject) => {
+                    const priceClause = maxPrice !== null
+                        ? 'AND cp.current_price >= ? AND cp.current_price < ?'
+                        : 'AND cp.current_price >= ?';
+                    const params = maxPrice !== null ? [minPrice, maxPrice] : [minPrice];
+                    db.get(`SELECT
+            COUNT(*) as total,
+            COUNT(CASE WHEN pr.status = 'hit' THEN 1 END) as hit
+          FROM prediction_results pr
+          JOIN card_predictions cp ON cp.id = pr.prediction_id
+          WHERE cp.run_id = (SELECT MAX(id) FROM prediction_runs)
+          ${priceClause}`, params, (err, row) => {
+                        if (err)
+                            return reject(err);
+                        const r = row || { total: 0, hit: 0 };
+                        resolve({ total: r.total, hit: r.hit, accuracy: r.total > 0 ? r.hit / r.total : null });
+                    });
+                });
+            };
+            const [under5, fiveToFifty, overFifty] = yield Promise.all([
+                getStatsForRange(0, 5),
+                getStatsForRange(5, 50),
+                getStatsForRange(50, null),
+            ]);
+            return { under5, fiveToFifty, overFifty };
+        });
+        const [byCategory, byPriceRange] = yield Promise.all([getCategoryStats(), getPriceRangeStats()]);
         return {
             totalPredictions,
             pending, hit, missed, partiallyCorrect,
+            overallAccuracy,
             byWindow: { _7d, _30d, _90d },
+            byCategory,
+            byPriceRange,
         };
     });
 }
