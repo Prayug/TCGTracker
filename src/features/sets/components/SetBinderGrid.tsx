@@ -11,6 +11,7 @@ interface SetBinderGridProps {
   filter: FilterMode;
   onToggleWishlist: (cardId: string) => void;
   onAddToVault: (card: SetTrackerCard) => void;
+  onCardClick: (card: SetTrackerCard) => void;
 }
 
 export const SetBinderGrid: React.FC<SetBinderGridProps> = ({
@@ -19,6 +20,7 @@ export const SetBinderGrid: React.FC<SetBinderGridProps> = ({
   filter,
   onToggleWishlist,
   onAddToVault,
+  onCardClick,
 }) => {
   const visible = cards.filter((c) => {
     if (filter === 'owned') return c.owned;
@@ -40,7 +42,8 @@ export const SetBinderGrid: React.FC<SetBinderGridProps> = ({
         return (
           <article
             key={card.id}
-            className={`group relative flex flex-col rounded-xl border p-2 transition-all ${
+            onClick={() => onCardClick(card)}
+            className={`group relative flex cursor-pointer flex-col rounded-xl border p-2 transition-all hover:border-border-strong ${
               card.owned
                 ? 'border-gain/30 bg-gain/[0.06]'
                 : wish
@@ -56,12 +59,14 @@ export const SetBinderGrid: React.FC<SetBinderGridProps> = ({
                 <Check className="h-3.5 w-3.5" />
               </span>
             )}
-            <div className="aspect-[245/342] w-full overflow-hidden rounded-lg bg-surface-inset">
+            <div
+              className="aspect-[245/342] w-full overflow-hidden rounded-lg bg-surface-inset"
+            >
               {card.images?.small || card.images?.large ? (
                 <img
                   src={card.images.small || card.images.large}
                   alt={card.name}
-                  className={`h-full w-full object-contain transition-all duration-300 ${
+                  className={`h-full w-full object-contain transition-all duration-300 group-hover:scale-[1.03] ${
                     card.owned ? '' : 'opacity-50 saturate-[0.35] group-hover:opacity-90 group-hover:saturate-100'
                   }`}
                   loading="lazy"
@@ -72,7 +77,9 @@ export const SetBinderGrid: React.FC<SetBinderGridProps> = ({
                 </div>
               )}
             </div>
-            <p className="mt-2 truncate text-xs font-medium text-white">#{card.number} {card.name}</p>
+            <p className="mt-2 truncate text-xs font-medium text-white">
+              #{card.number} {card.name}
+            </p>
             <div className="mt-0.5 flex items-center justify-between gap-1">
               {card.hasPriceData ? (
                 <p className="text-xs font-semibold tabular-nums text-ink-secondary">
@@ -97,7 +104,10 @@ export const SetBinderGrid: React.FC<SetBinderGridProps> = ({
                 <>
                   <button
                     type="button"
-                    onClick={() => onToggleWishlist(card.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleWishlist(card.id);
+                    }}
                     className={`flex flex-1 items-center justify-center gap-1 rounded-lg border py-1.5 text-xs ${
                       wish
                         ? 'border-amber-500/40 text-amber-300'
@@ -109,7 +119,10 @@ export const SetBinderGrid: React.FC<SetBinderGridProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => onAddToVault(card)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAddToVault(card);
+                    }}
                     className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-border-default py-1.5 text-xs text-ink-secondary transition-colors hover:border-accent/40 hover:text-accent"
                     title="Add to collection"
                   >

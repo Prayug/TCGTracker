@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react';
 
 export type GameType = 'pokemon' | 'onepiece';
 
@@ -15,7 +15,9 @@ function getInitialGame(): GameType {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === 'pokemon' || stored === 'onepiece') return stored;
-  } catch {}
+  } catch {
+    /* localStorage unavailable */
+  }
   return 'pokemon';
 }
 
@@ -26,7 +28,10 @@ const GameContext = createContext<GameContextValue>({
   isOnePiece: false,
 });
 
-export const useGame = () => useContext(GameContext);
+export const useGame = () => {
+  const ctx = useContext(GameContext);
+  return ctx;
+};
 
 export function GameProvider({ children }: { children: ReactNode }) {
   const [game, setGameState] = useState<GameType>(getInitialGame);
@@ -35,18 +40,23 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setGameState(next);
     try {
       localStorage.setItem(STORAGE_KEY, next);
-    } catch {}
+    } catch {
+      /* localStorage unavailable */
+    }
   }, []);
 
+  const value = useMemo(
+    () => ({
+      game,
+      setGame,
+      isPokemon: game === 'pokemon',
+      isOnePiece: game === 'onepiece',
+    }),
+    [game, setGame]
+  );
+
   return (
-    <GameContext.Provider
-      value={{
-        game,
-        setGame,
-        isPokemon: game === 'pokemon',
-        isOnePiece: game === 'onepiece',
-      }}
-    >
+    <GameContext.Provider value={value}>
       {children}
     </GameContext.Provider>
   );
