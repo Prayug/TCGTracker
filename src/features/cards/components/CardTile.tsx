@@ -23,6 +23,9 @@ interface CardTileProps {
   onViewPriceHistory?: () => void;
 }
 
+const CARD_IMAGE_PLACEHOLDER =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='245' height='342' viewBox='0 0 245 342'%3E%3Crect width='245' height='342' fill='%231e293b' rx='8'/%3E%3Ctext x='50%25' y='50%25' font-family='Inter,sans-serif' font-size='12' fill='%2394a3b8' text-anchor='middle' dominant-baseline='middle'%3ENo image%3C/text%3E%3C/svg%3E";
+
 export const CardTile: React.FC<CardTileProps> = ({
   card,
   onClick,
@@ -55,8 +58,8 @@ export const CardTile: React.FC<CardTileProps> = ({
                 const target = e.target as HTMLImageElement;
                 if (card.images?.large && target.src !== card.images.large) {
                   target.src = card.images.large;
-                } else {
-                  target.remove();
+                } else if (target.src !== CARD_IMAGE_PLACEHOLDER) {
+                  target.src = CARD_IMAGE_PLACEHOLDER;
                 }
               }}
             />
