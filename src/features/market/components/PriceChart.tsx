@@ -131,7 +131,16 @@ export const PriceChart: React.FC<PriceChartProps> = ({
   const renderQuoteDot = (props: { cx?: number; cy?: number; payload?: ChartPricePoint }) => {
     const { cx, cy, payload } = props;
     if (!payload?.hasQuote || cx == null || cy == null) return null;
-    return <circle cx={cx} cy={cy} r={3} fill={strokeColor} stroke="none" />;
+    return (
+      <circle
+        key={`quote-dot-${payload.date}`}
+        cx={cx}
+        cy={cy}
+        r={3}
+        fill={strokeColor}
+        stroke="none"
+      />
+    );
   };
 
   return (
@@ -298,6 +307,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({
                 if (!payload?.hasQuote || cx == null || cy == null) return null;
                 return (
                   <circle
+                    key={`active-dot-${payload.date}`}
                     cx={cx}
                     cy={cy}
                     r={5}

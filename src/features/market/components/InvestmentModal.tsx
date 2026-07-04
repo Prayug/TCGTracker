@@ -9,6 +9,7 @@ import { vaultService } from '../../../services/vaultService';
 import { pokemonApi } from '../../../services/pokemonApi';
 import { priceTrackingService } from '../../../services/priceTrackingService';
 import { fetchCardPopulation, PopulationLookupResponse } from '../../../services/populationApi';
+import { fetchGradedPrices, GradedPriceResult, GradedPriceEntry } from '../../../services/gradedPricesApi';
 import { formatCurrency } from '../../../utils/cardDisplay';
 import { toIsoDate } from '../../../utils/priceHistory';
 
@@ -29,6 +30,18 @@ function formatDisplayDate(dateStr: string): string {
   });
 }
 
+function graderLabel(grader: string): string {
+  const map: Record<string, string> = {
+    psa: 'PSA',
+    cgc: 'CGC',
+    bgs: 'BGS',
+    sgc: 'SGC',
+    generic: '',
+    ungraded: 'Raw',
+  };
+  return map[grader] ?? grader.toUpperCase();
+}
+
 export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, onClose }) => {
   const [priceHistory, setPriceHistory] = useState<Array<{ date: string; price: number }>>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
@@ -40,6 +53,23 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
   const [populationData, setPopulationData] = useState<PopulationLookupResponse | null>(null);
   const [isLoadingPopulation, setIsLoadingPopulation] = useState(false);
   const [showPopulation, setShowPopulation] = useState(false);
+  const [gradedPrices, setGradedPrices] = useState<GradedPriceResult | null>(null);
+  const [isLoadingGradedPrices, setIsLoadingGradedPrices] = useState(false);
+  const [showGradedPrices, setShowGradedPrices] = useState(true);
+
+  const hasGradedPrices = gradedPrices?.prices && gradedPrices.prices.length > 0;
+
+  useEffect(() => {
+    if (!isOpen) {
+      setGradedPrices(null);
+      setShowGradedPrices(true);
+      setIsLoadingGradedPrices(false);
+      return;
+    }
+
+    setGradedPrices(null);
+    setShowGradedPrices(true);
+  }, [card?.id, isOpen]);
 
   const variantOptions = React.useMemo(() => {
     if (!card?.tcgplayer?.prices) return [{ key: 'normal', label: 'Normal' }];
@@ -50,6 +80,26 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
       label: key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (char) => char.toUpperCase()),
     }));
   }, [card]);
+
+  const groupedGradedPrices = React.useMemo(() => {
+    if (!gradedPrices?.prices) return [];
+    const groups = new Map<string, GradedPriceEntry[]>();
+    for (const p of gradedPrices.prices) {
+      const existing = groups.get(p.grader) || [];
+      existing.push(p);
+      groups.set(p.grader, existing);
+    }
+    return [...groups.entries()].map(([grader, entries]) => ({
+      grader,
+      label: graderLabel(grader),
+      entries: entries.sort((a, b) => {
+        const gradeOrder = ['10', '9.5', '9', '8', '7', '6', '5', '4', '3', '2', '1', 'ungraded'];
+        const ai = gradeOrder.indexOf(a.grade);
+        const bi = gradeOrder.indexOf(b.grade);
+        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+      }),
+    }));
+  }, [gradedPrices]);
 
   useEffect(() => {
     if (card && isOpen) {
@@ -62,6 +112,10 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
   useEffect(() => {
     if (card && isOpen) fetchPopulation();
   }, [card, isOpen, selectedVariant]);
+
+  useEffect(() => {
+    if (card && isOpen) fetchGradedPricesData();
+  }, [card, isOpen]);
 
   useEffect(() => {
     if (!card || !isOpen) return;
@@ -123,6 +177,23 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
     }
   };
 
+  const fetchGradedPricesData = async () => {
+    if (!card) return;
+    setIsLoadingGradedPrices(true);
+    try {
+      const result = await fetchGradedPrices({
+        cardId: card.id,
+        cardName: card.name,
+        setId: card.set?.id,
+        setName: card.set?.name,
+        cardNumber: card.number,
+      });
+      setGradedPrices(result);
+    } finally {
+      setIsLoadingGradedPrices(false);
+    }
+  };
+
   if (!card) return null;
 
   const selectedVariantLabel =
@@ -160,7 +231,7 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
             />
 
             <div className="min-w-0 flex-1">
-              <h2 className="text-xl font-bold leading-tight text-white sm:text-2xl">{card.name}</h2>
+              <h2 className="text-xl font-bold leading-tight text-ink-primary sm:text-2xl">{card.name}</h2>
               <p className="mt-1 text-sm text-ink-muted">
                 {card.set.name}
                 {card.number ? ` · #${card.number}` : ''}
@@ -170,7 +241,7 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
               )}
 
               <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <span className="text-3xl font-bold tabular-nums text-white">
+                <span className="text-3xl font-bold tabular-nums text-ink-primary">
                   {formatCurrency(actualCardPrice)}
                 </span>
                 {priceHistory.length > 1 && (
@@ -252,6 +323,79 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
           <div className="mt-4 border-t border-border-subtle pt-4">
             <button
               type="button"
+              onClick={() => setShowGradedPrices((v) => !v)}
+              className="flex w-full items-center justify-between text-left text-sm text-ink-muted hover:text-ink-secondary"
+              aria-expanded={showGradedPrices}
+            >
+              <span className="font-medium text-ink-secondary">
+                Slab prices
+                {isLoadingGradedPrices && (
+                  <Loader2 className="ml-2 inline h-3.5 w-3.5 animate-spin text-accent align-[-2px]" />
+                )}
+                {!showGradedPrices && hasGradedPrices && (
+                  <span className="ml-2 font-normal tabular-nums text-ink-muted">
+                    {groupedGradedPrices
+                      .flatMap((g) =>
+                        g.entries.slice(0, 3).map(
+                          (e) => `${g.label ? `${g.label} ` : ''}${e.grade} ${formatCurrency(e.price ?? 0)}`
+                        )
+                      )
+                      .join(' · ')}
+                  </span>
+                )}
+              </span>
+              <span className="text-ink-muted">{showGradedPrices ? '▾' : '▸'}</span>
+            </button>
+            {showGradedPrices && (
+              <div className="mt-3 space-y-4">
+                {isLoadingGradedPrices ? (
+                  <div className="flex items-center justify-center py-6">
+                    <Loader2 className="h-5 w-5 animate-spin text-accent" />
+                  </div>
+                ) : groupedGradedPrices.length === 0 ? (
+                  <p className="py-4 text-center text-sm text-ink-muted">No graded prices available</p>
+                ) : (
+                  groupedGradedPrices.map((group) => (
+                    <div key={group.grader}>
+                      {group.label && (
+                        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                          {group.label}
+                        </p>
+                      )}
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        {group.entries.map((entry) => (
+                          <div
+                            key={`${entry.grader}-${entry.grade}`}
+                            className="rounded-xl border border-border-default bg-surface-inset px-3 py-2 text-center"
+                          >
+                            <p className="text-xs font-medium text-ink-muted">
+                              {entry.grader === 'ungraded'
+                                ? 'Raw'
+                                : group.label
+                                  ? entry.grade
+                                  : `${graderLabel(entry.grader)} ${entry.grade}`.trim()}
+                            </p>
+                            <p className="mt-0.5 text-base font-bold tabular-nums text-ink-primary">
+                              {entry.price != null ? formatCurrency(entry.price) : '—'}
+                            </p>
+                            {entry.soldListings > 0 && (
+                              <p className="mt-0.5 text-[11px] text-ink-muted">
+                                {entry.soldListings.toLocaleString()} sold
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4 border-t border-border-subtle pt-4">
+            <button
+              type="button"
               onClick={() => setShowPopulation((v) => !v)}
               className="flex w-full items-center justify-between text-left text-sm text-ink-muted hover:text-ink-secondary"
               aria-expanded={showPopulation}
@@ -289,7 +433,7 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
                       className="rounded-xl border border-border-default bg-surface-inset px-3 py-2.5 text-center"
                     >
                       <p className="text-xs font-medium text-ink-muted">{label}</p>
-                      <p className="mt-0.5 text-lg font-bold tabular-nums text-white">
+                      <p className="mt-0.5 text-lg font-bold tabular-nums text-ink-primary">
                         {isLoadingPopulation ? '…' : value != null ? value.toLocaleString() : '—'}
                       </p>
                     </div>
