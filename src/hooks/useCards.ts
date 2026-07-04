@@ -15,10 +15,12 @@ import {
   getCardSet,
   getCardRarity,
   getCardId,
+  getCardReactKey,
+  dedupeCards,
 } from '../utils/cardPrice';
 
 export type { AnyCard };
-export { isPokemonCard, isOnePieceCard, getCardPrice, getCardName, getCardImage, getCardSet, getCardRarity, getCardId };
+export { isPokemonCard, isOnePieceCard, getCardPrice, getCardName, getCardImage, getCardSet, getCardRarity, getCardId, getCardReactKey, dedupeCards };
 
 interface UseCardsReturn {
   cards: AnyCard[];
@@ -125,7 +127,10 @@ export function useCards(): UseCardsReturn {
   }, [cards, filterBy, isOnePiece]);
 
   const game = isOnePiece ? 'onepiece' : 'pokemon';
-  const sortedCards = useMemo(() => sortCards(filteredCards, sortBy, game), [filteredCards, sortBy, game]);
+  const sortedCards = useMemo(
+    () => dedupeCards(sortCards(filteredCards, sortBy, game)),
+    [filteredCards, sortBy, game]
+  );
 
   const refetch = useCallback(() => {
     if (searchQuery.trim()) {
