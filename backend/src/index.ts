@@ -11,14 +11,14 @@ import marketInsightsRouter from './routes/marketInsights';
 import { initializeDatabase, getDb } from './db/database';
 import { runMigrations } from './db/migrations';
 import { updatePriceData } from './services/dataFetcher';
-import { backupDatabaseToCloud, getCloudBackupStatus } from './services/cloudBackupService';
+import { backupDatabaseToCloud, getCloudBackupStatus, restoreDatabaseFromCloud } from './services/cloudBackupService';
 import { syncCatalogData } from './services/catalogSync';
 import { backfillCardMappingImages } from './services/cardImageBackfillService';
 import { env } from './config/env';
 import { swaggerSpec } from './config/swagger';
 import { corsMiddleware, securityMiddleware } from './middleware/security';
 import { csrfProtection } from './middleware/csrf';
-import { apiLimiter, authLimiter } from './middleware/rateLimiter';
+import { apiLimiter } from './middleware/rateLimiter';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { authenticate, AuthRequest } from './middleware/auth';
 import { requireAdmin } from './middleware/admin';
@@ -135,7 +135,7 @@ function setupRoutes(
     { timezone: 'America/New_York' }
   );
 
-  app.use('/api/auth', authLimiter, createAuthRouter(authService));
+  app.use('/api/auth', createAuthRouter(authService));
   app.use('/api/alerts', createAlertsRouter(alertService));
   app.use('/api/portfolio', createPortfolioRouter(portfolioService));
   app.use('/api/prices', priceHistoryRouter);
@@ -237,6 +237,20 @@ function setupRoutes(
     } catch (error: any) {
       logger.error('Cloud backup status failed', { error: error.message });
       res.status(500).json({ success: false, error: 'Failed to retrieve cloud backup status' });
+    }
+  });
+
+  app.post('/api/cloud-backup/restore', authenticate, requireAdmin, async (_req, res) => {
+    try {
+      const result = await restoreDatabaseFromCloud();
+      res.status(result.restored || !result.enabled ? 200 : 500).json(result);
+      if (result.restored) {
+        logger.warn('Database restored from cloud — server restart recommended');
+        setTimeout(() => process.exit(0), 1000);
+      }
+    } catch (error: any) {
+      logger.error('Cloud restore endpoint failed', { error: error.message });
+      res.status(500).json({ success: false, error: 'Cloud restore failed' });
     }
   });
 

@@ -159,7 +159,7 @@ function setupRoutes(authService, alertService, portfolioService) {
             logger_1.logger.error('Failed to sync One Piece data', { error: error.message });
         }
     }), { timezone: 'America/New_York' });
-    app.use('/api/auth', rateLimiter_1.authLimiter, (0, auth_2.createAuthRouter)(authService));
+    app.use('/api/auth', (0, auth_2.createAuthRouter)(authService));
     app.use('/api/alerts', (0, alerts_1.createAlertsRouter)(alertService));
     app.use('/api/portfolio', (0, portfolio_1.createPortfolioRouter)(portfolioService));
     app.use('/api/prices', priceHistory_1.default);
@@ -253,6 +253,20 @@ function setupRoutes(authService, alertService, portfolioService) {
         catch (error) {
             logger_1.logger.error('Cloud backup status failed', { error: error.message });
             res.status(500).json({ success: false, error: 'Failed to retrieve cloud backup status' });
+        }
+    }));
+    app.post('/api/cloud-backup/restore', auth_1.authenticate, admin_1.requireAdmin, (_req, res) => __awaiter(this, void 0, void 0, function* () {
+        try {
+            const result = yield (0, cloudBackupService_1.restoreDatabaseFromCloud)();
+            res.status(result.restored || !result.enabled ? 200 : 500).json(result);
+            if (result.restored) {
+                logger_1.logger.warn('Database restored from cloud — server restart recommended');
+                setTimeout(() => process.exit(0), 1000);
+            }
+        }
+        catch (error) {
+            logger_1.logger.error('Cloud restore endpoint failed', { error: error.message });
+            res.status(500).json({ success: false, error: 'Cloud restore failed' });
         }
     }));
     app.post('/api/sync-catalog', auth_1.authenticate, admin_1.requireAdmin, (_req, res) => __awaiter(this, void 0, void 0, function* () {
