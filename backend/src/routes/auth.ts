@@ -1,10 +1,9 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
 import { AuthService } from '../services/authService';
-import { authenticate, AuthRequest } from '../middleware/auth';
-import { env } from '../config/env';
+import { authenticate, optionalAuth, AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validation';
-import { passwordChangeLimiter } from '../middleware/rateLimiter';
+import { authLimiter, passwordChangeLimiter } from '../middleware/rateLimiter';
 import { setAuthCookie, clearAuthCookie } from '../utils/cookies';
 import { logger } from '../utils/logger';
 
@@ -70,7 +69,7 @@ export const createAuthRouter = (authService: AuthService) => {
    *       400:
    *         description: Validation error or user already exists
    */
-  router.post('/register', validate(registerSchema), async (req, res: Response) => {
+  router.post('/register', authLimiter, validate(registerSchema), async (req, res: Response) => {
     try {
       const { username, email, password } = req.body;
       const result = await authService.register(username, email, password);
@@ -107,7 +106,7 @@ export const createAuthRouter = (authService: AuthService) => {
    *       401:
    *         description: Invalid credentials
    */
-  router.post('/login', validate(loginSchema), async (req, res: Response) => {
+  router.post('/login', authLimiter, validate(loginSchema), async (req, res: Response) => {
     try {
       const { email, password } = req.body;
       const result = await authService.login(email, password);
@@ -137,18 +136,17 @@ export const createAuthRouter = (authService: AuthService) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
+  router.get('/me', optionalAuth, async (req: AuthRequest, res: Response) => {
     try {
-      const user = await authService.getUserById(req.user!.id);
-      if (!user) {
-        return res.status(404).json({ error: 'User not found' });
+      if (!req.user) {
+        return res.json({ user: null });
       }
-      res.json({
-        user: {
-          ...user,
-          isAdmin: user.username === env.admin.username,
-        },
-      });
+
+      const user = await authService.getUserById(req.user.id);
+      if (!user) {
+        return res.json({ user: null });
+      }
+      res.json({ user });
     } catch (error: any) {
       logger.error('Get me failed', { error: error.message });
       res.status(500).json({ error: 'Failed to fetch user data' });

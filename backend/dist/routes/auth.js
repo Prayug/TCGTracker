@@ -13,7 +13,6 @@ exports.createAuthRouter = void 0;
 const express_1 = require("express");
 const zod_1 = require("zod");
 const auth_1 = require("../middleware/auth");
-const env_1 = require("../config/env");
 const validation_1 = require("../middleware/validation");
 const rateLimiter_1 = require("../middleware/rateLimiter");
 const cookies_1 = require("../utils/cookies");
@@ -75,7 +74,7 @@ const createAuthRouter = (authService) => {
      *       400:
      *         description: Validation error or user already exists
      */
-    router.post('/register', (0, validation_1.validate)(registerSchema), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    router.post('/register', rateLimiter_1.authLimiter, (0, validation_1.validate)(registerSchema), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         try {
             const { username, email, password } = req.body;
             const result = yield authService.register(username, email, password);
@@ -112,7 +111,7 @@ const createAuthRouter = (authService) => {
      *       401:
      *         description: Invalid credentials
      */
-    router.post('/login', (0, validation_1.validate)(loginSchema), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    router.post('/login', rateLimiter_1.authLimiter, (0, validation_1.validate)(loginSchema), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         try {
             const { email, password } = req.body;
             const result = yield authService.login(email, password);
@@ -141,15 +140,16 @@ const createAuthRouter = (authService) => {
      *       401:
      *         description: Unauthorized
      */
-    router.get('/me', auth_1.authenticate, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    router.get('/me', auth_1.optionalAuth, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         try {
+            if (!req.user) {
+                return res.json({ user: null });
+            }
             const user = yield authService.getUserById(req.user.id);
             if (!user) {
-                return res.status(404).json({ error: 'User not found' });
+                return res.json({ user: null });
             }
-            res.json({
-                user: Object.assign(Object.assign({}, user), { isAdmin: user.username === env_1.env.admin.username }),
-            });
+            res.json({ user });
         }
         catch (error) {
             logger_1.logger.error('Get me failed', { error: error.message });
