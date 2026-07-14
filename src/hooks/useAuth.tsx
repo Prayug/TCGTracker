@@ -5,7 +5,6 @@ import { syncVaultOnLogin } from '../services/vaultSyncService';
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
-  isAdmin: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (username: string, email: string, password: string) => Promise<void>;
@@ -81,7 +80,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     () => ({
       user,
       isAuthenticated: !!user,
-      isAdmin: !!user?.isAdmin,
       isLoading,
       login,
       register,
