@@ -2,6 +2,7 @@ import { getDb } from '../db/database';
 import { generateUniqueIdentifier } from './cardIdentifier';
 import { backupDatabaseToCloud } from './cloudBackupService';
 import { logger } from '../utils/logger';
+import { isSkippedDbJob, withDbJobLock } from '../utils/dbJobLock';
 import { syncCatalogData } from './catalogSync';
 import { tcgdexMarketProvider } from './providers/tcgdexMarketProvider';
 import { MarketPriceProvider } from './providers/contracts';
@@ -10,8 +11,6 @@ import { normalizeVariantKey } from '../utils/normalizeVariantKey';
 export { normalizeVariantKey } from '../utils/normalizeVariantKey';
 
 const SYNC_TIMEZONE = 'America/New_York';
-let isUpdateRunning = false;
-let updateQueue: Promise<any> | null = null;
 
 const MAX_REASONABLE_PRICE = 50000;
 const MIN_PRICE = 0.01;
@@ -643,29 +642,19 @@ const snapshotFromMarketProvider = async (
 };
 
 export const updatePriceData = async () => {
-  if (isUpdateRunning) {
-    if (updateQueue) {
-      await updateQueue;
-    }
+  const result = await withDbJobLock('price_update', () => performPriceUpdate(), { skipIfBusy: true });
+
+  if (isSkippedDbJob(result)) {
     return {
       syncRunId: null,
       started: false,
       skipped: true,
       runDate: getRunDate(),
-      reason: 'Update already running',
+      reason: result.reason,
     };
   }
 
-  isUpdateRunning = true;
-  const updatePromise = performPriceUpdate();
-  updateQueue = updatePromise;
-
-  try {
-    return await updatePromise;
-  } finally {
-    isUpdateRunning = false;
-    updateQueue = null;
-  }
+  return result;
 };
 
 const performPriceUpdate = async () => {

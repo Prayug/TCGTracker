@@ -17,14 +17,13 @@ const database_1 = require("../db/database");
 const cardIdentifier_1 = require("./cardIdentifier");
 const cloudBackupService_1 = require("./cloudBackupService");
 const logger_1 = require("../utils/logger");
+const dbJobLock_1 = require("../utils/dbJobLock");
 const catalogSync_1 = require("./catalogSync");
 const tcgdexMarketProvider_1 = require("./providers/tcgdexMarketProvider");
 const normalizeVariantKey_1 = require("../utils/normalizeVariantKey");
 var normalizeVariantKey_2 = require("../utils/normalizeVariantKey");
 Object.defineProperty(exports, "normalizeVariantKey", { enumerable: true, get: function () { return normalizeVariantKey_2.normalizeVariantKey; } });
 const SYNC_TIMEZONE = 'America/New_York';
-let isUpdateRunning = false;
-let updateQueue = null;
 const MAX_REASONABLE_PRICE = 50000;
 const MIN_PRICE = 0.01;
 const isValidPrice = (price) => {
@@ -526,28 +525,17 @@ const snapshotFromMarketProvider = (date, marketProvider) => __awaiter(void 0, v
     };
 });
 const updatePriceData = () => __awaiter(void 0, void 0, void 0, function* () {
-    if (isUpdateRunning) {
-        if (updateQueue) {
-            yield updateQueue;
-        }
+    const result = yield (0, dbJobLock_1.withDbJobLock)('price_update', () => performPriceUpdate(), { skipIfBusy: true });
+    if ((0, dbJobLock_1.isSkippedDbJob)(result)) {
         return {
             syncRunId: null,
             started: false,
             skipped: true,
             runDate: (0, exports.getRunDate)(),
-            reason: 'Update already running',
+            reason: result.reason,
         };
     }
-    isUpdateRunning = true;
-    const updatePromise = performPriceUpdate();
-    updateQueue = updatePromise;
-    try {
-        return yield updatePromise;
-    }
-    finally {
-        isUpdateRunning = false;
-        updateQueue = null;
-    }
+    return result;
 });
 exports.updatePriceData = updatePriceData;
 const performPriceUpdate = () => __awaiter(void 0, void 0, void 0, function* () {
