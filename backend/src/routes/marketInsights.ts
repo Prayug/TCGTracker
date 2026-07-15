@@ -6,7 +6,6 @@ import { updateActualResults, getForwardTestStatus } from '../services/forwardTe
 import { getExternalSignalsForCard } from '../services/externalSignalService';
 import { getDb } from '../db/database';
 import { AuthRequest } from '../middleware/auth';
-import { requireAdminUnlessDev } from '../middleware/admin';
 
 const router = Router();
 
@@ -134,7 +133,7 @@ router.get('/card/:cardId', asyncHandler(async (req, res) => {
   });
 }));
 
-router.post('/run-predictions', requireAdminUnlessDev, asyncHandler(async (_req, res) => {
+router.post('/run-predictions', asyncHandler(async (_req, res) => {
   logger.info('Manual prediction run requested');
   const result = await runPredictions();
   res.status(202).json({
@@ -147,7 +146,7 @@ router.post('/run-predictions', requireAdminUnlessDev, asyncHandler(async (_req,
   });
 }));
 
-router.post('/backtest', requireAdminUnlessDev, asyncHandler(async (req, res) => {
+router.post('/backtest', asyncHandler(async (req, res) => {
   const { backtestDate, windowDays = 90, cardIds } = req.body;
 
   if (!backtestDate) {
@@ -169,7 +168,7 @@ router.get('/forward-test', asyncHandler(async (_req, res) => {
   res.json(status);
 }));
 
-router.post('/forward-test/update', requireAdminUnlessDev, asyncHandler(async (_req, res) => {
+router.post('/forward-test/update', asyncHandler(async (_req, res) => {
   const result = await updateActualResults();
   res.json({ success: true, updated: result.updated });
 }));

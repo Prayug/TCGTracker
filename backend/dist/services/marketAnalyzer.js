@@ -8,6 +8,8 @@ exports.computeVolatility = computeVolatility;
 exports.findSupportResistance = findSupportResistance;
 exports.computeRecoveryMetrics = computeRecoveryMetrics;
 exports.analyzeSimilarCards = analyzeSimilarCards;
+exports.computeMarketBenchmark = computeMarketBenchmark;
+exports.computeExcessReturn = computeExcessReturn;
 function formatDate(d) {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -71,7 +73,15 @@ function computeVolatility(points, days = 30) {
     const recent = sorted.slice(-Math.max(days, 30));
     const prices = recent.map(p => { var _a; return (_a = p.marketPrice) !== null && _a !== void 0 ? _a : p.price; }).filter(p => p > 0);
     if (prices.length < 7) {
-        return { dailyVolatility: 0.02, weeklyVolatility: 0.05, monthlyVolatility: 0.10 };
+        // Return elevated uncertainty values instead of arbitrary defaults
+        // This naturally penalizes sparse-data cards through risk scoring
+        const dataRatio = prices.length / 7;
+        const uncertaintyScale = 1 + (1 - dataRatio) * 2; // 1x-3x multiplier
+        return {
+            dailyVolatility: 0.05 * uncertaintyScale,
+            weeklyVolatility: 0.12 * uncertaintyScale,
+            monthlyVolatility: 0.25 * uncertaintyScale,
+        };
     }
     const logReturns = [];
     for (let i = 1; i < prices.length; i++) {
@@ -167,4 +177,38 @@ function analyzeSimilarCards(cardName, rarity, allCards) {
         return { similarAvgReturn: null, sampleSize: 0 };
     const avgReturn = similar.reduce((a, b) => a + b.avgReturn90d, 0) / similar.length;
     return { similarAvgReturn: avgReturn, sampleSize: similar.length };
+}
+/**
+ * Computes the market-wide average return over a given number of days.
+ * This serves as a benchmark for comparing individual card predictions.
+ */
+function computeMarketBenchmark(allPriceHistories, days = 90) {
+    const returns = [];
+    for (const history of allPriceHistories) {
+        const sorted = [...history].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        const prices = sorted.map(p => { var _a; return (_a = p.marketPrice) !== null && _a !== void 0 ? _a : p.price; }).filter(p => p > 0);
+        if (prices.length < days + 1)
+            continue;
+        const currentPrice = prices[prices.length - 1];
+        const pastPrice = prices[prices.length - 1 - days];
+        if (pastPrice > 0 && currentPrice > 0) {
+            returns.push((currentPrice - pastPrice) / pastPrice);
+        }
+    }
+    if (returns.length === 0) {
+        return { avgReturn: 0, medianReturn: 0, returnStdDev: 0, sampleSize: 0 };
+    }
+    const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
+    const sortedReturns = [...returns].sort((a, b) => a - b);
+    const medianReturn = sortedReturns[Math.floor(sortedReturns.length / 2)];
+    const variance = returns.reduce((a, r) => a + (r - avgReturn) ** 2, 0) / returns.length;
+    const returnStdDev = Math.sqrt(variance);
+    return { avgReturn, medianReturn, returnStdDev, sampleSize: returns.length };
+}
+/**
+ * Computes excess return: how much a card's predicted return exceeds
+ * the market benchmark. Positive = outperforming, negative = underperforming.
+ */
+function computeExcessReturn(predictedReturn, marketAvgReturn) {
+    return predictedReturn - marketAvgReturn;
 }

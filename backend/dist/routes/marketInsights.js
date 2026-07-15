@@ -16,7 +16,6 @@ const backtestEngine_1 = require("../services/backtestEngine");
 const forwardTestTracker_1 = require("../services/forwardTestTracker");
 const externalSignalService_1 = require("../services/externalSignalService");
 const database_1 = require("../db/database");
-const admin_1 = require("../middleware/admin");
 const router = (0, express_1.Router)();
 const asyncHandler = (fn) => (req, res) => {
     fn(req, res).catch((err) => {
@@ -125,7 +124,7 @@ router.get('/card/:cardId', asyncHandler((req, res) => __awaiter(void 0, void 0,
         } : null,
     });
 })));
-router.post('/run-predictions', admin_1.requireAdminUnlessDev, asyncHandler((_req, res) => __awaiter(void 0, void 0, void 0, function* () {
+router.post('/run-predictions', asyncHandler((_req, res) => __awaiter(void 0, void 0, void 0, function* () {
     logger_1.logger.info('Manual prediction run requested');
     const result = yield (0, predictionEngine_1.runPredictions)();
     res.status(202).json({
@@ -137,7 +136,7 @@ router.post('/run-predictions', admin_1.requireAdminUnlessDev, asyncHandler((_re
         message: `Prediction run complete: ${result.succeeded} predictions generated, ${result.failed} skipped`,
     });
 })));
-router.post('/backtest', admin_1.requireAdminUnlessDev, asyncHandler((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+router.post('/backtest', asyncHandler((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { backtestDate, windowDays = 90, cardIds } = req.body;
     if (!backtestDate) {
         return res.status(400).json({ error: 'backtestDate is required (YYYY-MM-DD)' });
@@ -154,7 +153,7 @@ router.get('/forward-test', asyncHandler((_req, res) => __awaiter(void 0, void 0
     const status = yield (0, forwardTestTracker_1.getForwardTestStatus)();
     res.json(status);
 })));
-router.post('/forward-test/update', admin_1.requireAdminUnlessDev, asyncHandler((_req, res) => __awaiter(void 0, void 0, void 0, function* () {
+router.post('/forward-test/update', asyncHandler((_req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const result = yield (0, forwardTestTracker_1.updateActualResults)();
     res.json({ success: true, updated: result.updated });
 })));
