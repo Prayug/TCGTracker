@@ -48,7 +48,7 @@ function mapSuggestedAction(action) {
         return 'HOLD';
     return 'WATCH';
 }
-function computePriceChanges(prices) {
+function computePriceChangesLocal(prices) {
     if (prices.length === 0)
         return { change30d: 0, change90d: 0, change1y: 0 };
     const current = prices[prices.length - 1];
@@ -67,7 +67,7 @@ function computePriceChanges(prices) {
         change1y: getChange(365),
     };
 }
-function computeVolatility(prices) {
+function computeVolatilityLocal(prices) {
     if (prices.length < 7)
         return 0.1;
     const logReturns = [];
@@ -80,7 +80,7 @@ function computeVolatility(prices) {
         return 0.1;
     const mean = logReturns.reduce((a, b) => a + b, 0) / logReturns.length;
     const variance = logReturns.reduce((a, b) => a + (b - mean) ** 2, 0) / logReturns.length;
-    return Math.sqrt(variance) * Math.sqrt(30); // monthly volatility
+    return Math.sqrt(variance) * Math.sqrt(30);
 }
 function computeFairValue(prices) {
     if (prices.length === 0)
@@ -224,8 +224,8 @@ function enrichCardsWithInvestmentData(cards) {
                     return card;
                 // Build marketAnalysis from prediction + price data
                 const prices = priceHistory.map(p => p.price).filter(p => p > 0);
-                const { change30d, change90d, change1y } = computePriceChanges(prices);
-                const volatility = computeVolatility(prices);
+                const { change30d, change90d, change1y } = computePriceChangesLocal(prices);
+                const volatility = computeVolatilityLocal(prices);
                 const fairValue = computeFairValue(prices);
                 const category = (prediction === null || prediction === void 0 ? void 0 : prediction.category) || '';
                 const expected30dReturn = (prediction === null || prediction === void 0 ? void 0 : prediction.expected_30d_return) || 0;

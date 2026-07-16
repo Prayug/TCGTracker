@@ -228,6 +228,12 @@ export const initializeDatabase = (): Promise<void> => {
         strong_buy_false_positive_rate REAL,
         avoid_avg_return REAL,
         category_performance TEXT,
+        sharpe_ratio REAL,
+        max_drawdown REAL,
+        win_rate REAL,
+        profit_factor REAL,
+        market_median_return REAL,
+        market_return_std_dev REAL,
         created_at TEXT DEFAULT (datetime('now'))
       )`,
       `CREATE TABLE IF NOT EXISTS onepiece_catalog (
