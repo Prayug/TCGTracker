@@ -1,5 +1,6 @@
 import { Suspense, lazy } from 'react';
-import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { MotionConfig } from 'framer-motion';
 import { HeroSection } from './components/common/HeroSection';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { Header } from './components/layout/Header';
@@ -40,7 +41,7 @@ const SetDetail = lazy(() =>
   import('./features/sets/components/SetDetail').then((m) => ({ default: m.SetDetail }))
 );
 
-const PAGE_CONTAINER = 'mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8';
+const PAGE_CONTAINER = 'mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8';
 
 function RouteFallback() {
   return (
@@ -83,79 +84,97 @@ function VaultPage() {
   );
 }
 
+// Enter-only CSS transition keyed by pathname. AnimatePresence mode="wait" was
+// tried here and reverted: it deadlocks (old page never unmounts) when the
+// incoming lazy route suspends, since the exit handshake never completes.
+function AppRoutes() {
+  const location = useLocation();
+  return (
+    <div key={location.pathname} className="min-w-0 animate-fade-in">
+      <Suspense fallback={<RouteFallback />}>
+        <ErrorBoundary>
+          <Routes location={location}>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/browse" element={<BrowsePage />} />
+            <Route
+              path="/prices"
+              element={
+                <div className={PAGE_CONTAINER}>
+                  <PriceTrackingDashboard />
+                </div>
+              }
+            />
+            <Route
+              path="/market-insights"
+              element={
+                <div className={PAGE_CONTAINER}>
+                  <MarketInsightsDashboard />
+                </div>
+              }
+            />
+            <Route path="/vault" element={<VaultPage />} />
+            <Route path="/sets" element={<SetsPage />} />
+            <Route path="/sets/:setId" element={<SetsPage />} />
+            <Route
+              path="/packs"
+              element={
+                <div className={PAGE_CONTAINER}>
+                  <PackShop />
+                </div>
+              }
+            />
+            <Route
+              path="/scanner"
+              element={
+                <div className={PAGE_CONTAINER}>
+                  <CardScanner />
+                </div>
+              }
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </ErrorBoundary>
+      </Suspense>
+    </div>
+  );
+}
+
 function App() {
   return (
-    <GameProvider>
-      <CardModalProvider>
-        <div className="flex min-h-screen min-w-0 bg-surface-base text-ink-primary">
-          <Sidebar />
+    <MotionConfig reducedMotion="user">
+      <GameProvider>
+        <CardModalProvider>
+          <div className="flex min-h-screen min-w-0 bg-surface-base text-ink-primary">
+            <Sidebar />
 
-          <div className="flex min-w-0 flex-1 flex-col">
-            <a
-              href="#main-content"
-              className="sr-only z-[95] rounded-md bg-accent px-4 py-2 text-sm font-medium text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
-            >
-              Skip to content
-            </a>
+            <div className="flex min-w-0 flex-1 flex-col">
+              <a
+                href="#main-content"
+                className="sr-only z-[95] rounded-md bg-accent px-4 py-2 text-sm font-medium text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+              >
+                Skip to content
+              </a>
 
-            <Header />
+              <Header />
 
-            <main id="main-content" className="min-w-0 flex-1 pb-20 md:pb-0">
-              <Suspense fallback={<RouteFallback />}>
-                <ErrorBoundary>
-                  <Routes>
-                    <Route path="/" element={<HomePage />} />
-                    <Route path="/browse" element={<BrowsePage />} />
-                    <Route
-                      path="/prices"
-                      element={
-                        <div className={PAGE_CONTAINER}>
-                          <PriceTrackingDashboard />
-                        </div>
-                      }
-                    />
-                    <Route
-                      path="/market-insights"
-                      element={
-                        <div className={PAGE_CONTAINER}>
-                          <MarketInsightsDashboard />
-                        </div>
-                      }
-                    />
-                    <Route path="/vault" element={<VaultPage />} />
-                    <Route path="/sets" element={<SetsPage />} />
-                    <Route path="/sets/:setId" element={<SetsPage />} />
-                    <Route
-                      path="/packs"
-                      element={
-                        <div className={PAGE_CONTAINER}>
-                          <PackShop />
-                        </div>
-                      }
-                    />
-                    <Route
-                      path="/scanner"
-                      element={
-                        <div className={PAGE_CONTAINER}>
-                          <CardScanner />
-                        </div>
-                      }
-                    />
-                    <Route path="*" element={<Navigate to="/" replace />} />
-                  </Routes>
-                </ErrorBoundary>
-              </Suspense>
-            </main>
+              <main id="main-content" className="relative min-w-0 flex-1 pb-20 md:pb-0">
+                <div
+                  className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-accent/[0.04] to-transparent"
+                  aria-hidden="true"
+                />
+                <AppRoutes />
+              </main>
 
-            <OnboardingChecklist />
-            <Footer />
+              <OnboardingChecklist />
+              <Footer />
+            </div>
+
+            <BottomTabBar />
+            <CommandPalette />
           </div>
-
-          <BottomTabBar />
-          <CommandPalette />
-        </div>
-      </CardModalProvider>
-    </GameProvider>
+        </CardModalProvider>
+      </GameProvider>
+    </MotionConfig>
   );
 }
 
