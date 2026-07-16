@@ -64,7 +64,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onStartSearch, onViewC
       <section className="border-b border-border-subtle">
         <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
           <p className="text-sm font-medium text-accent">Pokemon TCG Tracker</p>
-          <h1 className="mt-2 max-w-2xl text-display text-ink-primary sm:text-[2.5rem] sm:leading-tight">
+          <h1 className="text-gradient mt-2 max-w-2xl text-display sm:text-[2.5rem] sm:leading-tight">
             Track your collection and its market value.
           </h1>
           <p className="mt-3 max-w-xl text-base text-ink-secondary">
@@ -87,22 +87,22 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onStartSearch, onViewC
                   value={searchValue}
                   onChange={(e) => setSearchValue(e.target.value)}
                   placeholder="Card name, set, number…"
-                  className="input h-10 pl-9"
+                  className="input input-with-icon h-11"
                 />
               </div>
-              <button type="submit" className="btn-primary h-10 justify-center px-5">
+              <button type="submit" className="btn-primary h-11 justify-center px-5">
                 Search
               </button>
             </div>
           </form>
 
-          <div className="mt-4 flex flex-wrap items-center gap-2">
+          <div className="stagger-children mt-4 flex flex-wrap items-center gap-2">
             {quickSearches.map((q) => (
               <button
                 key={q}
                 type="button"
                 onClick={() => onStartSearch(q)}
-                className="rounded-md border border-border-subtle bg-surface-raised px-3 py-1 text-sm text-ink-secondary transition-colors hover:border-border-default hover:text-ink-primary"
+                className="rounded-md border border-border-subtle bg-surface-raised px-3 py-1 text-sm text-ink-secondary transition-all duration-200 hover:scale-[1.03] hover:border-accent/40 hover:text-ink-primary"
               >
                 {q}
               </button>
@@ -150,22 +150,27 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onStartSearch, onViewC
         />
       </section>
 
-      <section className="border-t border-border-subtle bg-surface-inset">
+      <div
+        className="h-px bg-gradient-to-r from-transparent via-accent/30 to-transparent"
+        aria-hidden="true"
+      />
+
+      <section className="bg-surface-inset">
         <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
           <h2 className="text-h2 text-ink-primary">Quick links</h2>
-          <ul className="mt-6 divide-y divide-border-subtle border-y border-border-subtle">
+          <ul className="stagger-children mt-6 grid gap-3 sm:grid-cols-2">
             {workflows.map(({ label, description, view }) => (
               <li key={view}>
                 <button
                   type="button"
                   onClick={() => onViewChange(view)}
-                  className="group flex w-full items-center justify-between gap-4 py-4 text-left transition-colors hover:bg-surface-hover/50"
+                  className="card card-interactive group flex w-full items-center justify-between gap-4 !p-4 text-left"
                 >
                   <span>
                     <span className="block text-sm font-semibold text-ink-primary">{label}</span>
                     <span className="mt-0.5 block text-sm text-ink-muted">{description}</span>
                   </span>
-                  <ArrowRight className="h-4 w-4 shrink-0 text-ink-muted transition-transform group-hover:translate-x-0.5 group-hover:text-accent" />
+                  <ArrowRight className="h-4 w-4 shrink-0 text-ink-muted transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-accent" />
                 </button>
               </li>
             ))}

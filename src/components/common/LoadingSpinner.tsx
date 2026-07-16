@@ -15,7 +15,7 @@ export const LoadingSpinner: React.FC = () => {
 
 export const LoadingSkeleton: React.FC = () => {
   return (
-    <div className="overflow-hidden rounded-lg border border-border-subtle bg-surface-raised shadow-sm" aria-hidden="true">
+    <div className="overflow-hidden rounded-xl border border-border-subtle bg-surface-raised shadow-card" aria-hidden="true">
       <div className="skeleton aspect-[63/88]" />
       <div className="space-y-2 p-3.5">
         <div className="skeleton h-4 w-4/5 rounded" />
@@ -30,9 +30,35 @@ export const LoadingSkeleton: React.FC = () => {
   );
 };
 
+export const ListRowSkeleton: React.FC = () => {
+  return (
+    <div
+      className="flex items-center gap-4 rounded-xl border border-border-subtle bg-surface-raised p-3 shadow-subtle"
+      aria-hidden="true"
+    >
+      <div className="skeleton h-16 w-11 rounded" />
+      <div className="flex-1 space-y-2">
+        <div className="skeleton h-4 w-1/3 rounded" />
+        <div className="skeleton h-3 w-1/4 rounded" />
+      </div>
+      <div className="skeleton h-5 w-16 rounded" />
+    </div>
+  );
+};
+
+export const HeaderSkeleton: React.FC = () => {
+  return (
+    <div className="space-y-3" aria-hidden="true">
+      <div className="skeleton h-3 w-24 rounded" />
+      <div className="skeleton h-8 w-64 rounded" />
+      <div className="skeleton h-4 w-96 max-w-full rounded" />
+    </div>
+  );
+};
+
 export const LoadingGrid: React.FC<{ count?: number }> = ({ count = 18 }) => {
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+    <div className="stagger-children grid grid-cols-2 gap-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
       {Array.from({ length: count }).map((_, i) => (
         <LoadingSkeleton key={i} />
       ))}
