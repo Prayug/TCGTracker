@@ -86,13 +86,13 @@ function SidebarPanel({
   };
 
   const selectClass =
-    'h-10 w-full rounded-lg border border-border-default bg-surface-inset px-3 text-sm text-ink-primary focus:border-accent focus:outline-none';
+    'h-10 w-full rounded-lg border border-border-default bg-surface-inset px-3 text-sm text-ink-primary transition-colors duration-200 focus:border-accent focus:outline-none';
 
   return (
-    <div className="h-full rounded-xl border border-border-default bg-surface-raised p-4 shadow-sm">
+    <div className="card h-full !p-4">
       <div className="mb-2 flex items-center justify-between">
         <SectionLabel className="!flex items-center gap-2 !text-ink-secondary">
-          <SlidersHorizontal className="h-3.5 w-3.5 text-violet-300" />
+          <SlidersHorizontal className="h-3.5 w-3.5 text-accent" />
           Filters
         </SectionLabel>
         <button
@@ -182,7 +182,7 @@ export const FilterSidebar: React.FC<FilterSidebarProps> = ({
 
     {isMobileOpen && (
       <div className="fixed inset-0 z-40 bg-black/55 lg:hidden" role="dialog" aria-modal="true">
-        <div className="absolute right-0 top-0 h-full w-[88%] max-w-sm border-l border-border-subtle bg-[#0b111d] p-4">
+        <div className="absolute right-0 top-0 h-full w-[88%] max-w-sm animate-slide-down border-l border-border-subtle bg-surface-base p-4 shadow-elevated">
           <div className="mb-3 flex justify-end">
             <button
               type="button"
