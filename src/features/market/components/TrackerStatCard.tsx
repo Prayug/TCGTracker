@@ -1,5 +1,6 @@
 import React from 'react';
 import { LucideIcon } from 'lucide-react';
+import { CountUp } from '../../../components/common/CountUp';
 import { fillPriceHistoryGaps } from '../../../utils/priceHistory';
 
 interface TrackerStatCardProps {
@@ -11,10 +12,10 @@ interface TrackerStatCardProps {
 }
 
 const tones = {
-  default: 'text-white',
-  gain: 'text-emerald-300',
-  loss: 'text-rose-300',
-  alert: 'text-amber-300',
+  default: 'text-ink-primary',
+  gain: 'text-gain',
+  loss: 'text-loss',
+  alert: 'text-accent',
 };
 
 export const TrackerStatCard: React.FC<TrackerStatCardProps> = ({
@@ -24,17 +25,17 @@ export const TrackerStatCard: React.FC<TrackerStatCardProps> = ({
   helper,
   tone = 'default',
 }) => {
-  const display = typeof value === 'number' && value === 0 ? '—' : value;
-
   return (
-    <article className="card">
+    <article className="card-glass transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated">
       <div className="mb-3 flex items-center gap-2">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border-default bg-surface-hover">
-          <Icon className="h-4 w-4 text-violet-300" />
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-accent/25 bg-accent-muted">
+          <Icon className="h-4 w-4 text-accent" />
         </div>
         <p className="section-label !normal-case !tracking-normal text-ink-muted">{label}</p>
       </div>
-      <p className={`text-3xl font-bold tabular-nums ${tones[tone]}`}>{display}</p>
+      <p className={`font-mono text-3xl font-bold tabular-nums ${tones[tone]}`}>
+        {typeof value === 'number' ? value === 0 ? '—' : <CountUp end={value} /> : value}
+      </p>
       <p className="mt-1 text-xs text-ink-muted">{helper}</p>
     </article>
   );

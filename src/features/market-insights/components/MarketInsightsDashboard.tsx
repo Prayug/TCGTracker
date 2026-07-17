@@ -35,7 +35,6 @@ import {
 import { PokemonCard } from '../../../types/pokemon';
 import { PredictionCard } from './PredictionCard';
 import { useResolvedPredictionCards } from '../hooks/useResolvedPredictionCards';
-import { useAuth } from '../../../hooks/useAuth';
 import { useGame } from '../../../contexts/GameContext';
 import { Package, Brain } from 'lucide-react';
 
@@ -76,8 +75,6 @@ const CATEGORY_MAP: Record<SectionType, PredictionCategory | 'all'> = {
 
 export function MarketInsightsDashboard() {
   const { isOnePiece } = useGame();
-  const { isAdmin } = useAuth();
-  const canRunAdminActions = isAdmin || import.meta.env.DEV;
   const [activeSection, setActiveSection] = useState<SectionType>('gainers');
   const [predictions, setPredictions] = useState<CardPrediction[]>([]);
   const [backtestResults, setBacktestResults] = useState<BacktestResult[]>([]);
@@ -127,10 +124,6 @@ export function MarketInsightsDashboard() {
   }, [loadData]);
 
   const handleRunPredictions = async () => {
-    if (!canRunAdminActions) {
-      showMessage('Admin access required to run predictions.');
-      return;
-    }
     setRunningPrediction(true);
     try {
       const result = await marketInsightsApi.triggerPredictionRun();
@@ -144,10 +137,6 @@ export function MarketInsightsDashboard() {
   };
 
   const handleRunBacktest = async () => {
-    if (!canRunAdminActions) {
-      showMessage('Admin access required to run backtests.');
-      return;
-    }
     setRunningBacktest(true);
     try {
       await marketInsightsApi.runBacktest({ backtestDate, windowDays: 90 });
@@ -210,12 +199,8 @@ export function MarketInsightsDashboard() {
           </label>
           <button
             onClick={handleRunBacktest}
-            disabled={runningBacktest || !canRunAdminActions}
-            title={
-              canRunAdminActions
-                ? 'Run backtest for selected date'
-                : 'Admin access required'
-            }
+            disabled={runningBacktest}
+            title="Run backtest for selected date"
             className="inline-flex items-center gap-1.5 rounded-lg border border-border-default bg-surface-inset px-3 py-1.5 text-xs font-medium text-ink-secondary transition-colors hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             <RotateCcw className={`h-3.5 w-3.5 ${runningBacktest ? 'animate-spin' : ''}`} />
@@ -223,12 +208,8 @@ export function MarketInsightsDashboard() {
           </button>
           <button
             onClick={handleRunPredictions}
-            disabled={runningPrediction || !canRunAdminActions}
-            title={
-              canRunAdminActions
-                ? 'Run a new prediction batch'
-                : 'Admin access required'
-            }
+            disabled={runningPrediction}
+            title="Run a new prediction batch"
             className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Play className={`h-3.5 w-3.5 ${runningPrediction ? 'animate-pulse' : ''}`} />
