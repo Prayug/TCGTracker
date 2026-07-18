@@ -1,13 +1,4 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const database_1 = require("../db/database");
@@ -108,7 +99,7 @@ router.get('/match', (req, res) => {
     });
 });
 // New endpoint specifically for getting price history by card details
-router.get('/history', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+router.get('/history', async (req, res) => {
     const { cardId, cardName, setName, cardNumber, setId, rarity, productId, variant = 'normal' } = req.query;
     if (!cardName || !setName) {
         return res.status(400).json({ error: 'cardName and setName are required.' });
@@ -120,7 +111,7 @@ router.get('/history', (req, res) => __awaiter(void 0, void 0, void 0, function*
         const safeCardNumber = cardNumber ? String(cardNumber) : '';
         const safeVariant = String(variant || 'normal');
         const safeCardId = cardId ? String(cardId) : undefined;
-        const exactCard = yield (0, cardIdentifier_1.findExactCardByDetails)({
+        const exactCard = await (0, cardIdentifier_1.findExactCardByDetails)({
             cardId: safeCardId,
             productId: productId ? String(productId) : undefined,
             cardName: safeCardName,
@@ -131,9 +122,9 @@ router.get('/history', (req, res) => __awaiter(void 0, void 0, void 0, function*
         if (exactCard) {
             let priceHistory = [];
             if (exactCard.productId) {
-                priceHistory = yield (0, cardIdentifier_1.getCardPriceHistoryForProduct)(exactCard.productId, safeVariant);
+                priceHistory = await (0, cardIdentifier_1.getCardPriceHistoryForProduct)(exactCard.productId, safeVariant);
             }
-            const byIdentifier = yield (0, cardIdentifier_1.getCardPriceHistory)(exactCard.uniqueIdentifier);
+            const byIdentifier = await (0, cardIdentifier_1.getCardPriceHistory)(exactCard.uniqueIdentifier);
             if (byIdentifier.length > priceHistory.length) {
                 priceHistory = byIdentifier;
             }
@@ -144,13 +135,13 @@ router.get('/history', (req, res) => __awaiter(void 0, void 0, void 0, function*
                 variant: exactCard.variantKey || safeVariant,
             });
         }
-        const card = yield (0, cardIdentifier_1.findCardByDetails)(safeCardName, safeSetId, safeCardNumber, rarity ? String(rarity) : undefined, safeVariant, productId ? String(productId) : undefined);
+        const card = await (0, cardIdentifier_1.findCardByDetails)(safeCardName, safeSetId, safeCardNumber, rarity ? String(rarity) : undefined, safeVariant, productId ? String(productId) : undefined);
         if (card) {
             let priceHistory = [];
             if (card.productId) {
-                priceHistory = yield (0, cardIdentifier_1.getCardPriceHistoryForProduct)(card.productId, safeVariant);
+                priceHistory = await (0, cardIdentifier_1.getCardPriceHistoryForProduct)(card.productId, safeVariant);
             }
-            const byIdentifier = yield (0, cardIdentifier_1.getCardPriceHistory)(card.uniqueIdentifier);
+            const byIdentifier = await (0, cardIdentifier_1.getCardPriceHistory)(card.uniqueIdentifier);
             if (byIdentifier.length > priceHistory.length) {
                 priceHistory = byIdentifier;
             }
@@ -183,7 +174,7 @@ router.get('/history', (req, res) => __awaiter(void 0, void 0, void 0, function*
         logger_1.logger.error('Error fetching price history:', error);
         res.status(500).json({ error: 'Failed to fetch price history.' });
     }
-}));
+});
 // Fallback matching function for cards not in our mapping system
 const fallbackMatch = (cardName, setName, cardNumber, db) => {
     return new Promise((resolve, reject) => {
@@ -249,7 +240,7 @@ const fallbackMatch = (cardName, setName, cardNumber, db) => {
     });
 };
 // One Piece price history — prefers TCGPlayer when OPTCG data is stale
-router.get('/onepiece/:catalogId', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+router.get('/onepiece/:catalogId', async (req, res) => {
     const catalogId = decodeURIComponent(req.params.catalogId);
     const days = req.query.days ? parseInt(req.query.days, 10) : undefined;
     if (days != null && (Number.isNaN(days) || days < 1)) {
@@ -257,7 +248,7 @@ router.get('/onepiece/:catalogId', (req, res) => __awaiter(void 0, void 0, void 
         return;
     }
     try {
-        const result = yield (0, onePiecePriceHistoryService_1.getOnePiecePriceHistory)(catalogId, days);
+        const result = await (0, onePiecePriceHistoryService_1.getOnePiecePriceHistory)(catalogId, days);
         if (!result) {
             res.status(404).json({ error: 'Card not found', catalogId });
             return;
@@ -284,7 +275,7 @@ router.get('/onepiece/:catalogId', (req, res) => __awaiter(void 0, void 0, void 
         logger_1.logger.error(`One Piece price history failed for ${catalogId}:`, error);
         res.status(500).json({ error: error.message });
     }
-}));
+});
 // Get price history for a specific product
 router.get('/:productId', (req, res) => {
     const { productId } = req.params;

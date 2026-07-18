@@ -1,13 +1,4 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const database_1 = require("../db/database");
@@ -19,9 +10,9 @@ const router = (0, express_1.Router)();
 /**
  * Get available sets for pack opening
  */
-router.get('/sets', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+router.get('/sets', async (req, res) => {
     try {
-        const sets = yield enhancedPackService_1.enhancedPackService.getAvailableSets();
+        const sets = await enhancedPackService_1.enhancedPackService.getAvailableSets();
         res.json({
             data: sets,
             count: sets.length,
@@ -35,11 +26,11 @@ router.get('/sets', (req, res) => __awaiter(void 0, void 0, void 0, function* ()
             message: error.message
         });
     }
-}));
+});
 /**
  * Open a pack from a specific set
  */
-router.post('/open/:setId', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+router.post('/open/:setId', async (req, res) => {
     try {
         const { setId } = req.params;
         const { packPrice, packName } = req.body;
@@ -53,7 +44,7 @@ router.post('/open/:setId', (req, res) => __awaiter(void 0, void 0, void 0, func
             price: packPrice || 4.99,
             name: packName || 'Custom Pack'
         } : {};
-        const result = yield enhancedPackService_1.enhancedPackService.openPack(setId, packConfig);
+        const result = await enhancedPackService_1.enhancedPackService.openPack(setId, packConfig);
         res.json({
             success: true,
             data: result,
@@ -67,11 +58,11 @@ router.post('/open/:setId', (req, res) => __awaiter(void 0, void 0, void 0, func
             message: error.message
         });
     }
-}));
+});
 /**
  * Resolve database set ID to Pokemon TCG API set code
  */
-router.get('/resolve-set-code/:setId', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+router.get('/resolve-set-code/:setId', async (req, res) => {
     try {
         const { setId } = req.params;
         if (!setId) {
@@ -79,7 +70,7 @@ router.get('/resolve-set-code/:setId', (req, res) => __awaiter(void 0, void 0, v
                 error: 'Set ID is required'
             });
         }
-        const apiSetCode = yield setCodeService_1.setCodeService.getApiSetCode(setId);
+        const apiSetCode = await setCodeService_1.setCodeService.getApiSetCode(setId);
         if (!apiSetCode) {
             return res.status(404).json({
                 error: 'Could not resolve set code',
@@ -99,11 +90,11 @@ router.get('/resolve-set-code/:setId', (req, res) => __awaiter(void 0, void 0, v
             message: error.message
         });
     }
-}));
+});
 /**
  * Get pack statistics for a set
  */
-router.get('/stats/:setId', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+router.get('/stats/:setId', async (req, res) => {
     try {
         const { setId } = req.params;
         if (!setId) {
@@ -113,7 +104,7 @@ router.get('/stats/:setId', (req, res) => __awaiter(void 0, void 0, void 0, func
         }
         const db = (0, database_1.getDb)();
         // Get card count and average price for the set
-        const stats = yield new Promise((resolve, reject) => {
+        const stats = await new Promise((resolve, reject) => {
             const sql = `
         SELECT
           COUNT(DISTINCT cm.cardName) as totalCards,
@@ -153,11 +144,11 @@ router.get('/stats/:setId', (req, res) => __awaiter(void 0, void 0, void 0, func
             message: error.message
         });
     }
-}));
+});
 /**
  * Debug endpoint: Get set code service status
  */
-router.get('/debug/set-codes', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+router.get('/debug/set-codes', async (req, res) => {
     try {
         const stats = setCodeService_1.setCodeService.getSetMappingStats();
         const isInitialized = setCodeService_1.setCodeService.isInitialized();
@@ -176,11 +167,11 @@ router.get('/debug/set-codes', (req, res) => __awaiter(void 0, void 0, void 0, f
             message: error.message
         });
     }
-}));
+});
 /**
  * Debug endpoint: Test set normalization
  */
-router.get('/debug/normalize-set/:setId', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+router.get('/debug/normalize-set/:setId', async (req, res) => {
     try {
         const { setId } = req.params;
         const { setName } = req.query;
@@ -189,8 +180,8 @@ router.get('/debug/normalize-set/:setId', (req, res) => __awaiter(void 0, void 0
                 error: 'Set ID is required'
             });
         }
-        const normalizedSetId = yield setCodeService_1.setCodeService.normalizeSetIdForImageUrl(setId, setName);
-        const imageUrls = yield setCodeService_1.setCodeService.buildDeterministicImageUrls(setId, '1', setName);
+        const normalizedSetId = await setCodeService_1.setCodeService.normalizeSetIdForImageUrl(setId, setName);
+        const imageUrls = await setCodeService_1.setCodeService.buildDeterministicImageUrls(setId, '1', setName);
         res.json({
             input: {
                 setId,
@@ -208,13 +199,13 @@ router.get('/debug/normalize-set/:setId', (req, res) => __awaiter(void 0, void 0
             message: error.message
         });
     }
-}));
+});
 /**
  * Debug endpoint: Get all Pokemon TCG API sets
  */
-router.get('/debug/all-sets', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+router.get('/debug/all-sets', async (req, res) => {
     try {
-        const sets = yield pokemonApiClient_1.pokemonApiClient.getSets(1000);
+        const sets = await pokemonApiClient_1.pokemonApiClient.getSets(1000);
         res.json({
             count: sets.length,
             sets: sets.map(s => ({
@@ -233,5 +224,5 @@ router.get('/debug/all-sets', (req, res) => __awaiter(void 0, void 0, void 0, fu
             message: error.message
         });
     }
-}));
+});
 exports.default = router;

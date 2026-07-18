@@ -1,13 +1,4 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.updatePriceHistoryWithIdentifier = exports.getCardPriceHistoryForProduct = exports.selectPriceHistoryForVariant = exports.getCardPriceHistory = exports.findExactCardByDetails = exports.findCardByDetails = exports.findCardByIdentifier = exports.storeCardMapping = exports.generateUniqueIdentifier = void 0;
 const database_1 = require("../db/database");
@@ -26,7 +17,7 @@ exports.generateUniqueIdentifier = generateUniqueIdentifier;
 /**
  * Stores or updates card mapping information
  */
-const storeCardMapping = (cardData) => __awaiter(void 0, void 0, void 0, function* () {
+const storeCardMapping = async (cardData) => {
     const db = (0, database_1.getDb)();
     const uniqueIdentifier = (0, exports.generateUniqueIdentifier)(cardData.setId, cardData.cardNumber, cardData.cardName, cardData.variantKey || 'normal');
     return new Promise((resolve, reject) => {
@@ -55,12 +46,12 @@ const storeCardMapping = (cardData) => __awaiter(void 0, void 0, void 0, functio
             }
         });
     });
-});
+};
 exports.storeCardMapping = storeCardMapping;
 /**
  * Finds card mapping by unique identifier
  */
-const findCardByIdentifier = (uniqueIdentifier) => __awaiter(void 0, void 0, void 0, function* () {
+const findCardByIdentifier = async (uniqueIdentifier) => {
     const db = (0, database_1.getDb)();
     return new Promise((resolve, reject) => {
         const sql = 'SELECT * FROM card_mappings WHERE uniqueIdentifier = ?';
@@ -87,7 +78,7 @@ const findCardByIdentifier = (uniqueIdentifier) => __awaiter(void 0, void 0, voi
             }
         });
     });
-});
+};
 exports.findCardByIdentifier = findCardByIdentifier;
 /**
  * Finds card mapping by card name, set, and optional card number
@@ -114,7 +105,7 @@ const dbAll = (sql, params = []) => {
         });
     });
 };
-const findCardByDetails = (cardName, setId, cardNumber, rarity, variantKey, productId) => __awaiter(void 0, void 0, void 0, function* () {
+const findCardByDetails = async (cardName, setId, cardNumber, rarity, variantKey, productId) => {
     const normalizedVariantKey = variantKey
         ? variantKey.toLowerCase().replace(/[^a-z0-9]/g, '')
         : null;
@@ -125,7 +116,7 @@ const findCardByDetails = (cardName, setId, cardNumber, rarity, variantKey, prod
     // Priority 1: Match by tcgplayerProductId if available
     if (productId) {
         const normalizedSetId = setId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-        const row = yield dbGet(`SELECT * FROM card_mappings WHERE tcgplayerProductId = ?
+        const row = await dbGet(`SELECT * FROM card_mappings WHERE tcgplayerProductId = ?
        ORDER BY
          CASE WHEN ? IS NOT NULL AND REPLACE(LOWER(COALESCE(variantKey, 'normal')), ' ', '') = ? THEN 0 ELSE 1 END,
          CASE WHEN ? IS NOT NULL AND REPLACE(LOWER(COALESCE(cardNumber, '')), '-', '') = ? THEN 0 ELSE 1 END,
@@ -164,11 +155,11 @@ const findCardByDetails = (cardName, setId, cardNumber, rarity, variantKey, prod
     };
     // Exact match
     const exact = buildConditions();
-    const exactRow = yield dbGet(`SELECT * FROM card_mappings WHERE ${exact.conditions.join(' AND ')} ORDER BY ${orderClause(exact.params)}`, exact.params);
+    const exactRow = await dbGet(`SELECT * FROM card_mappings WHERE ${exact.conditions.join(' AND ')} ORDER BY ${orderClause(exact.params)}`, exact.params);
     if (exactRow)
         return exactRow;
     // Strategy 2: Lenient match (ignore special characters in name)
-    const lenientRow = yield dbGet(`SELECT * FROM card_mappings WHERE
+    const lenientRow = await dbGet(`SELECT * FROM card_mappings WHERE
       REPLACE(REPLACE(REPLACE(cardName, '-', ''), ' ', ''), '★', '') =
       REPLACE(REPLACE(REPLACE(?, '-', ''), ' ', ''), '★', '')
       ${isPromo ? "AND setName LIKE '%Promo%'" : 'AND (setId = ? OR setName LIKE ?)'}
@@ -188,7 +179,7 @@ const findCardByDetails = (cardName, setId, cardNumber, rarity, variantKey, prod
     if (lenientRow)
         return lenientRow;
     // Strategy 3: Fuzzy match (case-insensitive LIKE)
-    const fuzzyRow = yield dbGet(`SELECT * FROM card_mappings WHERE LOWER(cardName) LIKE ?
+    const fuzzyRow = await dbGet(`SELECT * FROM card_mappings WHERE LOWER(cardName) LIKE ?
      ${isPromo ? "AND setName LIKE '%Promo%'" : 'AND (setId = ? OR setName LIKE ?)'}
      ORDER BY ${orderClause([])}`, (() => {
         const p = [`%${cardName.toLowerCase()}%`];
@@ -202,9 +193,9 @@ const findCardByDetails = (cardName, setId, cardNumber, rarity, variantKey, prod
     if (fuzzyRow)
         return fuzzyRow;
     return null;
-});
+};
 exports.findCardByDetails = findCardByDetails;
-const findExactCardByDetails = (params) => __awaiter(void 0, void 0, void 0, function* () {
+const findExactCardByDetails = async (params) => {
     const db = (0, database_1.getDb)();
     const normalizedVariantKey = (params.variantKey || 'normal')
         .toLowerCase()
@@ -250,12 +241,12 @@ const findExactCardByDetails = (params) => __awaiter(void 0, void 0, void 0, fun
             }
         });
     });
-});
+};
 exports.findExactCardByDetails = findExactCardByDetails;
 /**
  * Gets all TCGCSV price history for a specific card using its unique identifier
  */
-const getCardPriceHistory = (uniqueIdentifier) => __awaiter(void 0, void 0, void 0, function* () {
+const getCardPriceHistory = async (uniqueIdentifier) => {
     const db = (0, database_1.getDb)();
     return new Promise((resolve, reject) => {
         const sql = `
@@ -273,7 +264,7 @@ const getCardPriceHistory = (uniqueIdentifier) => __awaiter(void 0, void 0, void
             }
         });
     });
-});
+};
 exports.getCardPriceHistory = getCardPriceHistory;
 const normalizeVariantKey = (value) => {
     if (!value)
@@ -333,7 +324,7 @@ const selectPriceHistoryForVariant = (rows, variantKey) => {
     return deduped.sort((a, b) => a.date.localeCompare(b.date));
 };
 exports.selectPriceHistoryForVariant = selectPriceHistoryForVariant;
-const getCardPriceHistoryForProduct = (productId, variantKey) => __awaiter(void 0, void 0, void 0, function* () {
+const getCardPriceHistoryForProduct = async (productId, variantKey) => {
     const db = (0, database_1.getDb)();
     return new Promise((resolve, reject) => {
         const sql = `
@@ -351,12 +342,12 @@ const getCardPriceHistoryForProduct = (productId, variantKey) => __awaiter(void 
             }
         });
     });
-});
+};
 exports.getCardPriceHistoryForProduct = getCardPriceHistoryForProduct;
 /**
  * Updates price history with unique identifier
  */
-const updatePriceHistoryWithIdentifier = (productId, uniqueIdentifier) => __awaiter(void 0, void 0, void 0, function* () {
+const updatePriceHistoryWithIdentifier = async (productId, uniqueIdentifier) => {
     const db = (0, database_1.getDb)();
     return new Promise((resolve, reject) => {
         const sql = 'UPDATE price_history SET uniqueIdentifier = ? WHERE productId = ?';
@@ -369,5 +360,5 @@ const updatePriceHistoryWithIdentifier = (productId, uniqueIdentifier) => __awai
             }
         });
     });
-});
+};
 exports.updatePriceHistoryWithIdentifier = updatePriceHistoryWithIdentifier;

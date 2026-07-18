@@ -1,13 +1,4 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getOnePiecePriceHistory = getOnePiecePriceHistory;
 const database_1 = require("../db/database");
@@ -35,50 +26,48 @@ function parseCatalogId(catalogId) {
         cardSetId,
     };
 }
-function loadCardContext(catalogId) {
-    return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c;
-        const parsed = parseCatalogId(catalogId);
-        if (parsed) {
-            const db = (0, database_1.getDb)();
-            const row = yield (0, dbAsync_1.allDbRows)(db, `SELECT setId, cardSetId, cardName, cardImageId, marketPrice, inventoryPrice
+async function loadCardContext(catalogId) {
+    var _a, _b, _c;
+    const parsed = parseCatalogId(catalogId);
+    if (parsed) {
+        const db = (0, database_1.getDb)();
+        const row = await (0, dbAsync_1.allDbRows)(db, `SELECT setId, cardSetId, cardName, cardImageId, marketPrice, inventoryPrice
        FROM onepiece_catalog WHERE catalogId = ?`, [catalogId]);
-            if (row[0]) {
-                return {
-                    setId: row[0].setId,
-                    cardSetId: row[0].cardSetId,
-                    cardName: row[0].cardName,
-                    cardImageId: row[0].cardImageId,
-                    optcgMarketPrice: row[0].marketPrice,
-                    optcgInventoryPrice: row[0].inventoryPrice,
-                    dateScraped: null,
-                };
-            }
-            const allCards = yield (0, onePieceOptcgClient_1.getAllOptcgCards)();
-            const live = allCards.find((card) => (0, onePieceCatalogId_1.buildOnePieceCatalogId)(card) === catalogId);
-            if (live) {
-                return {
-                    setId: live.set_id,
-                    cardSetId: live.card_set_id,
-                    cardName: live.card_name,
-                    cardImageId: live.card_image_id,
-                    optcgMarketPrice: (_a = live.market_price) !== null && _a !== void 0 ? _a : null,
-                    optcgInventoryPrice: (_b = live.inventory_price) !== null && _b !== void 0 ? _b : null,
-                    dateScraped: (_c = live.date_scraped) !== null && _c !== void 0 ? _c : null,
-                };
-            }
+        if (row[0]) {
             return {
-                setId: parsed.setId,
-                cardSetId: parsed.cardSetId,
-                cardName: parsed.cardName,
-                cardImageId: parsed.cardImageId,
-                optcgMarketPrice: null,
-                optcgInventoryPrice: null,
+                setId: row[0].setId,
+                cardSetId: row[0].cardSetId,
+                cardName: row[0].cardName,
+                cardImageId: row[0].cardImageId,
+                optcgMarketPrice: row[0].marketPrice,
+                optcgInventoryPrice: row[0].inventoryPrice,
                 dateScraped: null,
             };
         }
-        return null;
-    });
+        const allCards = await (0, onePieceOptcgClient_1.getAllOptcgCards)();
+        const live = allCards.find((card) => (0, onePieceCatalogId_1.buildOnePieceCatalogId)(card) === catalogId);
+        if (live) {
+            return {
+                setId: live.set_id,
+                cardSetId: live.card_set_id,
+                cardName: live.card_name,
+                cardImageId: live.card_image_id,
+                optcgMarketPrice: (_a = live.market_price) !== null && _a !== void 0 ? _a : null,
+                optcgInventoryPrice: (_b = live.inventory_price) !== null && _b !== void 0 ? _b : null,
+                dateScraped: (_c = live.date_scraped) !== null && _c !== void 0 ? _c : null,
+            };
+        }
+        return {
+            setId: parsed.setId,
+            cardSetId: parsed.cardSetId,
+            cardName: parsed.cardName,
+            cardImageId: parsed.cardImageId,
+            optcgMarketPrice: null,
+            optcgInventoryPrice: null,
+            dateScraped: null,
+        };
+    }
+    return null;
 }
 function rowPrice(row) {
     var _a, _b;
@@ -111,67 +100,63 @@ function mergeHistoryRows(rows, resolved) {
     }
     return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
 }
-function recordResolvedPrice(catalogId, resolved) {
-    return __awaiter(this, void 0, void 0, function* () {
-        if (resolved.priceSource !== 'tcgplayer' || resolved.marketPrice == null)
-            return;
-        const db = (0, database_1.getDb)();
-        const runDate = getRunDateEst();
-        yield (0, dbAsync_1.runDb)(db, `INSERT INTO onepiece_price_history (catalogId, date, marketPrice, inventoryPrice, source)
+async function recordResolvedPrice(catalogId, resolved) {
+    if (resolved.priceSource !== 'tcgplayer' || resolved.marketPrice == null)
+        return;
+    const db = (0, database_1.getDb)();
+    const runDate = getRunDateEst();
+    await (0, dbAsync_1.runDb)(db, `INSERT INTO onepiece_price_history (catalogId, date, marketPrice, inventoryPrice, source)
      VALUES (?, ?, ?, ?, 'tcgplayer')
      ON CONFLICT(catalogId, date, source) DO UPDATE SET
        marketPrice = excluded.marketPrice,
        inventoryPrice = excluded.inventoryPrice`, [catalogId, runDate, resolved.marketPrice, resolved.inventoryPrice]);
-    });
 }
-function getOnePiecePriceHistory(catalogId, days) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const context = yield loadCardContext(catalogId);
-        if (!context)
-            return null;
-        const resolved = yield (0, onePiecePriceResolver_1.resolveOnePiecePrice)({
-            setId: context.setId,
-            cardSetId: context.cardSetId,
-            cardName: context.cardName,
-            cardImageId: context.cardImageId,
-            optcgMarketPrice: context.optcgMarketPrice,
-            optcgInventoryPrice: context.optcgInventoryPrice,
-            dateScraped: context.dateScraped,
-        });
-        yield recordResolvedPrice(catalogId, resolved);
-        const db = (0, database_1.getDb)();
-        let sql = `
+async function getOnePiecePriceHistory(catalogId, days) {
+    const context = await loadCardContext(catalogId);
+    if (!context)
+        return null;
+    const resolved = await (0, onePiecePriceResolver_1.resolveOnePiecePrice)({
+        setId: context.setId,
+        cardSetId: context.cardSetId,
+        cardName: context.cardName,
+        cardImageId: context.cardImageId,
+        optcgMarketPrice: context.optcgMarketPrice,
+        optcgInventoryPrice: context.optcgInventoryPrice,
+        dateScraped: context.dateScraped,
+    });
+    await recordResolvedPrice(catalogId, resolved);
+    const db = (0, database_1.getDb)();
+    let sql = `
     SELECT date, marketPrice, inventoryPrice, source
     FROM onepiece_price_history
     WHERE catalogId = ?
   `;
-        const params = [catalogId];
-        if (days && days > 0) {
-            sql += ' AND date >= date("now", ?)';
-            params.push(`-${days} days`);
+    const params = [catalogId];
+    if (days && days > 0) {
+        sql += ' AND date >= date("now", ?)';
+        params.push(`-${days} days`);
+    }
+    sql += ' ORDER BY date ASC';
+    const rows = await (0, dbAsync_1.allDbRows)(db, sql, params);
+    let priceHistory = mergeHistoryRows(rows, resolved);
+    if (resolved.marketPrice != null && resolved.marketPrice > 0) {
+        const runDate = getRunDateEst();
+        const latest = priceHistory[priceHistory.length - 1];
+        if (!latest || latest.date !== runDate || latest.price !== resolved.marketPrice) {
+            priceHistory = [
+                ...priceHistory.filter((point) => point.date !== runDate),
+                {
+                    date: runDate,
+                    price: resolved.marketPrice,
+                    source: resolved.priceSource,
+                },
+            ];
         }
-        sql += ' ORDER BY date ASC';
-        const rows = yield (0, dbAsync_1.allDbRows)(db, sql, params);
-        let priceHistory = mergeHistoryRows(rows, resolved);
-        if (resolved.marketPrice != null && resolved.marketPrice > 0) {
-            const runDate = getRunDateEst();
-            const latest = priceHistory[priceHistory.length - 1];
-            if (!latest || latest.date !== runDate || latest.price !== resolved.marketPrice) {
-                priceHistory = [
-                    ...priceHistory.filter((point) => point.date !== runDate),
-                    {
-                        date: runDate,
-                        price: resolved.marketPrice,
-                        source: resolved.priceSource,
-                    },
-                ];
-            }
-        }
-        return {
-            catalogId,
-            priceHistory,
-            priceSource: resolved.priceSource,
-            currentPrice: resolved.marketPrice,
-        };
-    });
+    }
+    return {
+        catalogId,
+        priceHistory,
+        priceSource: resolved.priceSource,
+        currentPrice: resolved.marketPrice,
+    };
 }

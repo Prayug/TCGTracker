@@ -1,13 +1,4 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.enrichSetById = exports.getEnrichedSets = void 0;
 const database_1 = require("../db/database");
@@ -21,8 +12,8 @@ const dbAll = (sql, params = []) => new Promise((resolve, reject) => {
             resolve(rows || []);
     });
 });
-const fetchRawSets = () => __awaiter(void 0, void 0, void 0, function* () {
-    const catalogRows = yield dbAll(`
+const fetchRawSets = async () => {
+    const catalogRows = await dbAll(`
     SELECT
       setId as id,
       setName as name,
@@ -42,15 +33,15 @@ const fetchRawSets = () => __awaiter(void 0, void 0, void 0, function* () {
     FROM card_mappings
     GROUP BY setId, setName
     `);
-});
-const getEnrichedSets = () => __awaiter(void 0, void 0, void 0, function* () {
-    yield setCodeService_1.setCodeService.initialize();
-    const rows = yield fetchRawSets();
+};
+const getEnrichedSets = async () => {
+    await setCodeService_1.setCodeService.initialize();
+    const rows = await fetchRawSets();
     const enriched = [];
     for (const row of rows) {
         const apiMeta = setCodeService_1.setCodeService.resolveApiSet(row.id, row.name);
         const normalizedId = (apiMeta === null || apiMeta === void 0 ? void 0 : apiMeta.id) ||
-            (yield setCodeService_1.setCodeService.normalizeSetIdForImageUrl(row.id, row.name)) ||
+            (await setCodeService_1.setCodeService.normalizeSetIdForImageUrl(row.id, row.name)) ||
             row.id;
         const series = (apiMeta === null || apiMeta === void 0 ? void 0 : apiMeta.series) || '';
         const era = (0, setEra_1.classifySetEra)({
@@ -71,11 +62,11 @@ const getEnrichedSets = () => __awaiter(void 0, void 0, void 0, function* () {
         });
     }
     return (0, setEra_1.sortSetsForDisplay)(enriched);
-});
+};
 exports.getEnrichedSets = getEnrichedSets;
-const enrichSetById = (setId) => __awaiter(void 0, void 0, void 0, function* () {
-    yield setCodeService_1.setCodeService.initialize();
-    const row = yield new Promise((resolve, reject) => {
+const enrichSetById = async (setId) => {
+    await setCodeService_1.setCodeService.initialize();
+    const row = await new Promise((resolve, reject) => {
         (0, database_1.getDb)().get(`
       SELECT setId as id, setName as name, MAX(setReleaseDate) as releaseDate, COUNT(*) as total
       FROM catalog_cards
@@ -93,7 +84,7 @@ const enrichSetById = (setId) => __awaiter(void 0, void 0, void 0, function* () 
         return null;
     const apiMeta = setCodeService_1.setCodeService.resolveApiSet(row.id, row.name);
     const normalizedId = (apiMeta === null || apiMeta === void 0 ? void 0 : apiMeta.id) ||
-        (yield setCodeService_1.setCodeService.normalizeSetIdForImageUrl(row.id, row.name)) ||
+        (await setCodeService_1.setCodeService.normalizeSetIdForImageUrl(row.id, row.name)) ||
         row.id;
     const series = (apiMeta === null || apiMeta === void 0 ? void 0 : apiMeta.series) || '';
     const era = (0, setEra_1.classifySetEra)({
@@ -111,5 +102,5 @@ const enrichSetById = (setId) => __awaiter(void 0, void 0, void 0, function* () 
         eraLabel: (0, setEra_1.getEraLabel)(era),
         images: (0, setEra_1.resolveSetImages)(apiMeta === null || apiMeta === void 0 ? void 0 : apiMeta.images),
     };
-});
+};
 exports.enrichSetById = enrichSetById;

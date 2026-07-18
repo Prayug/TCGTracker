@@ -1,13 +1,4 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getPopulationCounts = void 0;
 const database_1 = require("../db/database");
@@ -26,19 +17,19 @@ const buildCacheKey = (input) => [
     normalize(input.cardNumber),
     normalize(input.variant),
 ].join('|');
-const withTimeout = (promise, ms) => __awaiter(void 0, void 0, void 0, function* () {
+const withTimeout = async (promise, ms) => {
     let timeoutId;
     const timeoutPromise = new Promise((_, reject) => {
         timeoutId = setTimeout(() => reject(new Error('request_timeout')), ms);
     });
     try {
-        return yield Promise.race([promise, timeoutPromise]);
+        return await Promise.race([promise, timeoutPromise]);
     }
     finally {
         if (timeoutId)
             clearTimeout(timeoutId);
     }
-});
+};
 const queryOne = (sql, params) => {
     const db = (0, database_1.getDb)();
     return new Promise((resolve, reject) => {
@@ -61,8 +52,8 @@ const runQuery = (sql, params) => {
         });
     });
 };
-const getCachedPopulation = (cacheKey) => __awaiter(void 0, void 0, void 0, function* () {
-    const row = yield queryOne(`SELECT payload, fetchedAt FROM population_cache WHERE cacheKey = ?`, [cacheKey]);
+const getCachedPopulation = async (cacheKey) => {
+    const row = await queryOne(`SELECT payload, fetchedAt FROM population_cache WHERE cacheKey = ?`, [cacheKey]);
     if (!row) {
         return null;
     }
@@ -101,15 +92,15 @@ const getCachedPopulation = (cacheKey) => __awaiter(void 0, void 0, void 0, func
                 }
             }
         });
-        return Object.assign(Object.assign({}, parsed), { cached: true });
+        return { ...parsed, cached: true };
     }
     catch (_a) {
         return null;
     }
-});
-const saveCachedPopulation = (cacheKey, payload) => __awaiter(void 0, void 0, void 0, function* () {
-    yield runQuery(`INSERT OR REPLACE INTO population_cache (cacheKey, payload, fetchedAt) VALUES (?, ?, ?)`, [cacheKey, JSON.stringify(payload), Date.now()]);
-});
+};
+const saveCachedPopulation = async (cacheKey, payload) => {
+    await runQuery(`INSERT OR REPLACE INTO population_cache (cacheKey, payload, fetchedAt) VALUES (?, ?, ?)`, [cacheKey, JSON.stringify(payload), Date.now()]);
+};
 const scoreCandidate = (candidate, input) => {
     const title = normalize(candidate.title);
     const setName = normalize(candidate.setName);
@@ -154,18 +145,18 @@ const sumPopArray = (values) => {
     const total = nums.reduce((acc, v) => acc + v, 0);
     return total > 0 ? total : null;
 };
-const fetchPriceChartingPopulations = (input) => __awaiter(void 0, void 0, void 0, function* () {
+const fetchPriceChartingPopulations = async (input) => {
     var _a;
     const query = [input.cardName, input.cardNumber, input.variant, input.setName]
         .filter(Boolean)
         .join(' ')
         .trim();
     const searchUrl = `https://www.pricecharting.com/search-products?exclude-variants=false&q=${encodeURIComponent(query)}&region-name=all&type=prices&go=Go`;
-    const searchResponse = yield withTimeout(fetch(searchUrl, { headers: { Accept: 'text/html' } }), REQUEST_TIMEOUT_MS);
+    const searchResponse = await withTimeout(fetch(searchUrl, { headers: { Accept: 'text/html' } }), REQUEST_TIMEOUT_MS);
     if (!searchResponse.ok) {
         throw new Error(`pricecharting_search_${searchResponse.status}`);
     }
-    const searchHtml = yield searchResponse.text();
+    const searchHtml = await searchResponse.text();
     const rows = parsePriceChartingSearchRows(searchHtml);
     if (rows.length === 0) {
         return { psa: null, cgc: null };
@@ -177,11 +168,11 @@ const fetchPriceChartingPopulations = (input) => __awaiter(void 0, void 0, void 
     if (!best) {
         return { psa: null, cgc: null };
     }
-    const cardResponse = yield withTimeout(fetch(best.url, { headers: { Accept: 'text/html' } }), REQUEST_TIMEOUT_MS);
+    const cardResponse = await withTimeout(fetch(best.url, { headers: { Accept: 'text/html' } }), REQUEST_TIMEOUT_MS);
     if (!cardResponse.ok) {
         throw new Error(`pricecharting_card_${cardResponse.status}`);
     }
-    const cardHtml = yield cardResponse.text();
+    const cardHtml = await cardResponse.text();
     const popMatch = cardHtml.match(/VGPC\.pop_data\s*=\s*(\{[\s\S]*?\});/);
     if (!popMatch) {
         return { psa: null, cgc: null };
@@ -191,7 +182,7 @@ const fetchPriceChartingPopulations = (input) => __awaiter(void 0, void 0, void 
         psa: sumPopArray(popData.psa),
         cgc: sumPopArray(popData.cgc),
     };
-});
+};
 const parseBeckettRows = (html) => {
     var _a;
     const rows = [];
@@ -207,14 +198,14 @@ const parseBeckettRows = (html) => {
     }
     return rows;
 };
-const fetchBeckettPopulation = (input) => __awaiter(void 0, void 0, void 0, function* () {
+const fetchBeckettPopulation = async (input) => {
     var _a, _b;
     const form = new URLSearchParams();
     form.set('sport_id', BECKETT_SPORT_POKEMON);
     form.set('set_name', input.setName || '');
     form.set('player_name', input.cardName);
     form.set('search', 'Search');
-    const response = yield withTimeout(fetch('https://www.beckett.com/grading/pop-report', {
+    const response = await withTimeout(fetch('https://www.beckett.com/grading/pop-report', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
@@ -225,7 +216,7 @@ const fetchBeckettPopulation = (input) => __awaiter(void 0, void 0, void 0, func
     if (!response.ok) {
         throw new Error(`beckett_${response.status}`);
     }
-    const html = yield response.text();
+    const html = await response.text();
     const rows = parseBeckettRows(html);
     if (rows.length === 0) {
         return null;
@@ -247,18 +238,18 @@ const fetchBeckettPopulation = (input) => __awaiter(void 0, void 0, void 0, func
     })
         .sort((a, b) => b.score - a.score);
     return (_b = (_a = ranked[0]) === null || _a === void 0 ? void 0 : _a.row.total) !== null && _b !== void 0 ? _b : null;
-});
+};
 let lastScrapeTime = 0;
-const resolveGrader = (grader, input) => __awaiter(void 0, void 0, void 0, function* () {
+const resolveGrader = async (grader, input) => {
     try {
         const now = Date.now();
         const elapsed = now - lastScrapeTime;
         if (elapsed < REQUEST_DELAY_MS) {
-            yield delay(REQUEST_DELAY_MS - elapsed);
+            await delay(REQUEST_DELAY_MS - elapsed);
         }
         lastScrapeTime = Date.now();
         if (grader === 'psa' || grader === 'cgc') {
-            const totals = yield fetchPriceChartingPopulations(input);
+            const totals = await fetchPriceChartingPopulations(input);
             const total = grader === 'psa' ? totals.psa : totals.cgc;
             return {
                 grader,
@@ -268,7 +259,7 @@ const resolveGrader = (grader, input) => __awaiter(void 0, void 0, void 0, funct
                 message: total !== null ? undefined : 'No population result found',
             };
         }
-        const beckettTotal = yield fetchBeckettPopulation(input);
+        const beckettTotal = await fetchBeckettPopulation(input);
         return {
             grader,
             total: beckettTotal,
@@ -299,14 +290,14 @@ const resolveGrader = (grader, input) => __awaiter(void 0, void 0, void 0, funct
             message,
         };
     }
-});
-const getPopulationCounts = (input) => __awaiter(void 0, void 0, void 0, function* () {
+};
+const getPopulationCounts = async (input) => {
     const key = buildCacheKey(input);
-    const cached = yield getCachedPopulation(key);
+    const cached = await getCachedPopulation(key);
     if (cached) {
         return cached;
     }
-    const [psa, cgc, beckett] = yield Promise.all([
+    const [psa, cgc, beckett] = await Promise.all([
         resolveGrader('psa', input),
         resolveGrader('cgc', input),
         resolveGrader('beckett', input),
@@ -323,9 +314,9 @@ const getPopulationCounts = (input) => __awaiter(void 0, void 0, void 0, functio
         cached: false,
         companies: { psa, cgc, beckett },
     };
-    yield saveCachedPopulation(key, payload).catch((error) => {
+    await saveCachedPopulation(key, payload).catch((error) => {
         logger_1.logger.warn('Failed to cache population lookup', { error: error.message });
     });
     return payload;
-});
+};
 exports.getPopulationCounts = getPopulationCounts;

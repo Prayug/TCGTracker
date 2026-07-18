@@ -1,13 +1,4 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -43,9 +34,9 @@ const getStorageUploadUrl = (objectKey) => {
     return `${normalizeBaseUrl(env_1.env.cloud.supabaseUrl)}/storage/v1/object/${env_1.env.cloud.bucket}/${storagePath}`;
 };
 const getStorageDownloadUrl = (objectKey) => getStorageUploadUrl(objectKey);
-const uploadObject = (objectKey, body, contentType) => __awaiter(void 0, void 0, void 0, function* () {
+const uploadObject = async (objectKey, body, contentType) => {
     const url = getStorageUploadUrl(objectKey);
-    const response = yield (0, undici_1.fetch)(url, {
+    const response = await (0, undici_1.fetch)(url, {
         method: 'POST',
         headers: {
             Authorization: `Bearer ${env_1.env.cloud.serviceRoleKey}`,
@@ -57,11 +48,11 @@ const uploadObject = (objectKey, body, contentType) => __awaiter(void 0, void 0,
         dispatcher: largeTransferAgent,
     });
     if (!response.ok) {
-        const errorText = yield response.text().catch(() => response.statusText);
+        const errorText = await response.text().catch(() => response.statusText);
         throw new Error(`Cloud upload failed (${response.status}): ${errorText}`);
     }
-});
-const uploadFileObject = (objectKey, filePath, contentType) => __awaiter(void 0, void 0, void 0, function* () {
+};
+const uploadFileObject = async (objectKey, filePath, contentType) => {
     const stats = fs_1.default.statSync(filePath);
     const body = fs_1.default.createReadStream(filePath);
     const url = getStorageUploadUrl(objectKey);
@@ -69,7 +60,7 @@ const uploadFileObject = (objectKey, filePath, contentType) => __awaiter(void 0,
         objectKey,
         sizeMb: (stats.size / 1024 / 1024).toFixed(1),
     });
-    const response = yield (0, undici_1.fetch)(url, {
+    const response = await (0, undici_1.fetch)(url, {
         method: 'POST',
         headers: {
             Authorization: `Bearer ${env_1.env.cloud.serviceRoleKey}`,
@@ -83,13 +74,13 @@ const uploadFileObject = (objectKey, filePath, contentType) => __awaiter(void 0,
         dispatcher: largeTransferAgent,
     });
     if (!response.ok) {
-        const errorText = yield response.text().catch(() => response.statusText);
+        const errorText = await response.text().catch(() => response.statusText);
         throw new Error(`Cloud upload failed (${response.status}): ${errorText}`);
     }
-});
-const downloadObject = (objectKey) => __awaiter(void 0, void 0, void 0, function* () {
+};
+const downloadObject = async (objectKey) => {
     const url = getStorageDownloadUrl(objectKey);
-    const response = yield (0, undici_1.fetch)(url, {
+    const response = await (0, undici_1.fetch)(url, {
         headers: {
             Authorization: `Bearer ${env_1.env.cloud.serviceRoleKey}`,
             apikey: env_1.env.cloud.serviceRoleKey,
@@ -97,17 +88,17 @@ const downloadObject = (objectKey) => __awaiter(void 0, void 0, void 0, function
         dispatcher: largeTransferAgent,
     });
     if (!response.ok) {
-        const errorText = yield response.text().catch(() => response.statusText);
+        const errorText = await response.text().catch(() => response.statusText);
         throw new Error(`Cloud download failed (${response.status}): ${errorText}`);
     }
-    return Buffer.from(yield response.arrayBuffer());
-});
-const compressDatabaseToGzip = (dbPath, gzipPath) => __awaiter(void 0, void 0, void 0, function* () {
+    return Buffer.from(await response.arrayBuffer());
+};
+const compressDatabaseToGzip = async (dbPath, gzipPath) => {
     logger_1.logger.info('Compressing database for cloud upload...', {
         sourceMb: (fs_1.default.statSync(dbPath).size / 1024 / 1024).toFixed(1),
     });
-    yield (0, promises_1.pipeline)(fs_1.default.createReadStream(dbPath), (0, zlib_1.createGzip)({ level: 6 }), fs_1.default.createWriteStream(gzipPath));
-});
+    await (0, promises_1.pipeline)(fs_1.default.createReadStream(dbPath), (0, zlib_1.createGzip)({ level: 6 }), fs_1.default.createWriteStream(gzipPath));
+};
 const splitFileIntoChunks = (filePath, chunkSize, outDir) => {
     fs_1.default.mkdirSync(outDir, { recursive: true });
     const stats = fs_1.default.statSync(filePath);
@@ -137,21 +128,21 @@ const removePathIfExists = (targetPath) => {
         fs_1.default.rmSync(targetPath, { recursive: true, force: true });
     }
 };
-const uploadChunkedDatabase = (dbPath, runDate, source) => __awaiter(void 0, void 0, void 0, function* () {
+const uploadChunkedDatabase = async (dbPath, runDate, source) => {
     const originalBytes = fs_1.default.statSync(dbPath).size;
     const tempRoot = fs_1.default.mkdtempSync(path_1.default.join(os_1.default.tmpdir(), 'tcgtracker-cloud-'));
     const gzipPath = path_1.default.join(tempRoot, 'database.db.gz');
     const chunkDir = path_1.default.join(tempRoot, 'chunks');
     try {
-        yield compressDatabaseToGzip(dbPath, gzipPath);
+        await compressDatabaseToGzip(dbPath, gzipPath);
         const compressedBytes = fs_1.default.statSync(gzipPath).size;
         const chunkPaths = splitFileIntoChunks(gzipPath, MAX_CHUNK_BYTES, chunkDir);
         const latestPrefix = 'latest/chunks';
         const backupPrefix = `backups/tcg-prices-${runDate}/chunks`;
         for (let i = 0; i < chunkPaths.length; i += 1) {
             const chunkName = `${String(i).padStart(4, '0')}.part`;
-            yield uploadFileObject(`${latestPrefix}/${chunkName}`, chunkPaths[i], 'application/octet-stream');
-            yield uploadFileObject(`${backupPrefix}/${chunkName}`, chunkPaths[i], 'application/octet-stream');
+            await uploadFileObject(`${latestPrefix}/${chunkName}`, chunkPaths[i], 'application/octet-stream');
+            await uploadFileObject(`${backupPrefix}/${chunkName}`, chunkPaths[i], 'application/octet-stream');
         }
         const manifest = {
             version: 1,
@@ -165,8 +156,8 @@ const uploadChunkedDatabase = (dbPath, runDate, source) => __awaiter(void 0, voi
             prefix: `${latestPrefix}/`,
         };
         const manifestJson = JSON.stringify(manifest, null, 2);
-        yield uploadObject('latest/manifest.json', manifestJson, 'application/json');
-        yield uploadObject(`backups/tcg-prices-${runDate}/manifest.json`, manifestJson, 'application/json');
+        await uploadObject('latest/manifest.json', manifestJson, 'application/json');
+        await uploadObject(`backups/tcg-prices-${runDate}/manifest.json`, manifestJson, 'application/json');
         const metadata = {
             runDate,
             generatedAt: manifest.generatedAt,
@@ -178,8 +169,8 @@ const uploadChunkedDatabase = (dbPath, runDate, source) => __awaiter(void 0, voi
             format: manifest.format,
         };
         const metadataJson = JSON.stringify(metadata, null, 2);
-        yield uploadObject(`metadata/backup-${runDate}.json`, metadataJson, 'application/json');
-        yield uploadObject('metadata/latest.json', metadataJson, 'application/json');
+        await uploadObject(`metadata/backup-${runDate}.json`, metadataJson, 'application/json');
+        await uploadObject('metadata/latest.json', metadataJson, 'application/json');
         return {
             enabled: true,
             uploaded: true,
@@ -191,8 +182,8 @@ const uploadChunkedDatabase = (dbPath, runDate, source) => __awaiter(void 0, voi
     finally {
         removePathIfExists(tempRoot);
     }
-});
-const restoreFromChunkedManifest = (manifest) => __awaiter(void 0, void 0, void 0, function* () {
+};
+const restoreFromChunkedManifest = async (manifest) => {
     const dbPath = (0, database_1.getDatabasePath)();
     const tempRoot = fs_1.default.mkdtempSync(path_1.default.join(os_1.default.tmpdir(), 'tcgtracker-restore-'));
     const gzipPath = path_1.default.join(tempRoot, 'database.db.gz');
@@ -203,7 +194,7 @@ const restoreFromChunkedManifest = (manifest) => __awaiter(void 0, void 0, void 
                 const chunkName = `${String(i).padStart(4, '0')}.part`;
                 const chunkKey = `${manifest.prefix}${chunkName}`;
                 logger_1.logger.info('Downloading cloud chunk', { chunkKey, index: i + 1, total: manifest.chunkCount });
-                const chunk = yield downloadObject(chunkKey);
+                const chunk = await downloadObject(chunkKey);
                 fs_1.default.writeSync(gzipFd, chunk);
             }
         }
@@ -217,7 +208,7 @@ const restoreFromChunkedManifest = (manifest) => __awaiter(void 0, void 0, void 
                 fs_1.default.unlinkSync(sidecar);
             }
         }
-        yield (0, promises_1.pipeline)(fs_1.default.createReadStream(gzipPath), (0, zlib_1.createGunzip)(), fs_1.default.createWriteStream(dbPath));
+        await (0, promises_1.pipeline)(fs_1.default.createReadStream(gzipPath), (0, zlib_1.createGunzip)(), fs_1.default.createWriteStream(dbPath));
         const restoredBytes = fs_1.default.statSync(dbPath).size;
         return {
             enabled: true,
@@ -230,13 +221,13 @@ const restoreFromChunkedManifest = (manifest) => __awaiter(void 0, void 0, void 
     finally {
         removePathIfExists(tempRoot);
     }
-});
+};
 const isCloudConfigured = () => env_1.env.cloud.enabled &&
     Boolean(env_1.env.cloud.supabaseUrl) &&
     Boolean(env_1.env.cloud.serviceRoleKey) &&
     Boolean(env_1.env.cloud.bucket);
 exports.isCloudConfigured = isCloudConfigured;
-const uploadDatabaseFileToCloud = (dbPath, runDate) => __awaiter(void 0, void 0, void 0, function* () {
+const uploadDatabaseFileToCloud = async (dbPath, runDate) => {
     if (!(0, exports.isCloudConfigured)()) {
         return {
             enabled: false,
@@ -253,9 +244,9 @@ const uploadDatabaseFileToCloud = (dbPath, runDate) => __awaiter(void 0, void 0,
         };
     }
     return uploadChunkedDatabase(resolvedPath, runDate, 'manual_upload');
-});
+};
 exports.uploadDatabaseFileToCloud = uploadDatabaseFileToCloud;
-const restoreDatabaseFromCloud = (...args_1) => __awaiter(void 0, [...args_1], void 0, function* (objectKey = 'latest/manifest.json') {
+const restoreDatabaseFromCloud = async (objectKey = 'latest/manifest.json') => {
     if (!(0, exports.isCloudConfigured)()) {
         return {
             enabled: false,
@@ -265,7 +256,7 @@ const restoreDatabaseFromCloud = (...args_1) => __awaiter(void 0, [...args_1], v
     }
     if (objectKey.endsWith('manifest.json')) {
         try {
-            const manifestBuffer = yield downloadObject('latest/manifest.json');
+            const manifestBuffer = await downloadObject('latest/manifest.json');
             const manifest = JSON.parse(manifestBuffer.toString('utf8'));
             if (manifest.format === 'gzip-chunks') {
                 return restoreFromChunkedManifest(manifest);
@@ -279,7 +270,7 @@ const restoreDatabaseFromCloud = (...args_1) => __awaiter(void 0, [...args_1], v
     }
     const dbPath = (0, database_1.getDatabasePath)();
     const legacyKey = objectKey.endsWith('.db') ? objectKey : 'latest/tcg-prices-latest.db';
-    const dbBuffer = yield downloadObject(legacyKey);
+    const dbBuffer = await downloadObject(legacyKey);
     const walPath = `${dbPath}-wal`;
     const shmPath = `${dbPath}-shm`;
     for (const sidecar of [walPath, shmPath]) {
@@ -295,11 +286,11 @@ const restoreDatabaseFromCloud = (...args_1) => __awaiter(void 0, [...args_1], v
         latestKey: legacyKey,
         databaseBytes: dbBuffer.length,
     };
-});
+};
 exports.restoreDatabaseFromCloud = restoreDatabaseFromCloud;
-const getBackupMetadata = (runDate) => __awaiter(void 0, void 0, void 0, function* () {
+const getBackupMetadata = async (runDate) => {
     const db = (0, database_1.getDb)();
-    const summary = yield new Promise((resolve, reject) => {
+    const summary = await new Promise((resolve, reject) => {
         db.get(`SELECT
         (SELECT COUNT(*) FROM price_history) AS totalPriceRows,
         (SELECT COUNT(*) FROM card_mappings) AS totalMappings,
@@ -320,8 +311,8 @@ const getBackupMetadata = (runDate) => __awaiter(void 0, void 0, void 0, functio
         databaseBytes: fileStats.size,
         summary,
     };
-});
-const backupDatabaseToCloud = (runDate) => __awaiter(void 0, void 0, void 0, function* () {
+};
+const backupDatabaseToCloud = async (runDate) => {
     if (!(0, exports.isCloudConfigured)()) {
         return {
             enabled: false,
@@ -331,7 +322,7 @@ const backupDatabaseToCloud = (runDate) => __awaiter(void 0, void 0, void 0, fun
     }
     try {
         const dbPath = (0, database_1.getDatabasePath)();
-        const result = yield uploadChunkedDatabase(dbPath, runDate, 'scheduled_backup');
+        const result = await uploadChunkedDatabase(dbPath, runDate, 'scheduled_backup');
         logger_1.logger.info('Cloud database backup uploaded successfully', {
             backupKey: result.backupKey,
             latestKey: result.latestKey,
@@ -347,9 +338,9 @@ const backupDatabaseToCloud = (runDate) => __awaiter(void 0, void 0, void 0, fun
             message: `Cloud backup failed: ${error.message}`,
         };
     }
-});
+};
 exports.backupDatabaseToCloud = backupDatabaseToCloud;
-const getCloudBackupStatus = () => __awaiter(void 0, void 0, void 0, function* () {
+const getCloudBackupStatus = async () => {
     if (!(0, exports.isCloudConfigured)()) {
         return {
             enabled: false,
@@ -360,7 +351,7 @@ const getCloudBackupStatus = () => __awaiter(void 0, void 0, void 0, function* (
         };
     }
     const db = (0, database_1.getDb)();
-    const lastRun = yield new Promise((resolve, reject) => {
+    const lastRun = await new Promise((resolve, reject) => {
         db.get(`SELECT runDate, status, startedAt, completedAt, message
        FROM sync_runs
        WHERE runType = 'price_update'
@@ -381,5 +372,5 @@ const getCloudBackupStatus = () => __awaiter(void 0, void 0, void 0, function* (
         maxChunkMb: MAX_CHUNK_BYTES / 1024 / 1024,
         lastPriceUpdate: lastRun,
     };
-});
+};
 exports.getCloudBackupStatus = getCloudBackupStatus;

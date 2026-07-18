@@ -32,15 +32,6 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const database_1 = require("../db/database");
@@ -124,11 +115,11 @@ const mapCatalogRowsToPokemonCards = (rows) => {
 /**
  * Read persisted card images from card_mappings (populated by the image backfill pipeline).
  */
-router.get('/resolve-image', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+router.get('/resolve-image', async (req, res) => {
     try {
         const { cardId, cardName, setId } = req.query;
         if (cardId && typeof cardId === 'string') {
-            const stored = yield (0, cardImageBackfillService_1.getCardMappingImages)(cardId);
+            const stored = await (0, cardImageBackfillService_1.getCardMappingImages)(cardId);
             if ((stored === null || stored === void 0 ? void 0 : stored.imageSmall) || (stored === null || stored === void 0 ? void 0 : stored.imageLarge)) {
                 return res.json({
                     images: {
@@ -146,7 +137,7 @@ router.get('/resolve-image', (req, res) => __awaiter(void 0, void 0, void 0, fun
             });
         }
         const db = (0, database_1.getDb)();
-        const row = yield new Promise((resolve, reject) => {
+        const row = await new Promise((resolve, reject) => {
             db.get(`SELECT imageSmall, imageLarge, cardNumber FROM card_mappings
          WHERE cardName = ? AND setId = ?
            AND (imageSmall IS NOT NULL OR imageLarge IS NOT NULL)
@@ -179,12 +170,12 @@ router.get('/resolve-image', (req, res) => __awaiter(void 0, void 0, void 0, fun
             message: error.message,
         });
     }
-}));
+});
 /**
  * Search cards from local database
  * Much faster and more reliable than Pokemon TCG API
  */
-router.get('/search', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+router.get('/search', async (req, res) => {
     try {
         const { query, setId, limit = '100' } = req.query;
         if (!query || typeof query !== 'string') {
@@ -230,7 +221,7 @@ router.get('/search', (req, res) => __awaiter(void 0, void 0, void 0, function* 
         }
         sql += ` ORDER BY cc.cardName ASC LIMIT ?`;
         params.push(searchLimit);
-        db.all(sql, params, (err, rows) => __awaiter(void 0, void 0, void 0, function* () {
+        db.all(sql, params, async (err, rows) => {
             if (err) {
                 logger_1.logger.error('Error searching cards:', err);
                 return res.status(500).json({
@@ -240,7 +231,7 @@ router.get('/search', (req, res) => __awaiter(void 0, void 0, void 0, function* 
             }
             let cards = mapCatalogRowsToPokemonCards(rows);
             if (cards.length === 0) {
-                const imageColumns = yield (0, cardImageUtils_1.getImageColumnSelectFragment)();
+                const imageColumns = await (0, cardImageUtils_1.getImageColumnSelectFragment)();
                 const fallbackSql = `
           SELECT DISTINCT
             cm.cardId,
@@ -274,7 +265,7 @@ router.get('/search', (req, res) => __awaiter(void 0, void 0, void 0, function* 
                     fallbackParams.push(setId, `%${setId}%`);
                 }
                 fallbackParams.push(searchLimit);
-                const fallbackRows = yield new Promise((resolve, reject) => {
+                const fallbackRows = await new Promise((resolve, reject) => {
                     db.all(fallbackSql, fallbackParams, (fallbackErr, fallbackResult) => {
                         if (fallbackErr) {
                             reject(fallbackErr);
@@ -284,7 +275,7 @@ router.get('/search', (req, res) => __awaiter(void 0, void 0, void 0, function* 
                         }
                     });
                 });
-                cards = yield (0, cardDatabase_1.mapLocalRowsToPokemonCards)(fallbackRows);
+                cards = await (0, cardDatabase_1.mapLocalRowsToPokemonCards)(fallbackRows);
             }
             logger_1.logger.info(`✅ Found ${cards.length} cards matching "${query}" from local database`);
             res.json({
@@ -292,7 +283,7 @@ router.get('/search', (req, res) => __awaiter(void 0, void 0, void 0, function* 
                 count: cards.length,
                 source: 'local_database'
             });
-        }));
+        });
     }
     catch (error) {
         logger_1.logger.error('Error in card search:', error);
@@ -301,14 +292,14 @@ router.get('/search', (req, res) => __awaiter(void 0, void 0, void 0, function* 
             message: error.message
         });
     }
-}));
+});
 /**
  * Get all unique sets from local database, enriched with era, series, and logos
  */
-router.get('/sets', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+router.get('/sets', async (req, res) => {
     try {
-        const { getEnrichedSets } = yield Promise.resolve().then(() => __importStar(require('../services/setListService')));
-        const sets = yield getEnrichedSets();
+        const { getEnrichedSets } = await Promise.resolve().then(() => __importStar(require('../services/setListService')));
+        const sets = await getEnrichedSets();
         res.json({
             data: sets,
             count: sets.length,
@@ -322,11 +313,11 @@ router.get('/sets', (req, res) => __awaiter(void 0, void 0, void 0, function* ()
             message: error.message,
         });
     }
-}));
+});
 /**
  * Get card statistics
  */
-router.get('/stats', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+router.get('/stats', async (req, res) => {
     try {
         const db = (0, database_1.getDb)();
         const sql = `
@@ -359,8 +350,8 @@ router.get('/stats', (req, res) => __awaiter(void 0, void 0, void 0, function* (
             message: error.message
         });
     }
-}));
-router.get('/population', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+});
+router.get('/population', async (req, res) => {
     try {
         const { cardId, cardName, setId, setName, cardNumber, variant } = req.query;
         if (!cardName || typeof cardName !== 'string') {
@@ -368,7 +359,7 @@ router.get('/population', (req, res) => __awaiter(void 0, void 0, void 0, functi
                 error: 'cardName query parameter is required',
             });
         }
-        const result = yield (0, populationService_1.getPopulationCounts)({
+        const result = await (0, populationService_1.getPopulationCounts)({
             cardId: typeof cardId === 'string' ? cardId.trim() : undefined,
             cardName: cardName.trim(),
             setId: typeof setId === 'string' ? setId.trim() : undefined,
@@ -384,16 +375,16 @@ router.get('/population', (req, res) => __awaiter(void 0, void 0, void 0, functi
             message: error.message,
         });
     }
-}));
+});
 /**
  * Get a random pool of cards with latest market prices from local DB
  */
-router.get('/pool', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+router.get('/pool', async (req, res) => {
     try {
         const db = (0, database_1.getDb)();
         const { limit = '250', minPrice = '1', maxPrice = '20000' } = req.query;
         const poolLimit = Math.min(parseInt(limit) || 250, 10000); // Increased max to 10000 for better pool diversity
-        const imageColumns = yield (0, cardImageUtils_1.getImageColumnSelectFragment)();
+        const imageColumns = await (0, cardImageUtils_1.getImageColumnSelectFragment)();
         // Exclude fake "sets" that are actually TCGPlayer product categories
         // These will NEVER have images in the Pokemon API
         const EXCLUDED_FAKE_SET_NAMES = [
@@ -479,7 +470,7 @@ router.get('/pool', (req, res) => __awaiter(void 0, void 0, void 0, function* ()
       ORDER BY RANDOM()
       LIMIT ?
     `;
-        db.all(sql, [minPrice, maxPrice, ...exclusionParams, poolLimit], (err, rows) => __awaiter(void 0, void 0, void 0, function* () {
+        db.all(sql, [minPrice, maxPrice, ...exclusionParams, poolLimit], async (err, rows) => {
             if (err) {
                 logger_1.logger.error('Error fetching random card pool:', err);
                 return res.status(500).json({
@@ -488,13 +479,13 @@ router.get('/pool', (req, res) => __awaiter(void 0, void 0, void 0, function* ()
                 });
             }
             // Use the helper function to properly map cards with stored images
-            const cards = yield (0, cardDatabase_1.mapLocalRowsToPokemonCards)(rows);
+            const cards = await (0, cardDatabase_1.mapLocalRowsToPokemonCards)(rows);
             res.json({
                 data: cards,
                 count: cards.length,
                 source: 'local_database'
             });
-        }));
+        });
     }
     catch (error) {
         logger_1.logger.error('Error building card pool:', error);
@@ -503,8 +494,8 @@ router.get('/pool', (req, res) => __awaiter(void 0, void 0, void 0, function* ()
             message: error.message
         });
     }
-}));
-router.get('/pokemon', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+});
+router.get('/pokemon', async (req, res) => {
     let persistentCacheEntry = null;
     let buildLocalFallbackResponse = null;
     const respondWithPersistent = (entry, stale = false) => {
@@ -538,15 +529,15 @@ router.get('/pokemon', (req, res) => __awaiter(void 0, void 0, void 0, function*
         const limit = Math.min(Math.max(parseInt(pageSize, 10) || 100, 1), 250);
         const shouldFetchAll = String(fetchAll).toLowerCase() !== 'false';
         const maxPagesToFetch = Math.min(Math.max(parseInt(maxPages, 10) || 4, 1), 10);
-        buildLocalFallbackResponse = () => __awaiter(void 0, void 0, void 0, function* () {
-            const rows = yield (0, cardDatabase_1.getLocalCardsForQuery)(sanitizedQuery, normalizedSetId, limit).catch((err) => {
+        buildLocalFallbackResponse = async () => {
+            const rows = await (0, cardDatabase_1.getLocalCardsForQuery)(sanitizedQuery, normalizedSetId, limit).catch((err) => {
                 logger_1.logger.error('Local fallback query failed', err);
                 return [];
             });
             if (!rows || rows.length === 0) {
                 return null;
             }
-            const cards = yield (0, cardEnrichment_1.enrichCardsWithInvestmentData)(yield (0, cardDatabase_1.mapLocalRowsToPokemonCards)(rows));
+            const cards = await (0, cardEnrichment_1.enrichCardsWithInvestmentData)(await (0, cardDatabase_1.mapLocalRowsToPokemonCards)(rows));
             return {
                 data: cards,
                 totalCount: cards.length,
@@ -556,7 +547,7 @@ router.get('/pokemon', (req, res) => __awaiter(void 0, void 0, void 0, function*
                 source: 'local_database',
                 fallback: true,
             };
-        });
+        };
         const cacheKey = [
             sanitizedQuery.toLowerCase(),
             normalizedSetId ? normalizedSetId.toLowerCase() : '',
@@ -567,7 +558,7 @@ router.get('/pokemon', (req, res) => __awaiter(void 0, void 0, void 0, function*
         const now = Date.now();
         const inMemory = cardCache_1.pokemonApiCache.get(cacheKey);
         if (inMemory && now - inMemory.fetchedAt < cardCache_1.POKEMON_CACHE_TTL) {
-            const enrichedData = yield (0, cardEnrichment_1.enrichCardsWithInvestmentData)(inMemory.data);
+            const enrichedData = await (0, cardEnrichment_1.enrichCardsWithInvestmentData)(inMemory.data);
             return res.json({
                 data: enrichedData,
                 totalCount: inMemory.totalCount,
@@ -577,15 +568,18 @@ router.get('/pokemon', (req, res) => __awaiter(void 0, void 0, void 0, function*
                 source: 'pokemon_tcg_api',
             });
         }
-        persistentCacheEntry = yield (0, cardCache_1.getPersistentPokemonCache)(cacheKey).catch((err) => {
+        persistentCacheEntry = await (0, cardCache_1.getPersistentPokemonCache)(cacheKey).catch((err) => {
             logger_1.logger.error('Error reading persistent pokemon cache', err);
             return null;
         });
         if (persistentCacheEntry &&
             now - (persistentCacheEntry.fetchedAt || 0) < cardCache_1.POKEMON_PERSISTENT_CACHE_TTL) {
-            const payload = respondWithPersistent(Object.assign(Object.assign({}, persistentCacheEntry), { pageSize: persistentCacheEntry.pageSize || limit }));
+            const payload = respondWithPersistent({
+                ...persistentCacheEntry,
+                pageSize: persistentCacheEntry.pageSize || limit,
+            });
             if (payload) {
-                payload.data = yield (0, cardEnrichment_1.enrichCardsWithInvestmentData)(payload.data);
+                payload.data = await (0, cardEnrichment_1.enrichCardsWithInvestmentData)(payload.data);
                 cardCache_1.pokemonApiCache.set(cacheKey, {
                     data: payload.data,
                     totalCount: payload.totalCount,
@@ -596,27 +590,30 @@ router.get('/pokemon', (req, res) => __awaiter(void 0, void 0, void 0, function*
                 return res.json(payload);
             }
         }
-        const apiResult = yield pokemonApiClient_1.pokemonApiClient.searchCardsBulk({
+        const apiResult = await pokemonApiClient_1.pokemonApiClient.searchCardsBulk({
             nameQuery: sanitizedQuery,
             setId: normalizedSetId,
             pageSize: limit,
             fetchAll: shouldFetchAll,
             maxPages: maxPagesToFetch,
         });
-        const uniqueCards = yield (0, cardEnrichment_1.enrichCardsWithInvestmentData)(apiResult.cards);
+        const uniqueCards = await (0, cardEnrichment_1.enrichCardsWithInvestmentData)(apiResult.cards);
         if (uniqueCards.length === 0) {
             logger_1.logger.warn(`⚠️ No cards from Pokemon API for query "${sanitizedQuery}", trying fallbacks...`);
             if (buildLocalFallbackResponse) {
-                const localPayload = yield buildLocalFallbackResponse();
+                const localPayload = await buildLocalFallbackResponse();
                 if (localPayload) {
                     logger_1.logger.info(`✅ Serving ${localPayload.data.length} cards from local database fallback`);
                     return res.json(localPayload);
                 }
             }
             if (persistentCacheEntry) {
-                const payload = respondWithPersistent(Object.assign(Object.assign({}, persistentCacheEntry), { pageSize: persistentCacheEntry.pageSize || limit }), true);
+                const payload = respondWithPersistent({
+                    ...persistentCacheEntry,
+                    pageSize: persistentCacheEntry.pageSize || limit,
+                }, true);
                 if (payload) {
-                    payload.data = yield (0, cardEnrichment_1.enrichCardsWithInvestmentData)(payload.data);
+                    payload.data = await (0, cardEnrichment_1.enrichCardsWithInvestmentData)(payload.data);
                     logger_1.logger.info(`✅ Serving ${payload.data.length} stale cached cards as fallback`);
                     return res.json(payload);
                 }
@@ -643,7 +640,7 @@ router.get('/pokemon', (req, res) => __awaiter(void 0, void 0, void 0, function*
             pagesFetched: apiResult.pagesFetched,
         });
         try {
-            yield (0, cardCache_1.savePersistentPokemonCache)(cacheKey, {
+            await (0, cardCache_1.savePersistentPokemonCache)(cacheKey, {
                 query: sanitizedQuery,
                 setId: normalizedSetId,
                 pageSize: limit,
@@ -665,7 +662,7 @@ router.get('/pokemon', (req, res) => __awaiter(void 0, void 0, void 0, function*
         logger_1.logger.error('❌ Error proxying Pokemon API search:', error);
         if (buildLocalFallbackResponse) {
             try {
-                const localPayload = yield buildLocalFallbackResponse();
+                const localPayload = await buildLocalFallbackResponse();
                 if (localPayload) {
                     logger_1.logger.info(`✅ Serving ${localPayload.data.length} cards from local database (error fallback)`);
                     return res.status(200).json(localPayload);
@@ -678,7 +675,7 @@ router.get('/pokemon', (req, res) => __awaiter(void 0, void 0, void 0, function*
         if (persistentCacheEntry) {
             const payload = respondWithPersistent(persistentCacheEntry, true);
             if (payload) {
-                payload.data = yield (0, cardEnrichment_1.enrichCardsWithInvestmentData)(payload.data);
+                payload.data = await (0, cardEnrichment_1.enrichCardsWithInvestmentData)(payload.data);
                 logger_1.logger.info(`✅ Serving ${payload.data.length} stale cached cards (error fallback)`);
                 return res.status(200).json(payload);
             }
@@ -688,11 +685,11 @@ router.get('/pokemon', (req, res) => __awaiter(void 0, void 0, void 0, function*
             message: error.message,
         });
     }
-}));
+});
 /**
  * Search Pokemon API for card images (proxy endpoint to avoid CORS)
  */
-router.get('/search-pokemon', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+router.get('/search-pokemon', async (req, res) => {
     var _a, _b, _c, _d, _e, _f;
     try {
         const { cardName, setId, cardNumber, setName } = req.query;
@@ -716,7 +713,7 @@ router.get('/search-pokemon', (req, res) => __awaiter(void 0, void 0, void 0, fu
                 cached: true,
             });
         }
-        const searchResult = yield pokemonApiClient_1.pokemonApiClient.findBestImageMatch({
+        const searchResult = await pokemonApiClient_1.pokemonApiClient.findBestImageMatch({
             cardName,
             setId: typeof setId === 'string' ? setId.trim() : undefined,
             setName: typeof setName === 'string' ? setName.trim() : undefined,
@@ -751,7 +748,10 @@ router.get('/search-pokemon', (req, res) => __awaiter(void 0, void 0, void 0, fu
             attempts: searchResult.attempts,
             usedFallback: searchResult.usedFallback,
         };
-        cardCache_1.cardImageCache.set(cacheKey, Object.assign(Object.assign({}, responsePayload), { timestamp: Date.now() }));
+        cardCache_1.cardImageCache.set(cacheKey, {
+            ...responsePayload,
+            timestamp: Date.now(),
+        });
         logger_1.logger.info(`✅ Matched card: ${searchResult.card.name} from ${(_d = searchResult.card.set) === null || _d === void 0 ? void 0 : _d.name} (#${searchResult.card.number})`);
         // Update rarity in database if available
         if (((_e = searchResult.card) === null || _e === void 0 ? void 0 : _e.rarity) && searchResult.card.rarity.trim()) {
@@ -781,15 +781,15 @@ router.get('/search-pokemon', (req, res) => __awaiter(void 0, void 0, void 0, fu
             message: error.message,
         });
     }
-}));
+});
 /**
  * Refresh Pokemon TCG set mappings from API
  * This endpoint manually triggers a refresh of the set mappings cache
  */
-router.post('/refresh-set-mappings', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+router.post('/refresh-set-mappings', async (req, res) => {
     try {
         logger_1.logger.info('🔄 Manual refresh of Pokemon TCG set mappings requested');
-        const mappings = yield setCodeService_1.setCodeService.refreshSetMappings();
+        const mappings = await setCodeService_1.setCodeService.refreshSetMappings();
         res.json({
             success: true,
             message: `Refreshed ${mappings.size} set mappings`,
@@ -804,13 +804,13 @@ router.post('/refresh-set-mappings', (req, res) => __awaiter(void 0, void 0, voi
             message: error.message
         });
     }
-}));
+});
 /**
  * Get set mapping statistics
  */
-router.get('/set-mappings/stats', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+router.get('/set-mappings/stats', async (req, res) => {
     try {
-        const stats = yield setCodeService_1.setCodeService.getSetMappingStats();
+        const stats = await setCodeService_1.setCodeService.getSetMappingStats();
         res.json({
             totalMappingsInDb: stats.databaseMappings,
             cachedMappings: stats.cachedMappings,
@@ -826,19 +826,19 @@ router.get('/set-mappings/stats', (req, res) => __awaiter(void 0, void 0, void 0
             message: error.message
         });
     }
-}));
-router.get('/graded-prices', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+});
+router.get('/graded-prices', async (req, res) => {
     try {
         const { cardId, cardName, setId, setName, cardNumber } = req.query;
         if (!cardId || !cardName) {
             return res.status(400).json({ error: 'cardId and cardName are required' });
         }
-        const result = yield (0, gradedPriceService_1.getGradedPrices)(String(cardId), String(cardName), setId ? String(setId) : undefined, setName ? String(setName) : undefined, cardNumber ? String(cardNumber) : undefined);
+        const result = await (0, gradedPriceService_1.getGradedPrices)(String(cardId), String(cardName), setId ? String(setId) : undefined, setName ? String(setName) : undefined, cardNumber ? String(cardNumber) : undefined);
         res.json({ data: result });
     }
     catch (error) {
         logger_1.logger.error('Graded prices lookup failed', { error: error.message });
         res.status(500).json({ error: 'Failed to fetch graded prices' });
     }
-}));
+});
 exports.default = router;

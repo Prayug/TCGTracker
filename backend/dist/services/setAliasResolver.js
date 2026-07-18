@@ -1,13 +1,4 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.buildSetMappingWhereClause = exports.resolveSetSearchKeys = exports.normalizeSetKey = void 0;
 const database_1 = require("../db/database");
@@ -26,9 +17,9 @@ const dbAll = (sql, params = []) => new Promise((resolve, reject) => {
  * Catalog set IDs (Pokemon API: me4) often differ from TCGCSV mapping IDs (me04chaosrising).
  * Collect every ID/name variant so price_history + card_mappings can be joined.
  */
-const resolveSetSearchKeys = (setId, setName) => __awaiter(void 0, void 0, void 0, function* () {
+const resolveSetSearchKeys = async (setId, setName) => {
     var _a;
-    yield setCodeService_1.setCodeService.initialize();
+    await setCodeService_1.setCodeService.initialize();
     const setIds = new Set([setId]);
     const setNames = new Set();
     if (setName)
@@ -39,7 +30,7 @@ const resolveSetSearchKeys = (setId, setName) => __awaiter(void 0, void 0, void 
     if (apiMeta === null || apiMeta === void 0 ? void 0 : apiMeta.name)
         setNames.add(apiMeta.name);
     const idPlaceholders = [...setIds].map(() => '?').join(',');
-    const exactRows = yield dbAll(`
+    const exactRows = await dbAll(`
     SELECT DISTINCT setId, setName
     FROM card_mappings
     WHERE setId IN (${idPlaceholders})
@@ -50,7 +41,7 @@ const resolveSetSearchKeys = (setId, setName) => __awaiter(void 0, void 0, void 
             setNames.add(row.setName);
     }
     for (const name of [...setNames]) {
-        const likeRows = yield dbAll(`
+        const likeRows = await dbAll(`
       SELECT DISTINCT setId, setName
       FROM card_mappings
       WHERE setName = ? OR setName LIKE ?
@@ -61,10 +52,10 @@ const resolveSetSearchKeys = (setId, setName) => __awaiter(void 0, void 0, void 
                 setNames.add(row.setName);
         }
     }
-    const catalogRow = yield dbAll(`SELECT DISTINCT setName FROM catalog_cards WHERE setId = ? OR setName = ? LIMIT 1`, [setId, setName || setId]);
+    const catalogRow = await dbAll(`SELECT DISTINCT setName FROM catalog_cards WHERE setId = ? OR setName = ? LIMIT 1`, [setId, setName || setId]);
     if ((_a = catalogRow[0]) === null || _a === void 0 ? void 0 : _a.setName) {
         setNames.add(catalogRow[0].setName);
-        const catalogLike = yield dbAll(`SELECT DISTINCT setId, setName FROM card_mappings WHERE setName LIKE ?`, [`%${catalogRow[0].setName}%`]);
+        const catalogLike = await dbAll(`SELECT DISTINCT setId, setName FROM card_mappings WHERE setName LIKE ?`, [`%${catalogRow[0].setName}%`]);
         for (const row of catalogLike) {
             setIds.add(row.setId);
             if (row.setName)
@@ -72,7 +63,7 @@ const resolveSetSearchKeys = (setId, setName) => __awaiter(void 0, void 0, void 
         }
     }
     return { setIds: [...setIds], setNames: [...setNames] };
-});
+};
 exports.resolveSetSearchKeys = resolveSetSearchKeys;
 const buildSetMappingWhereClause = (keys) => {
     const params = [];
