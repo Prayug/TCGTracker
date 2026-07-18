@@ -53,5 +53,10 @@ export interface MarketPriceSnapshot {
 }
 
 export interface MarketPriceProvider {
-  getSnapshotForCard(cardId: string): Promise<MarketPriceSnapshot | null>;
+  getSnapshotForCard(
+    cardId: string,
+    cardName?: string,
+    setId?: string,
+    setName?: string,
+  ): Promise<MarketPriceSnapshot | null>;
 }
