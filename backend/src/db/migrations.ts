@@ -724,6 +724,93 @@ export const migrations: Migration[] = [
       logger.info('Skipping rarity backfill rollback');
     },
   },
+  {
+    id: 17,
+    name: 'add_long_term_prediction_columns',
+    up: async (db: Database) => {
+      const run = (sql: string): Promise<void> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, (err) => {
+            if (err && !err.message.includes('duplicate column')) reject(err);
+            else resolve();
+          });
+        });
+
+      const predictionColumns = [
+        'ALTER TABLE card_predictions ADD COLUMN predicted_180d_low REAL',
+        'ALTER TABLE card_predictions ADD COLUMN predicted_180d_mid REAL',
+        'ALTER TABLE card_predictions ADD COLUMN predicted_180d_high REAL',
+        'ALTER TABLE card_predictions ADD COLUMN predicted_365d_low REAL',
+        'ALTER TABLE card_predictions ADD COLUMN predicted_365d_mid REAL',
+        'ALTER TABLE card_predictions ADD COLUMN predicted_365d_high REAL',
+        'ALTER TABLE card_predictions ADD COLUMN expected_180d_return REAL',
+        'ALTER TABLE card_predictions ADD COLUMN expected_365d_return REAL',
+      ];
+
+      const resultColumns = [
+        'ALTER TABLE prediction_results ADD COLUMN actual_180d_price REAL',
+        'ALTER TABLE prediction_results ADD COLUMN actual_180d_return REAL',
+        'ALTER TABLE prediction_results ADD COLUMN actual_365d_price REAL',
+        'ALTER TABLE prediction_results ADD COLUMN actual_365d_return REAL',
+        'ALTER TABLE prediction_results ADD COLUMN error_180d REAL',
+        'ALTER TABLE prediction_results ADD COLUMN error_365d REAL',
+        'ALTER TABLE prediction_results ADD COLUMN direction_correct_180d INTEGER DEFAULT 0',
+        'ALTER TABLE prediction_results ADD COLUMN direction_correct_365d INTEGER DEFAULT 0',
+      ];
+
+      for (const sql of [...predictionColumns, ...resultColumns]) {
+        await run(sql);
+      }
+
+      logger.info('Added 180d/365d prediction columns to card_predictions and prediction_results');
+    },
+    down: async (_db: Database) => {
+      logger.info('Skipping rollback of long-term prediction columns (SQLite limitation)');
+    },
+  },
+  {
+    id: 18,
+    name: 'add_external_signal_scraper_columns',
+    up: async (db: Database) => {
+      const run = (sql: string): Promise<void> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, (err) => {
+            if (err && !err.message.includes('duplicate column')) reject(err);
+            else resolve();
+          });
+        });
+
+      // Signals scraped from external sources often mention a card/set by name
+      // before we can resolve a concrete card_id.
+      await run('ALTER TABLE external_market_signals ADD COLUMN card_name TEXT');
+      await run('ALTER TABLE external_market_signals ADD COLUMN set_name TEXT');
+
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_external_signals_card_source_created ON external_market_signals(card_id, source_type, created_at)'
+      );
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_external_signals_card_name ON external_market_signals(card_name)'
+      );
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_external_signals_expires ON external_market_signals(expires_at)'
+      );
+
+      logger.info('Added card_name/set_name columns and lookup indexes to external_market_signals');
+    },
+    down: async (db: Database) => {
+      const run = (sql: string): Promise<void> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, (err) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+      await run('DROP INDEX IF EXISTS idx_external_signals_card_source_created');
+      await run('DROP INDEX IF EXISTS idx_external_signals_card_name');
+      await run('DROP INDEX IF EXISTS idx_external_signals_expires');
+      logger.info('Dropped external signal scraper indexes (columns retained — SQLite limitation)');
+    },
+  },
 ];
 
 // Run pending migrations
