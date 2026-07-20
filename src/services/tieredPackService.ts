@@ -27,12 +27,13 @@ class TieredPackService {
         { min: 250, max: 500, probability: 0.1, label: '$250-500' }
       ],
       boostedValueRanges: [
-        { min: 1, max: 8, probability: 45, label: '$1-8' },
-        { min: 8, max: 25, probability: 20, label: '$8-25' },
-        { min: 25, max: 50, probability: 12, label: '$25-50' },
-        { min: 50, max: 100, probability: 7, label: '$50-100' },
-        { min: 100, max: 250, probability: 3, label: '$100-250' },
-        { min: 250, max: 500, probability: 2, label: '$250-500' }
+        { min: 0.5, max: 5, probability: 42, label: '$0.50-5' },
+        { min: 5, max: 25, probability: 18, label: '$5-25' },
+        { min: 25, max: 75, probability: 15, label: '$25-75' },
+        { min: 75, max: 150, probability: 10, label: '$75-150' },
+        { min: 150, max: 350, probability: 8, label: '$150-350' },
+        { min: 350, max: 500, probability: 5, label: '$350-500' },
+        { min: 500, max: 1250, probability: 2, label: '$500-1250 (5x+)' }
       ]
     },
     {
@@ -53,12 +54,13 @@ class TieredPackService {
         { min: 500, max: 1000, probability: 0.2, label: '$500-1000' }
       ],
       boostedValueRanges: [
-        { min: 2, max: 15, probability: 42, label: '$2-15' },
-        { min: 15, max: 50, probability: 20, label: '$15-50' },
-        { min: 50, max: 100, probability: 12, label: '$50-100' },
-        { min: 100, max: 200, probability: 7, label: '$100-200' },
-        { min: 200, max: 500, probability: 4, label: '$200-500' },
-        { min: 500, max: 1000, probability: 2, label: '$500-1000' }
+        { min: 1, max: 10, probability: 40, label: '$1-10' },
+        { min: 10, max: 50, probability: 18, label: '$10-50' },
+        { min: 50, max: 125, probability: 15, label: '$50-125' },
+        { min: 125, max: 250, probability: 10, label: '$125-250' },
+        { min: 250, max: 500, probability: 8, label: '$250-500' },
+        { min: 500, max: 1000, probability: 5, label: '$500-1000' },
+        { min: 1000, max: 2500, probability: 3, label: '$1000-2500 (5x+)' }
       ]
     },
     {
@@ -79,12 +81,13 @@ class TieredPackService {
         { min: 1000, max: 2000, probability: 0.2, label: '$1000-2000' }
       ],
       boostedValueRanges: [
-        { min: 5, max: 30, probability: 42, label: '$5-30' },
-        { min: 30, max: 100, probability: 20, label: '$30-100' },
-        { min: 100, max: 200, probability: 11, label: '$100-200' },
-        { min: 200, max: 400, probability: 6, label: '$200-400' },
-        { min: 400, max: 1000, probability: 4, label: '$400-1000' },
-        { min: 1000, max: 2000, probability: 1.5, label: '$1000-2000' }
+        { min: 3, max: 20, probability: 38, label: '$3-20' },
+        { min: 20, max: 75, probability: 18, label: '$20-75' },
+        { min: 75, max: 200, probability: 15, label: '$75-200' },
+        { min: 200, max: 400, probability: 10, label: '$200-400' },
+        { min: 400, max: 800, probability: 8, label: '$400-800' },
+        { min: 800, max: 1500, probability: 6, label: '$800-1500' },
+        { min: 1500, max: 5000, probability: 5, label: '$1500-5000 (5x+)' }
       ]
     },
     {
@@ -105,12 +108,13 @@ class TieredPackService {
         { min: 5000, max: 10000, probability: 0.2, label: '$5000-10000' }
       ],
       boostedValueRanges: [
-        { min: 20, max: 150, probability: 38, label: '$20-150' },
-        { min: 150, max: 500, probability: 22, label: '$150-500' },
-        { min: 500, max: 1000, probability: 12, label: '$500-1000' },
-        { min: 1000, max: 2000, probability: 6, label: '$1000-2000' },
-        { min: 2000, max: 5000, probability: 4, label: '$2000-5000' },
-        { min: 5000, max: 10000, probability: 1.5, label: '$5000-10000' }
+        { min: 10, max: 100, probability: 35, label: '$10-100' },
+        { min: 100, max: 375, probability: 18, label: '$100-375' },
+        { min: 375, max: 750, probability: 15, label: '$375-750' },
+        { min: 750, max: 1500, probability: 10, label: '$750-1500' },
+        { min: 1500, max: 3500, probability: 9, label: '$1500-3500' },
+        { min: 3500, max: 7500, probability: 8, label: '$3500-7500' },
+        { min: 7500, max: 25000, probability: 5, label: '$7500-25000 (5x+)' }
       ]
     },
     {
@@ -131,12 +135,13 @@ class TieredPackService {
         { min: 2500, max: 5000, probability: 0.5, label: '$2500-5000' }
       ],
       boostedValueRanges: [
-        { min: 50, max: 300, probability: 30, label: '$50-300' },
-        { min: 300, max: 800, probability: 22, label: '$300-800' },
-        { min: 800, max: 1000, probability: 12, label: '$800-1000' },
-        { min: 1000, max: 1500, probability: 11, label: '$1000-1500' },
-        { min: 1500, max: 2500, probability: 8, label: '$1500-2500' },
-        { min: 2500, max: 5000, probability: 5, label: '$2500-5000' }
+        { min: 25, max: 200, probability: 30, label: '$25-200' },
+        { min: 200, max: 600, probability: 18, label: '$200-600' },
+        { min: 600, max: 1200, probability: 14, label: '$600-1200' },
+        { min: 1200, max: 2500, probability: 12, label: '$1200-2500' },
+        { min: 2500, max: 5000, probability: 10, label: '$2500-5000' },
+        { min: 5000, max: 10000, probability: 8, label: '$5000-10000' },
+        { min: 10000, max: 50000, probability: 8, label: '$10000-50000 (5x+)' }
       ]
     }
   ];
@@ -219,7 +224,7 @@ class TieredPackService {
     // Filter out cards with no price
     const cardsWithPrices = allCards.filter((card: PokemonCard) => {
       const price = card.marketPrice || pokemonApi.extractCardPrice(card);
-      return price > 0 && price < 10000;
+      return price > 0 && price < 100000;
     });
     
     if (cardsWithPrices.length === 0) {
@@ -262,36 +267,57 @@ class TieredPackService {
   ): PokemonCard | null {
     const rolledRange = this.selectValueRange(ranges);
     
-    // Filter cards to this specific range
-    let candidates = cardPool.filter(card => {
-      const price = card.marketPrice || pokemonApi.extractCardPrice(card);
-      return price >= rolledRange.min && price <= rolledRange.max;
-    });
+    // Try exact range first, then progressively widen
+    let candidates: PokemonCard[] = [];
+    let expand = 0;
+    const maxExpand = 5;
 
-    // Remove duplicates using card.id (not collapsed identifier)
-    // This prevents cards from different sets with same name/number from collapsing
-    const seenIds = new Set<string>();
-    candidates = candidates.filter(card => {
-      // Use the most specific stable identifier available for duplicate removal.
-      const cardId = card.id || 
-        (card as PokemonCard & { uniqueIdentifier?: string }).uniqueIdentifier ||
-        `${card.set?.id || 'unknown'}-${card.number || 'unknown'}-${card.name || 'unknown'}`;
-      
-      if (seenIds.has(cardId)) return false;
-      seenIds.add(cardId);
-      return true;
-    });
+    while (candidates.length === 0 && expand <= maxExpand) {
+      const min = rolledRange.min - expand * rolledRange.min * 0.3;
+      const max = rolledRange.max + expand * rolledRange.max * 0.5;
+
+      candidates = cardPool.filter(card => {
+        const price = card.marketPrice || pokemonApi.extractCardPrice(card);
+        return price >= min && price <= max;
+      });
+
+      // Remove duplicates
+      const seenIds = new Set<string>();
+      candidates = candidates.filter(card => {
+        const cardId = card.id ||
+          (card as PokemonCard & { uniqueIdentifier?: string }).uniqueIdentifier ||
+          `${card.set?.id || 'unknown'}-${card.number || 'unknown'}-${card.name || 'unknown'}`;
+
+        if (seenIds.has(cardId)) return false;
+        seenIds.add(cardId);
+        return true;
+      });
+
+      expand++;
+    }
 
     if (candidates.length === 0) {
       return null;
     }
 
-    const shuffled = this.shuffleArray(candidates);
+    // Sort by proximity to the midpoint of the rolled range and prefer closer matches
+    const midpoint = (rolledRange.min + rolledRange.max) / 2;
+    candidates.sort((a, b) => {
+      const priceA = a.marketPrice || pokemonApi.extractCardPrice(a);
+      const priceB = b.marketPrice || pokemonApi.extractCardPrice(b);
+      return Math.abs(priceA - midpoint) - Math.abs(priceB - midpoint);
+    });
+
+    // Weighted random: 70% chance to pick from top 3 closest, 30% random from all
+    const topN = Math.min(3, candidates.length);
+    const useTop = Math.random() < 0.7;
+    const pool = useTop ? candidates.slice(0, topN) : candidates;
+
     const randomIndex = typeof crypto !== 'undefined' && crypto.getRandomValues
-      ? crypto.getRandomValues(new Uint32Array(1))[0] % shuffled.length
-      : Math.floor(Math.random() * shuffled.length);
+      ? crypto.getRandomValues(new Uint32Array(1))[0] % pool.length
+      : Math.floor(Math.random() * pool.length);
     
-    return shuffled[randomIndex];
+    return pool[randomIndex];
   }
 
   // Get pack opening history
