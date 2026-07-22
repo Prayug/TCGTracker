@@ -9,6 +9,7 @@ export const VIEW_PATHS: Record<AppView, string> = {
   sets: '/sets',
   packs: '/packs',
   scanner: '/scanner',
+  grading: '/grading',
   insights: '/market-insights',
 };
 

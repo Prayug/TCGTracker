@@ -20,6 +20,7 @@ const workflows: { label: string; description: string; view: AppView }[] = [
   { label: 'Track prices', description: 'Watch cards and review price history.', view: 'prices' },
   { label: 'Manage vault', description: 'Log purchases and see portfolio value.', view: 'vault' },
   { label: 'Scan cards', description: 'Identify a card from a photo.', view: 'scanner' },
+  { label: 'AI grade', description: 'Score centering, corners, edges & surface.', view: 'grading' },
 ];
 
 export const HeroSection: React.FC<HeroSectionProps> = ({ onStartSearch, onViewChange }) => {
