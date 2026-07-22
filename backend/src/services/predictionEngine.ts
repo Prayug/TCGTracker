@@ -76,6 +76,8 @@ export interface ScoringScores {
   setLifecycleScore?: number;
   /** Competitive play boost in [0, +20] from tournament_meta signals. */
   competitiveMetaScore?: number;
+  /** AI grading + population scarcity signal in [0, 100]. */
+  gradingScore?: number;
 }
 
 export interface PriceRange {
@@ -110,6 +112,10 @@ export interface CardPrediction {
   riskFactors: string;
   externalSignals: string;
   modelVersion: string;
+  /** 0–100 AI grading / slab premium potential signal. */
+  gradingScore?: number;
+  /** Estimated grading premium uplift vs raw (0–1+). */
+  gradingPremiumPotential?: number;
 }
 
 export interface CardPredictionRow {
@@ -152,9 +158,11 @@ export interface CardPredictionRow {
   riskFactors: string;
   externalSignals: string;
   modelVersion: string;
+  gradingScore?: number;
+  gradingPremiumPotential?: number;
 }
 
-const MODEL_VERSION = '3.1.0';
+const MODEL_VERSION = '3.2.0';
 
 // --- Seasonality ---
 
@@ -771,6 +779,111 @@ export function computeCompetitiveMetaScore(
   return Math.min(20, score);
 }
 
+/**
+ * Combines AI grade quality (when available) with PSA-10 population scarcity.
+ * High predicted grade + low PSA-10 pop → strong buy / grading premium signal.
+ * Returns [0, 100].
+ */
+export function computeGradingScore(
+  avgTotalScore: number | null,
+  psa10Pop: number | null,
+  rarity?: string
+): number {
+  let score = 50;
+
+  if (avgTotalScore != null && avgTotalScore > 0) {
+    // Map 100–1000 total → ~20–95
+    score = clamp(((avgTotalScore - 100) / 900) * 75 + 20, 0, 100);
+  } else if (rarity) {
+    const high = [
+      'Secret Rare',
+      'Illustration Rare',
+      'Special Illustration Rare',
+      'Hyper Rare',
+      'Rare Holo VMAX',
+      'Rare Holo VSTAR',
+      'Rare Ultra',
+    ];
+    if (high.some((r) => rarity.includes(r))) score = 58;
+  }
+
+  if (psa10Pop != null) {
+    if (psa10Pop < 50) score += 22;
+    else if (psa10Pop < 200) score += 14;
+    else if (psa10Pop < 500) score += 8;
+    else if (psa10Pop < 2000) score += 3;
+    else if (psa10Pop > 8000) score -= 12;
+    else if (psa10Pop > 4000) score -= 6;
+  }
+
+  return clamp(Math.round(score), 0, 100);
+}
+
+/** Estimated slab premium uplift fraction from grading score (0–~1.2). */
+export function computeGradingPremiumPotential(gradingScore: number): number {
+  // Score 50 → ~0.15 uplift; 80 → ~0.55; 95 → ~0.9
+  return Math.round(clamp((gradingScore - 40) / 60, 0, 1.2) * 100) / 100;
+}
+
+async function fetchAvgGradingTotal(cardId: string): Promise<number | null> {
+  const db = getDb();
+  try {
+    const row: { avgTotal: number | null } | undefined = await new Promise((resolve, reject) => {
+      db.get(
+        `SELECT AVG(total_score) AS avgTotal FROM grading_results WHERE card_id = ?`,
+        [cardId],
+        (err, r) => (err ? reject(err) : resolve(r as any))
+      );
+    });
+    return row?.avgTotal != null ? Number(row.avgTotal) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchPsa10Population(cardId: string): Promise<number | null> {
+  const db = getDb();
+  try {
+    const row: any = await new Promise((resolve, reject) => {
+      db.get(
+        `SELECT grade10, pop10, psa10, grade_10 FROM population_cache
+         WHERE cardId = ? OR card_id = ?
+         ORDER BY fetchedAt DESC LIMIT 1`,
+        [cardId, cardId],
+        (err, r) => {
+          // Table/column may vary — fall through on error
+          if (err) resolve(undefined);
+          else resolve(r);
+        }
+      );
+    });
+    if (!row) {
+      // Try graded_prices / alternate shape
+      const alt: any = await new Promise((resolve) => {
+        db.get(
+          `SELECT population FROM population_cache WHERE cardId = ? LIMIT 1`,
+          [cardId],
+          (_e, r) => resolve(r)
+        );
+      });
+      if (alt?.population != null) {
+        try {
+          const parsed = typeof alt.population === 'string' ? JSON.parse(alt.population) : alt.population;
+          const n = parsed?.grade10 ?? parsed?.psa10 ?? parsed?.['10'];
+          return n != null ? Number(n) : null;
+        } catch {
+          return null;
+        }
+      }
+      return null;
+    }
+    const n = row.grade10 ?? row.pop10 ?? row.psa10 ?? row.grade_10;
+    return n != null ? Number(n) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function computeExpectedReturns(
   scores: ScoringScores,
   seasonalityAdjustment: number = 0
@@ -792,15 +905,18 @@ export function computeExpectedReturns(
   // normalize to fractions of the raw signal scale.
   const lifecycleN = (scores.setLifecycleScore ?? 0) / 100;
   const metaN = (scores.competitiveMetaScore ?? 0) / 100;
+  // Grading score is 0–100; center at 50 and scale gently so it nudges, not dominates.
+  const gradingN = ((scores.gradingScore ?? 50) - 50) / 100;
 
   // Calibrated linear combination (fitted weights, not arbitrary)
   const rawSignal =
-    0.35 * trendN +
-    0.20 * recoveryN +
-    0.15 * demandN -
-    0.15 * riskN +
-    0.10 * liquidityN +
+    0.32 * trendN +
+    0.18 * recoveryN +
+    0.14 * demandN -
+    0.14 * riskN +
+    0.09 * liquidityN +
     0.05 * dataQualityN +
+    0.08 * gradingN +
     lifecycleN +
     metaN;
 
@@ -1173,6 +1289,11 @@ export async function predictSingleCard(
     const competitiveMetaScore = computeCompetitiveMetaScore(externalSignals);
     const setLifecycleScore = computeSetLifecycleScore(setReleaseDate);
 
+    const avgGradingTotal = await fetchAvgGradingTotal(card.cardId);
+    const psa10Pop = await fetchPsa10Population(card.cardId);
+    const gradingScore = computeGradingScore(avgGradingTotal, psa10Pop, card.rarity);
+    const gradingPremiumPotential = computeGradingPremiumPotential(gradingScore);
+
     const trendScore = computeTrendScore(priceChanges, movingAverages, currentPrice);
     const recoveryScore = computeRecoveryScore(recoveryMetrics, priceChanges);
     const demandScore = computeDemandScore(card.rarity, card.cardNumber);
@@ -1189,6 +1310,7 @@ export async function predictSingleCard(
       dataQualityScore,
       setLifecycleScore,
       competitiveMetaScore,
+      gradingScore,
     };
 
     const seasonalityAdjustment = computeSeasonalityAdjustment(card.cardName, card.setName);
@@ -1261,6 +1383,8 @@ export async function predictSingleCard(
       riskFactors,
       externalSignals: externalSignalsJson,
       modelVersion: MODEL_VERSION,
+      gradingScore,
+      gradingPremiumPotential,
     };
   } catch (err) {
     logger.error(`Prediction failed for card ${card.cardId}:`, err);
@@ -1456,50 +1580,67 @@ export async function getLatestPredictions(
   sql += ` ORDER BY COALESCE(cp.${orderColumn}, cp.expected_90d_return) DESC LIMIT ?`;
   params.push(limit);
 
-  return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows: any[]) => {
+  const rows: any[] = await new Promise((resolve, reject) => {
+    db.all(sql, params, (err, r: any[]) => {
       if (err) return reject(err);
-      resolve(rows.map(r => ({
-        id: r.id,
-        cardId: r.card_id,
-        cardName: r.cardName || '',
-        setId: r.setId || '',
-        setName: r.setName || '',
-        cardNumber: r.cardNumber || '',
-        rarity: r.rarity || '',
-        imageSmall: r.imageSmall || undefined,
-        imageLarge: r.imageLarge || undefined,
-        tcgplayerProductId: r.tcgplayerProductId || undefined,
-        currentPrice: r.current_price,
-        predicted7dLow: r.predicted_7d_low,
-        predicted7dMid: r.predicted_7d_mid,
-        predicted7dHigh: r.predicted_7d_high,
-        predicted30dLow: r.predicted_30d_low,
-        predicted30dMid: r.predicted_30d_mid,
-        predicted30dHigh: r.predicted_30d_high,
-        predicted90dLow: r.predicted_90d_low,
-        predicted90dMid: r.predicted_90d_mid,
-        predicted90dHigh: r.predicted_90d_high,
-        predicted180dLow: r.predicted_180d_low ?? null,
-        predicted180dMid: r.predicted_180d_mid ?? null,
-        predicted180dHigh: r.predicted_180d_high ?? null,
-        predicted365dLow: r.predicted_365d_low ?? null,
-        predicted365dMid: r.predicted_365d_mid ?? null,
-        predicted365dHigh: r.predicted_365d_high ?? null,
-        expected7dReturn: r.expected_7d_return,
-        expected30dReturn: r.expected_30d_return,
-        expected90dReturn: r.expected_90d_return,
-        expected180dReturn: r.expected_180d_return ?? null,
-        expected365dReturn: r.expected_365d_return ?? null,
-        confidenceScore: r.confidence_score,
-        riskScore: r.risk_score,
-        category: r.category as PredictionCategory,
-        suggestedAction: r.suggested_action,
-        explanation: r.explanation,
-        riskFactors: r.risk_factors,
-        externalSignals: r.external_signals_json,
-        modelVersion: r.model_version,
-      })));
+      resolve(r || []);
     });
   });
+
+  const mapped: CardPredictionRow[] = rows.map((r) => ({
+    id: r.id,
+    cardId: r.card_id,
+    cardName: r.cardName || '',
+    setId: r.setId || '',
+    setName: r.setName || '',
+    cardNumber: r.cardNumber || '',
+    rarity: r.rarity || '',
+    imageSmall: r.imageSmall || undefined,
+    imageLarge: r.imageLarge || undefined,
+    tcgplayerProductId: r.tcgplayerProductId || undefined,
+    currentPrice: r.current_price,
+    predicted7dLow: r.predicted_7d_low,
+    predicted7dMid: r.predicted_7d_mid,
+    predicted7dHigh: r.predicted_7d_high,
+    predicted30dLow: r.predicted_30d_low,
+    predicted30dMid: r.predicted_30d_mid,
+    predicted30dHigh: r.predicted_30d_high,
+    predicted90dLow: r.predicted_90d_low,
+    predicted90dMid: r.predicted_90d_mid,
+    predicted90dHigh: r.predicted_90d_high,
+    predicted180dLow: r.predicted_180d_low ?? null,
+    predicted180dMid: r.predicted_180d_mid ?? null,
+    predicted180dHigh: r.predicted_180d_high ?? null,
+    predicted365dLow: r.predicted_365d_low ?? null,
+    predicted365dMid: r.predicted_365d_mid ?? null,
+    predicted365dHigh: r.predicted_365d_high ?? null,
+    expected7dReturn: r.expected_7d_return,
+    expected30dReturn: r.expected_30d_return,
+    expected90dReturn: r.expected_90d_return,
+    expected180dReturn: r.expected_180d_return ?? null,
+    expected365dReturn: r.expected_365d_return ?? null,
+    confidenceScore: r.confidence_score,
+    riskScore: r.risk_score,
+    category: r.category as PredictionCategory,
+    suggestedAction: r.suggested_action,
+    explanation: r.explanation,
+    riskFactors: r.risk_factors,
+    externalSignals: r.external_signals_json,
+    modelVersion: r.model_version,
+  }));
+
+  // Enrich with grading premium signals (AI grades + PSA-10 scarcity)
+  await Promise.all(
+    mapped.map(async (row) => {
+      const [avgTotal, psa10] = await Promise.all([
+        fetchAvgGradingTotal(row.cardId),
+        fetchPsa10Population(row.cardId),
+      ]);
+      const gradingScore = computeGradingScore(avgTotal, psa10, row.rarity);
+      row.gradingScore = gradingScore;
+      row.gradingPremiumPotential = computeGradingPremiumPotential(gradingScore);
+    })
+  );
+
+  return mapped;
 }
