@@ -4,6 +4,10 @@ import {
   resolveSetSearchKeys,
   buildSetMappingWhereClause,
 } from './setAliasResolver';
+import {
+  extractBestListingPrice,
+  ListingPriceFields,
+} from '../utils/resolveListingPrice';
 
 const PRICE_SOURCES = "('tcgcsv', 'tcgdex', 'catalog_fallback')";
 
@@ -17,7 +21,9 @@ export const CATALOG_PRODUCT_EXCLUSIONS = `
   AND cc.cardNumber NOT LIKE '%Binder%'
 `;
 
-export const parsePrices = (value?: string | null): Record<string, { market?: number }> | undefined => {
+export const parsePrices = (
+  value?: string | null
+): Record<string, ListingPriceFields> | undefined => {
   if (!value) return undefined;
   try {
     return JSON.parse(value);
@@ -27,21 +33,10 @@ export const parsePrices = (value?: string | null): Record<string, { market?: nu
 };
 
 export const extractMarketPriceFromVariants = (
-  prices?: Record<string, { market?: number }>
+  prices?: Record<string, ListingPriceFields>
 ): number | null => {
-  if (!prices) return null;
-
-  const preferredOrder = ['normal', 'holofoil', 'reverseHolofoil', '1stEditionHolofoil'];
-  for (const key of preferredOrder) {
-    const value = prices[key]?.market;
-    if (typeof value === 'number' && value > 0) return value;
-  }
-
-  for (const entry of Object.values(prices)) {
-    if (typeof entry?.market === 'number' && entry.market > 0) return entry.market;
-  }
-
-  return null;
+  const best = extractBestListingPrice(prices);
+  return best.price > 0 ? best.price : null;
 };
 
 export interface SetCatalogRow {

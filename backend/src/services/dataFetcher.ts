@@ -9,6 +9,7 @@ import { MarketPriceProvider, MarketPriceSnapshot } from './providers/contracts'
 import { normalizeVariantKey } from '../utils/normalizeVariantKey';
 import { createPkmnPricesProvider, PkmnPricesMarketProvider } from './providers/pkmnPricesProvider';
 import { env } from '../config/env';
+import { resolveListingPrice } from '../utils/resolveListingPrice';
 
 export { normalizeVariantKey } from '../utils/normalizeVariantKey';
 
@@ -194,7 +195,12 @@ const extractCatalogFallbackPoints = (
     >;
     return Object.entries(parsed)
       .map(([rawVariant, price]) => {
-        const marketPrice = price.market ?? price.mid ?? price.low ?? 0;
+        const marketPrice = resolveListingPrice({
+          market: price.market,
+          mid: price.mid,
+          low: price.low,
+          high: price.high,
+        });
         if (!marketPrice || marketPrice <= 0) {
           return null;
         }
@@ -266,7 +272,7 @@ const createDailySnapshot = async (date: string) => {
             ph2.price as previousPrice,
             ((ph1.price - ph2.price) / ph2.price * 100) as changePercent
           FROM price_history ph1
-          JOIN price_history ph2 ON ph1.productId = ph2.productId
+          JOIN price_history ph2 ON ph1.uniqueIdentifier = ph2.uniqueIdentifier
           WHERE ph1.date = ? 
             AND ph2.date = date(?, '-1 day')
             AND ph1.price > 0 AND ph2.price > 0
@@ -410,7 +416,12 @@ const snapshotFromPokemonCatalog = async (date: string) => {
           low?: number;
           high?: number;
         };
-        const market = priceData.market ?? priceData.mid ?? priceData.low ?? 0;
+        const market = resolveListingPrice({
+          market: priceData.market,
+          mid: priceData.mid,
+          low: priceData.low,
+          high: priceData.high,
+        });
         if (!market || market <= 0) {
           continue;
         }
@@ -443,7 +454,7 @@ const snapshotFromPokemonCatalog = async (date: string) => {
           'catalog_fallback',
           priceData.low ?? null,
           priceData.high ?? null,
-          priceData.market ?? market,
+          market,
           null,
           uniqueIdentifier,
         ]);

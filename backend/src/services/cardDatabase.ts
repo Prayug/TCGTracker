@@ -1,6 +1,7 @@
 // Database query utilities for cards
 import { getDb } from '../db/database';
 import { buildDeterministicImageUrls, getImageColumnSelectFragment } from './cardImageUtils';
+import { extractBestListingPrice, resolveHistoryPointPrice } from '../utils/resolveListingPrice';
 
 export const getLocalCardsForQuery = async (query: string, setId?: string, limit: number = 250) => {
   const db = getDb();
@@ -27,10 +28,13 @@ export const getLocalCardsForQuery = async (query: string, setId?: string, limit
       cm.uniqueIdentifier,
       ${imageColumns}
       ph.marketPrice as latestPrice,
-      ph.date as priceDate
+      ph.lowPrice as latestLowPrice,
+      ph.highPrice as latestHighPrice,
+      ph.date as priceDate,
+      cc.tcgplayerPrices as catalogPrices
     FROM card_mappings cm
     LEFT JOIN (
-      SELECT uniqueIdentifier, marketPrice, date
+      SELECT uniqueIdentifier, marketPrice, lowPrice, highPrice, date
       FROM price_history
       WHERE (uniqueIdentifier, date) IN (
         SELECT uniqueIdentifier, MAX(date)
@@ -38,6 +42,7 @@ export const getLocalCardsForQuery = async (query: string, setId?: string, limit
         GROUP BY uniqueIdentifier
       )
     ) ph ON cm.uniqueIdentifier = ph.uniqueIdentifier
+    LEFT JOIN catalog_cards cc ON cc.cardId = cm.cardId
     WHERE ${whereClause}
     ORDER BY cm.cardName ASC
     LIMIT ?
@@ -59,13 +64,30 @@ export const mapLocalRowsToPokemonCards = async (rows: any[]) => {
   const buildFallbackImage = (cardName: string, setName: string) =>
     `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='245' height='342' viewBox='0 0 245 342'%3E%3Crect width='245' height='342' fill='%23f1f5f9' rx='8'/%3E%3Ctext x='50%25' y='46%25' font-family='Inter,sans-serif' font-size='12' fill='%2364748b' text-anchor='middle'%3E${encodeURIComponent(cardName || 'Pokemon Card')}%3C/text%3E%3Ctext x='50%25' y='54%25' font-family='Inter,sans-serif' font-size='10' fill='%2394a3b8' text-anchor='middle'%3E${encodeURIComponent(setName || 'Unknown Set')}%3C/text%3E%3C/svg%3E`;
 
-  const seen = new Set<string>();
-  const uniqueRows = rows.filter((row) => {
-    const key = row.uniqueIdentifier ?? row.cardId ?? `${row.setId}-${row.cardNumber}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  const seen = new Map<string, any>();
+  for (const row of rows) {
+    const key = row.cardId || row.uniqueIdentifier || `${row.setId}-${row.cardNumber}`;
+    const existing = seen.get(key);
+    if (!existing) {
+      seen.set(key, row);
+      continue;
+    }
+    // Prefer the mapping row with the strongest resolved latest price.
+    const existingPrice = resolveHistoryPointPrice({
+      marketPrice: existing.latestPrice,
+      lowPrice: existing.latestLowPrice,
+      highPrice: existing.latestHighPrice,
+    });
+    const nextPrice = resolveHistoryPointPrice({
+      marketPrice: row.latestPrice,
+      lowPrice: row.latestLowPrice,
+      highPrice: row.latestHighPrice,
+    });
+    if (nextPrice > existingPrice) {
+      seen.set(key, row);
+    }
+  }
+  const uniqueRows = Array.from(seen.values());
 
   return await Promise.all(uniqueRows.map(async row => {
     // PRIORITY ORDER for images:
@@ -99,6 +121,26 @@ export const mapLocalRowsToPokemonCards = async (rows: any[]) => {
       }
     }
 
+    const resolvedLatest = resolveHistoryPointPrice({
+      marketPrice: row.latestPrice,
+      lowPrice: row.latestLowPrice,
+      highPrice: row.latestHighPrice,
+    });
+
+    let catalogPrices: Record<string, { market?: number; mid?: number; low?: number; high?: number }> | undefined;
+    if (row.catalogPrices) {
+      try {
+        catalogPrices = JSON.parse(row.catalogPrices);
+      } catch {
+        catalogPrices = undefined;
+      }
+    }
+
+    const fromCatalog = extractBestListingPrice(catalogPrices);
+    // Snapshot first; catalog listing is fallback when we have no daily sync row.
+    const marketPrice =
+      resolvedLatest > 0 ? resolvedLatest : fromCatalog.price > 0 ? fromCatalog.price : 0;
+
     return {
       id: row.cardId || `${row.setId}-${row.cardNumber || 'na'}`,
       name: row.cardName,
@@ -112,13 +154,21 @@ export const mapLocalRowsToPokemonCards = async (rows: any[]) => {
       },
       images,
       imageSource,
-      tcgplayer: row.latestPrice ? {
-        productId: row.tcgplayerProductId,
-        prices: {
-          normal: { market: row.latestPrice }
-        }
-      } : undefined,
-      marketPrice: row.latestPrice || 0,
+      tcgplayer: catalogPrices
+        ? {
+            productId: row.tcgplayerProductId,
+            prices: catalogPrices,
+          }
+        : marketPrice > 0
+          ? {
+              productId: row.tcgplayerProductId,
+              prices: {
+                [fromCatalog.variantKey || 'normal']: { market: marketPrice },
+              },
+            }
+          : undefined,
+      marketPrice,
+      preferredVariant: fromCatalog.variantKey || undefined,
       uniqueIdentifier: row.uniqueIdentifier,
       isLocalDbCard: true,
       source: 'local_database'

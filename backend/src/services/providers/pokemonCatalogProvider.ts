@@ -28,7 +28,8 @@ export class PokemonCatalogProvider implements CatalogProvider {
       cardNumber: card.number,
       rarity: card.rarity,
       artist: (card as { artist?: string }).artist,
-      types: card.subtypes,
+      // Elemental types (Fire/Water/…) — not subtypes (Basic/V)
+      types: card.types,
       imageSmall: card.images?.small,
       imageLarge: card.images?.large,
       tcgplayerProductId:

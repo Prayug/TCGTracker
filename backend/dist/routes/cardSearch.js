@@ -47,6 +47,7 @@ const cardImageBackfillService_1 = require("../services/cardImageBackfillService
 const cardEnrichment_1 = require("../services/cardEnrichment");
 const gradedPriceService_1 = require("../services/gradedPriceService");
 const router = (0, express_1.Router)();
+const resolveListingPrice_1 = require("../utils/resolveListingPrice");
 const parsePrices = (value) => {
     if (!value) {
         return undefined;
@@ -59,32 +60,33 @@ const parsePrices = (value) => {
     }
 };
 const extractMarketPriceFromVariants = (prices) => {
-    var _a;
-    if (!prices) {
-        return null;
-    }
-    const preferredOrder = ['normal', 'holofoil', 'reverseHolofoil', '1stEditionHolofoil'];
-    for (const key of preferredOrder) {
-        const value = (_a = prices[key]) === null || _a === void 0 ? void 0 : _a.market;
-        if (typeof value === 'number' && value > 0) {
-            return value;
-        }
-    }
-    for (const entry of Object.values(prices)) {
-        if (typeof (entry === null || entry === void 0 ? void 0 : entry.market) === 'number' && entry.market > 0) {
-            return entry.market;
-        }
-    }
-    return null;
+    const best = (0, resolveListingPrice_1.extractBestListingPrice)(prices);
+    return {
+        price: best.price > 0 ? best.price : null,
+        variantKey: best.variantKey,
+    };
+};
+/** Prefer the strongest daily snapshot when a card has multiple variant history rows. */
+const resolveSnapshotPrice = (row) => {
+    const resolved = (0, resolveListingPrice_1.resolveHistoryPointPrice)({
+        marketPrice: row.latestPrice,
+        lowPrice: row.latestLowPrice,
+        highPrice: row.latestHighPrice,
+    });
+    return resolved > 0 ? resolved : null;
 };
 const mapCatalogRowsToPokemonCards = (rows) => {
     const seen = new Map();
     for (const row of rows) {
-        if (!row.cardId || seen.has(row.cardId))
+        if (!row.cardId)
             continue;
         const parsedPrices = parsePrices(row.tcgplayerPrices);
-        const derivedMarketPrice = typeof row.latestPrice === 'number' ? row.latestPrice : extractMarketPriceFromVariants(parsedPrices);
-        seen.set(row.cardId, {
+        const fromListing = extractMarketPriceFromVariants(parsedPrices);
+        const snapshotPrice = resolveSnapshotPrice(row);
+        // Backend daily snapshot is the source of truth. Listing quotes are fallback only.
+        const derivedMarketPrice = snapshotPrice !== null && snapshotPrice !== void 0 ? snapshotPrice : fromListing.price;
+        const productId = row.tcgplayerProductId || undefined;
+        const next = {
             id: row.cardId,
             name: row.cardName,
             number: row.cardNumber || '',
@@ -100,15 +102,20 @@ const mapCatalogRowsToPokemonCards = (rows) => {
                 releaseDate: row.setReleaseDate || '2020-01-01',
                 total: 0,
             },
-            tcgplayer: row.tcgplayerProductId
+            tcgplayer: parsedPrices || productId
                 ? {
-                    productId: row.tcgplayerProductId,
+                    productId,
                     prices: parsedPrices,
                 }
                 : undefined,
             marketPrice: typeof derivedMarketPrice === 'number' ? derivedMarketPrice : 0,
+            preferredVariant: fromListing.variantKey || undefined,
             source: 'catalog_sync',
-        });
+        };
+        const existing = seen.get(row.cardId);
+        if (!existing || (next.marketPrice || 0) > (existing.marketPrice || 0)) {
+            seen.set(row.cardId, next);
+        }
     }
     return Array.from(seen.values());
 };
@@ -200,17 +207,42 @@ router.get('/search', async (req, res) => {
         cc.imageLarge,
         cc.tcgplayerProductId,
         cc.tcgplayerPrices,
-        ph.marketPrice as latestPrice
+        ph.latestPrice as latestPrice,
+        ph.latestLowPrice as latestLowPrice,
+        ph.latestHighPrice as latestHighPrice
       FROM catalog_cards cc
       LEFT JOIN (
-        SELECT cm.cardId, ph.marketPrice
+        SELECT
+          cm.cardId,
+          -- Repair junk market vs low/high in SQL before picking the best variant snap.
+          MAX(
+            CASE
+              WHEN ph.lowPrice IS NOT NULL AND ph.lowPrice > 0 AND ph.marketPrice < ph.lowPrice * 0.5
+                THEN CASE
+                  WHEN ph.highPrice IS NOT NULL AND ph.highPrice > 0 AND ph.highPrice <= ph.lowPrice * 5
+                    THEN (ph.lowPrice + ph.highPrice) / 2.0
+                  ELSE ph.lowPrice
+                END
+              ELSE ph.marketPrice
+            END
+          ) as latestPrice,
+          NULL as latestLowPrice,
+          NULL as latestHighPrice
         FROM price_history ph
         JOIN card_mappings cm ON cm.uniqueIdentifier = ph.uniqueIdentifier
-        WHERE (ph.productId, ph.date, ph.subTypeName, ph.source) IN (
-          SELECT productId, MAX(date), subTypeName, source
-          FROM price_history
-          GROUP BY productId, subTypeName, source
-        )
+        WHERE ph.source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
+          AND ph.marketPrice IS NOT NULL
+          AND ph.marketPrice > 0
+          AND (cm.cardId, ph.date) IN (
+            SELECT cm2.cardId, MAX(ph2.date)
+            FROM price_history ph2
+            JOIN card_mappings cm2 ON cm2.uniqueIdentifier = ph2.uniqueIdentifier
+            WHERE ph2.source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
+              AND ph2.marketPrice IS NOT NULL
+              AND ph2.marketPrice > 0
+            GROUP BY cm2.cardId
+          )
+        GROUP BY cm.cardId
       ) ph ON cc.cardId = ph.cardId
       WHERE cc.cardName LIKE ?
     `;
@@ -244,14 +276,17 @@ router.get('/search', async (req, res) => {
             cm.uniqueIdentifier,
             ${imageColumns}
             ph.marketPrice as latestPrice,
+            ph.lowPrice as latestLowPrice,
+            ph.highPrice as latestHighPrice,
             ph.date as priceDate
           FROM card_mappings cm
           LEFT JOIN (
-            SELECT uniqueIdentifier, marketPrice, date
+            SELECT uniqueIdentifier, marketPrice, lowPrice, highPrice, date
             FROM price_history
             WHERE (uniqueIdentifier, date) IN (
               SELECT uniqueIdentifier, MAX(date)
               FROM price_history
+              WHERE source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
               GROUP BY uniqueIdentifier
             )
           ) ph ON cm.uniqueIdentifier = ph.uniqueIdentifier
@@ -382,7 +417,7 @@ router.get('/population', async (req, res) => {
 router.get('/pool', async (req, res) => {
     try {
         const db = (0, database_1.getDb)();
-        const { limit = '250', minPrice = '1', maxPrice = '20000' } = req.query;
+        const { limit = '250', minPrice = '0', maxPrice = '100000' } = req.query;
         const poolLimit = Math.min(parseInt(limit) || 250, 10000); // Increased max to 10000 for better pool diversity
         const imageColumns = await (0, cardImageUtils_1.getImageColumnSelectFragment)();
         // Exclude fake "sets" that are actually TCGPlayer product categories
