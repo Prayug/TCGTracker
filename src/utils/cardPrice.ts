@@ -13,9 +13,11 @@ export function isOnePieceCard(card: AnyCard): card is OnePieceCard {
   return 'cardColor' in card || ('cardType' in card && !('types' in card));
 }
 
-export function getCardPrice(card: AnyCard): number {
+export function getCardPrice(card: AnyCard, preferredVariant?: string): number {
   if (isPokemonCard(card)) {
-    return card.marketPrice ?? pokemonApi.extractCardPrice(card);
+    // Backend marketPrice is the daily snapshot when present — trust it over raw listings.
+    if (card.marketPrice && card.marketPrice > 0) return card.marketPrice;
+    return pokemonApi.extractCardPrice(card, preferredVariant || card.preferredVariant);
   }
   return onePieceApi.extractCardPrice(card as OnePieceCard);
 }
@@ -57,4 +59,61 @@ export function dedupeCards<T extends AnyCard>(cards: T[]): T[] {
     seen.add(key);
     return true;
   });
+}
+
+export function getCardDeltaPct(
+  card: PokemonCard,
+  period: '1d' | '7d' | '30d',
+): number | null {
+  const prices = card.cardmarket?.prices;
+  if (!prices) return null;
+
+  const current = prices.trendPrice ?? prices.averageSellPrice;
+  if (!current || current <= 0) return null;
+
+  const avgKey = period === '1d' ? 'avg1' : period === '7d' ? 'avg7' : 'avg30';
+  const avg = prices[avgKey];
+  if (!avg || avg <= 0) return null;
+
+  if (avg < 0.50 || current < 0.50) return null;
+
+  return ((current - avg) / avg) * 100;
+}
+
+const LOOKBACK: Record<string, number> = { '1d': 1, '7d': 7, '30d': 30 };
+
+export function computeDeltaFromHistory(
+  history: { date: string; price: number }[],
+  period: string,
+): { changePct: number; currentPrice: number } | null {
+  if (history.length < 2) return null;
+
+  const sorted = [...history].sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+  );
+
+  const currentPrice = sorted[sorted.length - 1].price;
+  if (!currentPrice || currentPrice <= 0) return null;
+
+  const lookbackDays = LOOKBACK[period] ?? 7;
+  const latestDate = new Date(sorted[sorted.length - 1].date);
+  const targetMs = latestDate.getTime() - lookbackDays * 86400000;
+
+  let oldPrice: number | null = null;
+  let minDiff = Infinity;
+  for (const point of sorted) {
+    const diff = Math.abs(new Date(point.date).getTime() - targetMs);
+    if (diff < minDiff) {
+      minDiff = diff;
+      oldPrice = point.price;
+    }
+  }
+
+  if (!oldPrice || oldPrice <= 0) return null;
+  if (oldPrice < 0.50 || currentPrice < 0.50) return null;
+
+  return {
+    currentPrice,
+    changePct: ((currentPrice - oldPrice) / oldPrice) * 100,
+  };
 }

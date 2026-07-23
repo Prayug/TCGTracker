@@ -2,6 +2,7 @@ import { PokemonCard, PokemonSet } from '../types/pokemon';
 import { cacheService } from './cacheService';
 import { buildApiUrl } from '../config/env';
 import { dedupeCards } from '../utils/cardPrice';
+import { extractBestListingPrice, resolveListingPrice } from '../utils/resolveListingPrice';
 
 function estimateResultVolume(query?: string): 'small' | 'large' {
   if (!query) return 'large';
@@ -166,25 +167,18 @@ class PokemonApiService {
 
   extractCardPrice(card: PokemonCard, preferredVariant?: string): number {
     if (card.tcgplayer?.prices) {
-      const prices = card.tcgplayer.prices;
-      const variants = [
-        preferredVariant,
-        'normal',
-        'holofoil',
-        'reverseHolofoil',
-        '1stEditionHolofoil',
-        '1stEditionNormal',
-        'unlimited',
-      ].filter(Boolean) as string[];
-      for (const v of variants) {
-        if (prices[v]?.market) return prices[v].market!;
+      const prices = card.tcgplayer.prices as Record<
+        string,
+        { market?: number; mid?: number; low?: number; high?: number }
+      >;
+
+      if (preferredVariant && prices[preferredVariant]) {
+        const resolved = resolveListingPrice(prices[preferredVariant]);
+        if (resolved > 0) return resolved;
       }
-      for (const p of Object.values(prices)) {
-        if (p.market) return p.market;
-        if (p.mid) return p.mid;
-        if (p.high) return p.high;
-        if (p.low) return p.low;
-      }
+
+      const best = extractBestListingPrice(prices, preferredVariant || card.preferredVariant);
+      if (best.price > 0) return best.price;
     }
     if (card.cardmarket?.prices?.averageSellPrice) {
       return card.cardmarket.prices.averageSellPrice;

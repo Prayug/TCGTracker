@@ -1,5 +1,6 @@
 import { getDb } from '../db/database';
 import { logger } from '../utils/logger';
+import { resolveHistoryPointPrice } from '../utils/resolveListingPrice';
 import {
   computePriceChanges as computePriceChangesFromHistory,
   computeVolatility as computeVolatilityFromHistory,
@@ -128,6 +129,7 @@ function computeFairValue(prices: number[]): number {
 
 /**
  * Fetches card_mappings rows for the given card IDs, returning a map of cardId -> uniqueIdentifier.
+ * Prefers premium printings when a card has multiple variant mappings.
  */
 async function fetchCardMappings(cardIds: string[]): Promise<Map<string, string>> {
   const db = getDb();
@@ -135,18 +137,92 @@ async function fetchCardMappings(cardIds: string[]): Promise<Map<string, string>
 
   if (cardIds.length === 0) return map;
 
-  // Query in batches to avoid SQLITE_MAX_VARIABLE_NUMBER
+  const variantRank = (variantKey?: string | null): number => {
+    const key = (variantKey || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (key.includes('1steditionholofoil')) return 100;
+    if (key.includes('1stedition')) return 90;
+    if (key === 'holofoil') return 80;
+    if (key.includes('unlimitedholofoil')) return 70;
+    if (key.includes('reverse')) return 60;
+    if (key === 'normal' || key === 'unlimited') return 40;
+    return 10;
+  };
+
   const BATCH_SIZE = 50;
   for (let i = 0; i < cardIds.length; i += BATCH_SIZE) {
     const batch = cardIds.slice(i, i + BATCH_SIZE);
     const placeholders = batch.map(() => '?').join(',');
 
-    const rows: CardMappingRow[] = await new Promise((resolve, reject) => {
+    const rows: Array<CardMappingRow & { variantKey?: string | null }> = await new Promise(
+      (resolve, reject) => {
+        db.all(
+          `SELECT cardId, uniqueIdentifier, variantKey FROM card_mappings
+           WHERE cardId IN (${placeholders})`,
+          batch,
+          (err, rows: any[]) => {
+            if (err) return reject(err);
+            resolve(rows || []);
+          }
+        );
+      }
+    );
+
+    const best = new Map<string, { uniqueIdentifier: string; rank: number }>();
+    for (const row of rows) {
+      if (!row.cardId || !row.uniqueIdentifier) continue;
+      const rank = variantRank(row.variantKey);
+      const existing = best.get(row.cardId);
+      if (!existing || rank > existing.rank) {
+        best.set(row.cardId, { uniqueIdentifier: row.uniqueIdentifier, rank });
+      }
+    }
+    for (const [cardId, entry] of best) {
+      map.set(cardId, entry.uniqueIdentifier);
+    }
+  }
+
+  return map;
+}
+
+/**
+ * Latest repaired snapshot price per cardId (across all variant mappings).
+ */
+async function fetchLatestSnapshots(cardIds: string[]): Promise<Map<string, number>> {
+  const db = getDb();
+  const map = new Map<string, number>();
+  if (cardIds.length === 0) return map;
+
+  const BATCH_SIZE = 50;
+  for (let i = 0; i < cardIds.length; i += BATCH_SIZE) {
+    const batch = cardIds.slice(i, i + BATCH_SIZE);
+    const placeholders = batch.map(() => '?').join(',');
+
+    const rows: Array<{
+      cardId: string;
+      marketPrice: number | null;
+      lowPrice: number | null;
+      highPrice: number | null;
+      date: string;
+    }> = await new Promise((resolve, reject) => {
       db.all(
-        `SELECT cardId, uniqueIdentifier FROM card_mappings
-         WHERE cardId IN (${placeholders})
-         GROUP BY cardId`,
-        batch,
+        `SELECT cm.cardId, ph.marketPrice, ph.lowPrice, ph.highPrice, ph.date
+         FROM price_history ph
+         JOIN card_mappings cm ON cm.uniqueIdentifier = ph.uniqueIdentifier
+         WHERE cm.cardId IN (${placeholders})
+           AND ph.source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
+           AND ph.marketPrice IS NOT NULL
+           AND ph.marketPrice > 0
+           AND (cm.cardId, ph.date) IN (
+             SELECT cm2.cardId, MAX(ph2.date)
+             FROM price_history ph2
+             JOIN card_mappings cm2 ON cm2.uniqueIdentifier = ph2.uniqueIdentifier
+             WHERE cm2.cardId IN (${placeholders})
+               AND ph2.source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
+               AND ph2.marketPrice IS NOT NULL
+               AND ph2.marketPrice > 0
+             GROUP BY cm2.cardId
+           )`,
+        [...batch, ...batch],
         (err, rows: any[]) => {
           if (err) return reject(err);
           resolve(rows || []);
@@ -155,9 +231,11 @@ async function fetchCardMappings(cardIds: string[]): Promise<Map<string, string>
     });
 
     for (const row of rows) {
-      if (row.cardId && row.uniqueIdentifier) {
-        map.set(row.cardId, row.uniqueIdentifier);
-      }
+      const resolved = resolveHistoryPointPrice(row);
+      if (resolved <= 0) continue;
+      const existing = map.get(row.cardId) || 0;
+      // Prefer the strongest coherent snap when multiple variants share the latest date.
+      if (resolved > existing) map.set(row.cardId, resolved);
     }
   }
 
@@ -217,10 +295,17 @@ async function fetchPriceHistories(
     const batch = identifiers.slice(i, i + BATCH_SIZE);
     const placeholders = batch.map(() => '?').join(',');
 
-    const rows: Array<{ uniqueIdentifier: string; date: string; price: number; marketPrice: number | null }> =
+    const rows: Array<{
+      uniqueIdentifier: string;
+      date: string;
+      price: number;
+      marketPrice: number | null;
+      lowPrice: number | null;
+      highPrice: number | null;
+    }> =
       await new Promise((resolve, reject) => {
         db.all(
-          `SELECT uniqueIdentifier, date, price, marketPrice
+          `SELECT uniqueIdentifier, date, price, marketPrice, lowPrice, highPrice
            FROM price_history
            WHERE uniqueIdentifier IN (${placeholders})
              AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
@@ -235,10 +320,11 @@ async function fetchPriceHistories(
 
     for (const row of rows) {
       const existing = map.get(row.uniqueIdentifier) || [];
+      const repaired = resolveHistoryPointPrice(row);
       existing.push({
         date: row.date,
-        price: row.marketPrice ?? row.price ?? 0,
-        marketPrice: row.marketPrice,
+        price: repaired,
+        marketPrice: repaired,
       });
       map.set(row.uniqueIdentifier, existing);
     }
@@ -273,6 +359,7 @@ export async function enrichCardsWithInvestmentData<T extends { id?: string; car
     // 3. Fetch price histories for cards that have mappings
     const uniqueIdentifiers = [...new Set(mappings.values())];
     const priceHistories = await fetchPriceHistories(uniqueIdentifiers);
+    const latestSnapshots = await fetchLatestSnapshots(cardIds);
 
     // 4. Enrich each card
     return cards.map(card => {
@@ -282,6 +369,9 @@ export async function enrichCardsWithInvestmentData<T extends { id?: string; car
       const prediction = predictions.get(cardId);
       const uniqueId = mappings.get(cardId);
       const priceHistory = uniqueId ? priceHistories.get(uniqueId) || [] : [];
+      const latestSnapshot =
+        latestSnapshots.get(cardId) ||
+        (priceHistory.length > 0 ? priceHistory[priceHistory.length - 1].price : 0);
 
       // If no prediction and no price history, skip enrichment
       if (!prediction && priceHistory.length === 0) return card;
@@ -299,7 +389,7 @@ export async function enrichCardsWithInvestmentData<T extends { id?: string; car
       const investmentData: EnrichedCard['investmentData'] = {
         psaData: {
           population: { grade10: 0, grade9: 0, grade8: 0, grade7: 0, total: 0 },
-          prices: { grade10: 0, grade9: 0, grade8: 0, raw: prediction?.current_price || 0 },
+          prices: { grade10: 0, grade9: 0, grade8: 0, raw: prediction?.current_price || latestSnapshot || 0 },
           popReport: {
             lowPop: false,
             grade10Percentage: 0,
@@ -324,7 +414,13 @@ export async function enrichCardsWithInvestmentData<T extends { id?: string; car
         recommendation: mapSuggestedAction(prediction?.suggested_action || 'WATCH'),
       };
 
-      return { ...card, investmentData };
+      // Force display price to the latest backend snapshot when we have one.
+      const withSnapshot =
+        latestSnapshot > 0
+          ? { ...card, marketPrice: latestSnapshot, investmentData }
+          : { ...card, investmentData };
+
+      return withSnapshot;
     });
   } catch (error) {
     logger.error('Error enriching cards with investment data:', error);
