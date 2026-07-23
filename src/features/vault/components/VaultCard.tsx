@@ -3,6 +3,8 @@ import { VaultCard as VaultCardType } from '../../../types/pokemon';
 import { TrendingUp, TrendingDown, Trash2, Edit, Package } from 'lucide-react';
 import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
 import { vaultService } from '../../../services/vaultService';
+import { GradeBadge } from '../../grading/components/GradeBadge';
+import { calculateGradedValue, calculateGradingUplift } from '../../../services/gradingService';
 
 interface VaultCardProps {
   vaultCard: VaultCardType;
@@ -16,12 +18,23 @@ export const VaultCard: React.FC<VaultCardProps> = ({ vaultCard, onRemove, onUpd
   const [editNotes, setEditNotes] = useState(vaultCard.notes || '');
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
 
-  const { card, purchasePrice, purchaseDate, quantity, condition, notes } = vaultCard;
+  const { card, purchasePrice, purchaseDate, quantity, condition, notes, gradingResult } = vaultCard;
   const currentPrice = card.marketPrice || 0;
   const totalPurchaseValue = purchasePrice * quantity;
   const totalCurrentValue = currentPrice * quantity;
   const profit = totalCurrentValue - totalPurchaseValue;
   const profitPercentage = totalPurchaseValue > 0 ? (profit / totalPurchaseValue) * 100 : 0;
+  const gradedValue =
+    gradingResult?.estimatedGradedValue ??
+    (gradingResult && currentPrice > 0
+      ? calculateGradedValue(currentPrice, gradingResult.grade)
+      : null);
+  const gradingUplift =
+    gradingResult && currentPrice > 0
+      ? gradedValue != null
+        ? gradedValue - currentPrice
+        : calculateGradingUplift(currentPrice, gradingResult.grade)
+      : null;
 
   const handleSaveEdit = () => {
     vaultService.updateVaultCard(vaultCard.id, {
@@ -96,7 +109,7 @@ export const VaultCard: React.FC<VaultCardProps> = ({ vaultCard, onRemove, onUpd
               <p className="text-sm text-ink-muted">
                 {card.set.name} • #{card.number}
               </p>
-              <div className="flex items-center gap-2 mt-2">
+              <div className="flex flex-wrap items-center gap-2 mt-2">
                 <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getConditionBadgeColor(condition)}`}>
                   {condition.replace('-', ' ')}
                 </span>
@@ -104,6 +117,9 @@ export const VaultCard: React.FC<VaultCardProps> = ({ vaultCard, onRemove, onUpd
                   <span className="px-2 py-1 bg-purple-500/10 text-purple-300 rounded-full text-xs font-semibold">
                     {card.rarity}
                   </span>
+                )}
+                {gradingResult && (
+                  <GradeBadge grade={gradingResult.grade} label={gradingResult.gradeLabel} size="sm" />
                 )}
               </div>
             </div>
@@ -198,6 +214,31 @@ export const VaultCard: React.FC<VaultCardProps> = ({ vaultCard, onRemove, onUpd
               <p className="text-lg font-bold text-purple-400">${totalCurrentValue.toFixed(2)}</p>
             </div>
           </div>
+
+          {gradingResult && gradedValue != null && (
+            <div className="mb-4 rounded-lg border border-amber-500/25 bg-amber-500/5 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wider text-amber-200/80">
+                    Grading value uplift
+                  </p>
+                  <p className="mt-0.5 text-xs text-ink-muted">
+                    AI {gradingResult.gradeLabel} · est. graded ${gradedValue.toFixed(2)} vs raw $
+                    {currentPrice.toFixed(2)}
+                  </p>
+                </div>
+                {gradingUplift != null && (
+                  <p
+                    className={`font-mono text-lg font-bold tabular-nums ${
+                      gradingUplift >= 0 ? 'text-gain' : 'text-loss'
+                    }`}
+                  >
+                    {gradingUplift >= 0 ? '+' : ''}${gradingUplift.toFixed(2)}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Profit/Loss */}
           <div className={`p-4 rounded-lg ${profit >= 0 ? 'bg-green-500/10 border border-green-500/30' : 'bg-red-500/10 border border-red-500/30'}`}>

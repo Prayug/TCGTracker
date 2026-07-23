@@ -11,9 +11,11 @@ import { MiniSparkline } from '../../../components/common/MiniSparkline';
 import { TrackerStatCard, buildSparklinePrices } from './TrackerStatCard';
 import { formatCurrency, formatPercent } from '../../../utils/cardDisplay';
 import { markOnboardingStep } from '../../../components/common/OnboardingChecklist';
+import { vaultService } from '../../../services/vaultService';
+import { calculateGradedValue } from '../../../services/gradingService';
 
 export const PriceTrackingDashboard: React.FC = () => {
-  const { isOnePiece } = useGame();
+  const { game, isOnePiece } = useGame();
   const [trackedCards, setTrackedCards] = useState<TrackedCard[]>([]);
   const [alerts, setAlerts] = useState<PriceAlert[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -84,6 +86,23 @@ export const PriceTrackingDashboard: React.FC = () => {
   const stats = priceTrackingService.getStats();
   const movers = priceTrackingService.getTopMovers();
 
+  const gradedVaultCards = vaultService
+    .getVaultCards(game)
+    .filter((vc) => vc.gradingResult != null);
+  const gradingDiff = gradedVaultCards.reduce(
+    (acc, vc) => {
+      const raw = vc.card.marketPrice || 0;
+      const graded =
+        vc.gradingResult!.estimatedGradedValue ??
+        calculateGradedValue(raw, vc.gradingResult!.grade);
+      acc.raw += raw * vc.quantity;
+      acc.graded += graded * vc.quantity;
+      return acc;
+    },
+    { raw: 0, graded: 0 }
+  );
+  const gradingUpliftTotal = gradingDiff.graded - gradingDiff.raw;
+
   const getCardPrice = (card: PokemonCard) => {
     return card.marketPrice || card.tcgplayer?.prices?.holofoil?.market || 0;
   };
@@ -146,6 +165,43 @@ export const PriceTrackingDashboard: React.FC = () => {
           tone="alert"
         />
       </div>
+
+      {gradedVaultCards.length > 0 && (
+        <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4">
+          <h3 className="mb-1 text-sm font-semibold text-ink-primary">
+            Graded vs raw differential
+          </h3>
+          <p className="mb-3 text-xs text-ink-muted">
+            From {gradedVaultCards.length} AI-graded vault card
+            {gradedVaultCards.length === 1 ? '' : 's'}
+          </p>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-ink-muted">Raw total</p>
+              <p className="font-mono text-sm font-semibold tabular-nums text-ink-primary">
+                {formatCurrency(gradingDiff.raw)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-ink-muted">Est. graded</p>
+              <p className="font-mono text-sm font-semibold tabular-nums text-ink-primary">
+                {formatCurrency(gradingDiff.graded)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-ink-muted">Uplift</p>
+              <p
+                className={`font-mono text-sm font-semibold tabular-nums ${
+                  gradingUpliftTotal >= 0 ? 'text-gain' : 'text-loss'
+                }`}
+              >
+                {gradingUpliftTotal >= 0 ? '+' : ''}
+                {formatCurrency(gradingUpliftTotal)}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-ink-primary">
