@@ -6,11 +6,15 @@
 #   brew install cloudflared
 #   Backend running on PORT (default 3001)
 #
-# Quick tunnel (random URL, good for testing):
-#   bash scripts/setup-cloudflare-tunnel.sh
+# Prefer (survives closing the terminal; one-command repair):
+#   bash scripts/api-tunnel.sh fix        # from repo root
+#   bash scripts/api-tunnel.sh install    # start tunnel on login
+#
+# Foreground quick tunnel (dies when this terminal closes):
+#   bash backend/scripts/setup-cloudflare-tunnel.sh
 #
 # Named tunnel (stable URL — requires free Cloudflare account + domain):
-#   TUNNEL_NAME=tcgtracker TUNNEL_HOSTNAME=api.yourdomain.com bash scripts/setup-cloudflare-tunnel.sh --named
+#   TUNNEL_NAME=tcgtracker TUNNEL_HOSTNAME=api.yourdomain.com bash backend/scripts/setup-cloudflare-tunnel.sh --named
 
 set -euo pipefail
 
@@ -79,7 +83,10 @@ EOF
 fi
 
 echo "Starting quick Cloudflare tunnel -> http://127.0.0.1:${PORT}"
-echo "Copy the https://*.trycloudflare.com URL below into Vercel VITE_API_URL for testing."
+echo "This binds to THIS terminal — closing it kills prod /api."
+echo "Prefer instead (background + Vercel retarget):"
+echo "  bash ${BACKEND_DIR}/../scripts/api-tunnel.sh fix"
+echo
 echo "(Quick tunnel URLs change each restart — use --named for a permanent URL.)"
 echo
-exec cloudflared tunnel --url "http://127.0.0.1:${PORT}"
+exec cloudflared tunnel --url "http://127.0.0.1:${PORT}" --protocol http2
