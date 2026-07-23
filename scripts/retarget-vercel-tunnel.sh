@@ -22,6 +22,11 @@ if [[ -z "$TUNNEL" ]]; then
 fi
 TUNNEL="${TUNNEL%/}"
 
+if [[ "$TUNNEL" == *"NEW-URL"* ]] || [[ "$TUNNEL" == *"xxxx"* ]]; then
+  echo "That looks like a placeholder, not a real tunnel URL."
+  echo "Start a tunnel first, then pass the https://….trycloudflare.com URL it prints."
+  exit 1
+fi
 if [[ ! "$TUNNEL" =~ ^https://[a-z0-9.-]+\.trycloudflare\.com$ ]] && [[ ! "$TUNNEL" =~ ^https:// ]]; then
   echo "Refusing non-https tunnel URL: $TUNNEL"
   exit 1
