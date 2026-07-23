@@ -69,6 +69,7 @@ export default defineConfig(({ mode }) => {
       '/api/portfolio': backendProxy,
       '/api/packs': backendProxy,
       '/api/market-insights': backendProxy,
+      '/api/grading': backendProxy,
       '/api/update': backendProxy,
       '/api/cloud-backup': backendProxy,
       '/api/sync-catalog': backendProxy,
