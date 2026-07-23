@@ -1,14 +1,16 @@
 import { MarketPriceProvider, MarketPriceSnapshot } from './contracts';
 import { logger } from '../../utils/logger';
 import { normalizeVariantKey } from '../../utils/normalizeVariantKey';
+import { resolveListingPrice } from '../../utils/resolveListingPrice';
 
 const TCGDEX_BASE_URL = 'https://api.tcgdex.net/v2/en';
 
 interface TcgdexPriceEntry {
   productId?: number;
-  marketPrice?: number;
-  lowPrice?: number;
-  highPrice?: number;
+  marketPrice?: number | null;
+  midPrice?: number | null;
+  lowPrice?: number | null;
+  highPrice?: number | null;
   volume?: number;
 }
 
@@ -70,7 +72,18 @@ export class TcgdexMarketProvider implements MarketPriceProvider {
 
       const points = Object.entries(card.pricing.tcgplayer)
         .map(([rawVariantName, value]) => {
-          const marketPrice = value.marketPrice ?? 0;
+          // Skip non-variant metadata keys (unit/updated live on the parent object,
+          // but defensive in case the payload shape drifts).
+          if (!value || typeof value !== 'object' || Array.isArray(value)) {
+            return null;
+          }
+
+          const marketPrice = resolveListingPrice({
+            market: value.marketPrice,
+            mid: value.midPrice,
+            low: value.lowPrice,
+            high: value.highPrice,
+          });
           if (marketPrice <= 0) {
             return null;
           }
@@ -80,8 +93,8 @@ export class TcgdexMarketProvider implements MarketPriceProvider {
             rawVariantName,
             productId: value.productId ?? 0,
             marketPrice,
-            lowPrice: value.lowPrice,
-            highPrice: value.highPrice,
+            lowPrice: value.lowPrice ?? undefined,
+            highPrice: value.highPrice ?? undefined,
             volume: value.volume,
           };
         })

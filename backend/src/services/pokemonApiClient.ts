@@ -10,6 +10,7 @@ export interface PokemonApiCard {
   number: string;
   supertype?: string;
   subtypes?: string[];
+  types?: string[];
   rarity?: string;
   images?: {
     small?: string;

@@ -1,4 +1,5 @@
 import { getDb } from '../db/database';
+import { resolveHistoryPointPrice } from '../utils/resolveListingPrice';
 
 export interface CardIdentifier {
   cardId: string;
@@ -303,14 +304,29 @@ export const getCardPriceHistory = async (uniqueIdentifier: string): Promise<any
       ORDER BY date ASC
     `;
 
-    db.all(sql, [uniqueIdentifier], (err, rows) => {
+    db.all(sql, [uniqueIdentifier], (err, rows: any[]) => {
       if (err) {
         reject(err);
       } else {
-        resolve(rows || []);
+        resolve((rows || []).map(sanitizeHistoryRow));
       }
     });
   });
+};
+
+const sanitizeHistoryRow = <T extends {
+  marketPrice?: number | null;
+  price?: number | null;
+  lowPrice?: number | null;
+  highPrice?: number | null;
+}>(row: T): T => {
+  const resolved = resolveHistoryPointPrice(row);
+  if (resolved <= 0) return row;
+  return {
+    ...row,
+    marketPrice: resolved,
+    price: resolved,
+  };
 };
 
 const normalizeVariantKey = (value?: string | null): string => {
@@ -390,7 +406,7 @@ export const getCardPriceHistoryForProduct = async (
       if (err) {
         reject(err);
       } else {
-        resolve(selectPriceHistoryForVariant(rows || [], variantKey));
+        resolve(selectPriceHistoryForVariant((rows || []).map(sanitizeHistoryRow), variantKey));
       }
     });
   });

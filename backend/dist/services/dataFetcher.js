@@ -14,6 +14,7 @@ const tcgdexMarketProvider_1 = require("./providers/tcgdexMarketProvider");
 const normalizeVariantKey_1 = require("../utils/normalizeVariantKey");
 const pkmnPricesProvider_1 = require("./providers/pkmnPricesProvider");
 const env_1 = require("../config/env");
+const resolveListingPrice_1 = require("../utils/resolveListingPrice");
 var normalizeVariantKey_2 = require("../utils/normalizeVariantKey");
 Object.defineProperty(exports, "normalizeVariantKey", { enumerable: true, get: function () { return normalizeVariantKey_2.normalizeVariantKey; } });
 const SYNC_TIMEZONE = 'America/New_York';
@@ -145,8 +146,12 @@ const extractCatalogFallbackPoints = (row) => {
         const parsed = JSON.parse(row.tcgplayerPrices);
         return Object.entries(parsed)
             .map(([rawVariant, price]) => {
-            var _a, _b, _c;
-            const marketPrice = (_c = (_b = (_a = price.market) !== null && _a !== void 0 ? _a : price.mid) !== null && _b !== void 0 ? _b : price.low) !== null && _c !== void 0 ? _c : 0;
+            const marketPrice = (0, resolveListingPrice_1.resolveListingPrice)({
+                market: price.market,
+                mid: price.mid,
+                low: price.low,
+                high: price.high,
+            });
             if (!marketPrice || marketPrice <= 0) {
                 return null;
             }
@@ -212,7 +217,7 @@ const createDailySnapshot = async (date) => {
             ph2.price as previousPrice,
             ((ph1.price - ph2.price) / ph2.price * 100) as changePercent
           FROM price_history ph1
-          JOIN price_history ph2 ON ph1.productId = ph2.productId
+          JOIN price_history ph2 ON ph1.uniqueIdentifier = ph2.uniqueIdentifier
           WHERE ph1.date = ? 
             AND ph2.date = date(?, '-1 day')
             AND ph1.price > 0 AND ph2.price > 0
@@ -269,7 +274,7 @@ const deterministicProductId = (cardId, variantKey) => {
 };
 exports.deterministicProductId = deterministicProductId;
 const snapshotFromPokemonCatalog = async (date) => {
-    var _a, _b, _c, _d, _e, _f;
+    var _a, _b;
     const db = (0, database_1.getDb)();
     const priceInsertSql = `
     INSERT INTO price_history (
@@ -336,7 +341,12 @@ const snapshotFromPokemonCatalog = async (date) => {
             const parsedPrices = JSON.parse(row.tcgplayerPrices || '{}');
             for (const [rawVariantKey, variantValue] of Object.entries(parsedPrices)) {
                 const priceData = variantValue;
-                const market = (_c = (_b = (_a = priceData.market) !== null && _a !== void 0 ? _a : priceData.mid) !== null && _b !== void 0 ? _b : priceData.low) !== null && _c !== void 0 ? _c : 0;
+                const market = (0, resolveListingPrice_1.resolveListingPrice)({
+                    market: priceData.market,
+                    mid: priceData.mid,
+                    low: priceData.low,
+                    high: priceData.high,
+                });
                 if (!market || market <= 0) {
                     continue;
                 }
@@ -359,9 +369,9 @@ const snapshotFromPokemonCatalog = async (date) => {
                     row.cardName,
                     row.setName,
                     'catalog_fallback',
-                    (_d = priceData.low) !== null && _d !== void 0 ? _d : null,
-                    (_e = priceData.high) !== null && _e !== void 0 ? _e : null,
-                    (_f = priceData.market) !== null && _f !== void 0 ? _f : market,
+                    (_a = priceData.low) !== null && _a !== void 0 ? _a : null,
+                    (_b = priceData.high) !== null && _b !== void 0 ? _b : null,
+                    market,
                     null,
                     uniqueIdentifier,
                 ]);
