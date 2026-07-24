@@ -1,64 +1,45 @@
-import React, { useId } from 'react';
-import { computeSparklineRange } from '../../utils/chartDomain';
+import { useMemo } from 'react';
 
 interface MiniSparklineProps {
-  data: number[];
+  data: { price: number }[];
   width?: number;
   height?: number;
-  positive?: boolean;
+  color?: string;
 }
 
 export const MiniSparkline: React.FC<MiniSparklineProps> = ({
   data,
-  width = 96,
-  height = 32,
-  positive = true,
+  width = 60,
+  height = 20,
+  color,
 }) => {
-  const gradientId = useId();
+  const path = useMemo(() => {
+    if (data.length < 2) return null;
+    const prices = data.map((d) => d.price);
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+    const range = max - min || 1;
+    const stepX = width / (prices.length - 1);
+    return prices
+      .map((p, i) => {
+        const x = i * stepX;
+        const y = height - ((p - min) / range) * (height - 2) - 1;
+        return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join(' ');
+  }, [data, width, height]);
 
-  if (data.length < 2) {
-    return (
-      <div
-        className="flex items-center justify-center rounded-md border border-border-subtle bg-surface-inset text-[10px] text-ink-muted"
-        style={{ width, height }}
-      >
-        —
-      </div>
-    );
-  }
-
-  const { min, max } = computeSparklineRange(data);
-  const range = max - min || 1;
-  const pad = 2;
-
-  const coords = data.map((v, i) => {
-    const x = pad + (i / (data.length - 1)) * (width - pad * 2);
-    const y = pad + (1 - (v - min) / range) * (height - pad * 2);
-    return { x, y };
-  });
-  const points = coords.map(({ x, y }) => `${x},${y}`).join(' ');
-  const areaPath = `M ${coords[0].x},${height - pad} L ${coords
-    .map(({ x, y }) => `${x},${y}`)
-    .join(' L ')} L ${coords[coords.length - 1].x},${height - pad} Z`;
-
-  const stroke = positive ? '#34d399' : '#fb7185';
+  if (!path) return null;
 
   return (
-    <svg width={width} height={height} className="overflow-visible" aria-hidden="true">
-      <defs>
-        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={stroke} stopOpacity="0.25" />
-          <stop offset="100%" stopColor={stroke} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={areaPath} fill={`url(#${gradientId})`} />
-      <polyline
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="shrink-0">
+      <path
+        d={path}
         fill="none"
-        stroke={stroke}
-        strokeWidth="1.75"
+        stroke={color || 'var(--gain)'}
+        strokeWidth={1.5}
         strokeLinecap="round"
         strokeLinejoin="round"
-        points={points}
       />
     </svg>
   );
