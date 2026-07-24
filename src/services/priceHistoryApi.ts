@@ -1,6 +1,7 @@
 import { PricePoint } from '../types/pokemon';
 import { CardIdentifier } from '../types/identifiers';
 import { env } from '../config/env';
+import { resolveHistoryPointPrice } from '../utils/resolveListingPrice';
 import { normalizeVariantKey } from '../utils/normalizeVariantKey';
 
 interface PriceHistoryPoint {
@@ -43,11 +44,138 @@ interface CardMatchResponse {
   };
 }
 
+export interface TopMoverEntry {
+  productName: string;
+  currentPrice: number;
+  previousPrice: number;
+  changePercent: number;
+  uniqueIdentifier?: string | null;
+  subTypeName?: string | null;
+  groupName?: string | null;
+  imageSmall: string | null;
+  imageLarge: string | null;
+  cardId: string | null;
+  setId: string | null;
+  setName: string | null;
+  cardNumber: string | null;
+  rarity: string | null;
+  tcgplayerProductId: string | null;
+  tcgplayerPrices: string | null;
+  productId: number;
+}
+
+export interface TopMoversResponse {
+  date: string | null;
+  days: number;
+  gainers: TopMoverEntry[];
+  losers: TopMoverEntry[];
+}
+
+const TOP_MOVERS_TTL_MS = 10 * 60 * 1000; // match backend TTL
+
+type TopMoversCacheEntry = {
+  expiresAt: number;
+  data: TopMoversResponse;
+};
+
+/**
+ * Fetches top movers (biggest gainers/losers) over a given period
+ */
 export class PriceHistoryApi {
   private static baseUrl = `${env.apiUrl}/api/prices`;
   public static dataMode: 'live' | 'static' = 'live'; // Use live mode by default (backend server)
   private static staticMappings: CardIdentifier[] | null = null;
   private static latestPrices: { [uniqueIdentifier: string]: PricePoint } | null = null;
+  private static topMoversMemory = new Map<string, TopMoversCacheEntry>();
+
+  private static topMoversCacheKey(days: number, limit: number): string {
+    return `${days}:${limit}`;
+  }
+
+  private static topMoversStorageKey(days: number, limit: number): string {
+    return `tcgtracker:top-movers:${days}:${limit}`;
+  }
+
+  private static readTopMoversStorage(days: number, limit: number): TopMoversCacheEntry | null {
+    try {
+      const raw = localStorage.getItem(this.topMoversStorageKey(days, limit));
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as TopMoversCacheEntry;
+      if (!parsed?.data || typeof parsed.expiresAt !== 'number') return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
+  private static writeTopMoversCache(days: number, limit: number, data: TopMoversResponse): void {
+    const entry: TopMoversCacheEntry = {
+      expiresAt: Date.now() + TOP_MOVERS_TTL_MS,
+      data,
+    };
+    const key = this.topMoversCacheKey(days, limit);
+    this.topMoversMemory.set(key, entry);
+    try {
+      localStorage.setItem(this.topMoversStorageKey(days, limit), JSON.stringify(entry));
+    } catch {
+      // Quota / private mode — memory cache still works for the session
+    }
+  }
+
+  /** Instant cache read for stale-while-revalidate UI (may be expired). */
+  static peekTopMovers(days: number = 7, limit: number = 20): TopMoversResponse | null {
+    const key = this.topMoversCacheKey(days, limit);
+    const mem = this.topMoversMemory.get(key);
+    if (mem?.data) return mem.data;
+    const stored = this.readTopMoversStorage(days, limit);
+    if (stored?.data) {
+      this.topMoversMemory.set(key, stored);
+      return stored.data;
+    }
+    return null;
+  }
+
+  static async getTopMovers(
+    days: number = 7,
+    limit: number = 20,
+    options: { force?: boolean } = {}
+  ): Promise<TopMoversResponse> {
+    const key = this.topMoversCacheKey(days, limit);
+    const mem = this.topMoversMemory.get(key);
+    if (
+      !options.force &&
+      mem &&
+      mem.expiresAt > Date.now() &&
+      (mem.data.gainers.length > 0 || mem.data.losers.length > 0)
+    ) {
+      return mem.data;
+    }
+
+    const stored = this.readTopMoversStorage(days, limit);
+    if (
+      !options.force &&
+      stored &&
+      stored.expiresAt > Date.now() &&
+      (stored.data.gainers.length > 0 || stored.data.losers.length > 0)
+    ) {
+      this.topMoversMemory.set(key, stored);
+      return stored.data;
+    }
+
+    try {
+      const response = await fetch(`${this.baseUrl}/top-movers?days=${days}&limit=${limit}`);
+      if (!response.ok) {
+        return mem?.data ?? stored?.data ?? { date: null, days, gainers: [], losers: [] };
+      }
+      const data = (await response.json()) as TopMoversResponse;
+      if (data.gainers.length > 0 || data.losers.length > 0) {
+        this.writeTopMoversCache(days, limit, data);
+      }
+      return data;
+    } catch {
+      return mem?.data ?? stored?.data ?? { date: null, days, gainers: [], losers: [] };
+    }
+  }
 
   private static async getStaticMappings(): Promise<CardIdentifier[]> {
     if (this.staticMappings) {
@@ -322,10 +450,10 @@ export class PriceHistoryApi {
     };
 
     priceHistory
-      .filter((point) => (point.marketPrice || point.price) > 0)
+      .filter((point) => resolveHistoryPointPrice(point) > 0)
       .forEach((point) => {
         const pointDate = point.date.includes('T') ? point.date.split('T')[0] : point.date;
-        const normalizedPrice = point.marketPrice || point.price;
+        const normalizedPrice = resolveHistoryPointPrice(point);
         const score = scoreVariant(point.subTypeName);
         const existing = byDate.get(pointDate);
         if (!existing || score > existing.score) {
@@ -341,14 +469,14 @@ export class PriceHistoryApi {
     // If variant filter was too strict, keep best available row per day.
     if (
       deduped.length === 0 ||
-      deduped.length < Math.min(10, priceHistory.filter((p) => (p.marketPrice || p.price) > 0).length * 0.25)
+      deduped.length < Math.min(10, priceHistory.filter((p) => resolveHistoryPointPrice(p) > 0).length * 0.25)
     ) {
       byDate.clear();
       priceHistory
-        .filter((point) => (point.marketPrice || point.price) > 0)
+        .filter((point) => resolveHistoryPointPrice(point) > 0)
         .forEach((point) => {
           const pointDate = point.date.includes('T') ? point.date.split('T')[0] : point.date;
-          const normalizedPrice = point.marketPrice || point.price;
+          const normalizedPrice = resolveHistoryPointPrice(point);
           const score = scoreVariant(point.subTypeName);
           const existing = byDate.get(pointDate);
           if (!existing || score > existing.score) {
@@ -474,6 +602,42 @@ export class PriceHistoryApi {
     }
 
     return [];
+  }
+
+  /** Period comparison for a TCGPlayer product (outer vs inner window). */
+  static async compareProduct(
+    productId: string | number,
+    outerDays = 90,
+    innerDays = 7
+  ): Promise<{
+    data: Array<{
+      period: string;
+      avgPrice: number;
+      minPrice: number;
+      maxPrice: number;
+      dataPoints: number;
+    }>;
+    analysis: { priceChange: number | null; trend: string };
+  } | null> {
+    try {
+      const url = new URL(`${this.baseUrl}/compare/${productId}`);
+      url.searchParams.set('outer', String(outerDays));
+      url.searchParams.set('inner', String(innerDays));
+      const res = await fetch(url.toString());
+      if (!res.ok) return null;
+      return (await res.json()) as {
+        data: Array<{
+          period: string;
+          avgPrice: number;
+          minPrice: number;
+          maxPrice: number;
+          dataPoints: number;
+        }>;
+        analysis: { priceChange: number | null; trend: string };
+      };
+    } catch {
+      return null;
+    }
   }
 
   /**
