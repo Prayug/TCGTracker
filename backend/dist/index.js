@@ -46,6 +46,7 @@ const onePieceSync_1 = require("./services/onePieceSync");
 const setTracker_1 = __importDefault(require("./routes/setTracker"));
 const enhancedPacks_1 = __importDefault(require("./routes/enhancedPacks"));
 const marketInsights_1 = __importDefault(require("./routes/marketInsights"));
+const grading_1 = __importDefault(require("./routes/grading"));
 const database_1 = require("./db/database");
 const migrations_1 = require("./db/migrations");
 const dataFetcher_1 = require("./services/dataFetcher");
@@ -64,15 +65,18 @@ const logger_1 = require("./utils/logger");
 const authService_1 = require("./services/authService");
 const alertService_1 = require("./services/alertService");
 const portfolioService_1 = require("./services/portfolioService");
+const binderService_1 = require("./services/binderService");
 const auth_2 = require("./routes/auth");
 const alerts_1 = require("./routes/alerts");
 const portfolio_1 = require("./routes/portfolio");
+const binders_1 = require("./routes/binders");
 const setCodeService_1 = require("./services/setCodeService");
 const sentry_1 = require("./config/sentry");
 (0, sentry_1.initSentry)();
 const app = (0, express_1.default)();
 const port = env_1.env.port;
-const BODY_LIMIT = '1mb';
+// 12mb supports base64 card images for AI grading analyze endpoint
+const BODY_LIMIT = '12mb';
 app.set('trust proxy', 1);
 app.use((0, security_1.securityMiddleware)());
 app.use((0, security_1.corsMiddleware)());
@@ -111,7 +115,7 @@ async function initializeSetCodeService(retries = 3) {
     }
     logger_1.logger.error('CRITICAL: Failed to initialize set code service after all retries.');
 }
-function setupRoutes(authService, alertService, portfolioService) {
+function setupRoutes(authService, alertService, portfolioService, binderService) {
     app.use('/api-docs', swagger_ui_express_1.default.serve, swagger_ui_express_1.default.setup(swagger_1.swaggerSpec));
     logger_1.logger.info(`API Documentation available at http://${env_1.env.host}:${port}/api-docs`);
     node_cron_1.default.schedule('0 2 * * *', async () => {
@@ -189,7 +193,9 @@ function setupRoutes(authService, alertService, portfolioService) {
     app.use('/api/cards', cardSearch_1.default);
     app.use('/api/cards', onePieceCards_1.default);
     app.use('/api/packs', enhancedPacks_1.default);
+    app.use('/api/binders', (0, binders_1.createBinderRouter)(binderService));
     app.use('/api/market-insights', marketInsights_1.default);
+    app.use('/api/grading', grading_1.default);
     node_cron_1.default.schedule('0 3 * * *', async () => {
         logger_1.logger.info('Running scheduled prediction run...');
         try {
@@ -400,6 +406,7 @@ function setupRoutes(authService, alertService, portfolioService) {
                     prices: '/api/prices',
                     cards: '/api/cards',
                     packs: '/api/packs',
+                    binders: '/api/binders',
                     'market-insights': '/api/market-insights',
                     docs: '/api-docs',
                     health: '/api/health',
@@ -422,6 +429,7 @@ function setupRoutes(authService, alertService, portfolioService) {
                 prices: '/api/prices',
                 cards: '/api/cards',
                 packs: '/api/packs',
+                binders: '/api/binders',
                 'market-insights': '/api/market-insights',
                 status: '/api/status',
                 health: '/api/health',
@@ -446,11 +454,12 @@ async function bootstrap() {
         const authService = new authService_1.AuthService(db);
         const alertService = new alertService_1.AlertService(db);
         const portfolioService = new portfolioService_1.PortfolioService(db);
+        const binderService = new binderService_1.BinderService(db);
         await Promise.all([
             authService.init(),
             alertService.init(),
         ]);
-        setupRoutes(authService, alertService, portfolioService);
+        setupRoutes(authService, alertService, portfolioService, binderService);
         void initializeSetCodeService().catch((error) => {
             logger_1.logger.error('Background set code service initialization failed', {
                 error: error.message,
