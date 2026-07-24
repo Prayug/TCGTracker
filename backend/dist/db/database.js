@@ -253,6 +253,34 @@ const initializeDatabase = () => {
         market_return_std_dev REAL,
         created_at TEXT DEFAULT (datetime('now'))
       )`,
+            `CREATE TABLE IF NOT EXISTS binders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        name TEXT NOT NULL DEFAULT 'My Binder',
+        game TEXT NOT NULL DEFAULT 'pokemon',
+        pages INTEGER NOT NULL DEFAULT 1,
+        slots_per_page INTEGER NOT NULL DEFAULT 9,
+        theme_description TEXT,
+        budget_cents INTEGER,
+        constraints_json TEXT,
+        total_cost_cents INTEGER,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )`,
+            `CREATE TABLE IF NOT EXISTS binder_slots (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        binder_id INTEGER NOT NULL,
+        page_number INTEGER NOT NULL DEFAULT 1,
+        slot_position INTEGER NOT NULL,
+        card_id TEXT NOT NULL,
+        card_snapshot TEXT,
+        market_price_cents INTEGER,
+        notes TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (binder_id) REFERENCES binders(id) ON DELETE CASCADE,
+        UNIQUE(binder_id, page_number, slot_position)
+      )`,
             `CREATE TABLE IF NOT EXISTS onepiece_catalog (
         catalogId TEXT PRIMARY KEY,
         cardSetId TEXT NOT NULL,
@@ -320,6 +348,9 @@ const initializeDatabase = () => {
             'CREATE INDEX IF NOT EXISTS idx_onepiece_catalog_card_set_id ON onepiece_catalog(cardSetId)',
             'CREATE INDEX IF NOT EXISTS idx_onepiece_price_history_card ON onepiece_price_history(catalogId)',
             'CREATE INDEX IF NOT EXISTS idx_onepiece_price_history_date ON onepiece_price_history(date)',
+            'CREATE INDEX IF NOT EXISTS idx_binders_user ON binders(user_id)',
+            'CREATE INDEX IF NOT EXISTS idx_binder_slots_binder ON binder_slots(binder_id)',
+            'CREATE INDEX IF NOT EXISTS idx_binder_slots_card ON binder_slots(card_id)',
             'CREATE INDEX IF NOT EXISTS idx_graded_prices_card ON graded_prices(cardId)',
             'CREATE INDEX IF NOT EXISTS idx_graded_prices_grader ON graded_prices(grader, grade)',
         ];
