@@ -3,28 +3,32 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TCGTracker</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>TCGTracker — command your collection</title>
     <meta
       name="description"
-      content="Track your Pokemon TCG collection, prices, and portfolio value."
+      content="Track your Pokemon TCG and One Piece TCG collection. Live prices, AI grading, pack simulation, vault management."
     />
     <meta property="og:title" content="TCGTracker" />
     <meta
       property="og:description"
-      content="Track your Pokemon TCG collection, prices, and portfolio value."
+      content="Track your TCG collection. Live prices, vault, packs, AI grading."
     />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://tcgtracker.app" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="theme-color" content="#1a1a2e" />
+    <meta name="theme-color" content="#050508" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="preconnect" href="https://api.pokemontcg.io" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Righteous&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'unsafe-inline' https://js.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https: blob:; connect-src 'self' https: http://localhost:5001 http://127.0.0.1:5001 http://localhost:3001 http://127.0.0.1:3001; font-src 'self' data: https://fonts.gstatic.com; base-uri 'self'"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline' https://js.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https: blob:; connect-src 'self' https: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:* wss://localhost:* wss://127.0.0.1:*; font-src 'self' data: https://fonts.gstatic.com; base-uri 'self'"
     />
     <script>
       (function () {
@@ -35,8 +39,8 @@
               ? stored
               : window.matchMedia('(prefers-color-scheme: dark)').matches
                 ? 'dark'
-                : 'light';
-          document.documentElement.setAttribute('data-theme', theme);
+                : 'dark';
+          document.documentElement.setAttribute('data-theme', 'dark');
         } catch (e) {
           document.documentElement.setAttribute('data-theme', 'dark');
         }
