@@ -4,10 +4,13 @@ import { Modal } from '../../../components/common/Modal';
 import { PriceChart } from './PriceChart';
 import { PriceHistoryApi } from '../../../services/priceHistoryApi';
 import { AddToVaultModal } from '../../../features/vault/components/AddToVaultModal';
-import { Database, Loader2, Vault, TrendingUp } from 'lucide-react';
+import { Database, Heart, Loader2, Vault, TrendingUp } from 'lucide-react';
 import { vaultService } from '../../../services/vaultService';
 import { pokemonApi } from '../../../services/pokemonApi';
 import { priceTrackingService } from '../../../services/priceTrackingService';
+import { cardWishlistService } from '../../../services/cardWishlistService';
+import { useGame } from '../../../contexts/GameContext';
+import { useToast } from '../../../components/common/Toast';
 import { fetchCardPopulation, PopulationLookupResponse } from '../../../services/populationApi';
 import { fetchGradedPrices, GradedPriceResult, GradedPriceEntry } from '../../../services/gradedPricesApi';
 import { formatCurrency } from '../../../utils/cardDisplay';
@@ -43,12 +46,15 @@ function graderLabel(grader: string): string {
 }
 
 export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, onClose }) => {
+  const { game } = useGame();
+  const { showToast } = useToast();
   const [priceHistory, setPriceHistory] = useState<Array<{ date: string; price: number }>>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [hasRealData, setHasRealData] = useState(false);
   const [isVaultModalOpen, setIsVaultModalOpen] = useState(false);
   const [isInVault, setIsInVault] = useState(false);
   const [isTracked, setIsTracked] = useState(false);
+  const [isWishlisted, setIsWishlisted] = useState(false);
   const [selectedVariant, setSelectedVariant] = useState('normal');
   const [populationData, setPopulationData] = useState<PopulationLookupResponse | null>(null);
   const [isLoadingPopulation, setIsLoadingPopulation] = useState(false);
@@ -104,10 +110,11 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
   useEffect(() => {
     if (card && isOpen) {
       fetchPriceHistory();
-      setIsInVault(vaultService.isInVault(card.id));
-      setIsTracked(priceTrackingService.isTracked(card.id));
+      setIsInVault(vaultService.isInVault(card.id, game));
+      setIsTracked(priceTrackingService.isTracked(card.id, game));
+      setIsWishlisted(cardWishlistService.isWishlisted(card.id, game));
     }
-  }, [card, isOpen, selectedVariant]);
+  }, [card, isOpen, selectedVariant, game]);
 
   useEffect(() => {
     if (card && isOpen) fetchPopulation();
@@ -119,16 +126,41 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
 
   useEffect(() => {
     if (!card || !isOpen) return;
-    const defaultVariant = variantOptions[0]?.key || 'normal';
-    setSelectedVariant(defaultVariant);
+    const preferred = card.preferredVariant;
+    const match = preferred
+      ? variantOptions.find((option) => option.key.toLowerCase() === preferred.toLowerCase())
+      : undefined;
+    if (match) {
+      setSelectedVariant(match.key);
+      return;
+    }
+    // Default to the highest coherent listing so the modal matches browse.
+    let bestKey = variantOptions[0]?.key || 'normal';
+    let bestPrice = 0;
+    for (const option of variantOptions) {
+      const price = pokemonApi.extractCardPrice(card, option.key);
+      if (price > bestPrice) {
+        bestPrice = price;
+        bestKey = option.key;
+      }
+    }
+    setSelectedVariant(bestKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [card?.id, isOpen]);
+  }, [card?.id, card?.preferredVariant, isOpen]);
 
   const handleTrack = () => {
     if (card) {
-      priceTrackingService.trackCard(card);
+      priceTrackingService.trackCard(card, game);
       setIsTracked(true);
+      showToast('Added to price watchlist', 'success');
     }
+  };
+
+  const handleWishlist = () => {
+    if (!card) return;
+    const nowOn = cardWishlistService.toggle(card, game);
+    setIsWishlisted(nowOn);
+    showToast(nowOn ? 'Added to wishlist' : 'Removed from wishlist', nowOn ? 'success' : 'info');
   };
 
   const fetchPriceHistory = async () => {
@@ -198,11 +230,15 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
 
   const selectedVariantLabel =
     variantOptions.find((option) => option.key === selectedVariant)?.label || 'Normal';
-  const actualCardPrice = pokemonApi.extractCardPrice(card, selectedVariant) || card.marketPrice || 0;
-
   const firstHistoryPrice = priceHistory[0]?.price || 0;
   const lastHistoryPrice = priceHistory[priceHistory.length - 1]?.price || 0;
-  const priceChange = lastHistoryPrice - firstHistoryPrice;
+  const listingFallback =
+    (card.marketPrice && card.marketPrice > 0 ? card.marketPrice : 0) ||
+    pokemonApi.extractCardPrice(card, selectedVariant) ||
+    0;
+  // Headline = backend snapshot (latest history point). Listing is fallback before history loads.
+  const actualCardPrice = lastHistoryPrice || listingFallback;
+  const priceChange = lastHistoryPrice > 0 && firstHistoryPrice > 0 ? lastHistoryPrice - firstHistoryPrice : 0;
   const priceChangePercent = firstHistoryPrice > 0 ? (priceChange / firstHistoryPrice) * 100 : 0;
   const isPositiveChange = priceChange >= 0;
 
@@ -244,6 +280,21 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
                 <span className="text-3xl font-bold tabular-nums text-ink-primary">
                   {formatCurrency(actualCardPrice)}
                 </span>
+                {isWishlisted && (() => {
+                  const wish = cardWishlistService.getItem(card.id, game);
+                  if (
+                    wish?.targetPrice != null &&
+                    actualCardPrice > 0 &&
+                    actualCardPrice <= wish.targetPrice
+                  ) {
+                    return (
+                      <span className="rounded-full bg-gain/15 px-2.5 py-0.5 text-xs font-semibold text-gain">
+                        At buy target
+                      </span>
+                    );
+                  }
+                  return null;
+                })()}
                 {priceHistory.length > 1 && (
                   <span
                     className={`rounded-full px-2.5 py-0.5 text-sm font-semibold tabular-nums ${
@@ -284,6 +335,18 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
                 >
                   <TrendingUp className="h-4 w-4" />
                   {isTracked ? 'Tracking' : 'Track price'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleWishlist}
+                  className={
+                    isWishlisted
+                      ? 'inline-flex items-center gap-2 rounded-lg border border-accent/40 bg-accent-muted px-3 py-1.5 text-sm text-accent'
+                      : 'btn-secondary'
+                  }
+                >
+                  <Heart className={`h-4 w-4 ${isWishlisted ? 'fill-current' : ''}`} />
+                  {isWishlisted ? 'Wishlisted' : 'Wishlist'}
                 </button>
                 <button
                   type="button"
@@ -337,7 +400,7 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
                     {groupedGradedPrices
                       .flatMap((g) =>
                         g.entries.slice(0, 3).map(
-                          (e) => `${g.label ? `${g.label} ` : ''}${e.grade} ${formatCurrency(e.price ?? 0)}`
+                          (e) => `${g.label ? `${g.label} ` : ''}${e.grade} ${e.price != null ? formatCurrency(e.price) : '—'}`
                         )
                       )
                       .join(' · ')}
@@ -456,7 +519,8 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
         card={card}
         isOpen={isVaultModalOpen}
         onClose={() => setIsVaultModalOpen(false)}
-        onSuccess={() => setIsInVault(vaultService.isInVault(card.id))}
+        onSuccess={() => setIsInVault(vaultService.isInVault(card.id, game))}
+        game={game}
       />
     </>
   );
