@@ -12,13 +12,15 @@ interface AddToVaultModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  game?: 'pokemon' | 'onepiece';
 }
 
 export const AddToVaultModal: React.FC<AddToVaultModalProps> = ({
   card,
   isOpen,
   onClose,
-  onSuccess
+  onSuccess,
+  game = 'pokemon',
 }) => {
   const [purchasePrice, setPurchasePrice] = useState('');
   const [quantity, setQuantity] = useState(1);
@@ -51,7 +53,7 @@ export const AddToVaultModal: React.FC<AddToVaultModalProps> = ({
     setIsSubmitting(true);
 
     try {
-      vaultService.addToVault(card, price, quantity, condition, notes || undefined);
+      vaultService.addToVault(card, price, quantity, condition, notes || undefined, game);
       markOnboardingStep('vault');
 
       showToast(`Added ${quantity}x ${card.name} to your vault!`, 'success');
