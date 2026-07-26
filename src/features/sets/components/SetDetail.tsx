@@ -11,6 +11,7 @@ import {
 import { PriceChart } from '../../market/components/PriceChart';
 import { TrackerStatCard } from '../../market/components/TrackerStatCard';
 import { SetBinderGrid } from './SetBinderGrid';
+import { SetShoppingList } from './SetShoppingList';
 import { AddToVaultModal } from '../../vault/components/AddToVaultModal';
 import {
   setTrackerService,
@@ -411,6 +412,13 @@ export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
           Export CSV
         </button>
       </div>
+
+      <SetShoppingList
+        cards={cards}
+        setName={setMeta?.name || setId}
+        onCardClick={handleCardClick}
+        onAddToVault={handleAddToVault}
+      />
 
       <SetBinderGrid
         cards={sortSetTrackerCards(cards, sortBy)}

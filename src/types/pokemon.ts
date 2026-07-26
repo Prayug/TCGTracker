@@ -16,6 +16,8 @@ export interface PokemonCard {
   rarity?: string;
   types?: string[];
   artist?: string;
+  /** Finish/variant key for price history lookups (e.g. reverseHolofoil) */
+  preferredVariant?: string;
   marketPrice?: number;
   tcgplayer?: {
     url?: string;
