@@ -1,47 +1,102 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { TrendingUp, TrendingDown, AlertCircle, Plus, Trash2, Search, Star, Target, Bell, Package, LineChart } from 'lucide-react';
-import { priceTrackingService, TrackedCard, PriceAlert } from '../../../services/priceTrackingService';
+import {
+  TrendingUp,
+  TrendingDown,
+  AlertCircle,
+  Plus,
+  Trash2,
+  Search,
+  Star,
+  Target,
+  Bell,
+  Package,
+  CheckCheck,
+} from 'lucide-react';
+import {
+  priceTrackingService,
+  TrackedCard,
+  TrackableCard,
+} from '../../../services/priceTrackingService';
+import {
+  unifiedAlertService,
+  UnifiedAlert,
+  AlertDigestEntry,
+} from '../../../services/unifiedAlertService';
 import { pokemonApi } from '../../../services/pokemonApi';
-import { PokemonCard } from '../../../types/pokemon';
+import { onePieceApi } from '../../../services/onepieceApi';
 import { useGame } from '../../../contexts/GameContext';
 import { SectionLabel } from '../../../components/common/SectionLabel';
 import { PageEmptyState } from '../../../components/common/PageEmptyState';
 import { MiniSparkline } from '../../../components/common/MiniSparkline';
 import { TrackerStatCard, buildSparklinePrices } from './TrackerStatCard';
+import { CardComparePanel } from './CardComparePanel';
 import { formatCurrency, formatPercent } from '../../../utils/cardDisplay';
 import { markOnboardingStep } from '../../../components/common/OnboardingChecklist';
 import { vaultService } from '../../../services/vaultService';
 import { calculateGradedValue } from '../../../services/gradingService';
+import { getCardPrice } from '../../../utils/cardPrice';
+import { authService } from '../../../services/authService';
 
 export const PriceTrackingDashboard: React.FC = () => {
-  const { game, isOnePiece } = useGame();
+  const { game, isOnePiece, isPokemon } = useGame();
   const [trackedCards, setTrackedCards] = useState<TrackedCard[]>([]);
-  const [alerts, setAlerts] = useState<PriceAlert[]>([]);
+  const [alerts, setAlerts] = useState<UnifiedAlert[]>([]);
+  const [digest, setDigest] = useState<AlertDigestEntry[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<PokemonCard[]>([]);
+  const [searchResults, setSearchResults] = useState<TrackableCard[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showAlertForm, setShowAlertForm] = useState(false);
   const [selectedCardForAlert, setSelectedCardForAlert] = useState<TrackedCard | null>(null);
   const [alertTarget, setAlertTarget] = useState('');
   const [alertType, setAlertType] = useState<'above' | 'below'>('above');
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const loadData = useCallback(async () => {
+    setTrackedCards(priceTrackingService.getTrackedCards(game));
+    try {
+      const nextAlerts = await unifiedAlertService.getAlerts();
+      setAlerts(nextAlerts);
+    } catch {
+      setAlerts(priceTrackingService.getAlerts(game).map((a) => ({
+        id: a.id,
+        cardId: a.cardId,
+        cardName: a.cardName,
+        targetPrice: a.targetPrice,
+        condition: a.alertType,
+        isActive: a.isActive,
+        createdAt: a.createdAt,
+        source: 'local' as const,
+      })));
+    }
+    setDigest(unifiedAlertService.getDigest());
+  }, [game]);
 
-  const loadData = () => {
-    setTrackedCards(priceTrackingService.getTrackedCards());
-    setAlerts(priceTrackingService.getAlerts());
-  };
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  useEffect(() => {
+    const prices: Record<string, number> = {};
+    for (const t of priceTrackingService.getTrackedCards(game)) {
+      const last = t.priceHistory[t.priceHistory.length - 1]?.price ?? t.initialPrice;
+      prices[t.id] = last;
+    }
+    void unifiedAlertService.evaluateDigest(prices).then(() => {
+      setDigest(unifiedAlertService.getDigest());
+    });
+  }, [game, trackedCards.length]);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
-    
     setIsSearching(true);
     try {
-      const results = await pokemonApi.searchCards(searchQuery);
-      setSearchResults(results.slice(0, 10));
+      if (isOnePiece) {
+        const results = await onePieceApi.searchCards(searchQuery);
+        setSearchResults(results.slice(0, 10));
+      } else {
+        const results = await pokemonApi.searchCards(searchQuery);
+        setSearchResults(results.slice(0, 10));
+      }
     } catch (error) {
       console.error('Search error:', error);
     } finally {
@@ -49,42 +104,55 @@ export const PriceTrackingDashboard: React.FC = () => {
     }
   };
 
-  const handleTrackCard = (card: PokemonCard) => {
-    priceTrackingService.trackCard(card);
+  const handleTrackCard = (card: TrackableCard) => {
+    priceTrackingService.trackCard(card, game);
     markOnboardingStep('track');
-    loadData();
+    void loadData();
     setSearchResults([]);
     setSearchQuery('');
   };
 
   const handleUntrack = (cardId: string) => {
-    priceTrackingService.untrackCard(cardId);
-    loadData();
+    priceTrackingService.untrackCard(cardId, game);
+    void loadData();
   };
 
-  const handleCreateAlert = () => {
+  const handleCreateAlert = async () => {
     if (!selectedCardForAlert || !alertTarget) return;
-    
-    priceTrackingService.createAlert(
+    await unifiedAlertService.createAlert(
       selectedCardForAlert.id,
       selectedCardForAlert.card.name,
       parseFloat(alertTarget),
       alertType
     );
-    
+    // Also keep a local mirror for anonymous / offline digest evaluation
+    if (!authService.isAuthenticated()) {
+      priceTrackingService.createAlert(
+        selectedCardForAlert.id,
+        selectedCardForAlert.card.name,
+        parseFloat(alertTarget),
+        alertType,
+        game
+      );
+    }
     setShowAlertForm(false);
     setSelectedCardForAlert(null);
     setAlertTarget('');
-    loadData();
+    await loadData();
   };
 
-  const handleDeleteAlert = (alertId: string) => {
-    priceTrackingService.deleteAlert(alertId);
-    loadData();
+  const handleDeleteAlert = async (alert: UnifiedAlert) => {
+    await unifiedAlertService.deleteAlert(alert);
+    if (alert.source === 'local') {
+      priceTrackingService.deleteAlert(alert.id, game);
+    }
+    await loadData();
   };
 
-  const stats = priceTrackingService.getStats();
-  const movers = priceTrackingService.getTopMovers();
+  const stats = priceTrackingService.getStats(game);
+  const movers = priceTrackingService.getTopMovers(game);
+  const serverMode = unifiedAlertService.isServerMode();
+  const unreadDigest = digest.filter((d) => !d.read).length;
 
   const gradedVaultCards = vaultService
     .getVaultCards(game)
@@ -103,38 +171,64 @@ export const PriceTrackingDashboard: React.FC = () => {
   );
   const gradingUpliftTotal = gradingDiff.graded - gradingDiff.raw;
 
-  const getCardPrice = (card: PokemonCard) => {
-    return card.marketPrice || card.tcgplayer?.prices?.holofoil?.market || 0;
-  };
-
   return (
     <div className="section-stack">
-      {/* One Piece coming soon */}
-      {isOnePiece && (
-        <div className="flex flex-col items-center rounded-2xl border border-dashed border-border-strong bg-surface-raised p-12 text-center">
-          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full border border-border-default bg-surface-inset">
-            <LineChart className="h-8 w-8 text-ink-muted" aria-hidden="true" />
-          </div>
-          <h3 className="mb-2 text-xl font-semibold text-ink-primary">Coming Soon</h3>
-          <p className="mx-auto mb-6 max-w-md text-sm text-ink-muted">
-            One Piece price tracking is under development. Browse One Piece cards to see market prices!
-          </p>
-          <a href="/browse" className="btn-secondary">
-            <Package className="h-4 w-4" aria-hidden="true" />
-            Browse One Piece Cards
-          </a>
-        </div>
-      )}
-
       <div className="animate-slide-up">
         <SectionLabel className="text-accent/90">Price tracker</SectionLabel>
         <h2 className="text-gradient mt-2 font-display text-3xl font-bold tracking-tight">
           Watchlist & alerts
         </h2>
         <p className="mt-2 text-sm text-ink-muted">
-          Monitor favorites, spot 7-day moves, and set price triggers.
+          Monitor favorites, spot movers, and set price triggers
+          {isOnePiece ? ' for One Piece' : ''}
+          {serverMode ? ' · synced to your account' : ' · stored on this device'}.
         </p>
       </div>
+
+      {digest.length > 0 && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-ink-primary">
+              <Bell className="h-4 w-4 text-amber-300" />
+              Alert digest
+              {unreadDigest > 0 && (
+                <span className="rounded-full bg-amber-500/25 px-2 py-0.5 text-[10px] font-bold text-amber-200">
+                  {unreadDigest} new
+                </span>
+              )}
+            </h3>
+            <button
+              type="button"
+              onClick={() => {
+                unifiedAlertService.markDigestRead();
+                setDigest(unifiedAlertService.getDigest());
+              }}
+              className="inline-flex items-center gap-1 text-xs text-ink-muted hover:text-ink-primary"
+            >
+              <CheckCheck className="h-3.5 w-3.5" />
+              Mark all read
+            </button>
+          </div>
+          <ul className="space-y-2">
+            {digest.slice(0, 8).map((entry) => (
+              <li
+                key={entry.id}
+                className={`rounded-lg border px-3 py-2 text-sm ${
+                  entry.read
+                    ? 'border-border-subtle text-ink-muted'
+                    : 'border-amber-500/20 bg-surface-inset text-ink-primary'
+                }`}
+              >
+                <span className="font-medium">{entry.cardName}</span>
+                {' hit '}
+                {entry.condition === 'above' ? '≥' : '≤'} {formatCurrency(entry.targetPrice)}
+                {' · now '}
+                {formatCurrency(entry.currentPrice)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="stagger-children grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <TrackerStatCard
@@ -147,7 +241,11 @@ export const PriceTrackingDashboard: React.FC = () => {
           icon={TrendingUp}
           label="Gainers"
           value={stats.totalGainers}
-          helper={stats.totalGainers === 0 ? 'No positive movers yet' : `${formatPercent(stats.avgChange, { signed: true })} avg`}
+          helper={
+            stats.totalGainers === 0
+              ? 'No positive movers yet'
+              : `${formatPercent(stats.avgChange, { signed: true })} avg`
+          }
           tone="gain"
         />
         <TrackerStatCard
@@ -160,14 +258,20 @@ export const PriceTrackingDashboard: React.FC = () => {
         <TrackerStatCard
           icon={Bell}
           label="Active alerts"
-          value={stats.totalAlerts}
-          helper={stats.totalAlerts === 0 ? 'Set alerts from any tracked card' : 'Price notifications'}
+          value={alerts.filter((a) => a.isActive).length}
+          helper={
+            alerts.filter((a) => a.isActive).length === 0
+              ? 'Set alerts from any tracked card'
+              : serverMode
+                ? 'Cloud alerts'
+                : 'Local alerts'
+          }
           tone="alert"
         />
       </div>
 
-      {gradedVaultCards.length > 0 && (
-        <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4">
+      {isPokemon && gradedVaultCards.length > 0 && (
+        <div className="card-glass-scene">
           <h3 className="mb-1 text-sm font-semibold text-ink-primary">
             Graded vs raw differential
           </h3>
@@ -203,7 +307,9 @@ export const PriceTrackingDashboard: React.FC = () => {
         </div>
       )}
 
-      <div className="card">
+      {isPokemon && <CardComparePanel />}
+
+      <div className="card-glass-scene">
         <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-ink-primary">
           <Plus className="h-5 w-5 text-emerald-400" />
           Add card to track
@@ -216,14 +322,18 @@ export const PriceTrackingDashboard: React.FC = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              placeholder="Search for a card to track..."
+              onKeyDown={(e) => e.key === 'Enter' && void handleSearch()}
+              placeholder={
+                isOnePiece
+                  ? 'Search One Piece cards to track…'
+                  : 'Search for a card to track…'
+              }
               className="input pl-10"
             />
           </div>
           <button
             type="button"
-            onClick={handleSearch}
+            onClick={() => void handleSearch()}
             disabled={isSearching}
             className="btn-primary justify-center px-6 py-2.5 disabled:opacity-50"
           >
@@ -231,13 +341,11 @@ export const PriceTrackingDashboard: React.FC = () => {
           </button>
         </div>
 
-        {/* Search Results */}
         {searchResults.length > 0 && (
           <div className="mt-4 max-h-96 space-y-2 overflow-y-auto">
             {searchResults.map((card) => {
               const price = getCardPrice(card);
-              const isTracked = priceTrackingService.isTracked(card.id);
-
+              const isTracked = priceTrackingService.isTracked(card.id, game);
               return (
                 <div
                   key={card.id}
@@ -252,7 +360,9 @@ export const PriceTrackingDashboard: React.FC = () => {
                     <h4 className="truncate font-semibold text-ink-primary">{card.name}</h4>
                     <p className="text-xs text-ink-muted">{card.set.name}</p>
                     {price > 0 && (
-                      <p className="mt-1 text-sm font-bold text-emerald-300">{formatCurrency(price)}</p>
+                      <p className="mt-1 text-sm font-bold text-emerald-300">
+                        {formatCurrency(price)}
+                      </p>
                     )}
                   </div>
                   <button
@@ -274,10 +384,8 @@ export const PriceTrackingDashboard: React.FC = () => {
         )}
       </div>
 
-      {/* Top Movers */}
       {(movers.gainers.length > 0 || movers.losers.length > 0) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Top Gainers */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {movers.gainers.length > 0 && (
             <div className="card">
               <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-ink-primary">
@@ -296,29 +404,24 @@ export const PriceTrackingDashboard: React.FC = () => {
                     <img
                       src={mover.card.images.small}
                       alt={mover.card.name}
-                      className="w-12 h-16 object-contain rounded"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        if (target.src !== mover.card.images.large) {
-                          target.src = mover.card.images.large;
-                        }
-                      }}
+                      className="h-16 w-12 rounded object-contain"
                     />
                     <div className="flex-1">
-                      <h4 className="line-clamp-1 text-sm font-semibold text-ink-primary">{mover.card.name}</h4>
+                      <h4 className="line-clamp-1 text-sm font-semibold text-ink-primary">
+                        {mover.card.name}
+                      </h4>
                       <p className="text-xs text-ink-muted">{formatCurrency(mover.currentPrice)}</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-emerald-300">+{mover.changePercent.toFixed(1)}%</p>
-                      <p className="text-xs text-ink-muted">+{formatCurrency(Math.abs(mover.change))}</p>
+                      <p className="font-bold text-emerald-300">
+                        +{mover.changePercent.toFixed(1)}%
+                      </p>
                     </div>
                   </motion.div>
                 ))}
               </div>
             </div>
           )}
-
-          {/* Top Losers */}
           {movers.losers.length > 0 && (
             <div className="card">
               <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-ink-primary">
@@ -337,21 +440,18 @@ export const PriceTrackingDashboard: React.FC = () => {
                     <img
                       src={mover.card.images.small}
                       alt={mover.card.name}
-                      className="w-12 h-16 object-contain rounded"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        if (target.src !== mover.card.images.large) {
-                          target.src = mover.card.images.large;
-                        }
-                      }}
+                      className="h-16 w-12 rounded object-contain"
                     />
                     <div className="flex-1">
-                      <h4 className="line-clamp-1 text-sm font-semibold text-ink-primary">{mover.card.name}</h4>
+                      <h4 className="line-clamp-1 text-sm font-semibold text-ink-primary">
+                        {mover.card.name}
+                      </h4>
                       <p className="text-xs text-ink-muted">{formatCurrency(mover.currentPrice)}</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-rose-300">{mover.changePercent.toFixed(1)}%</p>
-                      <p className="text-xs text-ink-muted">-{formatCurrency(Math.abs(mover.change))}</p>
+                      <p className="font-bold text-rose-300">
+                        {mover.changePercent.toFixed(1)}%
+                      </p>
                     </div>
                   </motion.div>
                 ))}
@@ -361,7 +461,7 @@ export const PriceTrackingDashboard: React.FC = () => {
         </div>
       )}
 
-      <div className="card">
+      <div className="card-glass-scene">
         <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-ink-primary">
           <Star className="h-5 w-5 text-amber-400" />
           Tracked cards ({trackedCards.length})
@@ -371,12 +471,14 @@ export const PriceTrackingDashboard: React.FC = () => {
           <PageEmptyState
             icon={Target}
             title="No cards tracked yet"
-            message="Search above and tap Track to start monitoring prices and 7-day movement."
+            message="Search above and tap Track to start monitoring prices."
           />
         ) : (
           <div className="space-y-3">
             {trackedCards.map((tracked) => {
-              const currentPrice = tracked.priceHistory[tracked.priceHistory.length - 1].price;
+              const currentPrice =
+                tracked.priceHistory[tracked.priceHistory.length - 1]?.price ??
+                tracked.initialPrice;
               const change = currentPrice - tracked.initialPrice;
               const changePercent =
                 tracked.initialPrice > 0 ? (change / tracked.initialPrice) * 100 : 0;
@@ -384,9 +486,11 @@ export const PriceTrackingDashboard: React.FC = () => {
               const sparkData = buildSparklinePrices(tracked.priceHistory);
 
               return (
-                <div
+                <motion.div
                   key={tracked.id}
-                  className="rounded-xl border border-border-subtle bg-surface-inset p-4 transition-all duration-200 hover:border-border-default hover:shadow-card"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="rounded-xl border border-border-default bg-gradient-surface p-4"
                 >
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
                     <img
@@ -394,25 +498,27 @@ export const PriceTrackingDashboard: React.FC = () => {
                       alt={tracked.card.name}
                       className="h-24 w-16 shrink-0 object-contain"
                     />
-
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                          <h4 className="text-lg font-semibold text-ink-primary">{tracked.card.name}</h4>
+                          <h4 className="text-lg font-semibold text-ink-primary">
+                            {tracked.card.name}
+                          </h4>
                           <p className="text-sm text-ink-muted">{tracked.card.set.name}</p>
                         </div>
-                        <div className="text-right">
-                          <p className="section-label !text-[10px]">7-day trend</p>
-                          <MiniSparkline data={sparkData} positive={isPositive} width={112} height={36} />
-                        </div>
+                        <MiniSparkline
+                          data={sparkData.map((price) => ({ price }))}
+                          width={112}
+                          height={36}
+                          color={isPositive ? 'var(--gain)' : 'var(--loss)'}
+                        />
                       </div>
-
                       <div className="mt-3 grid grid-cols-3 gap-3">
                         <div>
                           <p className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">
                             Initial
                           </p>
-                          <p className="text-sm font-bold tabular-nums text-ink-primary">
+                          <p className="text-sm font-bold tabular-nums">
                             {formatCurrency(tracked.initialPrice)}
                           </p>
                         </div>
@@ -420,7 +526,7 @@ export const PriceTrackingDashboard: React.FC = () => {
                           <p className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">
                             Current
                           </p>
-                          <p className="text-sm font-bold tabular-nums text-ink-primary">
+                          <p className="text-sm font-bold tabular-nums">
                             {formatCurrency(currentPrice)}
                           </p>
                         </div>
@@ -429,21 +535,23 @@ export const PriceTrackingDashboard: React.FC = () => {
                             Change
                           </p>
                           <p
-                            className={`text-sm font-bold tabular-nums ${isPositive ? 'text-emerald-300' : 'text-rose-300'}`}
+                            className={`text-sm font-bold tabular-nums ${
+                              isPositive ? 'text-emerald-300' : 'text-rose-300'
+                            }`}
                           >
                             {formatPercent(changePercent, { signed: true })}
                           </p>
                         </div>
                       </div>
-
                       <div className="mt-4 flex flex-wrap gap-2">
                         <button
                           type="button"
                           onClick={() => {
                             setSelectedCardForAlert(tracked);
                             setAlertType('above');
-                            // Prefill at +10% of current — most alerts are "tell me when it pops".
-                            setAlertTarget(currentPrice > 0 ? (currentPrice * 1.1).toFixed(2) : '');
+                            setAlertTarget(
+                              currentPrice > 0 ? (currentPrice * 1.1).toFixed(2) : ''
+                            );
                             setShowAlertForm(true);
                           }}
                           className="btn-alert"
@@ -462,45 +570,44 @@ export const PriceTrackingDashboard: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               );
             })}
           </div>
         )}
       </div>
 
-      {/* Price Alerts */}
       {alerts.length > 0 && (
-        <div className="card">
+        <div className="card-glass-scene">
           <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-ink-primary">
             <Bell className="h-5 w-5 text-amber-400" />
             Price alerts ({alerts.filter((a) => a.isActive).length})
           </h3>
-
           <div className="space-y-3">
             {alerts
               .filter((a) => a.isActive)
               .map((alert) => (
                 <div
-                  key={alert.id}
+                  key={`${alert.source}-${alert.id}`}
                   className="flex items-center justify-between gap-3 rounded-xl border border-accent/30 border-l-4 border-l-accent bg-surface-inset p-4"
                 >
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h4 className="truncate font-semibold text-ink-primary">{alert.cardName}</h4>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
-                        <span className="h-1.5 w-1.5 rounded-full bg-amber-400" aria-hidden="true" />
-                        Armed
+                      <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
+                        {alert.source === 'server' ? 'Cloud' : 'Local'}
                       </span>
                     </div>
                     <p className="mt-0.5 text-sm tabular-nums text-ink-muted">
-                      Triggers {alert.alertType === 'above' ? '≥' : '≤'}{' '}
-                      <span className="font-semibold text-ink-secondary">{formatCurrency(alert.targetPrice)}</span>
+                      Triggers {alert.condition === 'above' ? '≥' : '≤'}{' '}
+                      <span className="font-semibold text-ink-secondary">
+                        {formatCurrency(alert.targetPrice)}
+                      </span>
                     </p>
                   </div>
                   <button
                     type="button"
-                    onClick={() => handleDeleteAlert(alert.id)}
+                    onClick={() => void handleDeleteAlert(alert)}
                     className="btn-destructive"
                   >
                     Delete
@@ -511,9 +618,8 @@ export const PriceTrackingDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Create Alert Modal */}
       {showAlertForm && selectedCardForAlert && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4 ">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4">
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -521,26 +627,19 @@ export const PriceTrackingDashboard: React.FC = () => {
           >
             <h3 className="text-xl font-bold text-ink-primary">Create price alert</h3>
             <p className="mt-1 text-sm text-ink-muted">{selectedCardForAlert.card.name}</p>
-
             <div className="mt-4 space-y-4">
               <div>
                 <span className="section-label mb-2 block">Trigger when price goes</span>
-                <div
-                  className="inline-flex w-full rounded-lg border border-border-default bg-surface-inset p-1"
-                  role="radiogroup"
-                  aria-label="Alert condition"
-                >
+                <div className="inline-flex w-full rounded-lg border border-border-default bg-surface-inset p-1">
                   {(['above', 'below'] as const).map((type) => (
                     <button
                       key={type}
                       type="button"
-                      role="radio"
-                      aria-checked={alertType === type}
                       onClick={() => setAlertType(type)}
-                      className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium capitalize transition-colors ${
+                      className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium capitalize ${
                         alertType === type
                           ? 'bg-surface-hover text-ink-primary'
-                          : 'text-ink-muted hover:text-ink-secondary'
+                          : 'text-ink-muted'
                       }`}
                     >
                       {type === 'above' ? '↑ Above' : '↓ Below'}
@@ -553,19 +652,18 @@ export const PriceTrackingDashboard: React.FC = () => {
                 <input
                   type="number"
                   step="0.01"
-                  inputMode="decimal"
                   value={alertTarget}
                   onChange={(e) => setAlertTarget(e.target.value)}
-                  placeholder="0.00"
                   className="input tabular-nums"
-                  // eslint-disable-next-line jsx-a11y/no-autofocus
-                  autoFocus
                 />
               </label>
             </div>
-
             <div className="mt-6 flex gap-3">
-              <button type="button" onClick={handleCreateAlert} className="btn-primary flex-1 justify-center">
+              <button
+                type="button"
+                onClick={() => void handleCreateAlert()}
+                className="btn-primary flex-1 justify-center"
+              >
                 Create alert
               </button>
               <button
