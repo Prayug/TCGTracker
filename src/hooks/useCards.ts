@@ -18,6 +18,7 @@ import {
   getCardReactKey,
   dedupeCards,
 } from '../utils/cardPrice';
+import { matchesInvestmentFilter } from '../utils/browseInvestmentFilters';
 
 export type { AnyCard };
 export { isPokemonCard, isOnePieceCard, getCardPrice, getCardName, getCardImage, getCardSet, getCardRarity, getCardId, getCardReactKey, dedupeCards };
@@ -103,26 +104,11 @@ export function useCards(): UseCardsReturn {
 
   const filteredCards = useMemo(() => {
     if (filterBy === 'all') return cards;
-
     if (isOnePiece) return cards;
 
     return cards.filter((card) => {
-      if (!isPokemonCard(card) || !card.investmentData) return false;
-
-      switch (filterBy) {
-        case 'undervalued':
-          return card.investmentData.marketAnalysis.isUndervalued;
-        case 'overvalued':
-          return card.investmentData.marketAnalysis.isOvervalued;
-        case 'low-pop':
-          return card.investmentData.psaData.popReport.lowPop;
-        case 'high-return':
-          return card.investmentData.psaData.returnRate > 60;
-        case 'bullish':
-          return card.investmentData.marketAnalysis.trend === 'BULLISH';
-        default:
-          return true;
-      }
+      if (!isPokemonCard(card)) return false;
+      return matchesInvestmentFilter(card, filterBy);
     });
   }, [cards, filterBy, isOnePiece]);
 
