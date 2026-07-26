@@ -1,15 +1,17 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { VaultCard as VaultCardType } from '../../../types/pokemon';
 import { vaultService } from '../../../services/vaultService';
 import { useGame } from '../../../contexts/GameContext';
 import { VaultCard } from './VaultCard';
 import { VaultPortfolioBySet } from './VaultPortfolioBySet';
 import { VaultHeatmap } from './VaultHeatmap';
+import { VaultPerformanceReport } from './VaultPerformanceReport';
 import { SectionLabel } from '../../../components/common/SectionLabel';
 import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
 import { useToast } from '../../../components/common/Toast';
-import { formatCurrency, formatPercent } from '../../../utils/cardDisplay';
+import { CountUp } from '../../../components/common/CountUp';
 import { Vault, TrendingUp, TrendingDown, Download, Upload, Trash2, Camera, Search } from 'lucide-react';
 
 interface VaultViewProps {
@@ -134,9 +136,12 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
             <div>
               <p className="text-xs font-medium text-ink-muted">Current value</p>
               <p className="text-gradient font-mono text-[32px] font-bold leading-tight tabular-nums">
-                {formatCurrency(stats.currentValue)}
+                <CountUp end={stats.currentValue} prefix="$" decimals={2} />
               </p>
-              <p
+              <motion.p
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.3, duration: 0.4 }}
                 className={`mt-0.5 inline-flex items-center gap-1 text-sm font-semibold tabular-nums ${
                   gain ? 'text-gain' : 'text-loss'
                 }`}
@@ -146,26 +151,37 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
                 ) : (
                   <TrendingDown className="h-4 w-4" aria-hidden="true" />
                 )}
-                {formatCurrency(stats.profit, { signed: true })} (
-                {formatPercent(stats.profitPercentage, { signed: true })}) all time
-              </p>
+                {stats.profit >= 0 ? '+' : ''}
+                <CountUp end={Math.abs(stats.profit)} prefix="$" decimals={2} />
+                {' ('}
+                {stats.profitPercentage >= 0 ? '+' : ''}
+                {stats.profitPercentage.toFixed(1)}%) all time
+              </motion.p>
             </div>
             <dl className="flex flex-wrap gap-x-8 gap-y-3 border-l border-border-default pl-8">
-              <div>
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15, duration: 0.35 }}
+              >
                 <dt className="text-xs font-medium text-ink-muted">Cost basis</dt>
                 <dd className="text-lg font-semibold tabular-nums text-ink-secondary">
-                  {formatCurrency(stats.totalValue)}
+                  <CountUp end={stats.totalValue} prefix="$" decimals={2} />
                 </dd>
-              </div>
-              <div>
+              </motion.div>
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.25, duration: 0.35 }}
+              >
                 <dt className="text-xs font-medium text-ink-muted">Cards held</dt>
                 <dd className="text-lg font-semibold tabular-nums text-ink-secondary">
-                  {stats.totalCards}
+                  <CountUp end={stats.totalCards} />
                   <span className="ml-1 text-xs font-normal text-ink-muted">
                     ({vaultCards.length} entries)
                   </span>
                 </dd>
-              </div>
+              </motion.div>
             </dl>
           </div>
         )}
@@ -173,29 +189,37 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
 
       {/* Empty State */}
       {vaultCards.length === 0 ? (
-        <div className="mt-6 flex animate-scale-in flex-col items-center rounded-2xl border border-dashed border-border-strong bg-gradient-surface p-12 text-center">
-          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full border border-accent/25 bg-accent-muted shadow-glow-accent">
-            <Vault className="h-8 w-8 text-accent" aria-hidden="true" />
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+          className="card-glass-scene mt-6 flex flex-col items-center p-16 text-center"
+        >
+          <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full border border-accent/25 bg-accent-muted shadow-[0_0_24px_rgba(168,132,26,0.15)]">
+            <Vault className="h-10 w-10 text-accent" aria-hidden="true" />
           </div>
-          <h3 className="mb-2 text-xl font-semibold text-ink-primary">No {gameLabel} cards yet</h3>
-          <p className="mx-auto mb-6 max-w-md text-sm text-ink-muted">
-            {isPokemon ? 'Scan or browse to add your first.' : 'Browse One Piece cards to add your first.'}
+          <h3 className="mb-2 text-2xl font-display font-bold text-ink-primary">Your vault is empty</h3>
+          <p className="mx-auto mb-8 max-w-sm text-sm text-ink-muted">
+            {isPokemon
+              ? 'Scan your first card or browse the marketplace to start building your collection.'
+              : 'Browse One Piece cards to add your first entry.'}
           </p>
           <div className="flex flex-wrap justify-center gap-3">
             {isPokemon && (
-              <Link to="/scanner" className="btn-primary">
-                <Camera className="h-4 w-4" aria-hidden="true" />
+              <Link to="/scanner" className="btn-primary gap-3 px-6 py-3 text-base">
+                <Camera className="h-5 w-5" aria-hidden="true" />
                 Scan a card
               </Link>
             )}
-            <Link to="/browse" className="btn-secondary">
-              <Search className="h-4 w-4" aria-hidden="true" />
+            <Link to="/browse" className="btn-primary gap-3 px-6 py-3 text-base">
+              <Search className="h-5 w-5" aria-hidden="true" />
               Browse {gameLabel} cards
             </Link>
           </div>
-        </div>
+        </motion.div>
       ) : (
         <div className="space-y-8">
+          <VaultPerformanceReport vaultCards={vaultCards} />
           {isPokemon && (
             <>
               <VaultHeatmap vaultCards={vaultCards} onOpenSet={onOpenSet} />
