@@ -2,19 +2,14 @@ import React from 'react';
 import { BookPlus, Eye, LineChart } from 'lucide-react';
 import { PokemonCard as PokemonCardType } from '../../../types/pokemon';
 import { OnePieceCard } from '../../../types/onepiece';
-import { pokemonApi } from '../../../services/pokemonApi';
-import { onePieceApi } from '../../../services/onepieceApi';
 import {
   formatCurrency,
   getPremiumBorderClass,
   getRarityBadgeClass,
 } from '../../../utils/cardDisplay';
+import { getCardPrice } from '../../../utils/cardPrice';
 
 export type AnyCard = PokemonCardType | OnePieceCard;
-
-function isPokemonCard(card: AnyCard): card is PokemonCardType {
-  return 'tcgplayer' in card || 'types' in card;
-}
 
 interface CardTileProps {
   card: AnyCard;
@@ -32,9 +27,7 @@ export const CardTile: React.FC<CardTileProps> = ({
   onAddToCollection,
   onViewPriceHistory,
 }) => {
-  const price = isPokemonCard(card)
-    ? card.marketPrice ?? pokemonApi.extractCardPrice(card)
-    : onePieceApi.extractCardPrice(card as OnePieceCard);
+  const price = getCardPrice(card);
 
   const imageUrl = card.images?.small || card.images?.large;
 
