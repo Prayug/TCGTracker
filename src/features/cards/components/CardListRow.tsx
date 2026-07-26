@@ -2,19 +2,18 @@ import React from 'react';
 import { BookPlus, Eye, LineChart, TrendingDown, TrendingUp } from 'lucide-react';
 import { PokemonCard as PokemonCardType } from '../../../types/pokemon';
 import { OnePieceCard } from '../../../types/onepiece';
-import { pokemonApi } from '../../../services/pokemonApi';
-import { onePieceApi } from '../../../services/onepieceApi';
 import {
   formatCurrency,
   formatPercent,
   getRarityBadgeClass,
   getSevenDayDeltaPct,
 } from '../../../utils/cardDisplay';
+import { getCardPrice, isPokemonCard as isPokemon } from '../../../utils/cardPrice';
 
 type AnyCard = PokemonCardType | OnePieceCard;
 
 function isPokemonCard(card: AnyCard): card is PokemonCardType {
-  return 'tcgplayer' in card || 'types' in card;
+  return isPokemon(card);
 }
 
 interface CardListRowProps {
@@ -30,9 +29,7 @@ export const CardListRow: React.FC<CardListRowProps> = ({
   onAddToCollection,
   onViewPriceHistory,
 }) => {
-  const price = isPokemonCard(card)
-    ? card.marketPrice ?? pokemonApi.extractCardPrice(card)
-    : onePieceApi.extractCardPrice(card as OnePieceCard);
+  const price = getCardPrice(card);
 
   const deltaPct = isPokemonCard(card) ? getSevenDayDeltaPct(card) : null;
   const imageUrl = card.images?.small || card.images?.large;

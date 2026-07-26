@@ -16,6 +16,11 @@ import { onePieceApi } from '../services/onepieceApi';
 import { useGame } from './GameContext';
 import { InvestmentModal } from '../features/market/components/InvestmentModal';
 import { PriceChart } from '../features/market/components/PriceChart';
+import { AddToVaultModal } from '../features/vault/components/AddToVaultModal';
+import { cardWishlistService } from '../services/cardWishlistService';
+import { priceTrackingService } from '../services/priceTrackingService';
+import { vaultService } from '../services/vaultService';
+import { Heart, TrendingUp, Vault } from 'lucide-react';
 
 interface CardModalContextValue {
   openCard: (card: PokemonCard | OnePieceCard) => void;
@@ -40,12 +45,20 @@ function OnePieceCardModal({
 }) {
   const [priceHistory, setPriceHistory] = useState<{ date: string; price: number }[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [isWishlisted, setIsWishlisted] = useState(false);
+  const [isTracked, setIsTracked] = useState(false);
+  const [isInVault, setIsInVault] = useState(false);
+  const [vaultOpen, setVaultOpen] = useState(false);
 
   useEffect(() => {
     if (!isOpen || !card) {
       setPriceHistory([]);
       return;
     }
+
+    setIsWishlisted(cardWishlistService.isWishlisted(card.id, 'onepiece'));
+    setIsTracked(priceTrackingService.isTracked(card.id, 'onepiece'));
+    setIsInVault(vaultService.isInVault(card.id, 'onepiece'));
 
     const controller = new AbortController();
     const fetchHistory = async () => {
@@ -68,7 +81,18 @@ function OnePieceCardModal({
 
   if (!isOpen || !card) return null;
 
+  const asPokemonShape: PokemonCard = {
+    id: card.id,
+    name: card.name,
+    images: card.images,
+    set: { id: card.set.id, name: card.set.name, releaseDate: '', total: 0 },
+    number: card.number,
+    rarity: card.rarity,
+    marketPrice: card.marketPrice,
+  };
+
   return (
+    <>
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4"
       onClick={onClose}
@@ -82,10 +106,11 @@ function OnePieceCardModal({
         role="dialog"
         aria-modal="true"
         aria-label={card.name}
+        onClick={(e) => e.stopPropagation()}
       >
         <button
           type="button"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+          onClick={onClose}
           className="absolute right-3 top-3 rounded-lg p-1 text-ink-muted hover:bg-surface-hover hover:text-ink-primary"
           aria-label="Close"
         >
@@ -115,6 +140,44 @@ function OnePieceCardModal({
             <h2 className="text-xl font-bold text-ink-primary">{card.name}</h2>
             <p className="mt-1 text-sm text-ink-muted">{card.id}</p>
             <p className="text-xs text-ink-muted">{card.set.name}</p>
+          </div>
+
+          <div className="flex flex-wrap justify-center gap-2">
+            <button
+              type="button"
+              disabled={isTracked}
+              onClick={() => {
+                priceTrackingService.trackCard(card, 'onepiece');
+                setIsTracked(true);
+              }}
+              className={isTracked ? 'btn-secondary opacity-70' : 'btn-secondary'}
+            >
+              <TrendingUp className="h-4 w-4" />
+              {isTracked ? 'Tracking' : 'Track price'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const on = cardWishlistService.toggle(card, 'onepiece');
+                setIsWishlisted(on);
+              }}
+              className={
+                isWishlisted
+                  ? 'inline-flex items-center gap-2 rounded-lg border border-accent/40 bg-accent-muted px-3 py-1.5 text-sm text-accent'
+                  : 'btn-secondary'
+              }
+            >
+              <Heart className={`h-4 w-4 ${isWishlisted ? 'fill-current' : ''}`} />
+              {isWishlisted ? 'Wishlisted' : 'Wishlist'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setVaultOpen(true)}
+              className={isInVault ? 'btn-secondary' : 'btn-primary'}
+            >
+              <Vault className="h-4 w-4" />
+              {isInVault ? 'In vault' : 'Add to vault'}
+            </button>
           </div>
 
           <div className="grid w-full grid-cols-2 gap-3 text-sm">
@@ -172,7 +235,7 @@ function OnePieceCardModal({
               </div>
             ) : priceHistory.length > 0 ? (
               <div className="rounded-lg bg-surface-inset p-3">
-                <p className="text-xs text-ink-muted mb-2">
+                <p className="mb-2 text-xs text-ink-muted">
                   Price History{priceHistory.length === 1 ? ' (updates daily)' : ''}
                 </p>
                 <PriceChart
@@ -192,13 +255,21 @@ function OnePieceCardModal({
 
           {card.cardText && card.cardText !== 'NULL' && (
             <div className="w-full rounded-lg bg-surface-inset p-3">
-              <p className="text-xs text-ink-muted mb-1">Card Text</p>
-              <p className="text-sm text-ink-secondary whitespace-pre-wrap">{card.cardText}</p>
+              <p className="mb-1 text-xs text-ink-muted">Card Text</p>
+              <p className="whitespace-pre-wrap text-sm text-ink-secondary">{card.cardText}</p>
             </div>
           )}
         </div>
       </div>
     </div>
+    <AddToVaultModal
+      card={asPokemonShape}
+      isOpen={vaultOpen}
+      onClose={() => setVaultOpen(false)}
+      onSuccess={() => setIsInVault(vaultService.isInVault(card.id, 'onepiece'))}
+      game="onepiece"
+    />
+    </>
   );
 }
 
