@@ -29,7 +29,8 @@ class PokemonCatalogProvider {
                 cardNumber: card.number,
                 rarity: card.rarity,
                 artist: card.artist,
-                types: card.subtypes,
+                // Elemental types (Fire/Water/…) — not subtypes (Basic/V)
+                types: card.types,
                 imageSmall: (_a = card.images) === null || _a === void 0 ? void 0 : _a.small,
                 imageLarge: (_b = card.images) === null || _b === void 0 ? void 0 : _b.large,
                 tcgplayerProductId: ((_c = card.tcgplayer) === null || _c === void 0 ? void 0 : _c.productId) !== undefined && ((_d = card.tcgplayer) === null || _d === void 0 ? void 0 : _d.productId) !== null

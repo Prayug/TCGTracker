@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.updatePriceHistoryWithIdentifier = exports.getCardPriceHistoryForProduct = exports.selectPriceHistoryForVariant = exports.getCardPriceHistory = exports.findExactCardByDetails = exports.findCardByDetails = exports.findCardByIdentifier = exports.storeCardMapping = exports.generateUniqueIdentifier = void 0;
 const database_1 = require("../db/database");
+const resolveListingPrice_1 = require("../utils/resolveListingPrice");
 /**
  * Generates a unique identifier for a card based on its properties
  * Format: setId|cardNumber|cardName (normalized)
@@ -260,12 +261,22 @@ const getCardPriceHistory = async (uniqueIdentifier) => {
                 reject(err);
             }
             else {
-                resolve(rows || []);
+                resolve((rows || []).map(sanitizeHistoryRow));
             }
         });
     });
 };
 exports.getCardPriceHistory = getCardPriceHistory;
+const sanitizeHistoryRow = (row) => {
+    const resolved = (0, resolveListingPrice_1.resolveHistoryPointPrice)(row);
+    if (resolved <= 0)
+        return row;
+    return {
+        ...row,
+        marketPrice: resolved,
+        price: resolved,
+    };
+};
 const normalizeVariantKey = (value) => {
     if (!value)
         return 'normal';
@@ -338,7 +349,7 @@ const getCardPriceHistoryForProduct = async (productId, variantKey) => {
                 reject(err);
             }
             else {
-                resolve((0, exports.selectPriceHistoryForVariant)(rows || [], variantKey));
+                resolve((0, exports.selectPriceHistoryForVariant)((rows || []).map(sanitizeHistoryRow), variantKey));
             }
         });
     });

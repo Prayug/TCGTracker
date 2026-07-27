@@ -39,6 +39,7 @@ const syncVaultSchema = zod_1.z.object({
             quantity: zod_1.z.number().int().positive(),
             condition: zod_1.z.string(),
             notes: zod_1.z.string().optional(),
+            gradingResult: zod_1.z.record(zod_1.z.unknown()).optional(),
         })),
     }),
 });

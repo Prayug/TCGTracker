@@ -36,6 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.fetchSetValueHistory = exports.trimUnreliableSetValueHistory = exports.computeSetSummary = exports.getCardMarketPrice = exports.rowToSetCardDto = exports.fetchSetCatalogRows = exports.resolveSetMeta = exports.extractMarketPriceFromVariants = exports.parsePrices = exports.CATALOG_PRODUCT_EXCLUSIONS = void 0;
 const database_1 = require("../db/database");
 const setAliasResolver_1 = require("./setAliasResolver");
+const resolveListingPrice_1 = require("../utils/resolveListingPrice");
 const PRICE_SOURCES = "('tcgcsv', 'tcgdex', 'catalog_fallback')";
 exports.CATALOG_PRODUCT_EXCLUSIONS = `
   AND cc.cardName NOT LIKE '%Binder%'
@@ -58,20 +59,8 @@ const parsePrices = (value) => {
 };
 exports.parsePrices = parsePrices;
 const extractMarketPriceFromVariants = (prices) => {
-    var _a;
-    if (!prices)
-        return null;
-    const preferredOrder = ['normal', 'holofoil', 'reverseHolofoil', '1stEditionHolofoil'];
-    for (const key of preferredOrder) {
-        const value = (_a = prices[key]) === null || _a === void 0 ? void 0 : _a.market;
-        if (typeof value === 'number' && value > 0)
-            return value;
-    }
-    for (const entry of Object.values(prices)) {
-        if (typeof (entry === null || entry === void 0 ? void 0 : entry.market) === 'number' && entry.market > 0)
-            return entry.market;
-    }
-    return null;
+    const best = (0, resolveListingPrice_1.extractBestListingPrice)(prices);
+    return best.price > 0 ? best.price : null;
 };
 exports.extractMarketPriceFromVariants = extractMarketPriceFromVariants;
 const dbAll = (sql, params = []) => new Promise((resolve, reject) => {
