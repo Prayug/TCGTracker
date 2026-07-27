@@ -176,7 +176,9 @@ const initializeDatabase = () => {
         risk_factors TEXT,
         external_signals_json TEXT,
         model_version TEXT DEFAULT '1.0.0',
-        UNIQUE(run_id, card_id),
+        unique_identifier TEXT,
+        variant_key TEXT,
+        UNIQUE(run_id, card_id, unique_identifier),
         FOREIGN KEY (run_id) REFERENCES prediction_runs(id) ON DELETE CASCADE
       )`,
             `CREATE TABLE IF NOT EXISTS prediction_results (

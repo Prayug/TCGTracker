@@ -6,6 +6,14 @@ import { updateActualResults, getForwardTestStatus } from '../services/forwardTe
 import { getExternalSignalsForCard } from '../services/externalSignalService';
 import { runSignalScrape } from '../services/scrapers/scraperRunner';
 import { generateAiExplanation, isAiExplanation, ExplanationContext } from '../services/aiExplanationService';
+import {
+  collectForwardTestSamples,
+  rebuildAllCalibrationModels,
+  getCalibrationModels,
+  getCalibrationStatus,
+  storeBacktestSamples,
+  buildCalibrationModel,
+} from '../services/returnCalibration';
 import { getDb } from '../db/database';
 import { AuthRequest } from '../middleware/auth';
 
@@ -22,6 +30,9 @@ const asyncHandler = (fn: (req: AuthRequest, res: Response) => Promise<any>) =>
 router.get('/predictions', asyncHandler(async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit as string) || 100, 500);
   const category = req.query.category as string | undefined;
+  const search = req.query.search as string | undefined;
+  const sortBy = (req.query.sortBy as string) || 'return';
+  const sortOrder = (req.query.sortOrder as string) || 'desc';
 
   const minPrice = req.query.minPrice !== undefined ? parseFloat(req.query.minPrice as string) : undefined;
   const maxPrice = req.query.maxPrice !== undefined ? parseFloat(req.query.maxPrice as string) : undefined;
@@ -51,6 +62,9 @@ router.get('/predictions', asyncHandler(async (req, res) => {
     setIds,
     releaseDateFrom,
     releaseDateTo,
+    search,
+    sortBy: sortBy as 'return' | 'confidence' | 'price' | 'name' | 'risk',
+    sortOrder: sortOrder as 'asc' | 'desc',
   }, window);
 
   res.json({
@@ -58,6 +72,150 @@ router.get('/predictions', asyncHandler(async (req, res) => {
     count: predictions.length,
     window,
     modelVersion: '3.2.0',
+  });
+}));
+
+router.get('/overview', asyncHandler(async (_req, res) => {
+  const db = getDb();
+
+  const statsRow: any = await new Promise((resolve, reject) => {
+    db.get(
+      `SELECT
+        COUNT(*) AS totalPredictions,
+        ROUND(AVG(confidence_score), 1) AS avgConfidence,
+        ROUND(AVG(risk_score), 1) AS avgRisk,
+        ROUND(AVG(expected_90d_return), 4) AS avgExpectedReturn90d,
+        ROUND(AVG(expected_30d_return), 4) AS avgExpectedReturn30d,
+        SUM(CASE WHEN expected_90d_return > 0.01 THEN 1 ELSE 0 END) AS bullishCount,
+        SUM(CASE WHEN expected_90d_return < -0.01 THEN 1 ELSE 0 END) AS bearishCount
+      FROM card_predictions
+      WHERE run_id = (SELECT MAX(id) FROM prediction_runs)`,
+      [],
+      (err, row: any) => err ? reject(err) : resolve(row)
+    );
+  });
+
+  const categoryRows: any[] = await new Promise((resolve, reject) => {
+    db.all(
+      `SELECT category, COUNT(*) AS count
+       FROM card_predictions
+       WHERE run_id = (SELECT MAX(id) FROM prediction_runs)
+       GROUP BY category
+       ORDER BY count DESC`,
+      [],
+      (err, rows: any[]) => err ? reject(err) : resolve(rows || [])
+    );
+  });
+
+  const topGainers: any[] = await new Promise((resolve, reject) => {
+    db.all(
+      `SELECT cp.card_id, cm.cardName, cp.current_price, cp.expected_90d_return,
+              cp.confidence_score, cp.category
+       FROM card_predictions cp
+       LEFT JOIN (
+         SELECT cardId, MIN(cardName) AS cardName FROM card_mappings GROUP BY cardId
+       ) cm ON cm.cardId = cp.card_id
+       WHERE cp.run_id = (SELECT MAX(id) FROM prediction_runs)
+         AND cp.expected_90d_return IS NOT NULL
+         AND cp.confidence_score >= 55
+       ORDER BY cp.expected_90d_return DESC
+       LIMIT 5`,
+      [],
+      (err, rows: any[]) => err ? reject(err) : resolve(rows || [])
+    );
+  });
+
+  const topLosers: any[] = await new Promise((resolve, reject) => {
+    db.all(
+      `SELECT cp.card_id, cm.cardName, cp.current_price, cp.expected_90d_return,
+              cp.confidence_score, cp.category
+       FROM card_predictions cp
+       LEFT JOIN (
+         SELECT cardId, MIN(cardName) AS cardName FROM card_mappings GROUP BY cardId
+       ) cm ON cm.cardId = cp.card_id
+       WHERE cp.run_id = (SELECT MAX(id) FROM prediction_runs)
+         AND cp.expected_90d_return IS NOT NULL
+         AND cp.confidence_score >= 55
+       ORDER BY cp.expected_90d_return ASC
+       LIMIT 5`,
+      [],
+      (err, rows: any[]) => err ? reject(err) : resolve(rows || [])
+    );
+  });
+
+  const confidenceBuckets: any[] = await new Promise((resolve, reject) => {
+    db.all(
+      `SELECT
+        CASE
+          WHEN confidence_score >= 80 THEN '80-100'
+          WHEN confidence_score >= 60 THEN '60-79'
+          WHEN confidence_score >= 40 THEN '40-59'
+          WHEN confidence_score >= 20 THEN '20-39'
+          ELSE '0-19'
+        END AS bucket,
+        COUNT(*) AS count
+       FROM card_predictions
+       WHERE run_id = (SELECT MAX(id) FROM prediction_runs)
+       GROUP BY bucket
+       ORDER BY bucket DESC`,
+      [],
+      (err, rows: any[]) => err ? reject(err) : resolve(rows || [])
+    );
+  });
+
+  const categoryBreakdown = categoryRows.reduce((acc: Record<string, number>, row: any) => {
+    acc[row.category] = row.count;
+    return acc;
+  }, {} as Record<string, number>);
+
+  // Market direction: majority sentiment of calibrated predictions, with a
+  // neutral band when the market is roughly balanced.
+  const bullishCount = statsRow.bullishCount || 0;
+  const bearishCount = statsRow.bearishCount || 0;
+  const totalDirectional = bullishCount + bearishCount;
+  let marketDirection: 'bullish' | 'bearish' | 'neutral' = 'neutral';
+  if (totalDirectional > 0) {
+    const bullishShare = bullishCount / totalDirectional;
+    if (bullishShare > 0.55) marketDirection = 'bullish';
+    else if (bullishShare < 0.45) marketDirection = 'bearish';
+  }
+
+  // Context: the realized market median from calibration (what cards actually
+  // returned) so the overview's numbers can be compared to reality.
+  const calibrationModels = await getCalibrationModels();
+  const marketBenchmark90d = calibrationModels[90]?.marketMedianReturn ?? null;
+  const marketBenchmark30d = calibrationModels[30]?.marketMedianReturn ?? null;
+
+  res.json({
+    totalPredictions: statsRow.totalPredictions || 0,
+    avgConfidence: statsRow.avgConfidence || 0,
+    avgRisk: statsRow.avgRisk || 0,
+    avgExpectedReturn90d: statsRow.avgExpectedReturn90d || 0,
+    avgExpectedReturn30d: statsRow.avgExpectedReturn30d || 0,
+    marketDirection,
+    categoryBreakdown,
+    topGainers: topGainers.map((r: any) => ({
+      cardId: r.card_id,
+      cardName: r.cardName || r.card_id,
+      currentPrice: r.current_price,
+      expectedReturn: r.expected_90d_return,
+      confidence: r.confidence_score,
+      category: r.category,
+    })),
+    topLosers: topLosers.map((r: any) => ({
+      cardId: r.card_id,
+      cardName: r.cardName || r.card_id,
+      currentPrice: r.current_price,
+      expectedReturn: r.expected_90d_return,
+      confidence: r.confidence_score,
+      category: r.category,
+    })),
+    confidenceBuckets: confidenceBuckets.map((r: any) => ({
+      bucket: r.bucket,
+      count: r.count,
+    })),
+    marketBenchmark90d,
+    marketBenchmark30d,
   });
 }));
 
@@ -119,6 +277,8 @@ router.get('/card/:cardId', asyncHandler(async (req, res) => {
       imageSmall: prediction.imageSmall || undefined,
       imageLarge: prediction.imageLarge || undefined,
       tcgplayerProductId: prediction.tcgplayerProductId || undefined,
+      uniqueIdentifier: prediction.unique_identifier || undefined,
+      variantKey: prediction.variant_key || undefined,
       currentPrice: prediction.current_price,
       predicted7d: {
         low: prediction.predicted_7d_low,
@@ -172,6 +332,13 @@ router.get('/card/:cardId', asyncHandler(async (req, res) => {
 router.post('/run-predictions', asyncHandler(async (_req, res) => {
   logger.info('Manual prediction run requested');
   const result = await runPredictions();
+  // Best-effort: resolve any matured forward-test windows after a new run.
+  try {
+    const ft = await updateActualResults();
+    logger.info(`Forward-test update after prediction run: ${ft.updated} rows`);
+  } catch (err) {
+    logger.warn('Forward-test update after prediction run failed:', err);
+  }
   res.status(202).json({
     success: true,
     runId: result.runId,
@@ -190,8 +357,60 @@ router.post('/backtest', asyncHandler(async (req, res) => {
   }
 
   logger.info(`Backtest requested for date ${backtestDate}, window ${windowDays} days`);
-  const result = await runBacktest(backtestDate, windowDays, cardIds || undefined);
+  const models = await getCalibrationModels();
+  const result = await runBacktest(backtestDate, windowDays, cardIds || undefined, undefined, undefined, models);
+
+  // Feed (predicted, actual) pairs into calibration so longer horizons
+  // accumulate training data from real market history.
+  if (!cardIds) {
+    try {
+      const stored = await storeBacktestSamples(result);
+      if (stored > 0) {
+        await rebuildAllCalibrationModels();
+        logger.info(`Backtest stored ${stored} calibration samples`);
+      }
+    } catch (err) {
+      logger.warn('Failed to store backtest calibration samples:', err);
+    }
+  }
+
   res.json(result);
+}));
+
+router.get('/calibration/status', asyncHandler(async (_req, res) => {
+  const models = await getCalibrationModels();
+  res.json({ data: getCalibrationStatus(models) });
+}));
+
+router.post('/calibration/rebuild', asyncHandler(async (_req, res) => {
+  logger.info('Manual calibration rebuild requested');
+  await collectForwardTestSamples();
+  const models = await rebuildAllCalibrationModels();
+  res.status(202).json({
+    success: true,
+    data: getCalibrationStatus(models),
+  });
+}));
+
+router.post('/calibration/harvest', asyncHandler(async (_req, res) => {
+  // Harvest long-horizon samples from historical backtests. Cutoffs are chosen
+  // so the forward window has matured against real price history.
+  const { harvestBacktestSamples } = await import('../services/returnCalibration');
+  const today = new Date();
+  const cutoffDate = (daysAgo: number) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() - daysAgo);
+    return d.toISOString().split('T')[0];
+  };
+
+  const cutoffs = [cutoffDate(125), cutoffDate(105), cutoffDate(85)];
+  const stored90 = await harvestBacktestSamples(cutoffs, 90, 2500);
+  const models = await rebuildAllCalibrationModels();
+  res.status(202).json({
+    success: true,
+    stored90,
+    data: getCalibrationStatus(models),
+  });
 }));
 
 router.get('/backtest-results', asyncHandler(async (_req, res) => {
@@ -206,6 +425,12 @@ router.get('/forward-test', asyncHandler(async (_req, res) => {
 
 router.post('/forward-test/update', asyncHandler(async (_req, res) => {
   const result = await updateActualResults();
+  try {
+    await collectForwardTestSamples();
+    await rebuildAllCalibrationModels();
+  } catch (err) {
+    logger.warn('Calibration refresh after forward-test update failed:', err);
+  }
   res.json({ success: true, updated: result.updated });
 }));
 
