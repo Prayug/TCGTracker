@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const logger_1 = require("../utils/logger");
@@ -8,6 +41,7 @@ const forwardTestTracker_1 = require("../services/forwardTestTracker");
 const externalSignalService_1 = require("../services/externalSignalService");
 const scraperRunner_1 = require("../services/scrapers/scraperRunner");
 const aiExplanationService_1 = require("../services/aiExplanationService");
+const returnCalibration_1 = require("../services/returnCalibration");
 const database_1 = require("../db/database");
 const router = (0, express_1.Router)();
 const asyncHandler = (fn) => (req, res) => {
@@ -19,6 +53,9 @@ const asyncHandler = (fn) => (req, res) => {
 router.get('/predictions', asyncHandler(async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 100, 500);
     const category = req.query.category;
+    const search = req.query.search;
+    const sortBy = req.query.sortBy || 'return';
+    const sortOrder = req.query.sortOrder || 'desc';
     const minPrice = req.query.minPrice !== undefined ? parseFloat(req.query.minPrice) : undefined;
     const maxPrice = req.query.maxPrice !== undefined ? parseFloat(req.query.maxPrice) : undefined;
     const minConfidence = req.query.minConfidence !== undefined ? parseFloat(req.query.minConfidence) : undefined;
@@ -44,12 +81,132 @@ router.get('/predictions', asyncHandler(async (req, res) => {
         setIds,
         releaseDateFrom,
         releaseDateTo,
+        search,
+        sortBy: sortBy,
+        sortOrder: sortOrder,
     }, window);
     res.json({
         data: predictions,
         count: predictions.length,
         window,
         modelVersion: '3.2.0',
+    });
+}));
+router.get('/overview', asyncHandler(async (_req, res) => {
+    var _a, _b, _c, _d;
+    const db = (0, database_1.getDb)();
+    const statsRow = await new Promise((resolve, reject) => {
+        db.get(`SELECT
+        COUNT(*) AS totalPredictions,
+        ROUND(AVG(confidence_score), 1) AS avgConfidence,
+        ROUND(AVG(risk_score), 1) AS avgRisk,
+        ROUND(AVG(expected_90d_return), 4) AS avgExpectedReturn90d,
+        ROUND(AVG(expected_30d_return), 4) AS avgExpectedReturn30d,
+        SUM(CASE WHEN expected_90d_return > 0.01 THEN 1 ELSE 0 END) AS bullishCount,
+        SUM(CASE WHEN expected_90d_return < -0.01 THEN 1 ELSE 0 END) AS bearishCount
+      FROM card_predictions
+      WHERE run_id = (SELECT MAX(id) FROM prediction_runs)`, [], (err, row) => err ? reject(err) : resolve(row));
+    });
+    const categoryRows = await new Promise((resolve, reject) => {
+        db.all(`SELECT category, COUNT(*) AS count
+       FROM card_predictions
+       WHERE run_id = (SELECT MAX(id) FROM prediction_runs)
+       GROUP BY category
+       ORDER BY count DESC`, [], (err, rows) => err ? reject(err) : resolve(rows || []));
+    });
+    const topGainers = await new Promise((resolve, reject) => {
+        db.all(`SELECT cp.card_id, cm.cardName, cp.current_price, cp.expected_90d_return,
+              cp.confidence_score, cp.category
+       FROM card_predictions cp
+       LEFT JOIN (
+         SELECT cardId, MIN(cardName) AS cardName FROM card_mappings GROUP BY cardId
+       ) cm ON cm.cardId = cp.card_id
+       WHERE cp.run_id = (SELECT MAX(id) FROM prediction_runs)
+         AND cp.expected_90d_return IS NOT NULL
+         AND cp.confidence_score >= 55
+       ORDER BY cp.expected_90d_return DESC
+       LIMIT 5`, [], (err, rows) => err ? reject(err) : resolve(rows || []));
+    });
+    const topLosers = await new Promise((resolve, reject) => {
+        db.all(`SELECT cp.card_id, cm.cardName, cp.current_price, cp.expected_90d_return,
+              cp.confidence_score, cp.category
+       FROM card_predictions cp
+       LEFT JOIN (
+         SELECT cardId, MIN(cardName) AS cardName FROM card_mappings GROUP BY cardId
+       ) cm ON cm.cardId = cp.card_id
+       WHERE cp.run_id = (SELECT MAX(id) FROM prediction_runs)
+         AND cp.expected_90d_return IS NOT NULL
+         AND cp.confidence_score >= 55
+       ORDER BY cp.expected_90d_return ASC
+       LIMIT 5`, [], (err, rows) => err ? reject(err) : resolve(rows || []));
+    });
+    const confidenceBuckets = await new Promise((resolve, reject) => {
+        db.all(`SELECT
+        CASE
+          WHEN confidence_score >= 80 THEN '80-100'
+          WHEN confidence_score >= 60 THEN '60-79'
+          WHEN confidence_score >= 40 THEN '40-59'
+          WHEN confidence_score >= 20 THEN '20-39'
+          ELSE '0-19'
+        END AS bucket,
+        COUNT(*) AS count
+       FROM card_predictions
+       WHERE run_id = (SELECT MAX(id) FROM prediction_runs)
+       GROUP BY bucket
+       ORDER BY bucket DESC`, [], (err, rows) => err ? reject(err) : resolve(rows || []));
+    });
+    const categoryBreakdown = categoryRows.reduce((acc, row) => {
+        acc[row.category] = row.count;
+        return acc;
+    }, {});
+    // Market direction: majority sentiment of calibrated predictions, with a
+    // neutral band when the market is roughly balanced.
+    const bullishCount = statsRow.bullishCount || 0;
+    const bearishCount = statsRow.bearishCount || 0;
+    const totalDirectional = bullishCount + bearishCount;
+    let marketDirection = 'neutral';
+    if (totalDirectional > 0) {
+        const bullishShare = bullishCount / totalDirectional;
+        if (bullishShare > 0.55)
+            marketDirection = 'bullish';
+        else if (bullishShare < 0.45)
+            marketDirection = 'bearish';
+    }
+    // Context: the realized market median from calibration (what cards actually
+    // returned) so the overview's numbers can be compared to reality.
+    const calibrationModels = await (0, returnCalibration_1.getCalibrationModels)();
+    const marketBenchmark90d = (_b = (_a = calibrationModels[90]) === null || _a === void 0 ? void 0 : _a.marketMedianReturn) !== null && _b !== void 0 ? _b : null;
+    const marketBenchmark30d = (_d = (_c = calibrationModels[30]) === null || _c === void 0 ? void 0 : _c.marketMedianReturn) !== null && _d !== void 0 ? _d : null;
+    res.json({
+        totalPredictions: statsRow.totalPredictions || 0,
+        avgConfidence: statsRow.avgConfidence || 0,
+        avgRisk: statsRow.avgRisk || 0,
+        avgExpectedReturn90d: statsRow.avgExpectedReturn90d || 0,
+        avgExpectedReturn30d: statsRow.avgExpectedReturn30d || 0,
+        marketDirection,
+        categoryBreakdown,
+        topGainers: topGainers.map((r) => ({
+            cardId: r.card_id,
+            cardName: r.cardName || r.card_id,
+            currentPrice: r.current_price,
+            expectedReturn: r.expected_90d_return,
+            confidence: r.confidence_score,
+            category: r.category,
+        })),
+        topLosers: topLosers.map((r) => ({
+            cardId: r.card_id,
+            cardName: r.cardName || r.card_id,
+            currentPrice: r.current_price,
+            expectedReturn: r.expected_90d_return,
+            confidence: r.confidence_score,
+            category: r.category,
+        })),
+        confidenceBuckets: confidenceBuckets.map((r) => ({
+            bucket: r.bucket,
+            count: r.count,
+        })),
+        marketBenchmark90d,
+        marketBenchmark30d,
     });
 }));
 router.get('/card/:cardId', asyncHandler(async (req, res) => {
@@ -101,6 +258,8 @@ router.get('/card/:cardId', asyncHandler(async (req, res) => {
             imageSmall: prediction.imageSmall || undefined,
             imageLarge: prediction.imageLarge || undefined,
             tcgplayerProductId: prediction.tcgplayerProductId || undefined,
+            uniqueIdentifier: prediction.unique_identifier || undefined,
+            variantKey: prediction.variant_key || undefined,
             currentPrice: prediction.current_price,
             predicted7d: {
                 low: prediction.predicted_7d_low,
@@ -153,6 +312,14 @@ router.get('/card/:cardId', asyncHandler(async (req, res) => {
 router.post('/run-predictions', asyncHandler(async (_req, res) => {
     logger_1.logger.info('Manual prediction run requested');
     const result = await (0, predictionEngine_1.runPredictions)();
+    // Best-effort: resolve any matured forward-test windows after a new run.
+    try {
+        const ft = await (0, forwardTestTracker_1.updateActualResults)();
+        logger_1.logger.info(`Forward-test update after prediction run: ${ft.updated} rows`);
+    }
+    catch (err) {
+        logger_1.logger.warn('Forward-test update after prediction run failed:', err);
+    }
     res.status(202).json({
         success: true,
         runId: result.runId,
@@ -168,8 +335,55 @@ router.post('/backtest', asyncHandler(async (req, res) => {
         return res.status(400).json({ error: 'backtestDate is required (YYYY-MM-DD)' });
     }
     logger_1.logger.info(`Backtest requested for date ${backtestDate}, window ${windowDays} days`);
-    const result = await (0, backtestEngine_1.runBacktest)(backtestDate, windowDays, cardIds || undefined);
+    const models = await (0, returnCalibration_1.getCalibrationModels)();
+    const result = await (0, backtestEngine_1.runBacktest)(backtestDate, windowDays, cardIds || undefined, undefined, undefined, models);
+    // Feed (predicted, actual) pairs into calibration so longer horizons
+    // accumulate training data from real market history.
+    if (!cardIds) {
+        try {
+            const stored = await (0, returnCalibration_1.storeBacktestSamples)(result);
+            if (stored > 0) {
+                await (0, returnCalibration_1.rebuildAllCalibrationModels)();
+                logger_1.logger.info(`Backtest stored ${stored} calibration samples`);
+            }
+        }
+        catch (err) {
+            logger_1.logger.warn('Failed to store backtest calibration samples:', err);
+        }
+    }
     res.json(result);
+}));
+router.get('/calibration/status', asyncHandler(async (_req, res) => {
+    const models = await (0, returnCalibration_1.getCalibrationModels)();
+    res.json({ data: (0, returnCalibration_1.getCalibrationStatus)(models) });
+}));
+router.post('/calibration/rebuild', asyncHandler(async (_req, res) => {
+    logger_1.logger.info('Manual calibration rebuild requested');
+    await (0, returnCalibration_1.collectForwardTestSamples)();
+    const models = await (0, returnCalibration_1.rebuildAllCalibrationModels)();
+    res.status(202).json({
+        success: true,
+        data: (0, returnCalibration_1.getCalibrationStatus)(models),
+    });
+}));
+router.post('/calibration/harvest', asyncHandler(async (_req, res) => {
+    // Harvest long-horizon samples from historical backtests. Cutoffs are chosen
+    // so the forward window has matured against real price history.
+    const { harvestBacktestSamples } = await Promise.resolve().then(() => __importStar(require('../services/returnCalibration')));
+    const today = new Date();
+    const cutoffDate = (daysAgo) => {
+        const d = new Date(today);
+        d.setDate(d.getDate() - daysAgo);
+        return d.toISOString().split('T')[0];
+    };
+    const cutoffs = [cutoffDate(125), cutoffDate(105), cutoffDate(85)];
+    const stored90 = await harvestBacktestSamples(cutoffs, 90, 2500);
+    const models = await (0, returnCalibration_1.rebuildAllCalibrationModels)();
+    res.status(202).json({
+        success: true,
+        stored90,
+        data: (0, returnCalibration_1.getCalibrationStatus)(models),
+    });
 }));
 router.get('/backtest-results', asyncHandler(async (_req, res) => {
     const results = await (0, backtestEngine_1.getBacktestResults)();
@@ -181,6 +395,13 @@ router.get('/forward-test', asyncHandler(async (_req, res) => {
 }));
 router.post('/forward-test/update', asyncHandler(async (_req, res) => {
     const result = await (0, forwardTestTracker_1.updateActualResults)();
+    try {
+        await (0, returnCalibration_1.collectForwardTestSamples)();
+        await (0, returnCalibration_1.rebuildAllCalibrationModels)();
+    }
+    catch (err) {
+        logger_1.logger.warn('Calibration refresh after forward-test update failed:', err);
+    }
     res.json({ success: true, updated: result.updated });
 }));
 router.get('/external-signals/:cardId', asyncHandler(async (req, res) => {

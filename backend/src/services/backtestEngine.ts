@@ -7,9 +7,9 @@ import {
   computeVolatility,
   computeRecoveryMetrics,
   getLatestPrice,
-  getPriceAtDate,
   computeMarketBenchmark,
 } from './marketAnalyzer';
+import { computeValidationMetrics } from './validationMetrics';
 import {
   computeTrendScore,
   computeRecoveryScore,
@@ -23,11 +23,13 @@ import {
   isRarityInvestmentWorthy,
   hasMeaningfulPriceMovement,
   determineCategory,
+  dedupePriceHistoryByDate,
   PredictionCategory,
   ScoringScores,
   CardQualityFilter,
   DEFAULT_CARD_QUALITY_FILTER,
 } from './predictionEngine';
+import { CalibrationModel } from './returnCalibration';
 
 export interface BacktestCardResult {
   cardId: string;
@@ -42,6 +44,8 @@ export interface BacktestCardResult {
   liquidityScore: number;
   dataQualityScore: number;
   riskScore: number;
+  /** Raw composite signal used for calibration (~[-1, 1]). */
+  signalScore?: number;
 }
 
 export const SUPPORTED_BACKTEST_WINDOWS = [7, 30, 90, 180, 365] as const;
@@ -89,25 +93,37 @@ export interface BacktestResult {
   profitFactor: number | null;
   categoryPerformance: CategoryPerformance[];
   cardResults: BacktestCardResult[];
+  /** Spearman rank correlation between predicted and actual returns. */
+  rankIC: number | null;
+  /** Median signed bias (predicted - actual); positive = overprediction. */
+  meanBias: number | null;
+  /** Skill-relative hit rate (direction correct + error < 0.5x actual move). */
+  hitRate: number | null;
+  /** Average realized return of every tested card (buy-and-hold baseline). */
+  baselineAvgReturn: number | null;
+  /** top10AvgReturn - baselineAvgReturn: does picking the model's top picks add value? */
+  modelAlpha: number | null;
 }
 
 function fetchPriceHistoryUpToDate(uniqueIdentifier: string, cutoffDate: string): Promise<PricePoint[]> {
   const db = getDb();
   return new Promise((resolve, reject) => {
     db.all(
-      `SELECT date, price, marketPrice, volume FROM price_history
+      `SELECT date, price, marketPrice, volume, source FROM price_history
        WHERE uniqueIdentifier = ? AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
        AND date <= ?
        ORDER BY date ASC`,
       [uniqueIdentifier, cutoffDate],
       (err, rows: any[]) => {
         if (err) return reject(err);
-        resolve(rows.map(r => ({
+        // Prefer live TCGdex quotes over catalog/legacy dumps on duplicate days.
+        resolve(dedupePriceHistoryByDate(rows.map(r => ({
           date: r.date,
           price: r.price ?? 0,
           marketPrice: r.marketPrice ?? r.price,
           volume: r.volume,
-        })));
+          source: r.source,
+        }))));
       }
     );
   });
@@ -121,7 +137,7 @@ function fetchFuturePrice(uniqueIdentifier: string, startDate: string, daysAhead
     const targetStr = targetDate.toISOString().split('T')[0];
 
     db.all(
-      `SELECT date, marketPrice, price FROM price_history
+      `SELECT date, marketPrice, price, source FROM price_history
        WHERE uniqueIdentifier = ? AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
        AND date >= ? AND date <= ?
        ORDER BY date ASC`,
@@ -130,8 +146,23 @@ function fetchFuturePrice(uniqueIdentifier: string, startDate: string, daysAhead
         if (err) return reject(err);
         if (!rows || rows.length === 0) return resolve(null);
 
-        const closest = rows[rows.length - 1];
-        resolve(closest.marketPrice ?? closest.price);
+        // Require a quote within the window, preferring the highest-priority
+        // source for the final day so legacy dumps don't override live quotes.
+        const byDate = new Map<string, { price: number; rank: number }>();
+        const sourceRank: Record<string, number> = { tcgdex: 0, catalog_fallback: 1, tcgcsv: 2 };
+        for (const r of rows) {
+          const price = r.marketPrice ?? r.price;
+          if (!price || price <= 0) continue;
+          const date = r.date.includes('T') ? r.date.split('T')[0] : r.date;
+          const rank = sourceRank[r.source] ?? 9;
+          const existing = byDate.get(date);
+          if (!existing || rank < existing.rank) {
+            byDate.set(date, { price, rank });
+          }
+        }
+        const sortedDays = [...byDate.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+        if (sortedDays.length === 0) return resolve(null);
+        resolve(sortedDays[sortedDays.length - 1][1].price);
       }
     );
   });
@@ -141,7 +172,9 @@ export async function runBacktest(
   backtestDate: string,
   windowDays: number = 90,
   cardIdFilter?: string[],
-  filter: CardQualityFilter = DEFAULT_CARD_QUALITY_FILTER
+  filter: CardQualityFilter = DEFAULT_CARD_QUALITY_FILTER,
+  sampleSize?: number,
+  calibrationModels?: Record<number, CalibrationModel | null>
 ): Promise<BacktestResult> {
   const db = getDb();
 
@@ -153,6 +186,14 @@ export async function runBacktest(
     if (cardIdFilter && cardIdFilter.length > 0) {
       sql += ` AND cm.cardId IN (${cardIdFilter.map(() => '?').join(',')})`;
       params.push(...cardIdFilter);
+    }
+
+    if (sampleSize && sampleSize > 0 && (!cardIdFilter || cardIdFilter.length === 0)) {
+      // Random subset keeps calibration harvests bounded.
+      sql += ` AND cm.cardId IN (
+        SELECT cardId FROM card_mappings WHERE cardName IS NOT NULL ORDER BY RANDOM() LIMIT ?
+      )`;
+      params.push(sampleSize);
     }
 
     sql += ` ORDER BY cm.cardName ASC`;
@@ -207,7 +248,7 @@ export async function runBacktest(
         dataQualityScore,
       };
 
-      const expectedReturns = computeExpectedReturns(scores);
+      const expectedReturns = computeExpectedReturns(scores, 0, calibrationModels);
       const predictedReturn = expectedReturnForWindow(expectedReturns, windowDays);
 
       const futurePrice = await fetchFuturePrice(uid, backtestDate, windowDays);
@@ -227,7 +268,7 @@ export async function runBacktest(
         }
 
         error = Math.abs(predictedReturn - actualReturn);
-        totalMape += Math.abs(error);
+        totalMape += error;
         totalMapeCount++;
         returns.push(actualReturn);
       }
@@ -246,6 +287,7 @@ export async function runBacktest(
         liquidityScore,
         dataQualityScore,
         riskScore,
+        signalScore: expectedReturns.rawSignal,
       });
     } catch (err) {
       logger.warn(`Backtest failed for ${card.cardName}:`, err);
@@ -257,16 +299,16 @@ export async function runBacktest(
   const mape = totalMapeCount > 0 ? totalMape / totalMapeCount : null;
 
   const top10 = [...cardResults]
-    .filter(r => r.predictedReturn !== null)
+    .filter(r => r.predictedReturn !== null && r.actualReturn !== null)
     .sort((a, b) => b.predictedReturn - a.predictedReturn)
     .slice(0, 10);
   const top10AvgReturn = top10.length > 0
-    ? top10.reduce((s, r) => s + (r.actualReturn ?? 0), 0) / top10.length
+    ? top10.reduce((s, r) => s + (r.actualReturn as number), 0) / top10.length
     : null;
 
   const withActualReturns = cardResults.filter(r => r.actualReturn !== null);
   const marketAvgReturn = withActualReturns.length > 0
-    ? withActualReturns.reduce((s, r) => s + (r.actualReturn ?? 0), 0) / withActualReturns.length
+    ? withActualReturns.reduce((s, r) => s + (r.actualReturn as number), 0) / withActualReturns.length
     : null;
 
   // Compute market benchmark from all tested cards' price histories
@@ -314,25 +356,39 @@ export async function runBacktest(
     const annualizationFactor = Math.sqrt(365 / windowDays);
     sharpeRatio = stdDev > 0 ? (mean / stdDev) * annualizationFactor : null;
 
-    let peak = 0;
+    // Compounded equal-weight portfolio drawdown.
+    let peak = 1;
+    let value = 1;
     let maxDd = 0;
-    let cumulative = 0;
     for (const r of returns) {
-      cumulative += r;
-      if (cumulative > peak) peak = cumulative;
-      const drawdown = peak - cumulative;
+      value = value * (1 + r);
+      if (value > peak) peak = value;
+      const drawdown = (peak - value) / peak;
       if (drawdown > maxDd) maxDd = drawdown;
     }
     maxDrawdown = maxDd;
   }
+
+  // Skill metrics: do the model's rankings correlate with outcomes?
+  const validationSamples = withActualReturns.map(r => ({
+    predicted: r.predictedReturn,
+    actual: r.actualReturn as number,
+  }));
+  const metrics = computeValidationMetrics(validationSamples);
+
+  const baselineAvgReturn = marketAvgReturn;
+  const modelAlpha = top10AvgReturn !== null && baselineAvgReturn !== null
+    ? top10AvgReturn - baselineAvgReturn
+    : null;
 
   const categories: PredictionCategory[] = ['strong_buy', 'watch_dip', 'recovery', 'momentum', 'stagnant', 'avoid', 'downtrend'];
   const categoryPerformance: CategoryPerformance[] = categories.map(cat => {
     const catCards = cardResults.filter(r => r.category === cat && r.actualReturn !== null);
     const count = catCards.length;
     const avgReturn = count > 0 ? catCards.reduce((s, r) => s + (r.actualReturn ?? 0), 0) / count : 0;
-    const avgPredictedReturn = count > 0
-      ? catCards.filter(r => r.predictedReturn !== null).reduce((s, r) => s + r.predictedReturn, 0) / count
+    const predictedCards = catCards.filter(r => r.predictedReturn !== null);
+    const avgPredictedReturn = predictedCards.length > 0
+      ? predictedCards.reduce((s, r) => s + r.predictedReturn, 0) / predictedCards.length
       : 0;
     return { category: cat, count, avgReturn, avgPredictedReturn };
   });
@@ -355,6 +411,11 @@ export async function runBacktest(
     profitFactor,
     categoryPerformance,
     cardResults,
+    rankIC: metrics.rankIC,
+    meanBias: metrics.meanBias,
+    hitRate: metrics.hitRate,
+    baselineAvgReturn,
+    modelAlpha,
   };
 
   await saveBacktestResult(result);
@@ -370,8 +431,9 @@ async function saveBacktestResult(result: BacktestResult): Promise<void> {
        (backtest_date, window_days, cards_tested, directional_accuracy, mape,
         top10_avg_return, market_avg_return, strong_buy_false_positive_rate,
         avoid_avg_return, sharpe_ratio, max_drawdown, win_rate, profit_factor,
-        category_performance, market_median_return, market_return_std_dev)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        category_performance, market_median_return, market_return_std_dev,
+        rank_ic, mean_bias, baseline_avg_return, hit_rate)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         result.backtestDate,
         result.windowDays,
@@ -389,6 +451,10 @@ async function saveBacktestResult(result: BacktestResult): Promise<void> {
         JSON.stringify(result.categoryPerformance),
         result.marketMedianReturn,
         result.marketReturnStdDev,
+        result.rankIC,
+        result.meanBias,
+        result.baselineAvgReturn,
+        result.hitRate,
       ],
       function (err) {
         if (err) reject(err);
@@ -407,8 +473,30 @@ export async function getBacktestResults(): Promise<any[]> {
       (err, rows: any[]) => {
         if (err) return reject(err);
         resolve(rows.map(r => ({
-          ...r,
-          category_performance: (() => {
+          id: r.id,
+          backtestDate: r.backtest_date,
+          windowDays: r.window_days,
+          cardsTested: r.cards_tested,
+          directionalAccuracy: r.directional_accuracy,
+          mape: r.mape,
+          top10AvgReturn: r.top10_avg_return,
+          marketAvgReturn: r.market_avg_return,
+          marketMedianReturn: r.market_median_return,
+          marketReturnStdDev: r.market_return_std_dev,
+          strongBuyFalsePositiveRate: r.strong_buy_false_positive_rate,
+          avoidAvgReturn: r.avoid_avg_return,
+          sharpeRatio: r.sharpe_ratio,
+          maxDrawdown: r.max_drawdown,
+        winRate: r.win_rate,
+        profitFactor: r.profit_factor,
+        rankIC: r.rank_ic ?? null,
+        meanBias: r.mean_bias ?? null,
+        hitRate: r.hit_rate ?? null,
+        baselineAvgReturn: r.baseline_avg_return ?? null,
+        modelAlpha: r.baseline_avg_return != null && r.top_10_avg_return != null
+          ? r.top_10_avg_return - r.baseline_avg_return
+          : null,
+        categoryPerformance: (() => {
             try {
               return r.category_performance ? JSON.parse(r.category_performance) : [];
             } catch {
