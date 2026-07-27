@@ -4,6 +4,7 @@ import {
   Award,
   BookOpen,
   Camera,
+  Heart,
   LayoutGrid,
   LineChart,
   MoreHorizontal,
@@ -23,6 +24,7 @@ const SECONDARY_TABS: { to: string; label: string; icon: React.ElementType }[] =
 
 const MORE_ITEMS: { to: string; label: string; icon: React.ElementType }[] = [
   { to: '/sets', label: 'Sets', icon: LayoutGrid },
+  { to: '/wishlist', label: 'Wishlist', icon: Heart },
   { to: '/packs', label: 'Packs', icon: LayoutGrid },
   { to: '/grading', label: 'Grade', icon: Award },
   { to: '/prices', label: 'Prices', icon: LineChart },
@@ -35,14 +37,14 @@ const GAME_OPTIONS: { value: GameType; label: string; icon: React.ElementType }[
 ];
 
 const tabClass = ({ isActive }: { isActive: boolean }) =>
-  `relative flex h-full min-w-[56px] flex-col items-center justify-center gap-1 text-[10px] font-medium transition-all duration-200 active:scale-[0.94] ${
+  `relative flex h-full min-w-[56px] flex-col items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-wider transition-all duration-200 active:scale-[0.94] neon-flood ${
     isActive ? 'text-accent' : 'text-ink-muted hover:text-ink-secondary'
   }`;
 
 const TabIndicator: React.FC<{ isActive: boolean }> = ({ isActive }) => (
   <span
-    className={`absolute top-0 h-0.5 w-8 rounded-full bg-accent transition-opacity duration-200 ${
-      isActive ? 'opacity-100' : 'opacity-0'
+    className={`absolute top-0 h-0.5 w-8 bg-accent transition-all duration-200 ${
+      isActive ? 'opacity-100 shadow-[0_0_8px_var(--accent)]' : 'opacity-0'
     }`}
     aria-hidden="true"
   />
@@ -64,7 +66,7 @@ export const BottomTabBar: React.FC = () => {
     <>
       {moreOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/40 md:hidden"
+          className="fixed inset-0 z-50 bg-black/60 md:hidden"
           onClick={() => setMoreOpen(false)}
           aria-hidden="true"
         />
@@ -75,18 +77,18 @@ export const BottomTabBar: React.FC = () => {
           ref={sheetRef}
           role="menu"
           aria-label="More destinations"
-          className="fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-50 animate-slide-up rounded-2xl border border-border-default bg-surface-overlay p-2 shadow-elevated md:hidden"
+          className="fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-50 animate-slide-up border-2 border-accent/30 bg-surface-overlay shadow-[0_0_30px_var(--ring-accent)] md:hidden"
         >
           {/* Game Switcher in More menu */}
-          <div className="mb-2 flex rounded-lg border border-border-default bg-surface-inset p-0.5">
+          <div className="mb-2 flex border border-border-default bg-surface-inset">
             {GAME_OPTIONS.map(({ value, label, icon: Icon }) => (
               <button
                 key={value}
                 type="button"
                 onClick={() => setGame(value)}
-                className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-all ${
+                className={`flex flex-1 items-center justify-center gap-1.5 px-2 py-2.5 text-xs font-bold uppercase tracking-wider transition-all neon-flood ${
                   game === value
-                    ? 'bg-accent text-white shadow-sm'
+                    ? 'bg-accent text-black shadow-[0_0_12px_var(--ring-accent)]'
                     : 'text-ink-muted hover:text-ink-secondary'
                 }`}
               >
@@ -102,10 +104,10 @@ export const BottomTabBar: React.FC = () => {
               to={to}
               role="menuitem"
               className={({ isActive }) =>
-                `flex items-center gap-3 rounded-md px-4 py-3 text-sm font-medium transition-colors ${
+                `flex items-center gap-3 border-l-2 px-4 py-3 text-sm font-bold transition-all neon-flood ${
                   isActive
-                    ? 'bg-surface-hover text-ink-primary'
-                    : 'text-ink-secondary hover:bg-surface-hover'
+                    ? 'border-accent bg-accent/10 text-accent'
+                    : 'border-transparent text-ink-secondary hover:border-accent/30 hover:bg-surface-hover'
                 }`
               }
             >
@@ -118,7 +120,7 @@ export const BottomTabBar: React.FC = () => {
 
       <nav
         aria-label="Mobile"
-        className="glass fixed inset-x-0 bottom-0 z-50 h-16 border-t border-border-glass pb-[env(safe-area-inset-bottom)] md:hidden"
+        className="fixed inset-x-0 bottom-0 z-50 h-16 border-t-2 border-border-subtle bg-surface-base pb-[env(safe-area-inset-bottom)] md:hidden"
       >
         <div className="mx-auto flex h-16 max-w-md items-stretch justify-around px-2">
           {PRIMARY_TABS.map(({ to, label, icon: Icon, end }) => (
@@ -137,12 +139,12 @@ export const BottomTabBar: React.FC = () => {
             to="/scanner"
             aria-label="Scan a card"
             className={({ isActive }) =>
-              `relative -mt-2 flex flex-col items-center justify-start gap-1 text-[10px] font-medium ${
+              `relative -mt-2 flex flex-col items-center justify-start gap-1 text-[10px] font-bold uppercase tracking-wider ${
                 isActive ? 'text-accent' : 'text-ink-muted'
               }`
             }
           >
-            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-accent text-white shadow-glow-accent transition-transform duration-200 active:scale-95">
+            <span className="flex h-11 w-11 items-center justify-center border-2 border-accent bg-surface-base text-accent shadow-[0_0_20px_var(--ring-accent)] transition-transform duration-200 active:scale-95">
               <Camera className="h-5 w-5" aria-hidden="true" />
             </span>
             Scan
@@ -165,7 +167,7 @@ export const BottomTabBar: React.FC = () => {
             onClick={() => setMoreOpen((v) => !v)}
             aria-expanded={moreOpen}
             aria-haspopup="menu"
-            className={`relative flex h-full min-w-[56px] flex-col items-center justify-center gap-1 text-[10px] font-medium transition-all duration-200 active:scale-[0.94] ${
+            className={`relative flex h-full min-w-[56px] flex-col items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-wider transition-all duration-200 active:scale-[0.94] neon-flood ${
               moreActive || moreOpen ? 'text-accent' : 'text-ink-muted hover:text-ink-secondary'
             }`}
           >

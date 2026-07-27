@@ -20,13 +20,13 @@ export const Header: React.FC = () => {
 
   return (
     <header
-      className={`glass sticky top-0 z-40 border-b transition-shadow duration-300 ${
-        scrolled ? 'border-border-glass shadow-card' : 'border-border-subtle'
-      }`}
+      className={`sticky top-0 z-40 border-b-2 transition-shadow duration-300 ${
+        scrolled ? 'border-accent/30 shadow-[0_4px_20px_var(--ring-accent)]' : 'border-border-subtle'
+      } bg-surface-base`}
     >
       {scrolled && (
         <div
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent"
+          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/60 to-transparent"
           aria-hidden="true"
         />
       )}
@@ -35,10 +35,10 @@ export const Header: React.FC = () => {
           to="/"
           className="flex shrink-0 items-center gap-2 transition-opacity duration-200 md:hidden"
         >
-          <div className="flex h-8 w-8 items-center justify-center rounded-md border border-border-default bg-gradient-accent">
-            <span className="font-mono text-sm font-semibold text-white">T</span>
+          <div className="flex h-8 w-8 items-center justify-center border border-accent bg-surface-base shadow-[0_0_12px_var(--ring-accent)]">
+            <span className="font-display text-sm tracking-tight text-accent">T</span>
           </div>
-          <span className="font-display text-sm font-semibold text-ink-primary">TCGTracker</span>
+          <span className="font-display text-base tracking-tight text-ink-primary">TCGTracker</span>
         </Link>
 
         <div className="hidden flex-1 md:block" />
@@ -47,12 +47,12 @@ export const Header: React.FC = () => {
           <button
             type="button"
             onClick={openCommandPalette}
-            className="hidden h-10 w-64 items-center gap-2 rounded-md border border-border-default bg-surface-inset px-3 text-sm text-ink-muted transition-all duration-200 hover:border-border-strong hover:text-ink-secondary focus-visible:border-accent lg:flex"
+            className="hidden h-10 w-64 items-center gap-2 border border-border-default bg-surface-inset px-3 text-sm text-ink-muted transition-all duration-200 hover:border-accent hover:text-ink-secondary focus-visible:border-accent lg:flex"
             aria-label="Open command palette"
           >
             <Search className="h-3.5 w-3.5" />
-            <span className="flex-1 text-left">Search cards…</span>
-            <kbd className="rounded border border-border-subtle bg-surface-raised px-1.5 py-0.5 font-mono text-[10px] font-medium text-ink-muted">
+            <span className="flex-1 text-left font-semibold">Search cards…</span>
+            <kbd className="border border-border-subtle bg-surface-raised px-1.5 py-0.5 font-mono text-[10px] font-bold text-accent">
               {isMac ? '⌘K' : 'Ctrl K'}
             </kbd>
           </button>
@@ -72,7 +72,7 @@ export const Header: React.FC = () => {
             className="btn-icon"
             aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
           >
-            <span key={theme} className="animate-theme-icon flex">
+            <span key={theme} className="flex">
               {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </span>
           </button>

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import { AlertCircle, RefreshCw, Sparkles } from 'lucide-react';
 import { SectionLabel } from '../../../components/common/SectionLabel';
 import { useToast } from '../../../components/common/Toast';
@@ -88,11 +89,12 @@ export const GradingPage: React.FC = () => {
   };
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="relative mx-auto max-w-5xl">
+      <div className="page-accent-strip" />
       <div className="mb-6">
         <SectionLabel className="text-accent/90">Tools</SectionLabel>
         <div className="mt-1 flex flex-wrap items-center gap-2">
-          <h1 className="text-h2 text-ink-primary">AI Card Grading</h1>
+          <h1 className="text-gradient text-h2 font-display font-bold">AI Card Grading</h1>
           {backendOk === true && (
             <span className="inline-flex items-center gap-1 rounded-full border border-gain/30 bg-gain-muted px-2 py-0.5 text-[10px] font-medium text-gain">
               Online
@@ -145,9 +147,22 @@ export const GradingPage: React.FC = () => {
           )}
 
           {isProcessing && (
-            <div className="flex items-center justify-center gap-3 rounded-xl border border-border-subtle bg-surface-inset/50 py-10 text-sm text-ink-muted">
-              <Sparkles className="h-5 w-5 animate-pulse text-accent" />
-              Analyzing centering, corners, edges & surface…
+            <div className="card-glass-scene relative overflow-hidden py-12">
+              <div className="animate-shimmer-accent absolute inset-0" />
+              <div className="relative flex flex-col items-center justify-center gap-3 text-center">
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ repeat: Infinity, duration: 2, ease: 'linear' }}
+                >
+                  <Sparkles className="h-6 w-6 text-accent" />
+                </motion.div>
+                <p className="text-sm font-medium text-ink-primary">
+                  Analyzing centering, corners, edges & surface…
+                </p>
+                <p className="text-xs text-ink-muted">
+                  This takes a few seconds
+                </p>
+              </div>
             </div>
           )}
 
