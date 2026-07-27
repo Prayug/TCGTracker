@@ -8,6 +8,7 @@ exports.runWalkForwardValidation = runWalkForwardValidation;
 const database_1 = require("../db/database");
 const logger_1 = require("../utils/logger");
 const marketAnalyzer_1 = require("./marketAnalyzer");
+const validationMetrics_1 = require("./validationMetrics");
 const predictionEngine_1 = require("./predictionEngine");
 exports.SUPPORTED_BACKTEST_WINDOWS = [7, 30, 90, 180, 365];
 /** Picks the expected return matching a backtest window from the engine output. */
@@ -25,21 +26,23 @@ function expectedReturnForWindow(returns, windowDays) {
 function fetchPriceHistoryUpToDate(uniqueIdentifier, cutoffDate) {
     const db = (0, database_1.getDb)();
     return new Promise((resolve, reject) => {
-        db.all(`SELECT date, price, marketPrice, volume FROM price_history
+        db.all(`SELECT date, price, marketPrice, volume, source FROM price_history
        WHERE uniqueIdentifier = ? AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
        AND date <= ?
        ORDER BY date ASC`, [uniqueIdentifier, cutoffDate], (err, rows) => {
             if (err)
                 return reject(err);
-            resolve(rows.map(r => {
+            // Prefer live TCGdex quotes over catalog/legacy dumps on duplicate days.
+            resolve((0, predictionEngine_1.dedupePriceHistoryByDate)(rows.map(r => {
                 var _a, _b;
                 return ({
                     date: r.date,
                     price: (_a = r.price) !== null && _a !== void 0 ? _a : 0,
                     marketPrice: (_b = r.marketPrice) !== null && _b !== void 0 ? _b : r.price,
                     volume: r.volume,
+                    source: r.source,
                 });
-            }));
+            })));
         });
     });
 }
@@ -49,21 +52,38 @@ function fetchFuturePrice(uniqueIdentifier, startDate, daysAhead) {
         const targetDate = new Date(startDate);
         targetDate.setDate(targetDate.getDate() + daysAhead);
         const targetStr = targetDate.toISOString().split('T')[0];
-        db.all(`SELECT date, marketPrice, price FROM price_history
+        db.all(`SELECT date, marketPrice, price, source FROM price_history
        WHERE uniqueIdentifier = ? AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
        AND date >= ? AND date <= ?
        ORDER BY date ASC`, [uniqueIdentifier, startDate, targetStr], (err, rows) => {
-            var _a;
+            var _a, _b;
             if (err)
                 return reject(err);
             if (!rows || rows.length === 0)
                 return resolve(null);
-            const closest = rows[rows.length - 1];
-            resolve((_a = closest.marketPrice) !== null && _a !== void 0 ? _a : closest.price);
+            // Require a quote within the window, preferring the highest-priority
+            // source for the final day so legacy dumps don't override live quotes.
+            const byDate = new Map();
+            const sourceRank = { tcgdex: 0, catalog_fallback: 1, tcgcsv: 2 };
+            for (const r of rows) {
+                const price = (_a = r.marketPrice) !== null && _a !== void 0 ? _a : r.price;
+                if (!price || price <= 0)
+                    continue;
+                const date = r.date.includes('T') ? r.date.split('T')[0] : r.date;
+                const rank = (_b = sourceRank[r.source]) !== null && _b !== void 0 ? _b : 9;
+                const existing = byDate.get(date);
+                if (!existing || rank < existing.rank) {
+                    byDate.set(date, { price, rank });
+                }
+            }
+            const sortedDays = [...byDate.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+            if (sortedDays.length === 0)
+                return resolve(null);
+            resolve(sortedDays[sortedDays.length - 1][1].price);
         });
     });
 }
-async function runBacktest(backtestDate, windowDays = 90, cardIdFilter, filter = predictionEngine_1.DEFAULT_CARD_QUALITY_FILTER) {
+async function runBacktest(backtestDate, windowDays = 90, cardIdFilter, filter = predictionEngine_1.DEFAULT_CARD_QUALITY_FILTER, sampleSize, calibrationModels) {
     const db = (0, database_1.getDb)();
     let cards = await new Promise((resolve, reject) => {
         let sql = `SELECT cm.cardId, cm.cardName, cm.setId, cm.setName, cm.cardNumber, cm.rarity, cm.uniqueIdentifier
@@ -72,6 +92,13 @@ async function runBacktest(backtestDate, windowDays = 90, cardIdFilter, filter =
         if (cardIdFilter && cardIdFilter.length > 0) {
             sql += ` AND cm.cardId IN (${cardIdFilter.map(() => '?').join(',')})`;
             params.push(...cardIdFilter);
+        }
+        if (sampleSize && sampleSize > 0 && (!cardIdFilter || cardIdFilter.length === 0)) {
+            // Random subset keeps calibration harvests bounded.
+            sql += ` AND cm.cardId IN (
+        SELECT cardId FROM card_mappings WHERE cardName IS NOT NULL ORDER BY RANDOM() LIMIT ?
+      )`;
+            params.push(sampleSize);
         }
         sql += ` ORDER BY cm.cardName ASC`;
         db.all(sql, params, (err, rows) => {
@@ -119,7 +146,7 @@ async function runBacktest(backtestDate, windowDays = 90, cardIdFilter, filter =
                 liquidityScore,
                 dataQualityScore,
             };
-            const expectedReturns = (0, predictionEngine_1.computeExpectedReturns)(scores);
+            const expectedReturns = (0, predictionEngine_1.computeExpectedReturns)(scores, 0, calibrationModels);
             const predictedReturn = expectedReturnForWindow(expectedReturns, windowDays);
             const futurePrice = await fetchFuturePrice(uid, backtestDate, windowDays);
             let actualReturn = null;
@@ -136,7 +163,7 @@ async function runBacktest(backtestDate, windowDays = 90, cardIdFilter, filter =
                     totalDirectionalTests++;
                 }
                 error = Math.abs(predictedReturn - actualReturn);
-                totalMape += Math.abs(error);
+                totalMape += error;
                 totalMapeCount++;
                 returns.push(actualReturn);
             }
@@ -153,6 +180,7 @@ async function runBacktest(backtestDate, windowDays = 90, cardIdFilter, filter =
                 liquidityScore,
                 dataQualityScore,
                 riskScore,
+                signalScore: expectedReturns.rawSignal,
             });
         }
         catch (err) {
@@ -163,15 +191,15 @@ async function runBacktest(backtestDate, windowDays = 90, cardIdFilter, filter =
     const directionalAccuracy = totalDirectionalTests > 0 ? totalDirectionalCorrect / totalDirectionalTests : null;
     const mape = totalMapeCount > 0 ? totalMape / totalMapeCount : null;
     const top10 = [...cardResults]
-        .filter(r => r.predictedReturn !== null)
+        .filter(r => r.predictedReturn !== null && r.actualReturn !== null)
         .sort((a, b) => b.predictedReturn - a.predictedReturn)
         .slice(0, 10);
     const top10AvgReturn = top10.length > 0
-        ? top10.reduce((s, r) => { var _a; return s + ((_a = r.actualReturn) !== null && _a !== void 0 ? _a : 0); }, 0) / top10.length
+        ? top10.reduce((s, r) => s + r.actualReturn, 0) / top10.length
         : null;
     const withActualReturns = cardResults.filter(r => r.actualReturn !== null);
     const marketAvgReturn = withActualReturns.length > 0
-        ? withActualReturns.reduce((s, r) => { var _a; return s + ((_a = r.actualReturn) !== null && _a !== void 0 ? _a : 0); }, 0) / withActualReturns.length
+        ? withActualReturns.reduce((s, r) => s + r.actualReturn, 0) / withActualReturns.length
         : null;
     // Compute market benchmark from all tested cards' price histories
     const allHistories = [];
@@ -214,26 +242,38 @@ async function runBacktest(backtestDate, windowDays = 90, cardIdFilter, filter =
         // Annualize based on the actual window period (default 90 days)
         const annualizationFactor = Math.sqrt(365 / windowDays);
         sharpeRatio = stdDev > 0 ? (mean / stdDev) * annualizationFactor : null;
-        let peak = 0;
+        // Compounded equal-weight portfolio drawdown.
+        let peak = 1;
+        let value = 1;
         let maxDd = 0;
-        let cumulative = 0;
         for (const r of returns) {
-            cumulative += r;
-            if (cumulative > peak)
-                peak = cumulative;
-            const drawdown = peak - cumulative;
+            value = value * (1 + r);
+            if (value > peak)
+                peak = value;
+            const drawdown = (peak - value) / peak;
             if (drawdown > maxDd)
                 maxDd = drawdown;
         }
         maxDrawdown = maxDd;
     }
+    // Skill metrics: do the model's rankings correlate with outcomes?
+    const validationSamples = withActualReturns.map(r => ({
+        predicted: r.predictedReturn,
+        actual: r.actualReturn,
+    }));
+    const metrics = (0, validationMetrics_1.computeValidationMetrics)(validationSamples);
+    const baselineAvgReturn = marketAvgReturn;
+    const modelAlpha = top10AvgReturn !== null && baselineAvgReturn !== null
+        ? top10AvgReturn - baselineAvgReturn
+        : null;
     const categories = ['strong_buy', 'watch_dip', 'recovery', 'momentum', 'stagnant', 'avoid', 'downtrend'];
     const categoryPerformance = categories.map(cat => {
         const catCards = cardResults.filter(r => r.category === cat && r.actualReturn !== null);
         const count = catCards.length;
         const avgReturn = count > 0 ? catCards.reduce((s, r) => { var _a; return s + ((_a = r.actualReturn) !== null && _a !== void 0 ? _a : 0); }, 0) / count : 0;
-        const avgPredictedReturn = count > 0
-            ? catCards.filter(r => r.predictedReturn !== null).reduce((s, r) => s + r.predictedReturn, 0) / count
+        const predictedCards = catCards.filter(r => r.predictedReturn !== null);
+        const avgPredictedReturn = predictedCards.length > 0
+            ? predictedCards.reduce((s, r) => s + r.predictedReturn, 0) / predictedCards.length
             : 0;
         return { category: cat, count, avgReturn, avgPredictedReturn };
     });
@@ -255,6 +295,11 @@ async function runBacktest(backtestDate, windowDays = 90, cardIdFilter, filter =
         profitFactor,
         categoryPerformance,
         cardResults,
+        rankIC: metrics.rankIC,
+        meanBias: metrics.meanBias,
+        hitRate: metrics.hitRate,
+        baselineAvgReturn,
+        modelAlpha,
     };
     await saveBacktestResult(result);
     return result;
@@ -266,8 +311,9 @@ async function saveBacktestResult(result) {
        (backtest_date, window_days, cards_tested, directional_accuracy, mape,
         top10_avg_return, market_avg_return, strong_buy_false_positive_rate,
         avoid_avg_return, sharpe_ratio, max_drawdown, win_rate, profit_factor,
-        category_performance, market_median_return, market_return_std_dev)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+        category_performance, market_median_return, market_return_std_dev,
+        rank_ic, mean_bias, baseline_avg_return, hit_rate)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
             result.backtestDate,
             result.windowDays,
             result.cardsTested,
@@ -284,6 +330,10 @@ async function saveBacktestResult(result) {
             JSON.stringify(result.categoryPerformance),
             result.marketMedianReturn,
             result.marketReturnStdDev,
+            result.rankIC,
+            result.meanBias,
+            result.baselineAvgReturn,
+            result.hitRate,
         ], function (err) {
             if (err)
                 reject(err);
@@ -298,17 +348,42 @@ async function getBacktestResults() {
         db.all(`SELECT * FROM backtest_runs ORDER BY created_at DESC LIMIT 20`, [], (err, rows) => {
             if (err)
                 return reject(err);
-            resolve(rows.map(r => ({
-                ...r,
-                category_performance: (() => {
-                    try {
-                        return r.category_performance ? JSON.parse(r.category_performance) : [];
-                    }
-                    catch (_a) {
-                        return [];
-                    }
-                })(),
-            })));
+            resolve(rows.map(r => {
+                var _a, _b, _c, _d;
+                return ({
+                    id: r.id,
+                    backtestDate: r.backtest_date,
+                    windowDays: r.window_days,
+                    cardsTested: r.cards_tested,
+                    directionalAccuracy: r.directional_accuracy,
+                    mape: r.mape,
+                    top10AvgReturn: r.top10_avg_return,
+                    marketAvgReturn: r.market_avg_return,
+                    marketMedianReturn: r.market_median_return,
+                    marketReturnStdDev: r.market_return_std_dev,
+                    strongBuyFalsePositiveRate: r.strong_buy_false_positive_rate,
+                    avoidAvgReturn: r.avoid_avg_return,
+                    sharpeRatio: r.sharpe_ratio,
+                    maxDrawdown: r.max_drawdown,
+                    winRate: r.win_rate,
+                    profitFactor: r.profit_factor,
+                    rankIC: (_a = r.rank_ic) !== null && _a !== void 0 ? _a : null,
+                    meanBias: (_b = r.mean_bias) !== null && _b !== void 0 ? _b : null,
+                    hitRate: (_c = r.hit_rate) !== null && _c !== void 0 ? _c : null,
+                    baselineAvgReturn: (_d = r.baseline_avg_return) !== null && _d !== void 0 ? _d : null,
+                    modelAlpha: r.baseline_avg_return != null && r.top_10_avg_return != null
+                        ? r.top_10_avg_return - r.baseline_avg_return
+                        : null,
+                    categoryPerformance: (() => {
+                        try {
+                            return r.category_performance ? JSON.parse(r.category_performance) : [];
+                        }
+                        catch (_a) {
+                            return [];
+                        }
+                    })(),
+                });
+            }));
         });
     });
 }

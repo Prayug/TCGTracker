@@ -908,6 +908,90 @@ export const migrations: Migration[] = [
       logger.info('Skipping full_result/back_image_url rollback (SQLite limitation)');
     },
   },
+  {
+    id: 23,
+    name: 'add_calibration_tables_and_backtest_metrics',
+    up: async (db: Database) => {
+      const run = (sql: string): Promise<void> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, (err) => {
+            if (err && !err.message.includes('duplicate column')) reject(err);
+            else resolve();
+          });
+        });
+
+      await run(`CREATE TABLE IF NOT EXISTS calibration_samples (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        horizon INTEGER NOT NULL,
+        card_id TEXT NOT NULL,
+        run_id INTEGER,
+        signal_score REAL NOT NULL,
+        predicted_return REAL NOT NULL,
+        actual_return REAL NOT NULL,
+        source TEXT NOT NULL DEFAULT 'forward_test',
+        prediction_date TEXT,
+        created_at TEXT DEFAULT (datetime('now'))
+      )`);
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_calibration_samples_horizon ON calibration_samples(horizon)'
+      );
+      await run(
+        'CREATE UNIQUE INDEX IF NOT EXISTS uq_calibration_samples ON calibration_samples(horizon, card_id, source, prediction_date)'
+      );
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_calibration_samples_prediction_date ON calibration_samples(prediction_date)'
+      );
+
+      await run(`CREATE TABLE IF NOT EXISTS calibration_model (
+        horizon INTEGER PRIMARY KEY,
+        model_json TEXT NOT NULL,
+        sample_count INTEGER NOT NULL DEFAULT 0,
+        built_at TEXT NOT NULL
+      )`);
+
+      const backtestColumns = [
+        'ALTER TABLE backtest_runs ADD COLUMN rank_ic REAL',
+        'ALTER TABLE backtest_runs ADD COLUMN mean_bias REAL',
+        'ALTER TABLE backtest_runs ADD COLUMN baseline_avg_return REAL',
+        'ALTER TABLE backtest_runs ADD COLUMN hit_rate REAL',
+        'ALTER TABLE card_predictions ADD COLUMN signal_score REAL',
+      ];
+      for (const sql of backtestColumns) {
+        await run(sql);
+      }
+
+      logger.info('Created calibration_samples/calibration_model tables and added backtest metrics columns');
+    },
+    down: async (_db: Database) => {
+      logger.info('Skipping calibration table rollback (SQLite limitation)');
+    },
+  },
+  {
+    id: 22,
+    name: 'add_prediction_variant_identity',
+    up: async (db: Database) => {
+      const run = (sql: string): Promise<void> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, (err) => {
+            if (err && !err.message.includes('duplicate column')) reject(err);
+            else resolve();
+          });
+        });
+
+      // Persist which finish/UID was scored so insights UI opens the tracked
+      // series instead of MIN(productId) → sparse "normal" fallbacks.
+      await run('ALTER TABLE card_predictions ADD COLUMN unique_identifier TEXT');
+      await run('ALTER TABLE card_predictions ADD COLUMN variant_key TEXT');
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_card_predictions_uid ON card_predictions(unique_identifier)'
+      );
+
+      logger.info('Added unique_identifier/variant_key to card_predictions');
+    },
+    down: async (_db: Database) => {
+      logger.info('Skipping prediction variant identity rollback (SQLite limitation)');
+    },
+  },
 ];
 
 // Run pending migrations
