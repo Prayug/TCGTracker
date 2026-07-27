@@ -5,7 +5,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://reed-reunion-remix-mardi.trycloudflare.com/api/:path*"
+      "destination": "https://toxic-oxygen-upper-bodies.trycloudflare.com/api/:path*"
     },
     {
       "source": "/images/pokemontcg/:path*",

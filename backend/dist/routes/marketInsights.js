@@ -49,7 +49,7 @@ router.get('/predictions', asyncHandler(async (req, res) => {
         data: predictions,
         count: predictions.length,
         window,
-        modelVersion: '3.1.0',
+        modelVersion: '3.2.0',
     });
 }));
 router.get('/card/:cardId', asyncHandler(async (req, res) => {
