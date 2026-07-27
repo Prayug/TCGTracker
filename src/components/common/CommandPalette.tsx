@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  Album,
   Award,
   BookOpen,
   Camera,
   Clock,
   CornerDownLeft,
+  Heart,
   LayoutGrid,
   Layers,
   LineChart,
@@ -37,7 +39,9 @@ const NAV_COMMANDS: NavCommand[] = [
   { label: 'Browse cards', to: '/browse', keywords: 'browse cards marketplace', icon: LayoutGrid, shortcut: 'G B' },
   { label: 'Price tracker', to: '/prices', keywords: 'prices tracking watchlist alerts', icon: LineChart, shortcut: 'G P' },
   { label: 'My vault', to: '/vault', keywords: 'vault collection portfolio', icon: BookOpen, shortcut: 'G V' },
+  { label: 'Wishlist', to: '/wishlist', keywords: 'wishlist want list buy targets', icon: Heart, shortcut: 'G W' },
   { label: 'Sets', to: '/sets', keywords: 'sets eras binder completion', icon: Layers, shortcut: 'G S' },
+  { label: 'Binder planner', to: '/binders', keywords: 'binders plan planner page 3x3 organize collection', icon: Album },
   { label: 'Open packs', to: '/packs', keywords: 'packs booster rip simulator', icon: Package },
   { label: 'Scan a card', to: '/scanner', keywords: 'scanner camera identify photo', icon: Camera },
   { label: 'AI grade a card', to: '/grading', keywords: 'grade grading tag centering corners condition', icon: Award },
@@ -48,13 +52,14 @@ const GO_TARGETS: Record<string, string> = {
   b: '/browse',
   p: '/prices',
   v: '/vault',
+  w: '/wishlist',
   s: '/sets',
 };
 
 const SHORTCUTS_HELP: { keys: string; action: string }[] = [
   { keys: '⌘K / Ctrl+K', action: 'Open command palette' },
   { keys: '/', action: 'Open palette (search)' },
-  { keys: 'G then B / P / V / S / H', action: 'Go to Browse / Prices / Vault / Sets / Home' },
+  { keys: 'G then B / P / V / W / S / H', action: 'Go to Browse / Prices / Vault / Wishlist / Sets / Home' },
   { keys: '↑ ↓', action: 'Move selection' },
   { keys: 'Enter', action: 'Open selection' },
   { keys: 'Esc', action: 'Close palette or modal' },

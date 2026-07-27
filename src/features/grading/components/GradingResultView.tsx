@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Download, Share2, Vault } from 'lucide-react';
-import { GradingResult, gradeToVaultCondition, normalizeScore } from '../../../types/grading';
+import { GradingResult, gradeToVaultCondition } from '../../../types/grading';
 import { calculateGradingUplift } from '../../../services/gradingService';
 import { GradeBadge } from './GradeBadge';
 import { SubScoreGauge } from './SubScoreGauge';
@@ -73,14 +73,17 @@ export const GradingResultView: React.FC<GradingResultViewProps> = ({
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35 }}
+      transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
       className="rounded-xl border border-border-strong bg-surface-overlay p-5 shadow-sm"
     >
       {/* Header: Card image + grade badge */}
       <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
         <div className="flex shrink-0 flex-col items-center gap-2">
           {result.imageUrl && (
-            <img
+            <motion.img
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.15, duration: 0.4 }}
               src={result.imageUrl}
               alt={result.cardName || 'Graded card'}
               className="h-56 w-auto rounded-lg border border-border-subtle object-contain"
@@ -176,16 +179,26 @@ export const GradingResultView: React.FC<GradingResultViewProps> = ({
       </div>
 
       {/* Sub-score gauges (quick overview) */}
-      <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <SubScoreGauge
-          label="Centering"
-          score={centering.score}
-          defects={centering.defects}
-        />
-        <SubScoreGauge label="Corners" score={corners.score} defects={corners.defects} />
-        <SubScoreGauge label="Edges" score={edges.score} defects={edges.defects} />
-        <SubScoreGauge label="Surface" score={surface.score} defects={surface.defects} />
-      </div>
+      <motion.div
+        initial="hidden"
+        animate="visible"
+        variants={{ visible: { transition: { staggerChildren: 0.08 } } }}
+        className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4"
+      >
+        {[
+          { label: 'Centering', score: centering.score, defects: centering.defects },
+          { label: 'Corners', score: corners.score, defects: corners.defects },
+          { label: 'Edges', score: edges.score, defects: edges.defects },
+          { label: 'Surface', score: surface.score, defects: surface.defects },
+        ].map((g) => (
+          <motion.div
+            key={g.label}
+            variants={{ hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0 } }}
+          >
+            <SubScoreGauge label={g.label} score={g.score} defects={g.defects} />
+          </motion.div>
+        ))}
+      </motion.div>
 
       {/* Centering PSA ratios */}
       {centering &&

@@ -3,13 +3,13 @@ import { Pack } from '../../../types/pokemon';
 import { tieredPackService } from '../../../services/tieredPackService';
 import { useGame } from '../../../contexts/GameContext';
 import { PackOpeningModal } from './PackOpeningModal';
-import { Package, Sparkles, History, Zap, Swords, ChevronDown } from 'lucide-react';
+import { Package, Sparkles, History, Zap, ChevronDown } from 'lucide-react';
 import { SectionLabel } from '../../../components/common/SectionLabel';
 import { PageEmptyState } from '../../../components/common/PageEmptyState';
 import { formatCurrency } from '../../../utils/cardDisplay';
 
 export const PackShop: React.FC = () => {
-  const { isOnePiece } = useGame();
+  const { game, isOnePiece } = useGame();
   const [packs, setPacks] = useState<Pack[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedPack, setSelectedPack] = useState<Pack | null>(null);
@@ -37,7 +37,7 @@ export const PackShop: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const history = tieredPackService.getHistory();
+  const history = tieredPackService.getHistory(game);
 
   const getTierColor = (tier: string) => {
     switch (tier) {
@@ -84,42 +84,16 @@ export const PackShop: React.FC = () => {
     );
   }
 
-  // One Piece pack opening coming soon
-  if (isOnePiece) {
-    return (
-      <div className="section-stack">
-        <div>
-          <SectionLabel className="text-violet-300/90">Simulated rip lab</SectionLabel>
-          <h2 className="mt-2 text-3xl font-bold text-ink-primary">One Piece Pack Shop</h2>
-          <p className="mt-2 text-sm text-ink-muted">
-            Open tiered packs with play-money odds — results are simulated, not financial advice.
-          </p>
-        </div>
-
-        <div className="flex flex-col items-center rounded-2xl border border-dashed border-border-strong bg-surface-raised p-12 text-center">
-          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full border border-border-default bg-surface-inset">
-            <Swords className="h-8 w-8 text-ink-muted" aria-hidden="true" />
-          </div>
-          <h3 className="mb-2 text-xl font-semibold text-ink-primary">Coming Soon</h3>
-          <p className="mx-auto mb-6 max-w-md text-sm text-ink-muted">
-            One Piece pack opening is under development. In the meantime, browse and collect One Piece cards!
-          </p>
-          <a href="/browse" className="btn-secondary">
-            <Package className="h-4 w-4" aria-hidden="true" />
-            Browse One Piece Cards
-          </a>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="section-stack">
       <div>
         <SectionLabel className="text-violet-300/90">Simulated rip lab</SectionLabel>
-        <h2 className="mt-2 text-3xl font-bold text-ink-primary">Pack shop</h2>
+        <h2 className="mt-2 text-3xl font-bold text-ink-primary">
+          {isOnePiece ? 'One Piece pack shop' : 'Pack shop'}
+        </h2>
         <p className="mt-2 text-sm text-ink-muted">
           Open tiered packs with play-money odds — results are simulated, not financial advice.
+          {isOnePiece ? ' Pulls come from One Piece set pools.' : ''}
         </p>
       </div>
 

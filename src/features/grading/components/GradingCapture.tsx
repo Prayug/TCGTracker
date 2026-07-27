@@ -190,8 +190,8 @@ export const GradingCapture: React.FC<GradingCaptureProps> = ({
   // Idle mode — show front/back status + capture buttons
   if (mode === 'idle' && !frontPreview) {
     return (
-      <div className="rounded-xl border border-border-default bg-surface-raised p-4 shadow-sm">
-        <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-ink-muted">
+      <div className="card-glass-scene">
+        <div className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-ink-muted">
           <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent/20 text-[10px] font-bold text-accent">
             1
           </span>
@@ -206,7 +206,7 @@ export const GradingCapture: React.FC<GradingCaptureProps> = ({
             type="button"
             disabled={disabled}
             onClick={() => handleModeSelect('camera')}
-            className="group rounded-xl border border-border-default bg-surface-raised p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-border-strong disabled:opacity-50"
+            className="group rounded-xl border border-border-default bg-surface-raised p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-border-strong hover:shadow-elevated disabled:opacity-50"
           >
             <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-accent/30 bg-accent/10">
               <Camera className="h-5 w-5 text-accent" />
@@ -225,7 +225,7 @@ export const GradingCapture: React.FC<GradingCaptureProps> = ({
             type="button"
             disabled={disabled}
             onClick={() => handleModeSelect('upload')}
-            className="group rounded-xl border border-border-default bg-surface-raised p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-border-strong disabled:opacity-50"
+            className="group rounded-xl border border-border-default bg-surface-raised p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-border-strong hover:shadow-elevated disabled:opacity-50"
           >
             <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-accent/30 bg-accent/10">
               <Upload className="h-5 w-5 text-accent" />
@@ -247,8 +247,8 @@ export const GradingCapture: React.FC<GradingCaptureProps> = ({
   // Front captured — show preview + option to add back
   if (mode === 'idle' && frontPreview && step === 'front') {
     return (
-      <div className="rounded-xl border border-border-default bg-surface-raised p-4 shadow-sm">
-        <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-ink-muted">
+      <div className="card-glass-scene">
+        <div className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-ink-muted">
           <span className="flex h-5 w-5 items-center justify-center rounded-full bg-gain/20 text-[10px] font-bold text-gain">
             <Check className="h-3 w-3" />
           </span>
@@ -292,8 +292,8 @@ export const GradingCapture: React.FC<GradingCaptureProps> = ({
   if (step === 'back') {
     if (mode === 'idle' && !backPreview) {
       return (
-        <div className="rounded-xl border border-border-default bg-surface-raised p-4 shadow-sm">
-          <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-ink-muted">
+        <div className="card-glass-scene">
+          <div className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-ink-muted">
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent/20 text-[10px] font-bold text-accent">
               2
             </span>
@@ -314,7 +314,7 @@ export const GradingCapture: React.FC<GradingCaptureProps> = ({
               type="button"
               disabled={disabled}
               onClick={() => handleModeSelect('camera')}
-              className="group rounded-xl border border-border-default bg-surface-raised p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-border-strong disabled:opacity-50"
+              className="group rounded-xl border border-border-default bg-surface-raised p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-border-strong hover:shadow-elevated disabled:opacity-50"
             >
               <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-accent/30 bg-accent/10">
                 <Camera className="h-5 w-5 text-accent" />
@@ -327,7 +327,7 @@ export const GradingCapture: React.FC<GradingCaptureProps> = ({
               type="button"
               disabled={disabled}
               onClick={() => handleModeSelect('upload')}
-              className="group rounded-xl border border-border-default bg-surface-raised p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-border-strong disabled:opacity-50"
+              className="group rounded-xl border border-border-default bg-surface-raised p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-border-strong hover:shadow-elevated disabled:opacity-50"
             >
               <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-accent/30 bg-accent/10">
                 <Upload className="h-5 w-5 text-accent" />
@@ -347,8 +347,8 @@ export const GradingCapture: React.FC<GradingCaptureProps> = ({
 
     if (mode === 'idle' && backPreview) {
       return (
-        <div className="rounded-xl border border-border-default bg-surface-raised p-4 shadow-sm">
-          <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-ink-muted">
+        <div className="card-glass-scene">
+          <div className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-ink-muted">
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-gain/20 text-[10px] font-bold text-gain">
               <Check className="h-3 w-3" />
             </span>
@@ -392,7 +392,7 @@ export const GradingCapture: React.FC<GradingCaptureProps> = ({
 
   // Camera / Upload active
   return (
-    <div className="rounded-xl border border-border-default bg-surface-raised p-4 shadow-sm">
+    <div className="card-glass-scene">
       {error && (
         <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
           {error}
