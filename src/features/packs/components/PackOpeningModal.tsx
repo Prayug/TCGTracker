@@ -5,6 +5,7 @@ import { Modal } from '../../../components/common/Modal';
 import { tieredPackService } from '../../../services/tieredPackService';
 import { vaultService } from '../../../services/vaultService';
 import { useToast } from '../../../components/common/Toast';
+import { useGame } from '../../../contexts/GameContext';
 import { FastForward, Sparkles, Vault, Zap } from 'lucide-react';
 import { pokemonApi } from '../../../services/pokemonApi';
 import { markOnboardingStep } from '../../../components/common/OnboardingChecklist';
@@ -31,6 +32,7 @@ interface PackOpeningModalProps {
 }
 
 export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen, onClose, initialBoosted = false }) => {
+  const { game } = useGame();
   const { showToast } = useToast();
   const [isOpening, setIsOpening] = useState(false);
   const [packPull, setPackPull] = useState<PackPull | null>(null);
@@ -85,7 +87,7 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
     setScreenShake(false);
 
     try {
-      const packPromise = tieredPackService.openPack(pack, boosted);
+      const packPromise = tieredPackService.openPack(pack, boosted, game);
 
       if (!use3DNow) {
         await wait(2000);
@@ -141,7 +143,7 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
 
     packPull.cards.forEach((card) => {
       const price = card.marketPrice || pokemonApi.extractCardPrice(card);
-      vaultService.addToVault(card, price, 1, 'raw', `Pulled from ${packPull.pack.name}`);
+      vaultService.addToVault(card, price, 1, 'raw', `Pulled from ${packPull.pack.name}`, game);
     });
     markOnboardingStep('vault');
 

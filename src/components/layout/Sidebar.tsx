@@ -1,9 +1,11 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
+  Album,
   Award,
   BookOpen,
   Camera,
+  Heart,
   Layers,
   LayoutGrid,
   LineChart,
@@ -25,7 +27,9 @@ const NAV_GROUPS: {
     label: 'Collection',
     items: [
       { to: '/browse', label: 'Browse', icon: LayoutGrid },
+      { to: '/binders', label: 'Binders', icon: Album },
       { to: '/vault', label: 'Vault', icon: BookOpen },
+      { to: '/wishlist', label: 'Wishlist', icon: Heart },
       { to: '/sets', label: 'Sets', icon: Layers },
     ],
   },
@@ -58,10 +62,10 @@ export const Sidebar: React.FC = () => {
     <aside className="hidden w-56 shrink-0 border-r border-border-subtle bg-surface-raised md:flex md:flex-col">
       <div className="flex h-14 items-center border-b border-border-subtle px-5">
         <NavLink to="/" className="flex items-center gap-2.5">
-          <div className="relative flex h-8 w-8 items-center justify-center rounded-md border border-border-default bg-gradient-accent shadow-glow-accent">
-            <span className="font-mono text-sm font-semibold text-white">T</span>
+          <div className="relative flex h-8 w-8 items-center justify-center border border-accent bg-surface-base shadow-[0_0_12px_var(--ring-accent)]">
+            <span className="font-display text-sm tracking-tight text-accent">T</span>
           </div>
-          <span className="font-display text-sm font-semibold tracking-tight text-ink-primary">
+          <span className="font-display text-base tracking-tight text-ink-primary">
             TCGTracker
           </span>
         </NavLink>
@@ -69,19 +73,15 @@ export const Sidebar: React.FC = () => {
 
       {/* Game Switcher */}
       <div className="relative px-3 pt-3 pb-3">
-        <div
-          className="pointer-events-none absolute inset-x-3 bottom-0 h-px bg-gradient-to-r from-transparent via-accent/30 to-transparent"
-          aria-hidden="true"
-        />
-        <div className="flex rounded-lg border border-border-default bg-surface-inset p-0.5">
+        <div className="flex border border-border-default bg-surface-inset">
           {GAME_OPTIONS.map(({ value, label, icon: Icon }) => (
             <button
               key={value}
               type="button"
               onClick={() => setGame(value)}
-              className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-all duration-200 ${
+              className={`flex flex-1 items-center justify-center gap-1.5 px-2 py-2 text-xs font-bold uppercase tracking-wider transition-all duration-200 neon-flood ${
                 game === value
-                  ? 'bg-gradient-accent text-white shadow-sm'
+                  ? 'bg-accent text-black shadow-[0_0_12px_var(--ring-accent)]'
                   : 'text-ink-muted hover:text-ink-secondary'
               }`}
             >
@@ -96,9 +96,9 @@ export const Sidebar: React.FC = () => {
         {NAV_GROUPS.map((group, groupIndex) => (
           <div key={group.label}>
             {groupIndex > 0 && (
-              <div className="mx-2 my-4 h-px bg-border-subtle" aria-hidden="true" />
+              <div className="mx-2 my-4 h-px bg-gradient-to-r from-transparent via-accent/30 to-transparent" aria-hidden="true" />
             )}
-            <p className="mb-1.5 px-2 text-[11px] font-medium uppercase tracking-wider text-ink-muted">
+            <p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-[0.2em] text-ink-muted">
               {group.label}
             </p>
             <ul className="space-y-0.5">
@@ -108,30 +108,20 @@ export const Sidebar: React.FC = () => {
                     to={to}
                     end={end}
                     className={({ isActive }) =>
-                      `group relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-all duration-200 ${
+                      `group relative flex items-center gap-3 border-l-2 px-3 py-2.5 text-sm font-semibold transition-all duration-200 neon-flood ${
                         isActive
-                          ? 'bg-accent/10 text-accent'
-                          : 'text-ink-secondary hover:bg-surface-hover hover:text-ink-primary'
+                          ? 'border-accent bg-accent/10 text-accent shadow-[inset_0_0_20px_var(--ring-accent)]'
+                          : 'border-transparent text-ink-secondary hover:border-accent/30 hover:bg-surface-hover hover:text-ink-primary'
                       }`
                     }
                   >
-                    {({ isActive }) => (
-                      <>
-                        <span
-                          className={`absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-accent transition-opacity duration-200 ${
-                            isActive ? 'opacity-100' : 'opacity-0'
-                          }`}
-                          aria-hidden="true"
-                        />
-                        <Icon
-                          className={`h-4 w-4 shrink-0 transition-colors duration-200 ${
-                            isActive ? 'text-accent' : ''
-                          }`}
-                          aria-hidden="true"
-                        />
-                        {label}
-                      </>
-                    )}
+                    <Icon
+                      className={`h-4 w-4 shrink-0 transition-colors duration-200 ${
+                        'group-hover:text-accent'
+                      }`}
+                      aria-hidden="true"
+                    />
+                    {label}
                   </NavLink>
                 </li>
               ))}
@@ -139,6 +129,12 @@ export const Sidebar: React.FC = () => {
           </div>
         ))}
       </nav>
+
+      <div className="border-t border-border-subtle px-3 py-3">
+        <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-ink-muted">
+          {NAV_GROUPS.flatMap(g => g.items).length} tools · v2.0
+        </div>
+      </div>
     </aside>
   );
 };

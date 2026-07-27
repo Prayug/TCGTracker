@@ -1,10 +1,15 @@
 import { Pack, PackPull, PokemonCard, PackOpeningHistory, ValueRange } from '../types/pokemon';
 import { pokemonApi, proxyImageUrl } from './pokemonApi';
+import { onePieceApi } from './onepieceApi';
 import { env } from '../config/env';
 
 const PACK_HISTORY_KEY = 'tcg_tiered_pack_history';
+const PACK_HISTORY_KEY_OP = 'tcg_tiered_pack_history_onepiece';
 
 class TieredPackService {
+  // Track pulled card IDs across the session to prevent duplicates
+  private pulledCardIds: Set<string> = new Set();
+
   // No caching - always fetch fresh from DB
 
   // Define tiered packs with GameStop-style odds
@@ -153,23 +158,35 @@ class TieredPackService {
   }
 
   // Open a tiered pack
-  async openPack(pack: Pack, boosted = false): Promise<PackPull> {
+  async openPack(pack: Pack, boosted = false, game: 'pokemon' | 'onepiece' = 'pokemon'): Promise<PackPull> {
     try {
-      const cardPool = await this.fetchCardPool();
-      console.log("cardPool: ", cardPool);
+      let cardPool =
+        game === 'onepiece' ? await this.fetchOnePieceCardPool() : await this.fetchCardPool();
+      console.log('cardPool: ', cardPool);
       if (cardPool.length === 0) {
         throw new Error('Unable to fetch cards. Please check your connection.');
       }
 
+      // Filter out cards already pulled this session
+      const previousCount = cardPool.length;
+      cardPool = cardPool.filter((card) => !this.pulledCardIds.has(this.getCardIdentifier(card)));
+      if (cardPool.length === 0) {
+        this.pulledCardIds.clear();
+        cardPool =
+          game === 'onepiece' ? await this.fetchOnePieceCardPool() : await this.fetchCardPool();
+      }
+      console.log(
+        `📊 Dedup: ${previousCount} -> ${cardPool.length} cards (${this.pulledCardIds.size} already pulled)`
+      );
+
       const ranges = boosted && pack.boostedValueRanges ? pack.boostedValueRanges : pack.valueRanges;
       const selectedCard = this.selectCardFromRange(cardPool, ranges);
-      console.log("selectedCard: ", selectedCard);
+      console.log('selectedCard: ', selectedCard);
       if (!selectedCard) {
         throw new Error('No suitable card found in the pool for this value range.');
       }
 
-      // Backend handles images (stored -> deterministic)
-      // If no images available, card.images will be undefined
+      this.pulledCardIds.add(this.getCardIdentifier(selectedCard));
 
       const totalValue = selectedCard.marketPrice || pokemonApi.extractCardPrice(selectedCard);
       const profit = totalValue - pack.price;
@@ -179,15 +196,43 @@ class TieredPackService {
         cards: [selectedCard],
         totalValue,
         profit,
-        openedAt: new Date().toISOString()
+        openedAt: new Date().toISOString(),
       };
 
-      this.addToHistory(packPull);
+      this.addToHistory(packPull, game);
       return packPull;
     } catch (error) {
       console.error('Error opening pack:', error);
       throw error;
     }
+  }
+
+  private async fetchOnePieceCardPool(): Promise<PokemonCard[]> {
+    const sets = await onePieceApi.getSets();
+    const sample = sets.slice(0, 8);
+    const batches = await Promise.all(
+      sample.map((s) => onePieceApi.getSetCards(s.id).catch(() => [] as Awaited<ReturnType<typeof onePieceApi.getSetCards>>))
+    );
+    const all = batches.flat();
+    const withPrices = all.filter((c) => (c.marketPrice ?? 0) > 0 && (c.marketPrice ?? 0) < 100000);
+    return this.shuffleArray(
+      withPrices.map((c) => ({
+        id: c.id,
+        name: c.name,
+        images: c.images,
+        set: { id: c.set.id, name: c.set.name, releaseDate: '', total: 0 },
+        number: c.number,
+        rarity: c.rarity,
+        marketPrice: c.marketPrice,
+      }))
+    );
+  }
+
+  // Get a unique identifier for a card (used for deduplication)
+  private getCardIdentifier(card: PokemonCard): string {
+    return card.id ||
+      (card as PokemonCard & { uniqueIdentifier?: string }).uniqueIdentifier ||
+      `${card.set?.id || 'unknown'}-${card.number || 'unknown'}-${card.name || 'unknown'}`;
   }
 
   // Select which VALUE RANGE bracket based on probabilities
@@ -300,37 +345,28 @@ class TieredPackService {
       return null;
     }
 
-    // Sort by proximity to the midpoint of the rolled range and prefer closer matches
-    const midpoint = (rolledRange.min + rolledRange.max) / 2;
-    candidates.sort((a, b) => {
-      const priceA = a.marketPrice || pokemonApi.extractCardPrice(a);
-      const priceB = b.marketPrice || pokemonApi.extractCardPrice(b);
-      return Math.abs(priceA - midpoint) - Math.abs(priceB - midpoint);
-    });
-
-    // Weighted random: 70% chance to pick from top 3 closest, 30% random from all
-    const topN = Math.min(3, candidates.length);
-    const useTop = Math.random() < 0.7;
-    const pool = useTop ? candidates.slice(0, topN) : candidates;
+    // Shuffle candidates to avoid any ordering bias, then pick uniformly at random
+    const shuffled = this.shuffleArray(candidates);
 
     const randomIndex = typeof crypto !== 'undefined' && crypto.getRandomValues
-      ? crypto.getRandomValues(new Uint32Array(1))[0] % pool.length
-      : Math.floor(Math.random() * pool.length);
+      ? crypto.getRandomValues(new Uint32Array(1))[0] % shuffled.length
+      : Math.floor(Math.random() * shuffled.length);
     
-    return pool[randomIndex];
+    return shuffled[randomIndex];
   }
 
   // Get pack opening history
-  getHistory(): PackOpeningHistory {
+  getHistory(game: 'pokemon' | 'onepiece' = 'pokemon'): PackOpeningHistory {
     try {
-      const stored = localStorage.getItem(PACK_HISTORY_KEY);
+      const key = game === 'onepiece' ? PACK_HISTORY_KEY_OP : PACK_HISTORY_KEY;
+      const stored = localStorage.getItem(key);
       if (!stored) {
         return {
           pulls: [],
           totalSpent: 0,
           totalValue: 0,
           totalProfit: 0,
-          packsOpened: 0
+          packsOpened: 0,
         };
       }
 
@@ -344,7 +380,7 @@ class TieredPackService {
         totalSpent,
         totalValue,
         totalProfit,
-        packsOpened: pulls.length
+        packsOpened: pulls.length,
       };
     } catch (error) {
       console.error('Error loading pack history:', error);
@@ -353,31 +389,31 @@ class TieredPackService {
         totalSpent: 0,
         totalValue: 0,
         totalProfit: 0,
-        packsOpened: 0
+        packsOpened: 0,
       };
     }
   }
 
   // Add pack pull to history
-  private addToHistory(packPull: PackPull): void {
+  private addToHistory(packPull: PackPull, game: 'pokemon' | 'onepiece' = 'pokemon'): void {
     try {
-      const history = this.getHistory();
+      const key = game === 'onepiece' ? PACK_HISTORY_KEY_OP : PACK_HISTORY_KEY;
+      const history = this.getHistory(game);
       history.pulls.unshift(packPull);
-      
-      // Keep only last 100 pulls
+
       if (history.pulls.length > 100) {
         history.pulls = history.pulls.slice(0, 100);
       }
 
-      localStorage.setItem(PACK_HISTORY_KEY, JSON.stringify(history.pulls));
+      localStorage.setItem(key, JSON.stringify(history.pulls));
     } catch (error) {
       console.error('Error saving pack history:', error);
     }
   }
 
   // Clear history
-  clearHistory(): void {
-    localStorage.removeItem(PACK_HISTORY_KEY);
+  clearHistory(game: 'pokemon' | 'onepiece' = 'pokemon'): void {
+    localStorage.removeItem(game === 'onepiece' ? PACK_HISTORY_KEY_OP : PACK_HISTORY_KEY);
   }
 
   // Clear card pool cache (no-op since we don't cache anymore)

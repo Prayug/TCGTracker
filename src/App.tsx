@@ -1,6 +1,6 @@
 import { Suspense, lazy } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { MotionConfig } from 'framer-motion';
+import { AnimatePresence, motion, MotionConfig } from 'framer-motion';
 import { HeroSection } from './components/common/HeroSection';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { Header } from './components/layout/Header';
@@ -43,8 +43,12 @@ const SetIndex = lazy(() =>
 const SetDetail = lazy(() =>
   import('./features/sets/components/SetDetail').then((m) => ({ default: m.SetDetail }))
 );
-
-const PAGE_CONTAINER = 'mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8';
+const WishlistView = lazy(() =>
+  import('./features/wishlist/components/WishlistView').then((m) => ({ default: m.WishlistView }))
+);
+const BindersIndex = lazy(() =>
+  import('./features/binders/components/BindersIndex').then((m) => ({ default: m.BindersIndex }))
+);
 
 function RouteFallback() {
   return (
@@ -68,7 +72,7 @@ function SetsPage() {
   const { setId } = useParams();
   const navigate = useNavigate();
   return (
-    <div className={PAGE_CONTAINER}>
+    <div className="animate-fade-in">
       {setId ? (
         <SetDetail setId={setId} onBack={() => navigate('/sets')} />
       ) : (
@@ -81,72 +85,102 @@ function SetsPage() {
 function VaultPage() {
   const navigate = useNavigate();
   return (
-    <div className={PAGE_CONTAINER}>
+    <div className="animate-fade-in">
       <VaultView onOpenSet={(setId) => navigate(`/sets/${setId}`)} />
     </div>
   );
 }
 
-// Enter-only CSS transition keyed by pathname. AnimatePresence mode="wait" was
-// tried here and reverted: it deadlocks (old page never unmounts) when the
-// incoming lazy route suspends, since the exit handshake never completes.
+const pageVariants = {
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
+  exit: { opacity: 0, y: -8, transition: { duration: 0.2, ease: [0.16, 1, 0.3, 1] } },
+};
+
+const PAGE_CONTAINER = 'mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8';
+
 function AppRoutes() {
   const location = useLocation();
   return (
-    <div key={location.pathname} className="min-w-0 animate-fade-in">
-      <Suspense fallback={<RouteFallback />}>
-        <ErrorBoundary>
-          <Routes location={location}>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/browse" element={<BrowsePage />} />
-            <Route
-              path="/prices"
-              element={
-                <div className={PAGE_CONTAINER}>
-                  <PriceTrackingDashboard />
-                </div>
-              }
-            />
-            <Route
-              path="/market-insights"
-              element={
-                <div className={PAGE_CONTAINER}>
-                  <MarketInsightsDashboard />
-                </div>
-              }
-            />
-            <Route path="/vault" element={<VaultPage />} />
-            <Route path="/sets" element={<SetsPage />} />
-            <Route path="/sets/:setId" element={<SetsPage />} />
-            <Route
-              path="/packs"
-              element={
-                <div className={PAGE_CONTAINER}>
-                  <PackShop />
-                </div>
-              }
-            />
-            <Route
-              path="/scanner"
-              element={
-                <div className={PAGE_CONTAINER}>
-                  <CardScanner />
-                </div>
-              }
-            />
-            <Route
-              path="/grading"
-              element={
-                <div className={PAGE_CONTAINER}>
-                  <GradingPage />
-                </div>
-              }
-            />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </ErrorBoundary>
-      </Suspense>
-    </div>
+    <AnimatePresence mode="popLayout">
+      <motion.div
+        key={location.pathname}
+        variants={pageVariants}
+        initial="initial"
+        animate="animate"
+        exit="exit"
+        className="min-w-0"
+      >
+        <Suspense fallback={<RouteFallback />}>
+          <ErrorBoundary>
+            <Routes location={location}>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/browse" element={<BrowsePage />} />
+              <Route
+                path="/prices"
+                element={
+                  <div className={PAGE_CONTAINER}>
+                    <PriceTrackingDashboard />
+                  </div>
+                }
+              />
+              <Route
+                path="/market-insights"
+                element={
+                  <div className={PAGE_CONTAINER}>
+                    <MarketInsightsDashboard />
+                  </div>
+                }
+              />
+              <Route path="/vault" element={<VaultPage />} />
+              <Route
+                path="/wishlist"
+                element={
+                  <div className={PAGE_CONTAINER}>
+                    <WishlistView />
+                  </div>
+                }
+              />
+              <Route
+                path="/binders"
+                element={
+                  <div className={PAGE_CONTAINER}>
+                    <BindersIndex />
+                  </div>
+                }
+              />
+              <Route path="/sets" element={<SetsPage />} />
+              <Route path="/sets/:setId" element={<SetsPage />} />
+              <Route
+                path="/packs"
+                element={
+                  <div className={PAGE_CONTAINER}>
+                    <PackShop />
+                  </div>
+                }
+              />
+              <Route
+                path="/scanner"
+                element={
+                  <div className={PAGE_CONTAINER}>
+                    <CardScanner />
+                  </div>
+                }
+              />
+              <Route
+                path="/grading"
+                element={
+                  <div className={PAGE_CONTAINER}>
+                    <GradingPage />
+                  </div>
+                }
+              />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </ErrorBoundary>
+        </Suspense>
+      </motion.div>
+    </AnimatePresence>
   );
 }
 
@@ -161,7 +195,7 @@ function App() {
             <div className="flex min-w-0 flex-1 flex-col">
               <a
                 href="#main-content"
-                className="sr-only z-[95] rounded-md bg-accent px-4 py-2 text-sm font-medium text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+                className="sr-only z-[95] rounded-none bg-accent px-4 py-2 text-sm font-bold uppercase tracking-wider text-black focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
               >
                 Skip to content
               </a>
@@ -169,10 +203,6 @@ function App() {
               <Header />
 
               <main id="main-content" className="relative min-w-0 flex-1 pb-20 md:pb-0">
-                <div
-                  className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-accent/[0.04] to-transparent"
-                  aria-hidden="true"
-                />
                 <AppRoutes />
               </main>
 
