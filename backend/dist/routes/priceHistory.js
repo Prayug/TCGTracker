@@ -5,8 +5,23 @@ const database_1 = require("../db/database");
 const logger_1 = require("../utils/logger");
 const cardIdentifier_1 = require("../services/cardIdentifier");
 const onePiecePriceHistoryService_1 = require("../services/onePiecePriceHistoryService");
+const topMoversQuality_1 = require("../services/topMoversQuality");
 const router = (0, express_1.Router)();
 const clampNumber = (value, min, max) => Math.min(Math.max(value, min), max);
+/** In-memory TTL cache for /top-movers — avoids re-running heavy joins on every reload. */
+const TOP_MOVERS_TTL_MS = 10 * 60 * 1000; // 10 minutes (price snapshots are daily)
+const topMoversCache = new Map();
+const sendTopMovers = (res, cacheKey, payload, cacheStatus = 'MISS') => {
+    if (cacheStatus === 'MISS') {
+        topMoversCache.set(cacheKey, {
+            expiresAt: Date.now() + TOP_MOVERS_TTL_MS,
+            payload,
+        });
+    }
+    res.setHeader('X-Cache', cacheStatus);
+    res.setHeader('Cache-Control', `public, max-age=${Math.floor(TOP_MOVERS_TTL_MS / 1000)}`);
+    res.json(payload);
+};
 // Get price history for a specific card using card details
 router.get('/card', (req, res) => {
     const { cardName, setId, cardNumber, variant = 'normal' } = req.query;
@@ -275,6 +290,223 @@ router.get('/onepiece/:catalogId', async (req, res) => {
         logger_1.logger.error(`One Piece price history failed for ${catalogId}:`, error);
         res.status(500).json({ error: error.message });
     }
+});
+// Get top movers (cards with the biggest price changes over a period)
+router.get('/top-movers', (req, res) => {
+    const requestedDays = parseInt(req.query.days, 10) || 7;
+    const requestedLimit = parseInt(req.query.limit, 10) || 20;
+    const days = clampNumber(requestedDays, 1, 365);
+    const limit = Math.min(Math.max(requestedLimit, 1), 50);
+    const cacheKey = `${days}:${limit}`;
+    const cached = topMoversCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+        sendTopMovers(res, cacheKey, cached.payload, 'HIT');
+        return;
+    }
+    // Floor + min dollar move: ignore penny prints and tiny noise
+    const minPrice = 1;
+    const minAbsDollarChange = 1;
+    // Allow sparse history: find baseline on/before period start, within 2x the window
+    const baselineSlackDays = Math.max(days * 2, days + 3);
+    const candidatePool = 150;
+    const cliffPct = (0, topMoversQuality_1.cliffPctForPeriod)(days);
+    const minPoints = (0, topMoversQuality_1.minPointsForPeriod)(days);
+    const db = (0, database_1.getDb)();
+    const sources = `'tcgcsv', 'tcgdex', 'catalog_fallback'`;
+    db.get(`SELECT date as maxDate FROM price_history
+     WHERE source IN (${sources}) AND price > 0
+     ORDER BY date DESC LIMIT 1`, [], (err, row) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        const latestDate = row === null || row === void 0 ? void 0 : row.maxDate;
+        if (!latestDate) {
+            sendTopMovers(res, cacheKey, { date: null, days, gainers: [], losers: [] });
+            return;
+        }
+        // Query 1: all prices on the latest date with card details (+ source for same-source match)
+        db.all(`
+        SELECT ph.productId, ph.productName, ph.price, ph.uniqueIdentifier, ph.source,
+               ph.subTypeName, ph.groupName,
+               cc.imageSmall, cc.imageLarge, cc.cardId,
+               cc.setId, cc.setName, cc.cardNumber, cc.rarity,
+               cc.tcgplayerProductId, cc.tcgplayerPrices
+        FROM price_history ph
+        LEFT JOIN card_mappings cm ON cm.uniqueIdentifier = ph.uniqueIdentifier
+        LEFT JOIN catalog_cards cc ON cc.cardId = cm.cardId
+        WHERE ph.date = ?
+          AND ph.source IN (${sources})
+          AND ph.price >= ?
+      `, [latestDate, minPrice], (err, currentRows) => {
+            if (err) {
+                res.status(500).json({ error: err.message });
+                return;
+            }
+            if (currentRows.length === 0) {
+                sendTopMovers(res, cacheKey, { date: latestDate, days, gainers: [], losers: [] });
+                return;
+            }
+            // One current row per uniqueIdentifier (prefer tcgdex)
+            const currentByUid = new Map();
+            for (const r of currentRows) {
+                const list = currentByUid.get(r.uniqueIdentifier) || [];
+                list.push(r);
+                currentByUid.set(r.uniqueIdentifier, list);
+            }
+            const preferredCurrent = [];
+            for (const list of currentByUid.values()) {
+                const pick = (0, topMoversQuality_1.pickPreferredSourceRow)(list);
+                if (pick)
+                    preferredCurrent.push(pick);
+            }
+            // Query 2: baselines per (uniqueIdentifier, source) on/before period start
+            db.all(`
+          SELECT p.uniqueIdentifier, p.source, p.date as prevDate, p.price as prevPrice
+          FROM price_history p
+          JOIN (
+            SELECT uniqueIdentifier, source, MAX(date) as maxDate
+            FROM price_history
+            WHERE source IN (${sources})
+              AND price >= ?
+              AND date <= date(?, ?)
+              AND date >= date(?, ?)
+            GROUP BY uniqueIdentifier, source
+          ) m ON p.uniqueIdentifier = m.uniqueIdentifier
+            AND p.source = m.source
+            AND p.date = m.maxDate
+          WHERE p.price >= ?
+        `, [
+                minPrice,
+                latestDate, `-${days} days`,
+                latestDate, `-${baselineSlackDays} days`,
+                minPrice,
+            ], (err, prevRows) => {
+                var _a, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _q;
+                if (err) {
+                    res.status(500).json({ error: err.message });
+                    return;
+                }
+                // uid -> source -> { prevPrice, prevDate }
+                const prevByUidSource = new Map();
+                for (const prev of prevRows) {
+                    let bySource = prevByUidSource.get(prev.uniqueIdentifier);
+                    if (!bySource) {
+                        bySource = new Map();
+                        prevByUidSource.set(prev.uniqueIdentifier, bySource);
+                    }
+                    if (!bySource.has(prev.source)) {
+                        bySource.set(prev.source, { prevPrice: prev.prevPrice, prevDate: prev.prevDate });
+                    }
+                }
+                const entries = [];
+                for (const current of preferredCurrent) {
+                    const bySource = prevByUidSource.get(current.uniqueIdentifier);
+                    if (!bySource || bySource.size === 0)
+                        continue;
+                    // Prefer same source as current; else best available source
+                    let baseline = bySource.get(current.source);
+                    let baselineSource = current.source;
+                    if (!baseline) {
+                        const fallback = (0, topMoversQuality_1.pickPreferredSourceRow)([...bySource.entries()].map(([source, b]) => ({ source, ...b })));
+                        if (!fallback)
+                            continue;
+                        baseline = { prevPrice: fallback.prevPrice, prevDate: fallback.prevDate };
+                        baselineSource = fallback.source;
+                    }
+                    const prevPrice = baseline.prevPrice;
+                    if (!prevPrice || prevPrice < minPrice)
+                        continue;
+                    const absDollar = Math.abs(current.price - prevPrice);
+                    if (absDollar < minAbsDollarChange)
+                        continue;
+                    const changePct = ((current.price - prevPrice) / prevPrice) * 100;
+                    entries.push({
+                        productName: current.productName,
+                        currentPrice: current.price,
+                        previousPrice: prevPrice,
+                        changePercent: Math.round(changePct * 100) / 100,
+                        uniqueIdentifier: (_a = current.uniqueIdentifier) !== null && _a !== void 0 ? _a : null,
+                        source: current.source,
+                        baselineSource,
+                        prevDate: baseline.prevDate,
+                        subTypeName: (_c = current.subTypeName) !== null && _c !== void 0 ? _c : null,
+                        groupName: (_d = current.groupName) !== null && _d !== void 0 ? _d : null,
+                        imageSmall: (_e = current.imageSmall) !== null && _e !== void 0 ? _e : null,
+                        imageLarge: (_f = current.imageLarge) !== null && _f !== void 0 ? _f : null,
+                        cardId: (_g = current.cardId) !== null && _g !== void 0 ? _g : null,
+                        setId: (_h = current.setId) !== null && _h !== void 0 ? _h : null,
+                        setName: (_k = (_j = current.setName) !== null && _j !== void 0 ? _j : current.groupName) !== null && _k !== void 0 ? _k : null,
+                        cardNumber: (_l = current.cardNumber) !== null && _l !== void 0 ? _l : null,
+                        rarity: (_m = current.rarity) !== null && _m !== void 0 ? _m : null,
+                        tcgplayerProductId: (_o = current.tcgplayerProductId) !== null && _o !== void 0 ? _o : null,
+                        tcgplayerPrices: (_q = current.tcgplayerPrices) !== null && _q !== void 0 ? _q : null,
+                        productId: current.productId,
+                    });
+                }
+                entries.sort((a, b) => Math.abs(b.changePercent) - Math.abs(a.changePercent));
+                const gainerPool = entries.filter((e) => e.changePercent > 0).slice(0, candidatePool);
+                const loserPool = entries.filter((e) => e.changePercent < 0).slice(0, candidatePool);
+                const candidates = [...gainerPool, ...loserPool];
+                if (candidates.length === 0) {
+                    sendTopMovers(res, cacheKey, { date: latestDate, days, gainers: [], losers: [] });
+                    return;
+                }
+                const uids = [...new Set(candidates.map((c) => c.uniqueIdentifier).filter(Boolean))];
+                const earliestPrev = candidates.reduce((min, c) => (!min || c.prevDate < min ? c.prevDate : min), '');
+                const placeholders = uids.map(() => '?').join(',');
+                db.all(`SELECT uniqueIdentifier, source, date, price
+             FROM price_history
+             WHERE uniqueIdentifier IN (${placeholders})
+               AND source IN (${sources})
+               AND date >= ?
+               AND date <= ?
+               AND price >= ?`, [...uids, earliestPrev, latestDate, minPrice], (pathErr, pathRows) => {
+                    if (pathErr) {
+                        res.status(500).json({ error: pathErr.message });
+                        return;
+                    }
+                    // uid|source -> points
+                    const series = new Map();
+                    for (const pr of pathRows) {
+                        const key = `${pr.uniqueIdentifier}||${pr.source}`;
+                        const list = series.get(key) || [];
+                        list.push({ date: pr.date, price: pr.price });
+                        series.set(key, list);
+                    }
+                    const gradualOpts = { cliffPct, minPoints };
+                    const survivors = candidates.filter((c) => {
+                        const key = `${c.uniqueIdentifier}||${c.source}`;
+                        let points = series.get(key) || [];
+                        // If same-source path is thin, try baseline source path
+                        if (points.length < minPoints && c.baselineSource !== c.source) {
+                            points = series.get(`${c.uniqueIdentifier}||${c.baselineSource}`) || points;
+                        }
+                        // Restrict to [prevDate, latestDate]
+                        const windowed = points.filter((p) => p.date >= c.prevDate && p.date <= latestDate);
+                        return (0, topMoversQuality_1.isGradualMove)(windowed, gradualOpts);
+                    });
+                    survivors.sort((a, b) => b.changePercent - a.changePercent);
+                    const gainers = survivors.filter((e) => e.changePercent > 0).slice(0, limit);
+                    const losers = survivors
+                        .filter((e) => e.changePercent < 0)
+                        .sort((a, b) => a.changePercent - b.changePercent)
+                        .slice(0, limit);
+                    // Strip internal ranking fields from response
+                    const sanitize = (e) => {
+                        const { source: _s, baselineSource: _b, prevDate: _p, ...rest } = e;
+                        return rest;
+                    };
+                    sendTopMovers(res, cacheKey, {
+                        date: latestDate,
+                        days,
+                        gainers: gainers.map(sanitize),
+                        losers: losers.map(sanitize),
+                    });
+                });
+            });
+        });
+    });
 });
 // Get price history for a specific product
 router.get('/:productId', (req, res) => {

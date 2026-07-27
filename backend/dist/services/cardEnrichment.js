@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.enrichCardsWithInvestmentData = enrichCardsWithInvestmentData;
 const database_1 = require("../db/database");
 const logger_1 = require("../utils/logger");
+const resolveListingPrice_1 = require("../utils/resolveListingPrice");
 function mapCategoryToFlags(category) {
     switch (category) {
         case 'strong_buy':
@@ -81,30 +82,100 @@ function computeFairValue(prices) {
 }
 /**
  * Fetches card_mappings rows for the given card IDs, returning a map of cardId -> uniqueIdentifier.
+ * Prefers premium printings when a card has multiple variant mappings.
  */
 async function fetchCardMappings(cardIds) {
     const db = (0, database_1.getDb)();
     const map = new Map();
     if (cardIds.length === 0)
         return map;
-    // Query in batches to avoid SQLITE_MAX_VARIABLE_NUMBER
+    const variantRank = (variantKey) => {
+        const key = (variantKey || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (key.includes('1steditionholofoil'))
+            return 100;
+        if (key.includes('1stedition'))
+            return 90;
+        if (key === 'holofoil')
+            return 80;
+        if (key.includes('unlimitedholofoil'))
+            return 70;
+        if (key.includes('reverse'))
+            return 60;
+        if (key === 'normal' || key === 'unlimited')
+            return 40;
+        return 10;
+    };
     const BATCH_SIZE = 50;
     for (let i = 0; i < cardIds.length; i += BATCH_SIZE) {
         const batch = cardIds.slice(i, i + BATCH_SIZE);
         const placeholders = batch.map(() => '?').join(',');
         const rows = await new Promise((resolve, reject) => {
-            db.all(`SELECT cardId, uniqueIdentifier FROM card_mappings
-         WHERE cardId IN (${placeholders})
-         GROUP BY cardId`, batch, (err, rows) => {
+            db.all(`SELECT cardId, uniqueIdentifier, variantKey FROM card_mappings
+           WHERE cardId IN (${placeholders})`, batch, (err, rows) => {
+                if (err)
+                    return reject(err);
+                resolve(rows || []);
+            });
+        });
+        const best = new Map();
+        for (const row of rows) {
+            if (!row.cardId || !row.uniqueIdentifier)
+                continue;
+            const rank = variantRank(row.variantKey);
+            const existing = best.get(row.cardId);
+            if (!existing || rank > existing.rank) {
+                best.set(row.cardId, { uniqueIdentifier: row.uniqueIdentifier, rank });
+            }
+        }
+        for (const [cardId, entry] of best) {
+            map.set(cardId, entry.uniqueIdentifier);
+        }
+    }
+    return map;
+}
+/**
+ * Latest repaired snapshot price per cardId (across all variant mappings).
+ */
+async function fetchLatestSnapshots(cardIds) {
+    const db = (0, database_1.getDb)();
+    const map = new Map();
+    if (cardIds.length === 0)
+        return map;
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < cardIds.length; i += BATCH_SIZE) {
+        const batch = cardIds.slice(i, i + BATCH_SIZE);
+        const placeholders = batch.map(() => '?').join(',');
+        const rows = await new Promise((resolve, reject) => {
+            db.all(`SELECT cm.cardId, ph.marketPrice, ph.lowPrice, ph.highPrice, ph.date
+         FROM price_history ph
+         JOIN card_mappings cm ON cm.uniqueIdentifier = ph.uniqueIdentifier
+         WHERE cm.cardId IN (${placeholders})
+           AND ph.source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
+           AND ph.marketPrice IS NOT NULL
+           AND ph.marketPrice > 0
+           AND (cm.cardId, ph.date) IN (
+             SELECT cm2.cardId, MAX(ph2.date)
+             FROM price_history ph2
+             JOIN card_mappings cm2 ON cm2.uniqueIdentifier = ph2.uniqueIdentifier
+             WHERE cm2.cardId IN (${placeholders})
+               AND ph2.source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
+               AND ph2.marketPrice IS NOT NULL
+               AND ph2.marketPrice > 0
+             GROUP BY cm2.cardId
+           )`, [...batch, ...batch], (err, rows) => {
                 if (err)
                     return reject(err);
                 resolve(rows || []);
             });
         });
         for (const row of rows) {
-            if (row.cardId && row.uniqueIdentifier) {
-                map.set(row.cardId, row.uniqueIdentifier);
-            }
+            const resolved = (0, resolveListingPrice_1.resolveHistoryPointPrice)(row);
+            if (resolved <= 0)
+                continue;
+            const existing = map.get(row.cardId) || 0;
+            // Prefer the strongest coherent snap when multiple variants share the latest date.
+            if (resolved > existing)
+                map.set(row.cardId, resolved);
         }
     }
     return map;
@@ -142,7 +213,6 @@ async function fetchLatestPredictions(cardIds) {
  * Fetches price history for a batch of uniqueIdentifiers.
  */
 async function fetchPriceHistories(identifiers) {
-    var _a, _b;
     const db = (0, database_1.getDb)();
     const map = new Map();
     if (identifiers.length === 0)
@@ -152,7 +222,7 @@ async function fetchPriceHistories(identifiers) {
         const batch = identifiers.slice(i, i + BATCH_SIZE);
         const placeholders = batch.map(() => '?').join(',');
         const rows = await new Promise((resolve, reject) => {
-            db.all(`SELECT uniqueIdentifier, date, price, marketPrice
+            db.all(`SELECT uniqueIdentifier, date, price, marketPrice, lowPrice, highPrice
            FROM price_history
            WHERE uniqueIdentifier IN (${placeholders})
              AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
@@ -164,10 +234,11 @@ async function fetchPriceHistories(identifiers) {
         });
         for (const row of rows) {
             const existing = map.get(row.uniqueIdentifier) || [];
+            const repaired = (0, resolveListingPrice_1.resolveHistoryPointPrice)(row);
             existing.push({
                 date: row.date,
-                price: (_b = (_a = row.marketPrice) !== null && _a !== void 0 ? _a : row.price) !== null && _b !== void 0 ? _b : 0,
-                marketPrice: row.marketPrice,
+                price: repaired,
+                marketPrice: repaired,
             });
             map.set(row.uniqueIdentifier, existing);
         }
@@ -195,6 +266,7 @@ async function enrichCardsWithInvestmentData(cards) {
         // 3. Fetch price histories for cards that have mappings
         const uniqueIdentifiers = [...new Set(mappings.values())];
         const priceHistories = await fetchPriceHistories(uniqueIdentifiers);
+        const latestSnapshots = await fetchLatestSnapshots(cardIds);
         // 4. Enrich each card
         return cards.map(card => {
             const cardId = card.id || card.cardId;
@@ -203,6 +275,8 @@ async function enrichCardsWithInvestmentData(cards) {
             const prediction = predictions.get(cardId);
             const uniqueId = mappings.get(cardId);
             const priceHistory = uniqueId ? priceHistories.get(uniqueId) || [] : [];
+            const latestSnapshot = latestSnapshots.get(cardId) ||
+                (priceHistory.length > 0 ? priceHistory[priceHistory.length - 1].price : 0);
             // If no prediction and no price history, skip enrichment
             if (!prediction && priceHistory.length === 0)
                 return card;
@@ -217,7 +291,7 @@ async function enrichCardsWithInvestmentData(cards) {
             const investmentData = {
                 psaData: {
                     population: { grade10: 0, grade9: 0, grade8: 0, grade7: 0, total: 0 },
-                    prices: { grade10: 0, grade9: 0, grade8: 0, raw: (prediction === null || prediction === void 0 ? void 0 : prediction.current_price) || 0 },
+                    prices: { grade10: 0, grade9: 0, grade8: 0, raw: (prediction === null || prediction === void 0 ? void 0 : prediction.current_price) || latestSnapshot || 0 },
                     popReport: {
                         lowPop: false,
                         grade10Percentage: 0,
@@ -241,7 +315,11 @@ async function enrichCardsWithInvestmentData(cards) {
                 riskLevel: mapRiskScoreToLevel((prediction === null || prediction === void 0 ? void 0 : prediction.risk_score) || 50),
                 recommendation: mapSuggestedAction((prediction === null || prediction === void 0 ? void 0 : prediction.suggested_action) || 'WATCH'),
             };
-            return { ...card, investmentData };
+            // Force display price to the latest backend snapshot when we have one.
+            const withSnapshot = latestSnapshot > 0
+                ? { ...card, marketPrice: latestSnapshot, investmentData }
+                : { ...card, investmentData };
+            return withSnapshot;
         });
     }
     catch (error) {
