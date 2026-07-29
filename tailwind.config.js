@@ -4,6 +4,30 @@ export default {
   theme: {
     extend: {
       colors: {
+        background: 'var(--background)',
+        foreground: 'var(--foreground)',
+        card: {
+          DEFAULT: 'var(--card)',
+          foreground: 'var(--card-foreground)',
+        },
+        popover: {
+          DEFAULT: 'var(--popover)',
+          foreground: 'var(--popover-foreground)',
+        },
+        primary: {
+          DEFAULT: 'var(--primary)',
+          foreground: 'var(--primary-foreground)',
+        },
+        secondary: {
+          DEFAULT: 'var(--secondary)',
+          foreground: 'var(--secondary-foreground)',
+        },
+        muted: {
+          DEFAULT: 'var(--muted)',
+          foreground: 'var(--muted-foreground)',
+        },
+        destructive: 'var(--destructive)',
+        ring: 'var(--ring)',
         surface: {
           inset: 'var(--surface-inset)',
           base: 'var(--surface-base)',
@@ -24,10 +48,15 @@ export default {
           green: 'var(--neon-green)',
           cyan: 'var(--neon-cyan)',
         },
+        foil: {
+          DEFAULT: 'var(--foil)',
+          muted: 'var(--foil-muted)',
+        },
         accent: {
           DEFAULT: 'var(--accent)',
           hover: 'var(--accent-hover)',
           muted: 'var(--accent-muted)',
+          foreground: 'var(--accent-foreground)',
         },
         gain: {
           DEFAULT: 'var(--gain)',
@@ -50,33 +79,44 @@ export default {
       },
       borderColor: {
         DEFAULT: 'var(--border-default)',
+        border: 'var(--border)',
         subtle: 'var(--border-subtle)',
         strong: 'var(--border-strong)',
         neon: 'var(--border-neon)',
+        input: 'var(--input)',
+      },
+      outlineColor: {
+        ring: 'var(--ring)',
+      },
+      ringColor: {
+        DEFAULT: 'var(--ring)',
+        ring: 'var(--ring)',
       },
       boxShadow: {
         xs: '0 1px 2px 0 rgb(0 0 0 / 0.04)',
         sm: '0 1px 3px 0 rgb(0 0 0 / 0.08), 0 1px 2px -1px rgb(0 0 0 / 0.06)',
-        md: '0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.06)',
-        lg: '0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.06)',
+        md: '0 4px 6px -1px rgb(0 0 0 / 0.12), 0 2px 4px -2px rgb(0 0 0 / 0.08)',
+        lg: '0 10px 15px -3px rgb(0 0 0 / 0.16), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
         subtle: '0 1px 2px 0 rgb(0 0 0 / 0.04)',
-        card: '0 2px 8px rgb(0 0 0 / 0.08), 0 1px 2px rgb(0 0 0 / 0.06)',
-        elevated: '0 8px 24px rgb(0 0 0 / 0.14), 0 2px 8px rgb(0 0 0 / 0.08)',
-        'glow-gold': '0 0 20px var(--neon-gold), 0 0 40px color-mix(in srgb, var(--neon-gold) 40%, transparent)',
-        'glow-pink': '0 0 20px var(--neon-pink), 0 0 40px color-mix(in srgb, var(--neon-pink) 40%, transparent)',
-        'glow-green': '0 0 20px var(--neon-green), 0 0 40px color-mix(in srgb, var(--neon-green) 40%, transparent)',
-        'glow-amber': '0 0 20px var(--neon-amber), 0 0 40px color-mix(in srgb, var(--neon-amber) 40%, transparent)',
-        popover: '0 8px 30px rgb(0 0 0 / 0.12)',
+        card: '0 2px 8px rgb(0 0 0 / 0.2), 0 1px 2px rgb(0 0 0 / 0.12)',
+        elevated: '0 12px 32px rgb(0 0 0 / 0.28), 0 2px 8px rgb(0 0 0 / 0.12)',
+        'glow-gold': '0 8px 24px color-mix(in srgb, var(--accent) 22%, transparent)',
+        'glow-pink': '0 8px 24px color-mix(in srgb, var(--neon-pink) 18%, transparent)',
+        'glow-green': '0 8px 24px color-mix(in srgb, var(--neon-green) 18%, transparent)',
+        'glow-amber': '0 8px 24px color-mix(in srgb, var(--neon-amber) 18%, transparent)',
+        'glow-foil': '0 8px 28px color-mix(in srgb, var(--foil) 22%, transparent)',
+        'glow-accent': '0 8px 28px color-mix(in srgb, var(--accent) 24%, transparent)',
+        popover: '0 8px 30px rgb(0 0 0 / 0.28)',
       },
       fontFamily: {
-        sans: ['"Poppins"', 'system-ui', 'sans-serif'],
+        sans: ['"Jost"', 'system-ui', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
-        display: ['"Righteous"', '"Poppins"', 'system-ui', 'sans-serif'],
+        display: ['"Outfit"', '"Jost"', 'system-ui', 'sans-serif'],
       },
       fontSize: {
         display: [
           'clamp(2.5rem,8vw,5rem)',
-          { lineHeight: '1', letterSpacing: '-0.03em', fontWeight: '400' },
+          { lineHeight: '1.05', letterSpacing: '-0.03em', fontWeight: '600' },
         ],
         h1: ['clamp(1.75rem,4vw,2.75rem)', { lineHeight: '1.1', letterSpacing: '-0.02em', fontWeight: '600' }],
         h2: ['clamp(1.375rem,3vw,2rem)', { lineHeight: '1.15', letterSpacing: '-0.01em', fontWeight: '600' }],
@@ -88,16 +128,13 @@ export default {
         'slide-up': 'slideUp 0.25s ease-out',
         'scale-in': 'scaleIn 0.2s ease-out',
         shimmer: 'shimmer 1.6s infinite linear',
-        'glitch-1': 'glitch1 0.3s ease-in-out',
-        'glitch-2': 'glitch2 0.4s ease-in-out',
-        'neon-pulse': 'neonPulse 2s ease-in-out infinite',
-        'scanline': 'scanline 8s linear infinite',
-        'chroma-shift': 'chromaShift 3s ease-in-out infinite',
         'marquee': 'marquee 30s linear infinite',
         'float': 'float 6s ease-in-out infinite',
         'float-reverse': 'floatReverse 7s ease-in-out infinite',
-        'glow-pulse': 'glowPulse 2.5s ease-in-out infinite',
         'perspective-enter': 'perspectiveEnter 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+        'hero-float': 'heroFloat 5.5s ease-in-out infinite',
+        'hero-float-slow': 'heroFloat 7s ease-in-out infinite',
+        'hero-float-delay': 'heroFloat 6.2s ease-in-out 0.8s infinite',
       },
       keyframes: {
         fadeIn: {
@@ -120,33 +157,6 @@ export default {
           '0%': { backgroundPosition: '-1000px 0' },
           '100%': { backgroundPosition: '1000px 0' },
         },
-        glitch1: {
-          '0%, 100%': { transform: 'translate(0)' },
-          '20%': { transform: 'translate(-2px, 1px) skewX(-1deg)' },
-          '40%': { transform: 'translate(2px, -1px) skewX(1deg)' },
-          '60%': { transform: 'translate(-1px, 2px)' },
-          '80%': { transform: 'translate(1px, -1px) skewX(-0.5deg)' },
-        },
-        glitch2: {
-          '0%, 100%': { transform: 'translate(0)' },
-          '15%': { transform: 'translate(3px, -2px) skewX(2deg)' },
-          '30%': { transform: 'translate(-3px, 1px) skewX(-2deg)' },
-          '50%': { transform: 'translate(2px, 2px)' },
-          '70%': { transform: 'translate(-2px, -1px) skewX(1deg)' },
-          '90%': { transform: 'translate(1px, -2px) skewX(-1deg)' },
-        },
-        neonPulse: {
-          '0%, 100%': { opacity: '1', filter: 'brightness(1)' },
-          '50%': { opacity: '0.85', filter: 'brightness(1.3)' },
-        },
-        scanline: {
-          '0%': { transform: 'translateY(-100%)' },
-          '100%': { transform: 'translateY(100vh)' },
-        },
-        chromaShift: {
-          '0%, 100%': { backgroundPosition: '0% 50%' },
-          '50%': { backgroundPosition: '100% 50%' },
-        },
         marquee: {
           '0%': { transform: 'translateX(0)' },
           '100%': { transform: 'translateX(-50%)' },
@@ -159,13 +169,13 @@ export default {
           '0%, 100%': { transform: 'translateY(0)' },
           '50%': { transform: 'translateY(12px)' },
         },
-        glowPulse: {
-          '0%, 100%': { boxShadow: '0 0 8px var(--ring-accent), 0 0 20px var(--shadow-glow)' },
-          '50%': { boxShadow: '0 0 16px var(--ring-accent), 0 0 40px var(--shadow-glow)' },
-        },
         perspectiveEnter: {
           '0%': { opacity: '0', transform: 'perspective(1200px) rotateX(8deg) translateY(60px) scale(0.95)' },
           '100%': { opacity: '1', transform: 'perspective(1200px) rotateX(0) translateY(0) scale(1)' },
+        },
+        heroFloat: {
+          '0%, 100%': { transform: 'translateY(0px)' },
+          '50%': { transform: 'translateY(-10px)' },
         },
       },
     },
