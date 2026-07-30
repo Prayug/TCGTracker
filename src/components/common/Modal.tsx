@@ -1,8 +1,13 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import FocusTrap from 'focus-trap-react';
 import { X } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useIsMobileViewport, usePrefersReducedMotion } from '../../hooks/useMotionPreferences';
+import { ModalCardScene } from '../three/ModalCardScene';
+
+export type ModalVariant = 'inspect' | 'stage' | 'slab' | 'dive' | 'reveal' | 'confirm' | 'default';
 
 interface ModalProps {
   isOpen: boolean;
@@ -12,6 +17,12 @@ interface ModalProps {
   /** Sticky action bar pinned below the body. */
   footer?: React.ReactNode;
   hideClose?: boolean;
+  /** Chromatic Vault 3D entrance personality */
+  variant?: ModalVariant;
+  /** Optional card art for inspect CSS-3D scene */
+  sceneImageUrl?: string;
+  /** Extra class on the dialog panel */
+  className?: string;
 }
 
 const sizeClasses: Record<NonNullable<ModalProps['size']>, string> = {
@@ -19,8 +30,51 @@ const sizeClasses: Record<NonNullable<ModalProps['size']>, string> = {
   medium: 'w-full max-w-[min(32rem,calc(100vw-1.5rem))]',
   large: 'w-full max-w-[min(42rem,calc(100vw-2rem))]',
   detail: 'w-full max-w-[min(48rem,calc(100vw-2rem))]',
-  /** Near-fullscreen stage for pack opening — dominates the page. */
   pack: 'w-[min(64rem,calc(100vw-1.5rem))] h-[min(52rem,calc(100dvh-1.5rem))] sm:h-[min(56rem,calc(100dvh-2rem))]',
+};
+
+const VARIANT_PANEL: Record<ModalVariant, Variants> = {
+  default: {
+    hidden: { opacity: 0, scale: 0.97 },
+    visible: { opacity: 1, scale: 1 },
+    exit: { opacity: 0, scale: 0.98 },
+  },
+  inspect: {
+    hidden: { opacity: 0, rotateY: -28, scale: 0.88, z: -80 },
+    visible: { opacity: 1, rotateY: 0, scale: 1, z: 0 },
+    exit: { opacity: 0, rotateY: 18, scale: 0.94 },
+  },
+  stage: {
+    hidden: { opacity: 0, scale: 0.92, y: 40 },
+    visible: { opacity: 1, scale: 1, y: 0 },
+    exit: { opacity: 0, scale: 0.96, y: 24 },
+  },
+  slab: {
+    hidden: { opacity: 0, scale: 1.08, rotateX: 18, y: -30 },
+    visible: { opacity: 1, scale: 1, rotateX: 0, y: 0 },
+    exit: { opacity: 0, scale: 0.96, rotateX: -8 },
+  },
+  dive: {
+    hidden: { opacity: 0, y: 80, rotateX: 22, scale: 0.94 },
+    visible: { opacity: 1, y: 0, rotateX: 0, scale: 1 },
+    exit: { opacity: 0, y: 40, rotateX: 10 },
+  },
+  reveal: {
+    hidden: { opacity: 0, scale: 0.6, filter: 'blur(12px)' },
+    visible: { opacity: 1, scale: 1, filter: 'blur(0px)' },
+    exit: { opacity: 0, scale: 1.04, filter: 'blur(8px)' },
+  },
+  confirm: {
+    hidden: { opacity: 0, scale: 0.85, rotateZ: -3 },
+    visible: { opacity: 1, scale: 1, rotateZ: 0 },
+    exit: { opacity: 0, scale: 0.9, rotateZ: 2 },
+  },
+};
+
+const REDUCED: Variants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1 },
+  exit: { opacity: 0 },
 };
 
 export const Modal: React.FC<ModalProps> = ({
@@ -30,9 +84,23 @@ export const Modal: React.FC<ModalProps> = ({
   size = 'medium',
   footer,
   hideClose = false,
+  variant = 'default',
+  sceneImageUrl,
+  className,
 }) => {
   const previousActiveElement = useRef<Element | null>(null);
-  const isPack = size === 'pack';
+  const isPack = size === 'pack' || variant === 'stage';
+  const reducedMotion = usePrefersReducedMotion();
+  const isMobile = useIsMobileViewport();
+  const showScene =
+    !reducedMotion && (variant === 'inspect' || variant === 'reveal') && isOpen;
+  const showFoil =
+    !reducedMotion && !isMobile && (variant === 'dive' || variant === 'reveal') && isOpen;
+
+  const panelVariants = useMemo(() => {
+    if (reducedMotion) return REDUCED;
+    return VARIANT_PANEL[variant] ?? VARIANT_PANEL.default;
+  }, [reducedMotion, variant]);
 
   useEffect(() => {
     if (isOpen) {
@@ -50,11 +118,9 @@ export const Modal: React.FC<ModalProps> = ({
 
   useEffect(() => {
     if (!isOpen) return;
-
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
-
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose]);
@@ -67,11 +133,18 @@ export const Modal: React.FC<ModalProps> = ({
   );
 
   const maxHeight =
-    size === 'pack'
+    isPack
       ? undefined
       : size === 'detail'
         ? 'max-h-[min(calc(100dvh-1.5rem),52rem)]'
         : 'max-h-[min(calc(100dvh-1rem),40rem)]';
+
+  const borderAccent =
+    variant === 'confirm'
+      ? 'border-loss/40'
+      : variant === 'dive' || variant === 'reveal'
+        ? 'border-foil/30'
+        : 'border-border-strong';
 
   const modal = (
     <AnimatePresence>
@@ -81,17 +154,41 @@ export const Modal: React.FC<ModalProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.18 }}
-            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-2 sm:p-4"
+            transition={{ duration: reducedMotion ? 0.12 : 0.2 }}
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-2 backdrop-blur-sm sm:p-4"
+            style={{ perspective: 1400 }}
             onClick={handleBackdropClick}
             role="presentation"
           >
+            {showFoil ? (
+              <div
+                className="pointer-events-none absolute inset-0 -z-10 opacity-60"
+                style={{
+                  background:
+                    'radial-gradient(ellipse at 30% 20%, rgba(110,231,183,0.18), transparent 45%), radial-gradient(ellipse at 80% 70%, rgba(91,196,212,0.16), transparent 40%)',
+                }}
+                aria-hidden
+              />
+            ) : null}
+
             <motion.div
-              initial={{ opacity: 0, scale: 0.97 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-              className={`relative flex flex-col overflow-hidden rounded-2xl border border-border-strong bg-surface-overlay shadow-2xl ${sizeClasses[size]} ${maxHeight ?? ''}`}
+              variants={panelVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              transition={
+                reducedMotion
+                  ? { duration: 0.15 }
+                  : { type: 'spring', stiffness: 420, damping: 34 }
+              }
+              style={{ transformStyle: 'preserve-3d' }}
+              className={cn(
+                'relative flex flex-col overflow-hidden rounded-2xl border bg-surface-overlay shadow-2xl',
+                borderAccent,
+                sizeClasses[size],
+                maxHeight,
+                className
+              )}
               role="dialog"
               aria-modal="true"
               onClick={(e) => e.stopPropagation()}
@@ -100,23 +197,36 @@ export const Modal: React.FC<ModalProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="absolute right-3 top-3 z-20 rounded-lg border border-border-default bg-surface-overlay/95 p-2 text-ink-secondary shadow-sm backdrop-blur transition-colors hover:bg-surface-hover hover:text-ink-primary"
+                  className="absolute right-3 top-3 z-20 cursor-pointer rounded-lg border border-border-default bg-surface-overlay/95 p-2 text-ink-secondary shadow-sm backdrop-blur transition-colors hover:bg-surface-hover hover:text-ink-primary"
                   aria-label="Close modal"
                 >
                   <X className="h-5 w-5" aria-hidden="true" />
                 </button>
               )}
 
+              {showScene ? (
+                <div className="border-b border-border-subtle bg-surface-inset/80">
+                  <ModalCardScene imageUrl={sceneImageUrl} />
+                </div>
+              ) : null}
+
+              {variant === 'reveal' && !reducedMotion ? (
+                <div
+                  className="pointer-events-none absolute inset-x-0 top-0 z-10 h-1 bg-gradient-to-r from-accent via-foil to-accent"
+                  aria-hidden
+                />
+              ) : null}
+
               <div
-                className={`custom-scrollbar min-h-0 flex-1 overflow-x-hidden px-4 pt-12 sm:px-8 sm:pt-14 ${
+                className={cn(
+                  'custom-scrollbar min-h-0 flex-1 overflow-x-hidden px-4 pt-12 sm:px-8 sm:pt-14',
                   isPack
                     ? 'flex flex-col overflow-y-hidden'
-                    : 'overflow-y-auto overscroll-contain pb-4 sm:pb-5'
-                }`}
+                    : 'overflow-y-auto overscroll-contain pb-4 sm:pb-5',
+                  showScene && 'pt-4 sm:pt-5'
+                )}
               >
-                <div className="min-h-0 flex-1">
-            {children}
-          </div>
+                <div className="min-h-0 flex-1">{children}</div>
               </div>
 
               {footer ? (
