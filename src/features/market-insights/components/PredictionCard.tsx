@@ -20,6 +20,7 @@ interface Props {
   prediction: CardPrediction;
   card?: PokemonCard;
   window?: PredictionWindow;
+  onViewDetail?: (prediction: CardPrediction) => void;
 }
 
 function parseSignalCount(externalSignals: string): number {
@@ -32,7 +33,7 @@ function parseSignalCount(externalSignals: string): number {
   }
 }
 
-export function PredictionCard({ prediction, card, window: predictionWindow = '90d' }: Props) {
+export function PredictionCard({ prediction, card, window: predictionWindow = '90d', onViewDetail }: Props) {
   const { openCard } = useCardModal();
   const [showSignals, setShowSignals] = useState(false);
   const [showExplanation, setShowExplanation] = useState(false);
@@ -131,7 +132,16 @@ export function PredictionCard({ prediction, card, window: predictionWindow = '9
         </div>
       )}
 
-      <div className="pointer-events-none absolute bottom-2 right-2 z-30">
+      <div className="pointer-events-none absolute bottom-2 right-2 z-30 flex gap-1">
+        {onViewDetail && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onViewDetail(prediction); }}
+            title="View detailed prediction"
+            className="pointer-events-auto inline-flex items-center gap-1 rounded-full border border-indigo-500/40 bg-black/75 px-2 py-0.5 text-[10px] font-medium text-indigo-300 shadow-sm transition-colors hover:bg-black/90"
+          >
+            Details
+          </button>
+        )}
         <button
           onClick={handleExplain}
           title="AI-generated market analysis for this card"

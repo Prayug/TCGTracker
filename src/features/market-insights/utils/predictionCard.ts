@@ -25,13 +25,18 @@ export function buildPokemonCardFromPrediction(
     | 'imageSmall'
     | 'imageLarge'
     | 'tcgplayerProductId'
+    | 'uniqueIdentifier'
+    | 'variantKey'
   >
 ): PokemonCard {
   const productId = productIdFromCardId(source.cardId, source.tcgplayerProductId);
   const cardNumber = cleanCardNumber(source.cardNumber) || productId || '';
+  const variantKey = source.variantKey || undefined;
   return {
     id: source.cardId,
     name: source.cardName,
+    uniqueIdentifier: source.uniqueIdentifier,
+    preferredVariant: variantKey,
     images: {
       small: source.imageSmall || '',
       large: source.imageLarge || source.imageSmall || '',
@@ -45,7 +50,18 @@ export function buildPokemonCardFromPrediction(
     number: cardNumber,
     rarity: source.rarity || undefined,
     marketPrice: source.currentPrice,
-    tcgplayer: productId ? { productId } : undefined,
+    tcgplayer: productId
+      ? {
+          productId,
+          // Seed the predicted finish so InvestmentModal doesn't fall back to
+          // a sparse "Normal" option when tcgplayer.prices is otherwise empty.
+          prices: variantKey
+            ? { [variantKey]: { market: source.currentPrice } }
+            : undefined,
+        }
+      : variantKey
+        ? { prices: { [variantKey]: { market: source.currentPrice } } }
+        : undefined,
   };
 }
 
@@ -63,6 +79,8 @@ export function resolvePredictionCard(
     | 'imageSmall'
     | 'imageLarge'
     | 'tcgplayerProductId'
+    | 'uniqueIdentifier'
+    | 'variantKey'
   >
 ): PokemonCard {
   return buildPokemonCardFromPrediction(source);
@@ -80,6 +98,8 @@ export function predictionFromDetail(detail: CardPredictionDetail['prediction'])
     imageSmall: detail.imageSmall,
     imageLarge: detail.imageLarge,
     tcgplayerProductId: detail.tcgplayerProductId,
+    uniqueIdentifier: detail.uniqueIdentifier,
+    variantKey: detail.variantKey,
     currentPrice: detail.currentPrice,
     predicted7dLow: detail.predicted7d.low,
     predicted7dMid: detail.predicted7d.mid,
