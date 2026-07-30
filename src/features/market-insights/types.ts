@@ -28,8 +28,8 @@ export const CATEGORY_COLORS: Record<PredictionCategory, string> = {
 };
 
 export const PREDICTION_THRESHOLDS = {
-  GAINERS_MIN_RETURN: 0.05,
-  DOWNTREND_MAX_RETURN: -0.05,
+  GAINERS_MIN_RETURN: 0.03,
+  DOWNTREND_MAX_RETURN: -0.03,
 } as const;
 
 export type PredictionWindow = '7d' | '30d' | '90d' | '180d' | '365d';
@@ -114,6 +114,10 @@ export interface CardPrediction {
   imageSmall?: string;
   imageLarge?: string;
   tcgplayerProductId?: string;
+  /** Mapping UID that was scored (finish-aware). */
+  uniqueIdentifier?: string;
+  /** Finish key for price history (e.g. holofoil). */
+  variantKey?: string;
   currentPrice: number;
   predicted7dLow: number;
   predicted7dMid: number;
@@ -149,25 +153,36 @@ export interface CardPrediction {
   gradingScore?: number;
   /** Estimated grading premium uplift vs raw (0–1+). */
   gradingPremiumPotential?: number;
+  /** Raw composite signal (~[-1, 1]) used for calibration. */
+  signalScore?: number;
 }
 
 export interface BacktestResult {
   id: number;
-  backtest_date: string;
-  window_days: number;
-  cards_tested: number;
-  directional_accuracy: number | null;
+  backtestDate: string;
+  windowDays: number;
+  cardsTested: number;
+  directionalAccuracy: number | null;
   mape: number | null;
-  top10_avg_return: number | null;
-  market_avg_return: number | null;
-  strong_buy_false_positive_rate: number | null;
-  avoid_avg_return: number | null;
-  sharpe_ratio: number | null;
-  max_drawdown: number | null;
-  win_rate: number | null;
-  profit_factor: number | null;
-  category_performance: CategoryPerformance[];
-  created_at: string;
+  top10AvgReturn: number | null;
+  marketAvgReturn: number | null;
+  strongBuyFalsePositiveRate: number | null;
+  avoidAvgReturn: number | null;
+  sharpeRatio: number | null;
+  maxDrawdown: number | null;
+  winRate: number | null;
+  profitFactor: number | null;
+  categoryPerformance: CategoryPerformance[];
+  /** Spearman rank correlation between predicted and actual returns. */
+  rankIC: number | null;
+  /** Median signed bias (predicted - actual); positive = overprediction. */
+  meanBias: number | null;
+  /** Skill-relative hit rate (direction correct + error < 0.5x actual move). */
+  hitRate: number | null;
+  /** Average realized return of every tested card (buy-and-hold baseline). */
+  baselineAvgReturn: number | null;
+  /** top10AvgReturn - baselineAvgReturn. */
+  modelAlpha: number | null;
 }
 
 export interface CategoryPerformance {
@@ -187,6 +202,19 @@ export interface CategoryAccuracy {
   avgError: number | null;
 }
 
+export interface WindowAccuracy {
+  pending: number;
+  hit: number;
+  missed: number;
+  accuracy: number | null;
+  /** Spearman rank correlation between predicted and actual returns. */
+  rankIC: number | null;
+  /** Median signed bias (predicted - actual); positive = overprediction. */
+  meanBias: number | null;
+  /** Skill-relative hit rate (direction correct + error < 0.5x actual move). */
+  hitRate: number | null;
+}
+
 export interface ForwardTestStatus {
   totalPredictions: number;
   pending: number;
@@ -194,12 +222,15 @@ export interface ForwardTestStatus {
   missed: number;
   partiallyCorrect: number;
   overallAccuracy: number | null;
+  latestRunId?: number | null;
+  latestRunDate?: string | null;
+  matureEnoughFor7d?: number;
   byWindow: {
-    _7d: { pending: number; hit: number; missed: number; accuracy: number | null };
-    _30d: { pending: number; hit: number; missed: number; accuracy: number | null };
-    _90d: { pending: number; hit: number; missed: number; accuracy: number | null };
-    _180d?: { pending: number; hit: number; missed: number; accuracy: number | null };
-    _365d?: { pending: number; hit: number; missed: number; accuracy: number | null };
+    _7d: WindowAccuracy;
+    _30d: WindowAccuracy;
+    _90d: WindowAccuracy;
+    _180d?: WindowAccuracy;
+    _365d?: WindowAccuracy;
   };
   byCategory: CategoryAccuracy[];
   byPriceRange: {
@@ -221,6 +252,8 @@ export interface CardPredictionDetail {
     imageSmall?: string;
     imageLarge?: string;
     tcgplayerProductId?: string;
+    uniqueIdentifier?: string;
+    variantKey?: string;
     currentPrice: number;
     predicted7d: PriceRange;
     predicted30d: PriceRange;
@@ -260,4 +293,46 @@ export interface ExternalSignal {
   type: string;
   createdAt?: string;
   expiresAt?: string | null;
+}
+
+export interface MarketOverview {
+  totalPredictions: number;
+  avgConfidence: number;
+  avgRisk: number;
+  avgExpectedReturn90d: number;
+  avgExpectedReturn30d?: number;
+  marketDirection: 'bullish' | 'bearish' | 'neutral';
+  categoryBreakdown: Record<string, number>;
+  topGainers: TopMover[];
+  topLosers: TopMover[];
+  confidenceBuckets: { bucket: string; count: number }[];
+  /** Realized market median return (from calibration). */
+  marketBenchmark90d?: number | null;
+  marketBenchmark30d?: number | null;
+}
+
+export interface TopMover {
+  cardId: string;
+  cardName: string;
+  currentPrice: number;
+  expectedReturn: number;
+  confidence: number;
+  category: string;
+}
+
+export interface PredictionsResponse {
+  data: CardPrediction[];
+  count: number;
+  window: string;
+  modelVersion: string;
+}
+
+export interface OverviewResponse extends MarketOverview {}
+
+export type SortField = 'return' | 'confidence' | 'price' | 'name' | 'risk';
+export type SortDirection = 'asc' | 'desc';
+
+export interface InsightsTabType {
+  id: 'overview' | 'cards' | 'backtest' | 'forward';
+  label: string;
 }
