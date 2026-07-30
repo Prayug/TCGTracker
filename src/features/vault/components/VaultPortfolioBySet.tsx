@@ -1,9 +1,8 @@
 import React, { useMemo } from 'react';
 import { Layers, ChevronRight } from 'lucide-react';
 import { VaultCard } from '../../../types/pokemon';
-import { pokemonApi } from '../../../services/pokemonApi';
 import { formatCurrency, formatPercent } from '../../../utils/cardDisplay';
-import { SectionLabel } from '../../../components/common/SectionLabel';
+import { effectiveCostBasis, holdingMarketValue } from '../../../utils/vaultCost';
 
 export interface SetPortfolioRow {
   setId: string;
@@ -37,9 +36,8 @@ export function buildSetPortfolioRows(vaultCards: VaultCard[]): SetPortfolioRow[
 
     const row = bySet.get(key)!;
     const qty = entry.quantity;
-    const purchase = entry.purchasePrice * qty;
-    const market =
-      (entry.card.marketPrice ?? pokemonApi.extractCardPrice(entry.card)) * qty;
+    const purchase = effectiveCostBasis(entry);
+    const market = holdingMarketValue(entry);
 
     row.cardCount += qty;
     row.purchaseValue += purchase;
@@ -69,31 +67,28 @@ export const VaultPortfolioBySet: React.FC<VaultPortfolioBySetProps> = ({
   if (rows.length === 0) return null;
 
   return (
-    <section className="space-y-4">
-      <div>
-        <SectionLabel className="text-accent/90">By set</SectionLabel>
-        <h3 className="mt-1 text-lg font-semibold text-ink-primary">Portfolio breakdown</h3>
-        <p className="text-sm text-ink-muted">Value and performance grouped by expansion</p>
-      </div>
-
-      <div className="overflow-hidden rounded-xl border border-border-default bg-surface-raised shadow-sm">
-        <table className="w-full text-left text-sm">
+    <section>
+      <div className="overflow-x-auto overflow-hidden rounded-xl border border-border-default bg-surface-raised">
+        <table className="w-full min-w-[32rem] text-left text-sm">
           <thead>
-            <tr className="border-b border-border-subtle bg-surface-inset text-xs font-semibold uppercase tracking-wide text-ink-muted">
-              <th className="px-4 py-3">Set</th>
-              <th className="px-4 py-3 text-right">Cards</th>
-              <th className="px-4 py-3 text-right">Invested</th>
-              <th className="px-4 py-3 text-right">Market</th>
-              <th className="px-4 py-3 text-right">P/L</th>
-              {onOpenSet && <th className="px-4 py-3 w-10" />}
+            <tr className="border-b border-border-subtle text-xs font-medium uppercase tracking-[0.12em] text-ink-muted">
+              <th className="px-4 py-3 font-medium">Set</th>
+              <th className="px-4 py-3 text-right font-medium">Cards</th>
+              <th className="px-4 py-3 text-right font-medium">Invested</th>
+              <th className="px-4 py-3 text-right font-medium">Market</th>
+              <th className="px-4 py-3 text-right font-medium">P/L</th>
+              {onOpenSet ? <th className="w-10 px-4 py-3" /> : null}
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.setId} className="border-b border-border-subtle last:border-0 hover:bg-surface-hover">
+              <tr
+                key={row.setId}
+                className="border-b border-border-subtle last:border-0 hover:bg-surface-hover/60"
+              >
                 <td className="px-4 py-3 font-medium text-ink-primary">
                   <span className="inline-flex items-center gap-2">
-                    <Layers className="h-4 w-4 text-accent" />
+                    <Layers className="h-3.5 w-3.5 shrink-0 text-ink-muted" />
                     {row.setName}
                   </span>
                 </td>
@@ -110,22 +105,22 @@ export const VaultPortfolioBySet: React.FC<VaultPortfolioBySetProps> = ({
                   }`}
                 >
                   {formatCurrency(row.profit, { signed: true })}
-                  <span className="ml-1 text-xs text-ink-muted">
+                  <span className="ml-1 text-xs font-normal text-ink-muted">
                     ({formatPercent(row.profitPct, { signed: true })})
                   </span>
                 </td>
-                {onOpenSet && (
+                {onOpenSet ? (
                   <td className="px-4 py-3">
                     <button
                       type="button"
                       onClick={() => onOpenSet(row.setId)}
-                      className="rounded-lg p-1.5 text-ink-muted hover:bg-accent-muted hover:text-accent"
+                      className="cursor-pointer rounded-lg p-1.5 text-ink-muted hover:bg-accent-muted hover:text-accent"
                       aria-label={`Open set tracker for ${row.setName}`}
                     >
                       <ChevronRight className="h-4 w-4" />
                     </button>
                   </td>
-                )}
+                ) : null}
               </tr>
             ))}
           </tbody>
