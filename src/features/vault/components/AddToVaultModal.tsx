@@ -39,11 +39,8 @@ export const AddToVaultModal: React.FC<AddToVaultModalProps> = ({
   const handleSubmit = () => {
     if (!card) return;
 
-    const price = parseFloat(purchasePrice);
-    if (isNaN(price) || price < 0) {
-      showToast('Please enter a valid purchase price', 'error');
-      return;
-    }
+    const raw = purchasePrice.trim() === '' ? NaN : parseFloat(purchasePrice);
+    const price = Number.isFinite(raw) && raw >= 0 ? raw : 0;
 
     if (quantity < 1) {
       showToast('Quantity must be at least 1', 'error');
@@ -83,10 +80,15 @@ export const AddToVaultModal: React.FC<AddToVaultModalProps> = ({
 
   if (!card) return null;
 
-  const totalCost = parseFloat(purchasePrice) * quantity;
+  const marketFallback = card.marketPrice || pokemonApi.extractCardPrice(card);
+  const parsedPrice = purchasePrice.trim() === '' ? NaN : parseFloat(purchasePrice);
+  const effectiveUnit =
+    Number.isFinite(parsedPrice) && parsedPrice > 0 ? parsedPrice : marketFallback;
+  const totalCost = effectiveUnit * quantity;
+  const usingMarketDefault = !(Number.isFinite(parsedPrice) && parsedPrice > 0);
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose}>
+    <Modal isOpen={isOpen} onClose={handleClose} variant="slab" size="medium">
       <div className="max-w-2xl mx-auto">
         <div className="flex items-center gap-3 mb-6">
           <div className="p-3 bg-gradient-to-br from-purple-600 to-blue-600 rounded-xl shadow-lg">
@@ -138,10 +140,10 @@ export const AddToVaultModal: React.FC<AddToVaultModalProps> = ({
                   value={purchasePrice}
                   onChange={(e) => setPurchasePrice(e.target.value)}
                   className="w-full pl-8 pr-4 py-3 border-2 border-border-default rounded-xl bg-surface-inset text-ink-primary focus:ring-2 focus:ring-accent focus:border-accent transition-colors font-medium"
-                  placeholder="0.00"
-                  required
+                  placeholder={marketFallback > 0 ? marketFallback.toFixed(2) : '0.00'}
                 />
               </div>
+              <p className="mt-1.5 text-xs text-ink-muted">Defaults to market if left blank</p>
             </div>
 
             <div>
@@ -195,16 +197,19 @@ export const AddToVaultModal: React.FC<AddToVaultModalProps> = ({
             />
           </div>
 
-          {!isNaN(totalCost) && totalCost > 0 && (
+          {totalCost > 0 && (
             <div className="bg-accent-muted border-2 border-accent/20 rounded-xl p-4">
               <div className="flex justify-between items-center">
-                <span className="text-sm font-semibold text-ink-primary">Total Cost</span>
-                <span className="text-2xl font-bold text-accent">
+                <span className="text-sm font-semibold text-ink-primary">
+                  {usingMarketDefault ? 'Cost at market' : 'Total Cost'}
+                </span>
+                <span className="text-2xl font-bold tabular-nums text-accent">
                   ${totalCost.toFixed(2)}
                 </span>
               </div>
               <p className="text-xs text-ink-muted mt-1">
-                {quantity}x cards @ ${parseFloat(purchasePrice).toFixed(2)} each
+                {quantity}x cards @ ${effectiveUnit.toFixed(2)} each
+                {usingMarketDefault ? ' (market default)' : ''}
               </p>
             </div>
           )}
@@ -221,7 +226,7 @@ export const AddToVaultModal: React.FC<AddToVaultModalProps> = ({
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={isSubmitting || !purchasePrice}
+              disabled={isSubmitting}
               className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-xl transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? 'Adding...' : 'Add to Vault'}
