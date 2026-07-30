@@ -4,6 +4,7 @@ import { Moon, Search, Sun } from 'lucide-react';
 import { UserMenu } from './UserMenu';
 import { openCommandPalette } from '../common/CommandPalette';
 import { useTheme } from '../../hooks/useTheme';
+import { cn } from '@/lib/utils';
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -20,25 +21,24 @@ export const Header: React.FC = () => {
 
   return (
     <header
-      className={`sticky top-0 z-40 border-b-2 transition-shadow duration-300 ${
-        scrolled ? 'border-accent/30 shadow-[0_4px_20px_var(--ring-accent)]' : 'border-border-subtle'
-      } bg-surface-base`}
-    >
-      {scrolled && (
-        <div
-          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/60 to-transparent"
-          aria-hidden="true"
-        />
+      className={cn(
+        'sticky top-0 z-40 border-b transition-all duration-300',
+        scrolled
+          ? 'border-border-subtle bg-surface-base/70 shadow-sm backdrop-blur-2xl'
+          : 'border-transparent bg-transparent'
       )}
+    >
       <div className="flex h-14 items-center justify-between gap-4 px-4 sm:px-6">
         <Link
           to="/"
           className="flex shrink-0 items-center gap-2 transition-opacity duration-200 md:hidden"
         >
-          <div className="flex h-8 w-8 items-center justify-center border border-accent bg-surface-base shadow-[0_0_12px_var(--ring-accent)]">
-            <span className="font-display text-sm tracking-tight text-accent">T</span>
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-accent/35 bg-accent/15 text-accent">
+            <span className="font-display text-sm font-bold tracking-tight">T</span>
           </div>
-          <span className="font-display text-base tracking-tight text-ink-primary">TCGTracker</span>
+          <span className="font-display text-base font-semibold tracking-tight text-ink-primary">
+            TCGTracker
+          </span>
         </Link>
 
         <div className="hidden flex-1 md:block" />
@@ -47,12 +47,12 @@ export const Header: React.FC = () => {
           <button
             type="button"
             onClick={openCommandPalette}
-            className="hidden h-10 w-64 items-center gap-2 border border-border-default bg-surface-inset px-3 text-sm text-ink-muted transition-all duration-200 hover:border-accent hover:text-ink-secondary focus-visible:border-accent lg:flex"
+            className="glass hidden h-10 w-72 cursor-pointer items-center gap-2 rounded-full border border-border-default px-4 text-sm text-ink-muted transition-all duration-200 hover:border-foil/40 hover:text-ink-secondary focus-visible:border-accent lg:flex"
             aria-label="Open command palette"
           >
-            <Search className="h-3.5 w-3.5" />
-            <span className="flex-1 text-left font-semibold">Search cards…</span>
-            <kbd className="border border-border-subtle bg-surface-raised px-1.5 py-0.5 font-mono text-[10px] font-bold text-accent">
+            <Search className="h-3.5 w-3.5 text-foil" />
+            <span className="flex-1 text-left">Search cards…</span>
+            <kbd className="rounded-md border border-border-subtle bg-surface-raised/80 px-1.5 py-0.5 font-mono text-[10px] text-ink-muted">
               {isMac ? '⌘K' : 'Ctrl K'}
             </kbd>
           </button>

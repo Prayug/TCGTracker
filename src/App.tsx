@@ -1,19 +1,19 @@
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, type ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { AnimatePresence, motion, MotionConfig } from 'framer-motion';
-import { HeroSection } from './components/common/HeroSection';
+import { AnimatePresence, motion, MotionConfig } from 'motion/react';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { Header } from './components/layout/Header';
 import { Sidebar } from './components/layout/Sidebar';
 import { Footer } from './components/layout/Footer';
 import { BottomTabBar } from './components/layout/BottomTabBar';
+import { PageShell } from './components/layout/PageShell';
 import { CommandPalette } from './components/common/CommandPalette';
 import { OnboardingChecklist } from './components/common/OnboardingChecklist';
 import { CardModalProvider } from './contexts/CardModalContext';
 import { GameProvider } from './contexts/GameContext';
 import { BrowsePage } from './pages/BrowsePage';
+import { LandingPage } from './pages/LandingPage';
 import { LoadingSpinner } from './components/common/LoadingSpinner';
-import { VIEW_PATHS, browseSearchPath } from './utils/routes';
 
 const PriceTrackingDashboard = lazy(() =>
   import('./features/market/components/PriceTrackingDashboard').then((m) => ({
@@ -21,8 +21,8 @@ const PriceTrackingDashboard = lazy(() =>
   }))
 );
 const MarketInsightsDashboard = lazy(() =>
-  import('./features/market-insights/components/MarketInsightsDashboard').then((m) => ({
-    default: m.MarketInsightsDashboard,
+  import('./features/market-insights/components/MarketInsightsPage').then((m) => ({
+    default: m.MarketInsightsPage,
   }))
 );
 const VaultView = lazy(() =>
@@ -59,45 +59,51 @@ function RouteFallback() {
 }
 
 function HomePage() {
-  const navigate = useNavigate();
-  return (
-    <HeroSection
-      onStartSearch={(query) => navigate(browseSearchPath(query))}
-      onViewChange={(view) => navigate(VIEW_PATHS[view])}
-    />
-  );
+  return <LandingPage />;
 }
 
 function SetsPage() {
   const { setId } = useParams();
   const navigate = useNavigate();
   return (
-    <div className="animate-fade-in">
+    <PageShell wide>
       {setId ? (
         <SetDetail setId={setId} onBack={() => navigate('/sets')} />
       ) : (
         <SetIndex onSelectSet={(id: string) => navigate(`/sets/${id}`)} />
       )}
-    </div>
+    </PageShell>
   );
 }
 
 function VaultPage() {
   const navigate = useNavigate();
   return (
-    <div className="animate-fade-in">
+    <PageShell wide atmosphere="subtle">
       <VaultView onOpenSet={(setId) => navigate(`/sets/${setId}`)} />
-    </div>
+    </PageShell>
   );
 }
 
 const pageVariants = {
-  initial: { opacity: 0, y: 12 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
-  exit: { opacity: 0, y: -8, transition: { duration: 0.2, ease: [0.16, 1, 0.3, 1] } },
+  initial: { opacity: 0, y: 18, scale: 0.97 },
+  animate: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] },
+  },
+  exit: {
+    opacity: 0,
+    y: -10,
+    scale: 1.015,
+    transition: { duration: 0.22, ease: [0.16, 1, 0.3, 1] },
+  },
 };
 
-const PAGE_CONTAINER = 'mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8';
+function ShellPage({ children, wide }: { children: ReactNode; wide?: boolean }) {
+  return <PageShell wide={wide}>{children}</PageShell>;
+}
 
 function AppRoutes() {
   const location = useLocation();
@@ -119,34 +125,34 @@ function AppRoutes() {
               <Route
                 path="/prices"
                 element={
-                  <div className={PAGE_CONTAINER}>
+                  <ShellPage wide>
                     <PriceTrackingDashboard />
-                  </div>
+                  </ShellPage>
                 }
               />
               <Route
                 path="/market-insights"
                 element={
-                  <div className={PAGE_CONTAINER}>
+                  <ShellPage wide>
                     <MarketInsightsDashboard />
-                  </div>
+                  </ShellPage>
                 }
               />
               <Route path="/vault" element={<VaultPage />} />
               <Route
                 path="/wishlist"
                 element={
-                  <div className={PAGE_CONTAINER}>
+                  <ShellPage>
                     <WishlistView />
-                  </div>
+                  </ShellPage>
                 }
               />
               <Route
                 path="/binders"
                 element={
-                  <div className={PAGE_CONTAINER}>
+                  <ShellPage>
                     <BindersIndex />
-                  </div>
+                  </ShellPage>
                 }
               />
               <Route path="/sets" element={<SetsPage />} />
@@ -154,25 +160,25 @@ function AppRoutes() {
               <Route
                 path="/packs"
                 element={
-                  <div className={PAGE_CONTAINER}>
+                  <ShellPage wide>
                     <PackShop />
-                  </div>
+                  </ShellPage>
                 }
               />
               <Route
                 path="/scanner"
                 element={
-                  <div className={PAGE_CONTAINER}>
+                  <ShellPage>
                     <CardScanner />
-                  </div>
+                  </ShellPage>
                 }
               />
               <Route
                 path="/grading"
                 element={
-                  <div className={PAGE_CONTAINER}>
+                  <ShellPage>
                     <GradingPage />
-                  </div>
+                  </ShellPage>
                 }
               />
               <Route path="*" element={<Navigate to="/" replace />} />
@@ -184,35 +190,51 @@ function AppRoutes() {
   );
 }
 
+function AppShell() {
+  const location = useLocation();
+  const isHome = location.pathname === '/';
+
+  return (
+    <div className="flex min-h-screen min-w-0 bg-surface-base text-ink-primary">
+      <Sidebar />
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <a
+          href="#main-content"
+          className="sr-only z-[95] rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-primary-foreground focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+        >
+          Skip to content
+        </a>
+
+        <Header />
+
+        <main
+          id="main-content"
+          className={
+            isHome
+              ? 'relative min-w-0 flex-1 overflow-hidden pb-0'
+              : 'relative min-w-0 flex-1 pb-20 md:pb-0'
+          }
+        >
+          <AppRoutes />
+        </main>
+
+        <OnboardingChecklist />
+        {!isHome && <Footer />}
+      </div>
+
+      <BottomTabBar />
+      <CommandPalette />
+    </div>
+  );
+}
+
 function App() {
   return (
     <MotionConfig reducedMotion="user">
       <GameProvider>
         <CardModalProvider>
-          <div className="flex min-h-screen min-w-0 bg-surface-base text-ink-primary">
-            <Sidebar />
-
-            <div className="flex min-w-0 flex-1 flex-col">
-              <a
-                href="#main-content"
-                className="sr-only z-[95] rounded-none bg-accent px-4 py-2 text-sm font-bold uppercase tracking-wider text-black focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
-              >
-                Skip to content
-              </a>
-
-              <Header />
-
-              <main id="main-content" className="relative min-w-0 flex-1 pb-20 md:pb-0">
-                <AppRoutes />
-              </main>
-
-              <OnboardingChecklist />
-              <Footer />
-            </div>
-
-            <BottomTabBar />
-            <CommandPalette />
-          </div>
+          <AppShell />
         </CardModalProvider>
       </GameProvider>
     </MotionConfig>
