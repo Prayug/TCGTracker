@@ -1,41 +1,43 @@
+import { axios } from '../config/apiClient';
 import { env } from '../config/env';
-import { CardPrediction, BacktestResult, ForwardTestStatus, CardPredictionDetail, PredictionFilters, PredictionWindow, ExternalSignal } from '../features/market-insights/types';
+import {
+  CardPrediction,
+  BacktestResult,
+  ForwardTestStatus,
+  CardPredictionDetail,
+  PredictionFilters,
+  PredictionWindow,
+  ExternalSignal,
+  PredictionsResponse,
+  OverviewResponse,
+  SortField,
+  SortDirection,
+} from '../features/market-insights/types';
 
 const BASE_URL = `${env.apiUrl}/api/market-insights`;
 
-async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    ...options,
-  });
-
-  if (!response.ok) {
-    let detail = response.statusText;
-    try {
-      const body = await response.json();
-      if (typeof body?.error === 'string') detail = body.error;
-    } catch {
-      /* response may not be JSON */
-    }
-
-    throw new Error(detail || `API error: ${response.status}`);
-  }
-
-  return response.json();
-}
+type RequestOpts = { signal?: AbortSignal };
 
 export const marketInsightsApi = {
-  async getPredictions(params?: {
+  async getPredictions(
+    params?: {
     limit?: number;
     category?: string;
     window?: PredictionWindow;
     filters?: PredictionFilters;
-  }): Promise<{ data: CardPrediction[]; count: number; modelVersion: string }> {
+    search?: string;
+    sortBy?: SortField;
+    sortOrder?: SortDirection;
+  },
+    opts?: RequestOpts,
+  ): Promise<PredictionsResponse> {
     const searchParams = new URLSearchParams();
     if (params?.limit) searchParams.set('limit', String(params.limit));
     if (params?.category) searchParams.set('category', params.category);
     if (params?.window) searchParams.set('window', params.window);
+    if (params?.search) searchParams.set('search', params.search);
+    if (params?.sortBy) searchParams.set('sortBy', params.sortBy);
+    if (params?.sortOrder) searchParams.set('sortOrder', params.sortOrder);
     if (params?.filters?.minPrice !== undefined) searchParams.set('minPrice', String(params.filters.minPrice));
     if (params?.filters?.maxPrice !== undefined) searchParams.set('maxPrice', String(params.filters.maxPrice));
     if (params?.filters?.minConfidence !== undefined) searchParams.set('minConfidence', String(params.filters.minConfidence));
@@ -52,48 +54,65 @@ export const marketInsightsApi = {
       searchParams.set('releaseDateTo', params.filters.releaseDateTo);
     }
     const qs = searchParams.toString();
-    return fetchJson(`${BASE_URL}/predictions${qs ? `?${qs}` : ''}`);
+    const res = await axios.get<PredictionsResponse>(`${BASE_URL}/predictions${qs ? `?${qs}` : ''}`, {
+      signal: opts?.signal,
+      timeout: 60_000,
+    });
+    return res.data;
+  },
+
+  async getOverview(opts?: RequestOpts): Promise<OverviewResponse> {
+    const res = await axios.get<OverviewResponse>(`${BASE_URL}/overview`, {
+      signal: opts?.signal,
+    });
+    return res.data;
   },
 
   async getCardPrediction(cardId: string): Promise<CardPredictionDetail> {
-    return fetchJson(`${BASE_URL}/card/${encodeURIComponent(cardId)}`);
+    const res = await axios.get<CardPredictionDetail>(`${BASE_URL}/card/${encodeURIComponent(cardId)}`);
+    return res.data;
   },
 
   async getAiExplanation(cardId: string): Promise<{ explanation: string; cached: boolean }> {
-    return fetchJson(`${BASE_URL}/card/${encodeURIComponent(cardId)}/explanation`);
+    const res = await axios.get<{ explanation: string; cached: boolean }>(`${BASE_URL}/card/${encodeURIComponent(cardId)}/explanation`);
+    return res.data;
   },
 
   async triggerPredictionRun(): Promise<{ success: boolean; runId: number; message: string }> {
-    return fetchJson(`${BASE_URL}/run-predictions`, { method: 'POST' });
+    const res = await axios.post<{ success: boolean; runId: number; message: string }>(`${BASE_URL}/run-predictions`);
+    return res.data;
   },
 
   async runBacktest(params: {
     backtestDate: string;
     windowDays?: number;
   }): Promise<BacktestResult & { cardResults: any[] }> {
-    return fetchJson(`${BASE_URL}/backtest`, {
-      method: 'POST',
-      body: JSON.stringify(params),
-    });
+    const res = await axios.post<BacktestResult & { cardResults: any[] }>(`${BASE_URL}/backtest`, params);
+    return res.data;
   },
 
   async getBacktestResults(): Promise<{ data: BacktestResult[] }> {
-    return fetchJson(`${BASE_URL}/backtest-results`);
+    const res = await axios.get<{ data: BacktestResult[] }>(`${BASE_URL}/backtest-results`);
+    return res.data;
   },
 
   async getForwardTestStatus(): Promise<ForwardTestStatus> {
-    return fetchJson(`${BASE_URL}/forward-test`);
+    const res = await axios.get<ForwardTestStatus>(`${BASE_URL}/forward-test`);
+    return res.data;
   },
 
   async updateForwardTest(): Promise<{ success: boolean; updated: number }> {
-    return fetchJson(`${BASE_URL}/forward-test/update`, { method: 'POST' });
+    const res = await axios.post<{ success: boolean; updated: number }>(`${BASE_URL}/forward-test/update`);
+    return res.data;
   },
 
   async getExternalSignals(cardId: string): Promise<{ data: ExternalSignal[] }> {
-    return fetchJson(`${BASE_URL}/external-signals/${encodeURIComponent(cardId)}`);
+    const res = await axios.get<{ data: ExternalSignal[] }>(`${BASE_URL}/external-signals/${encodeURIComponent(cardId)}`);
+    return res.data;
   },
 
   async triggerSignalScrape(): Promise<{ success: boolean; scraped: number; stored: number; message: string }> {
-    return fetchJson(`${BASE_URL}/run-scrape`, { method: 'POST' });
+    const res = await axios.post<{ success: boolean; scraped: number; stored: number; message: string }>(`${BASE_URL}/run-scrape`);
+    return res.data;
   },
 };
