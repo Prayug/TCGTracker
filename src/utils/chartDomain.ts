@@ -1,7 +1,7 @@
 /**
- * Compute a Y-axis domain that doesn't exaggerate small absolute moves.
- * Recharts `auto` fits tightly to min/max, so a $50 move on a $3800 set
- * fills the entire chart. We enforce a minimum span as a % of typical value.
+ * Compute a Y-axis domain around the series min/max (not from $0).
+ * Meaningful % moves stay visible; tiny absolute noise on high-value
+ * series still gets a modest minimum span so the chart isn't pure noise.
  */
 export function computePriceChartDomain(prices: number[]): [number, number] {
   const valid = prices.filter((p) => p > 0 && Number.isFinite(p));
@@ -12,6 +12,7 @@ export function computePriceChartDomain(prices: number[]): [number, number] {
   const dataRange = dataMax - dataMin;
   const baseline = valid.reduce((sum, p) => sum + p, 0) / valid.length;
 
+  // Floor only for very small moves — a ~8–12% swing should fill most of the plot.
   const minSpanRatio = baseline < 10 ? 0.12 : baseline < 100 ? 0.1 : 0.08;
   const minSpan = Math.max(
     baseline * minSpanRatio,
@@ -20,7 +21,7 @@ export function computePriceChartDomain(prices: number[]): [number, number] {
 
   const span = Math.max(dataRange, minSpan);
   const center = (dataMin + dataMax) / 2;
-  const pad = span * 0.04;
+  const pad = Math.max(span * 0.06, baseline * 0.01);
 
   let yMin = center - span / 2 - pad;
   let yMax = center + span / 2 + pad;
