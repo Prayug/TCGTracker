@@ -14,6 +14,15 @@ describe('computePriceChartDomain', () => {
     expect(min).toBeLessThan(4.5);
     expect(max).toBeGreaterThan(5.1);
   });
+
+  it('keeps a ~16% card move visually large (not anchored at $0)', () => {
+    const prices = [380, 360, 345, 330, 326];
+    const [min, max] = computePriceChartDomain(prices);
+    expect(min).toBeGreaterThan(250);
+    expect(max).toBeLessThan(450);
+    // Data range should dominate the domain (tight around the move).
+    expect(max - min).toBeLessThan(380 * 0.35);
+  });
 });
 
 describe('formatPriceChange', () => {
