@@ -57,23 +57,27 @@ export const BindersIndex: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-ink-primary">Binders</h1>
-          <p className="text-sm text-ink-muted">AI-powered binder page planner</p>
+    <div className="space-y-8">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="space-y-2">
+          <p className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-foil">
+            <span className="h-1.5 w-1.5 rounded-full bg-accent shadow-glow-accent" aria-hidden />
+            Collection
+          </p>
+          <h1 className="font-display text-h1 text-ink-primary">Binders</h1>
+          <p className="text-sm text-ink-secondary">AI-powered binder page planner</p>
         </div>
         <button
           onClick={() => setShowPlanner(!showPlanner)}
-          className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-bold uppercase tracking-wider text-black transition-all hover:brightness-110"
+          className="btn-primary shadow-glow-accent"
         >
           <Plus className="h-4 w-4" />
-          New Binder
+          New binder
         </button>
       </div>
 
       {showPlanner && (
-        <div className="rounded-xl border border-border-default bg-surface-raised p-5">
+        <div className="rounded-2xl border border-border-default bg-gradient-chrome p-5">
           <BinderPlanner
             loading={loading}
             error={error}
@@ -103,10 +107,12 @@ export const BindersIndex: React.FC = () => {
       )}
 
       {binders.length === 0 && !loading && !showPlanner && (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <BookOpen className="mb-3 h-10 w-10 text-ink-muted" />
-          <p className="text-sm font-semibold text-ink-secondary">No binders yet</p>
-          <p className="mt-1 text-xs text-ink-muted">
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-foil/30 bg-surface-raised/60 py-16 text-center">
+          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-accent/40 bg-accent/10 shadow-glow-accent">
+            <BookOpen className="h-7 w-7 text-accent" />
+          </div>
+          <p className="font-display text-base font-semibold text-ink-primary">No binders yet</p>
+          <p className="mt-1 text-sm text-ink-muted">
             Create a binder to plan your next 3x3 page
           </p>
         </div>
@@ -129,6 +135,7 @@ export const BindersIndex: React.FC = () => {
         title="Delete Binder?"
         message="This will permanently remove this binder and all its slots."
         confirmLabel="Delete"
+        variant="destructive"
         onConfirm={handleDelete}
         onCancel={() => setDeleteConfirm(null)}
       />
@@ -157,7 +164,7 @@ const BinderCard: React.FC<BinderCardProps> = ({
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-xl border border-border-default bg-surface-raised p-4 transition-all hover:border-accent/30 hover:shadow-md"
+      className="rounded-2xl border border-border-default bg-gradient-chrome p-4 transition-all hover:border-accent/30 hover:shadow-glow-accent"
     >
       <div className="mb-3 flex items-start justify-between">
         <div className="min-w-0 flex-1">

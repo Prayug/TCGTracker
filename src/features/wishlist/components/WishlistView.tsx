@@ -10,7 +10,6 @@ import { useGame } from '../../../contexts/GameContext';
 import { useCardModal } from '../../../contexts/CardModalContext';
 import { getCardPrice, getCardImage } from '../../../utils/cardPrice';
 import { formatCurrency } from '../../../utils/cardDisplay';
-import { SectionLabel } from '../../../components/common/SectionLabel';
 import { PageEmptyState } from '../../../components/common/PageEmptyState';
 
 const PRIORITY_ORDER: Record<WishlistPriority, number> = { high: 0, medium: 1, low: 2 };
@@ -60,12 +59,13 @@ export const WishlistView: React.FC = () => {
   return (
     <div className="section-stack">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <SectionLabel className="text-accent/90">Want list</SectionLabel>
-          <h1 className="mt-1 font-display text-3xl font-bold tracking-tight text-ink-primary">
-            {gameLabel} Wishlist
-          </h1>
-          <p className="mt-2 text-sm text-ink-muted">
+        <div className="space-y-2">
+          <p className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-foil">
+            <span className="h-1.5 w-1.5 rounded-full bg-accent shadow-glow-accent" aria-hidden />
+            Want list
+          </p>
+          <h1 className="font-display text-h1 text-ink-primary">{gameLabel} Wishlist</h1>
+          <p className="max-w-2xl text-sm text-ink-secondary">
             Track cards you want with optional buy targets. At-target badges appear when market ≤ target.
           </p>
         </div>

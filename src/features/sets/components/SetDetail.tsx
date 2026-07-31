@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Download,
@@ -18,6 +18,7 @@ import {
   SetTrackerCard,
   SetSummary,
   ValueHistoryRange,
+  VALUE_HISTORY_RANGES,
 } from '../../../services/setTrackerService';
 import { setWishlistService } from '../../../services/setWishlistService';
 import { onePieceApi } from '../../../services/onepieceApi';
@@ -95,9 +96,10 @@ export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
   const [cards, setCards] = useState<SetTrackerCard[]>([]);
   const [opCards, setOpCards] = useState<OnePieceCard[]>([]);
   const [summary, setSummary] = useState<SetSummary | null>(null);
-  const [historyRange, setHistoryRange] = useState<ValueHistoryRange>('90d');
+  const [historyRange, setHistoryRange] = useState<ValueHistoryRange>('30d');
   const [priceHistory, setPriceHistory] = useState<{ date: string; price: number }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterMode>('all');
   const [sortBy, setSortBy] = useState<SetCardSort>('number');
@@ -106,6 +108,7 @@ export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
   );
   const [vaultCard, setVaultCard] = useState<SetTrackerCard | null>(null);
   const [vaultModalOpen, setVaultModalOpen] = useState(false);
+  const historyRequestId = useRef(0);
 
   const reload = useCallback(async () => {
     setIsLoading(true);
@@ -126,25 +129,50 @@ export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
     const wish = setWishlistService.getWishlistForSet(setId);
     setWishlistIds(wish);
     try {
-      const [cardsRes, summaryRes, history] = await Promise.all([
+      const [cardsRes, summaryRes] = await Promise.all([
         setTrackerService.getSetCards(setId, wish),
         setTrackerService.getSetSummary(setId, wish),
-        setTrackerService.getSetValueHistory(setId, historyRange),
       ]);
       setSetMeta(cardsRes.set);
       setCards(cardsRes.cards);
       setSummary(summaryRes.summary);
-      setPriceHistory(setTrackerService.toPricePoints(history, summaryRes.summary.totalCards));
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setIsLoading(false);
     }
-  }, [setId, historyRange, isPokemon, isOnePiece]);
+  }, [setId, isOnePiece]);
+
+  const loadHistory = useCallback(
+    async (range: ValueHistoryRange, totalCards?: number) => {
+      if (isOnePiece) return;
+      const requestId = ++historyRequestId.current;
+      setHistoryLoading(true);
+      try {
+        const history = await setTrackerService.getSetValueHistory(setId, range);
+        if (requestId !== historyRequestId.current) return;
+        setPriceHistory(setTrackerService.toPricePoints(history, totalCards));
+      } catch (e) {
+        if (requestId !== historyRequestId.current) return;
+        setPriceHistory([]);
+        console.error('Failed to load set value history:', e);
+      } finally {
+        if (requestId === historyRequestId.current) {
+          setHistoryLoading(false);
+        }
+      }
+    },
+    [setId, isOnePiece]
+  );
 
   useEffect(() => {
     reload();
   }, [reload]);
+
+  useEffect(() => {
+    if (isOnePiece || isLoading) return;
+    void loadHistory(historyRange, summary?.totalCards);
+  }, [historyRange, isOnePiece, isLoading, loadHistory, summary?.totalCards]);
 
   const handleToggleWishlist = (cardId: string) => {
     setWishlistService.toggleWishlist(setId, cardId);
@@ -335,29 +363,36 @@ export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
             <h2 className="text-sm font-semibold text-white">Set value over time</h2>
           </div>
           <div className="flex gap-1 rounded-lg border border-border-subtle p-0.5">
-            {(['30d', '90d', '1y', 'all'] as ValueHistoryRange[]).map((r) => (
+            {VALUE_HISTORY_RANGES.map(({ key, label }) => (
               <button
-                key={r}
+                key={key}
                 type="button"
-                onClick={() => setHistoryRange(r)}
+                onClick={() => setHistoryRange(key)}
+                disabled={historyLoading && historyRange === key}
                 className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                  historyRange === r
+                  historyRange === key
                     ? 'bg-accent/20 text-accent'
                     : 'text-ink-muted hover:text-ink-primary'
                 }`}
               >
-                {r === 'all' ? 'All' : r.toUpperCase()}
+                {label}
               </button>
             ))}
           </div>
         </div>
-        {priceHistory.length > 0 ? (
+        {historyLoading && priceHistory.length === 0 ? (
+          <div className="flex min-h-[16rem] items-center justify-center">
+            <LoadingSpinner />
+          </div>
+        ) : priceHistory.length > 0 ? (
           <>
-            <PriceChart
-              priceHistory={priceHistory}
-              title="Master set value (catalog cards)"
-              variant="dark"
-            />
+            <div className={historyLoading ? 'opacity-60 transition-opacity' : undefined}>
+              <PriceChart
+                priceHistory={priceHistory}
+                title="Master set value (catalog cards)"
+                variant="dark"
+              />
+            </div>
             {summary && (
               <p className="mt-2 text-center text-xs text-ink-muted">
                 Chart uses the same {summary.totalCards}-card checklist as master set value — one

@@ -125,7 +125,7 @@ export const CardGrid: React.FC<CardGridProps> = ({
   }
 
   return (
-    <section className="animate-fade-in">
+    <section className="animate-fade-in [perspective:1400px]">
       <div className="stagger-children grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
         {reveal.visibleCards.map((card, index) => (
           <CardTile

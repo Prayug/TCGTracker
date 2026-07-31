@@ -35,7 +35,7 @@ export const CardTile: React.FC<CardTileProps> = ({
     <article
       className={[
         'group relative overflow-hidden rounded-xl border border-border-default bg-surface-raised shadow-card',
-        'transition-all duration-200 hover:-translate-y-0.5 hover:border-border-strong hover:shadow-elevated',
+        'origin-center transition-all duration-300 ease-out hover:-translate-y-1.5 hover:scale-[1.035] hover:border-border-strong hover:shadow-elevated',
         getPremiumBorderClass(card.rarity),
       ].join(' ')}
     >
@@ -43,7 +43,7 @@ export const CardTile: React.FC<CardTileProps> = ({
       <div
         role="button"
         tabIndex={-1}
-        className="relative aspect-[63/88] cursor-pointer overflow-hidden bg-surface-inset"
+        className="relative aspect-[63/88] cursor-pointer overflow-hidden bg-surface-inset [perspective:800px]"
         onClick={onClick}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
@@ -56,7 +56,7 @@ export const CardTile: React.FC<CardTileProps> = ({
             <img
               src={imageUrl}
               alt={card.name}
-              className="relative z-0 h-full w-full object-contain p-2.5 transition-transform duration-300 ease-out group-hover:scale-[1.03]"
+              className="relative z-0 h-full w-full object-contain p-2.5 transition-transform duration-500 ease-out group-hover:scale-[1.1] group-hover:[transform:translateZ(12px)_scale(1.1)]"
               loading="lazy"
               decoding="async"
               onError={(e) => {
