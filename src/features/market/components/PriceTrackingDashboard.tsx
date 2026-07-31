@@ -26,7 +26,6 @@ import {
 import { pokemonApi } from '../../../services/pokemonApi';
 import { onePieceApi } from '../../../services/onepieceApi';
 import { useGame } from '../../../contexts/GameContext';
-import { SectionLabel } from '../../../components/common/SectionLabel';
 import { PageEmptyState } from '../../../components/common/PageEmptyState';
 import { MiniSparkline } from '../../../components/common/MiniSparkline';
 import { TrackerStatCard, buildSparklinePrices } from './TrackerStatCard';
@@ -173,12 +172,13 @@ export const PriceTrackingDashboard: React.FC = () => {
 
   return (
     <div className="section-stack">
-      <div className="animate-slide-up">
-        <SectionLabel className="text-accent/90">Price tracker</SectionLabel>
-        <h2 className="text-gradient mt-2 font-display text-3xl font-bold tracking-tight">
-          Watchlist & alerts
-        </h2>
-        <p className="mt-2 text-sm text-ink-muted">
+      <div className="animate-slide-up space-y-2">
+        <p className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-foil">
+          <span className="h-1.5 w-1.5 rounded-full bg-accent shadow-glow-accent" aria-hidden />
+          Price tracker
+        </p>
+        <h2 className="font-display text-h1 text-ink-primary">Watchlist & alerts</h2>
+        <p className="max-w-2xl text-sm text-ink-secondary">
           Monitor favorites, spot movers, and set price triggers
           {isOnePiece ? ' for One Piece' : ''}
           {serverMode ? ' · synced to your account' : ' · stored on this device'}.
@@ -186,13 +186,13 @@ export const PriceTrackingDashboard: React.FC = () => {
       </div>
 
       {digest.length > 0 && (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+        <div className="rounded-xl border border-accent/25 bg-accent/10 p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-ink-primary">
-              <Bell className="h-4 w-4 text-amber-300" />
+              <Bell className="h-4 w-4 text-accent" />
               Alert digest
               {unreadDigest > 0 && (
-                <span className="rounded-full bg-amber-500/25 px-2 py-0.5 text-[10px] font-bold text-amber-200">
+                <span className="rounded-full bg-accent/20 px-2 py-0.5 text-[10px] font-semibold text-accent">
                   {unreadDigest} new
                 </span>
               )}
@@ -216,7 +216,7 @@ export const PriceTrackingDashboard: React.FC = () => {
                 className={`rounded-lg border px-3 py-2 text-sm ${
                   entry.read
                     ? 'border-border-subtle text-ink-muted'
-                    : 'border-amber-500/20 bg-surface-inset text-ink-primary'
+                    : 'border-accent/20 bg-surface-inset text-ink-primary'
                 }`}
               >
                 <span className="font-medium">{entry.cardName}</span>

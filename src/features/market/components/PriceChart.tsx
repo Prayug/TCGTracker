@@ -1,18 +1,13 @@
-import React, { useMemo, useId } from 'react';
-import {
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Area,
-  ComposedChart,
-  Line,
-} from 'recharts';
+import React, { useMemo } from 'react';
+import { AreaChart } from '@/components/charts/area-chart';
+import { Area } from '@/components/charts/area';
+import { Grid } from '@/components/charts/grid';
+import { XAxis } from '@/components/charts/x-axis';
+import { YAxis } from '@/components/charts/y-axis';
+import { ChartTooltip } from '@/components/charts/tooltip';
 import { PricePoint } from '../../../types/pokemon';
 import { preparePriceChartSeries, toIsoDate, ChartPricePoint } from '../../../utils/priceHistory';
 import { computePriceChartDomain, formatPriceChange } from '../../../utils/chartDomain';
-import { useTheme } from '../../../hooks/useTheme';
 
 interface PriceChartProps {
   priceHistory: PricePoint[];
@@ -24,44 +19,24 @@ interface PriceChartProps {
   compact?: boolean;
 }
 
-function formatShortDate(dateStr: string): string {
-  if (!dateStr.includes('-')) return dateStr;
-  const [year, month, day] = dateStr.split('-').map(Number);
-  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  });
-}
-
-function formatFullDate(dateStr: string): string {
-  if (!dateStr.includes('-')) return dateStr;
-  const [year, month, day] = dateStr.split('-').map(Number);
-  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  });
-}
-
 function quoteDates(points: ChartPricePoint[]): string[] {
   return points.filter((p) => p.hasQuote).map((p) => p.date);
+}
+
+function formatAxisPrice(price: number): string {
+  if (price >= 1000) return `$${price.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  if (price >= 100) return `$${price.toFixed(0)}`;
+  if (price >= 10) return `$${price.toFixed(1)}`;
+  return `$${price.toFixed(2)}`;
 }
 
 export const PriceChart: React.FC<PriceChartProps> = ({
   priceHistory,
   title = 'Price History',
   fillGaps = true,
-  variant,
   height = 260,
   compact = false,
 }) => {
-  const { theme } = useTheme();
-  const isDark = (variant ?? theme) === 'dark';
-  const gradientId = useId().replace(/:/g, '');
-
   const { chartData, quoteCount, carriedDayCount, missingSpanCount, firstDate, latestDate } =
     useMemo(() => {
       if (!priceHistory?.length) {
@@ -95,242 +70,94 @@ export const PriceChart: React.FC<PriceChartProps> = ({
       };
     }, [priceHistory, fillGaps]);
 
-  const plottable = chartData.filter((p) => p.price !== null);
+  const series = useMemo(
+    () =>
+      chartData
+        .filter((p) => p.price !== null)
+        .map((p) => ({
+          date: new Date(`${p.date}T12:00:00.000Z`),
+          price: p.price as number,
+          hasQuote: p.hasQuote,
+        })),
+    [chartData]
+  );
 
-  if (plottable.length === 0) {
+  const yDomain = useMemo(
+    () => computePriceChartDomain(series.map((p) => p.price)),
+    [series]
+  );
+
+  if (series.length === 0) {
     return (
-      <div
-        className={`flex min-h-[16rem] items-center justify-center ${isDark ? 'text-ink-muted' : 'text-ink-muted'}`}
-      >
+      <div className="flex min-h-[16rem] items-center justify-center text-ink-muted">
         No price history available
       </div>
     );
   }
 
-  const formatPrice = (price: number) => {
-    if (price >= 1000) return `$${price.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-    if (price >= 100) return `$${price.toFixed(0)}`;
-    return `$${price.toFixed(2)}`;
-  };
+  const formatPrice = formatAxisPrice;
 
-  const firstQuote = chartData.find((p) => p.hasQuote);
-  const lastQuote = [...chartData].reverse().find((p) => p.hasQuote);
-  const firstPrice = firstQuote?.price ?? 0;
-  const lastPrice = lastQuote?.price ?? 0;
+  const firstPrice = series[0]?.price ?? 0;
+  const lastPrice = series[series.length - 1]?.price ?? 0;
   const isPositive = lastPrice - firstPrice >= 0;
   const periodChange = formatPriceChange(firstPrice, lastPrice);
-  const yDomain = computePriceChartDomain(plottable.map((d) => d.price as number));
-  const strokeColor = isPositive ? '#34d399' : '#fb7185';
-  const carryColor = isDark ? '#6b6b76' : '#a8a8a0';
-  const gridColor = isDark ? '#2a2a2e' : '#e4e4e0';
-  const tickColor = isDark ? '#6b6b76' : '#71717a';
-
-  const showAllXTicks = quoteCount <= 10;
-  const xInterval = showAllXTicks ? 0 : Math.max(0, Math.floor(chartData.length / 6) - 1);
-
-  const renderQuoteDot = (props: { cx?: number; cy?: number; payload?: ChartPricePoint }) => {
-    const { cx, cy, payload } = props;
-    if (!payload?.hasQuote || cx == null || cy == null) return null;
-    return (
-      <circle
-        key={`quote-dot-${payload.date}`}
-        cx={cx}
-        cy={cy}
-        r={3}
-        fill={strokeColor}
-        stroke="none"
-      />
-    );
-  };
+  const strokeColor = isPositive ? 'var(--gain)' : 'var(--loss)';
 
   return (
-    <div className={compact ? 'min-w-0' : 'space-y-3'}>
+    <div className="w-full">
       {!compact && (
-        <>
-          <div
-            className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2.5 ${
-              isDark ? 'border-border-subtle bg-surface-inset' : 'border-border-default bg-surface-raised'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <span className={`h-4 w-4 ${isDark ? 'text-emerald-400' : 'text-ink-muted'}`}>📅</span>
-              <div>
-                <p
-                  className={`text-[10px] font-semibold uppercase tracking-wider ${isDark ? 'text-ink-muted' : 'text-ink-muted'}`}
-                >
-                  Quote span
-                </p>
-                <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                  {formatFullDate(firstDate)}
-                  <span className={`mx-1.5 ${isDark ? 'text-ink-muted' : 'text-ink-muted'}`}>→</span>
-                  {formatFullDate(latestDate)}
-                </p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p
-                className={`text-[10px] font-semibold uppercase tracking-wider ${isDark ? 'text-ink-muted' : 'text-ink-muted'}`}
-              >
-                Latest quote
-              </p>
-              <p className={`text-sm font-bold tabular-nums ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
-                {formatPrice(lastPrice)}
-                <span className={`ml-2 text-xs font-medium ${isDark ? 'text-ink-muted' : 'text-ink-muted'}`}>
-                  {formatShortDate(latestDate)}
-                </span>
-              </p>
-              {quoteCount > 1 && firstPrice > 0 && (
-                <p
-                  className={`mt-0.5 text-xs font-medium tabular-nums ${
-                    isPositive
-                      ? isDark
-                        ? 'text-emerald-400/80'
-                        : 'text-emerald-600'
-                      : isDark
-                        ? 'text-rose-400/80'
-                        : 'text-rose-600'
-                  }`}
-                >
-                  {periodChange.label}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            <p className={`text-xs ${isDark ? 'text-ink-muted' : 'text-ink-muted'}`}>
-              <span className="inline-block h-2 w-2 rounded-full align-middle" style={{ background: strokeColor }} />
-              <span className="ml-1.5">
-                {quoteCount} market {quoteCount === 1 ? 'quote' : 'quotes'}
-              </span>
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h3 className="font-display text-sm font-semibold text-ink-primary">{title}</h3>
+            <p className="mt-0.5 text-xs text-ink-muted">
+              {quoteCount} quotes
+              {carriedDayCount > 0 ? ` · ${carriedDayCount} carried` : ''}
+              {missingSpanCount > 0 ? ` · ${missingSpanCount} gaps` : ''}
+              {firstDate && latestDate ? ` · ${firstDate} → ${latestDate}` : ''}
             </p>
-            {carriedDayCount > 0 && (
-              <p className={`text-xs ${isDark ? 'text-ink-muted' : 'text-ink-muted'}`}>
-                <span
-                  className="inline-block w-4 border-t border-dashed align-middle"
-                  style={{ borderColor: carryColor }}
-                />
-                <span className="ml-1.5">{carriedDayCount} weekend carry day{carriedDayCount === 1 ? '' : 's'}</span>
-              </p>
-            )}
-            {missingSpanCount > 0 && (
-              <p className={`text-xs ${isDark ? 'text-amber-400/90' : 'text-amber-700'}`}>
-                {missingSpanCount} gap{missingSpanCount === 1 ? '' : 's'} without snapshots (line breaks — not flat
-                price)
-              </p>
-            )}
           </div>
-        </>
+          <div className="text-right">
+            <p className="font-mono text-lg font-semibold tabular-nums text-ink-primary">
+              {formatPrice(lastPrice)}
+            </p>
+            <p className={`text-xs font-medium ${isPositive ? 'text-gain' : 'text-loss'}`}>
+              {periodChange.label}
+            </p>
+          </div>
+        </div>
       )}
 
-      {compact && (
-        <p className="mb-2.5 text-xs text-ink-muted">
-          {formatShortDate(firstDate)} – {formatShortDate(latestDate)} · {quoteCount} market{' '}
-          {quoteCount === 1 ? 'quote' : 'quotes'}
-          {missingSpanCount > 0 && (
-            <span className="text-amber-500/90"> · {missingSpanCount} unsynced gap{missingSpanCount === 1 ? '' : 's'}</span>
-          )}
-        </p>
-      )}
-
-      <div className="w-full min-w-0" style={{ height }}>
-        <ResponsiveContainer width="100%" height={height} debounce={50}>
-          <ComposedChart
-            data={chartData}
-            margin={{ top: 12, right: 8, left: 4, bottom: showAllXTicks ? 52 : 32 }}
-          >
-            <defs>
-              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={strokeColor} stopOpacity={0.35} />
-                <stop offset="95%" stopColor={strokeColor} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
-            <XAxis
-              dataKey="date"
-              tickFormatter={formatShortDate}
-              stroke={tickColor}
-              tick={{ fill: tickColor, fontSize: 11 }}
-              interval={xInterval}
-              angle={showAllXTicks ? -32 : 0}
-              textAnchor={showAllXTicks ? 'end' : 'middle'}
-              height={showAllXTicks ? 52 : 32}
-              tickLine={false}
-              axisLine={{ stroke: isDark ? '#475569' : '#cbd5e1' }}
-            />
-            <YAxis
-              tickFormatter={formatPrice}
-              stroke={tickColor}
-              tick={{ fill: tickColor, fontSize: 11 }}
-              domain={yDomain}
-              width={64}
-              tickLine={false}
-              axisLine={false}
-            />
-            <Tooltip
-              content={({ active, payload, label }) => {
-                if (!active || !payload?.length || !label) return null;
-                const row = payload[0]?.payload as ChartPricePoint | undefined;
-                if (!row || row.price == null) return null;
-
-                let detail = 'Market quote';
-                if (row.kind === 'carried') {
-                  detail = 'No snapshot this day — prior quote carried (e.g. weekend)';
-                }
-
-                return (
-                  <div
-                    className={`rounded-lg border px-3 py-2 text-sm shadow-lg ${
-                      isDark ? 'border-border-default bg-[#141c2b] text-ink-primary' : 'border-slate-200 bg-white text-slate-900'
-                    }`}
-                  >
-                    <p className={`text-xs ${isDark ? 'text-ink-muted' : 'text-ink-muted'}`}>
-                      {formatFullDate(String(label))}
-                    </p>
-                    <p className="mt-0.5 font-bold tabular-nums">{formatPrice(row.price)}</p>
-                    <p className={`mt-1 text-[11px] ${isDark ? 'text-ink-muted' : 'text-ink-muted'}`}>{detail}</p>
-                  </div>
-                );
-              }}
-            />
-            {/* Solid area + line for quotes and short carries */}
-            <Area
-              type="monotone"
-              dataKey="price"
-              stroke={strokeColor}
-              strokeWidth={2}
-              fill={`url(#${gradientId})`}
-              connectNulls={false}
-              dot={renderQuoteDot}
-              activeDot={(props: { cx?: number; cy?: number; payload?: ChartPricePoint }) => {
-                const { cx, cy, payload } = props;
-                if (!payload?.hasQuote || cx == null || cy == null) return null;
-                return (
-                  <circle
-                    key={`active-dot-${payload.date}`}
-                    cx={cx}
-                    cy={cy}
-                    r={5}
-                    fill={strokeColor}
-                    stroke={isDark ? '#141c2b' : '#fff'}
-                    strokeWidth={2}
-                  />
-                );
-              }}
-            />
-            {/* Dashed overlay for carried (non-quote) days */}
-            <Line
-              type="monotone"
-              dataKey="carryPrice"
-              stroke={carryColor}
-              strokeWidth={1.5}
-              strokeDasharray="5 4"
-              dot={false}
-              connectNulls
-              isAnimationActive={false}
-            />
-          </ComposedChart>
-        </ResponsiveContainer>
+      <div style={{ height }} className="w-full">
+        <AreaChart
+          data={series}
+          xDataKey="date"
+          yDomain={yDomain}
+          aspectRatio={undefined}
+          style={{ height: '100%', width: '100%' }}
+          margin={{ top: 12, right: 12, bottom: 28, left: 44 }}
+          className="h-full w-full"
+        >
+          <Grid horizontal vertical={false} />
+          <Area
+            dataKey="price"
+            fill={strokeColor}
+            stroke={strokeColor}
+            fillOpacity={0.22}
+            gradientToOpacity={0}
+            strokeWidth={2}
+          />
+          <YAxis tickFormatter={formatAxisPrice} numTicks={4} />
+          <XAxis />
+          <ChartTooltip
+            rows={(point) => [
+              {
+                label: 'Price',
+                value: formatAxisPrice(Number(point.price) || 0),
+                color: strokeColor,
+              },
+            ]}
+          />
+        </AreaChart>
       </div>
     </div>
   );

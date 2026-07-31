@@ -78,10 +78,17 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
   }, [card?.id, isOpen]);
 
   const variantOptions = React.useMemo(() => {
-    if (!card?.tcgplayer?.prices) return [{ key: 'normal', label: 'Normal' }];
-    const keys = Object.keys(card.tcgplayer.prices);
-    if (keys.length === 0) return [{ key: 'normal', label: 'Normal' }];
-    return keys.map((key) => ({
+    const fromPrices = card?.tcgplayer?.prices
+      ? Object.keys(card.tcgplayer.prices)
+      : [];
+    const keys = new Set(fromPrices);
+    if (card?.preferredVariant) {
+      keys.add(card.preferredVariant);
+    }
+    if (keys.size === 0) {
+      return [{ key: 'normal', label: 'Normal' }];
+    }
+    return [...keys].map((key) => ({
       key,
       label: key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (char) => char.toUpperCase()),
     }));
@@ -250,7 +257,7 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
 
   return (
     <>
-      <Modal isOpen={isOpen} onClose={onClose} size="detail">
+      <Modal isOpen={isOpen} onClose={onClose} size="detail" variant="dive">
         <div className="min-w-0">
           <div className="flex gap-4 sm:gap-5">
             <img
