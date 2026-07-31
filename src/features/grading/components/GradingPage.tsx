@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { AlertCircle, RefreshCw, Sparkles } from 'lucide-react';
-import { SectionLabel } from '../../../components/common/SectionLabel';
 import { useToast } from '../../../components/common/Toast';
 import { useGame } from '../../../contexts/GameContext';
 import {
@@ -90,23 +89,25 @@ export const GradingPage: React.FC = () => {
 
   return (
     <div className="relative mx-auto max-w-5xl">
-      <div className="page-accent-strip" />
-      <div className="mb-6">
-        <SectionLabel className="text-accent/90">Tools</SectionLabel>
-        <div className="mt-1 flex flex-wrap items-center gap-2">
-          <h1 className="text-gradient text-h2 font-display font-bold">AI Card Grading</h1>
+      <div className="mb-8 space-y-2">
+        <p className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-foil">
+          <span className="h-1.5 w-1.5 rounded-full bg-accent shadow-glow-accent" aria-hidden />
+          Tools
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="font-display text-h1 text-ink-primary">AI card grading</h1>
           {backendOk === true && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-gain/30 bg-gain-muted px-2 py-0.5 text-[10px] font-medium text-gain">
+            <span className="inline-flex items-center gap-1 rounded-lg border border-gain/30 bg-gain-muted px-2 py-0.5 text-[10px] font-medium text-gain">
               Online
             </span>
           )}
           {backendOk === false && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-300">
+            <span className="inline-flex items-center gap-1 rounded-lg border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
               Scanner offline
             </span>
           )}
         </div>
-        <p className="mt-1 max-w-2xl text-sm text-ink-muted">
+        <p className="max-w-2xl text-sm text-ink-secondary">
           PSA-style condition estimate — Centering, Corners, Edges, and Surface on a 10-point
           scale. Specialist computer vision (not a chatbot). Not a substitute for professional
           grading.
@@ -114,7 +115,7 @@ export const GradingPage: React.FC = () => {
       </div>
 
       {backendOk === false && (
-        <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+        <div className="mb-4 rounded-xl border border-accent/25 bg-accent/10 p-4 text-sm text-ink-primary">
           <div className="flex items-start gap-2">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <div>

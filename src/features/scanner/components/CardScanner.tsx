@@ -6,7 +6,6 @@ import {
 import { scanCardFromFile, scanCardFromBase64, checkBackendHealth, ScanResult } from '../../../services/cardScannerApi';
 import { ScanResultActions } from './ScanResultActions';
 import { markOnboardingStep } from '../../../components/common/OnboardingChecklist';
-import { SectionLabel } from '../../../components/common/SectionLabel';
 
 type Mode = 'idle' | 'upload' | 'camera';
 
@@ -31,7 +30,7 @@ function ScanResultSheet({ result }: { result: ScanResult }) {
 
   return (
     <div
-      className="rounded-xl border border-border-strong bg-surface-overlay p-5 shadow-sm animate-slide-up"
+      className="rounded-2xl border border-foil/30 bg-surface-overlay p-5 shadow-glow-foil animate-perspective-enter"
       role="region"
       aria-live="polite"
       aria-label="Scan result"
@@ -283,15 +282,18 @@ export function CardScanner() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="mb-6">
-        <SectionLabel className="text-accent/90">Scanner</SectionLabel>
-        <div className="mt-1 flex flex-wrap items-center gap-2">
-          <h1 className="text-h2 text-ink-primary">Card scanner</h1>
-          <span className="inline-flex items-center gap-1 rounded-full border border-gain/30 bg-gain-muted px-2 py-0.5 text-[10px] font-medium text-gain">
+      <div className="mb-8 space-y-2">
+        <p className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-foil">
+          <span className="h-1.5 w-1.5 rounded-full bg-accent shadow-glow-accent" aria-hidden />
+          Scanner
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="font-display text-h1 text-ink-primary">Card scanner</h1>
+          <span className="inline-flex items-center gap-1 rounded-lg border border-gain/30 bg-gain-muted px-2 py-0.5 text-[10px] font-medium text-gain">
             Online
           </span>
         </div>
-        <p className="mt-1 text-sm text-ink-muted">
+        <p className="text-sm text-ink-secondary">
           Identify any Pokémon card by uploading a photo or using your camera.
         </p>
       </div>
@@ -301,7 +303,7 @@ export function CardScanner() {
         <div className="grid animate-fade-in gap-4 sm:grid-cols-2">
           <button
             onClick={() => handleModeSelect('camera')}
-            className="group rounded-xl border border-border-default bg-surface-raised p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-border-strong"
+            className="group cursor-pointer rounded-2xl border border-border-default bg-gradient-chrome p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-glow-accent"
           >
             <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-accent/30 bg-accent/10 transition-colors group-hover:bg-accent-hover/20">
               <Camera className="h-5 w-5 text-accent" />

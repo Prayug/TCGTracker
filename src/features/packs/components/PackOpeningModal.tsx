@@ -232,7 +232,7 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({ pack, isOpen
     ) : null;
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} size="pack" footer={footer}>
+    <Modal isOpen={isOpen} onClose={handleClose} size="pack" variant="stage" footer={footer}>
       {/* Screen effects overlay — positioned above canvas but below UI */}
       <AnimatePresence>
         {showFlash && (

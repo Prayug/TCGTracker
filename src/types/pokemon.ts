@@ -158,10 +158,24 @@ export type CardCondition = 'raw' | 'near-mint' | 'lightly-played' | 'moderately
 
 export interface VaultStats {
   totalCards: number;
-  totalValue: number; // Sum of purchase prices
+  totalValue: number; // Sum of effective purchase prices (unset → market)
   currentValue: number; // Sum of current market prices
   profit: number; // Difference between current and purchase
   profitPercentage: number;
+  entryCount: number;
+  uniqueCards: number;
+  /** Holdings still stored with purchasePrice <= 0 (using market fallback). */
+  assumedCostCount: number;
+}
+
+export type VaultActivityAction = 'add' | 'update' | 'remove' | 'clear' | 'import';
+
+export interface VaultActivityItem {
+  id: string;
+  action: VaultActivityAction;
+  cardName?: string;
+  detail?: string;
+  at: string; // ISO
 }
 
 // Pack Opening / Ripping System (like GameStop Power Packs)

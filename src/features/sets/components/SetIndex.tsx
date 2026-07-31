@@ -6,7 +6,6 @@ import { setTrackerService } from '../../../services/setTrackerService';
 import { setWishlistService } from '../../../services/setWishlistService';
 import { onePieceApi } from '../../../services/onepieceApi';
 import { useGame } from '../../../contexts/GameContext';
-import { SectionLabel } from '../../../components/common/SectionLabel';
 import { LoadingSpinner } from '../../../components/common/LoadingSpinner';
 import { ErrorMessage } from '../../../components/common/ErrorMessage';
 import { PageEmptyState } from '../../../components/common/PageEmptyState';
@@ -57,7 +56,7 @@ function SetCard({
           onSelect();
         }
       }}
-      className="group relative flex w-full cursor-pointer items-center gap-3 rounded-xl border border-border-default bg-gradient-surface p-3 text-left shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:border-border-strong hover:shadow-elevated"
+      className="group relative flex w-full cursor-pointer items-center gap-3 rounded-2xl border border-border-default bg-gradient-chrome p-3.5 text-left shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/35 hover:shadow-glow-accent"
     >
       {isPokemon && <SetLogo set={set as PokemonSet} size="md" />}
       {!isPokemon && (
@@ -69,10 +68,10 @@ function SetCard({
         <button
           type="button"
           onClick={onTogglePin}
-          className="absolute right-2 top-2 rounded-lg p-1.5 text-ink-muted transition-colors duration-200 hover:bg-surface-hover hover:text-amber-400"
+          className="absolute right-2 top-2 cursor-pointer rounded-lg p-1.5 text-ink-muted transition-colors duration-200 hover:bg-surface-hover hover:text-accent"
           aria-label={pinned ? 'Unpin set' : 'Pin set'}
         >
-          <Star className={`h-4 w-4 ${pinned ? 'fill-amber-400 text-amber-400' : ''}`} />
+          <Star className={`h-4 w-4 ${pinned ? 'fill-accent text-accent' : ''}`} />
         </button>
         <p className="pr-8 font-semibold text-ink-primary">{set.name}</p>
         <p className="mt-0.5 text-xs text-ink-muted">
@@ -175,11 +174,14 @@ export const SetIndex: React.FC<SetIndexProps> = ({ onSelectSet }) => {
   }
 
   return (
-    <div className="space-y-6">
-      <section className="card !p-4">
-        <SectionLabel className="text-accent/90">Set Tracker</SectionLabel>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">Browse {gameLabel} Sets</h1>
-        <p className="mt-1 text-sm text-ink-secondary">
+    <div className="space-y-8">
+      <section className="space-y-2">
+        <p className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-foil">
+          <span className="h-1.5 w-1.5 rounded-full bg-accent shadow-glow-accent" aria-hidden />
+          Set tracker
+        </p>
+        <h1 className="font-display text-h1 text-ink-primary">Browse {gameLabel} sets</h1>
+        <p className="max-w-2xl text-sm text-ink-secondary">
           {isPokemon
             ? 'Newest releases first, grouped by generation — Mega, SV, SWSH, and more.'
             : 'All One Piece TCG sets with card images and market prices.'}
