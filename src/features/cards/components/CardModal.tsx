@@ -20,12 +20,18 @@ export const CardModal: React.FC<CardModalProps> = ({ card, isOpen, onClose }) =
   });
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      variant="inspect"
+      sceneImageUrl={card.images.large || card.images.small}
+      size="medium"
+    >
       <div className="space-y-6">
         <img
           src={card.images.large}
           alt={card.name}
-          className="mx-auto w-full max-w-[min(16rem,50vw)] rounded-xl border border-border-subtle bg-black/30 shadow-lg"
+          className="mx-auto w-full max-w-[min(16rem,50vw)] rounded-xl border border-border-subtle bg-black/30 shadow-lg md:hidden"
           loading="lazy"
           onError={(e) => {
             const target = e.target as HTMLImageElement;
@@ -34,16 +40,16 @@ export const CardModal: React.FC<CardModalProps> = ({ card, isOpen, onClose }) =
             }
           }}
         />
-        
+
         <div className="space-y-4">
           <div className="text-center">
-            <h2 className="text-xl font-bold text-white">{card.name}</h2>
+            <h2 className="font-display text-xl font-bold text-ink-primary">{card.name}</h2>
             {card.types && card.types.length > 0 && (
               <div className="mt-2 flex justify-center gap-2">
                 {card.types.map((type) => (
                   <span
                     key={type}
-                    className="rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-0.5 text-xs font-medium text-sky-200"
+                    className="rounded-lg border border-foil/30 bg-foil/10 px-2.5 py-0.5 text-xs font-medium text-foil"
                   >
                     {type}
                   </span>
@@ -52,25 +58,25 @@ export const CardModal: React.FC<CardModalProps> = ({ card, isOpen, onClose }) =
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4 rounded-xl border border-border-subtle bg-surface-inset p-4 text-sm">
+          <div className="grid grid-cols-2 gap-4 rounded-2xl border border-border-subtle bg-surface-inset p-4 text-sm">
             <div>
               <p className="section-label mb-0.5">Set</p>
               <p className="font-medium text-ink-secondary">{card.set.name}</p>
             </div>
-            
+
             <div>
               <p className="section-label mb-0.5">Rarity</p>
               <p className="font-medium text-ink-secondary">{card.rarity || 'N/A'}</p>
             </div>
-            
+
             <div>
               <p className="section-label mb-0.5">Release Date</p>
               <p className="font-medium text-ink-secondary">{formattedDate}</p>
             </div>
-            
+
             <div>
               <p className="section-label mb-0.5">Price</p>
-              <p className="font-semibold text-emerald-300">
+              <p className="font-mono font-semibold text-gain">
                 {price > 0 ? `$${price.toFixed(2)}` : 'N/A'}
               </p>
             </div>

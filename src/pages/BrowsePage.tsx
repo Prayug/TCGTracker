@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Search, SlidersHorizontal } from 'lucide-react';
-import { PokemonCard } from '../types/pokemon';
+import type { PokemonCard } from '../types/pokemon';
 import { SearchFilters } from '../features/cards/components/SearchAndSort';
 import { CardGrid, CardViewMode, ViewModeToggle } from '../features/cards/components/CardGrid';
 import { countActiveMarketplaceFilters } from '../utils/marketplaceFilters';
@@ -12,7 +11,9 @@ import { EmptyState } from '../components/common/EmptyState';
 import { useCards, isPokemonCard, isOnePieceCard, getCardPrice } from '../hooks/useCards';
 import { useGame } from '../contexts/GameContext';
 import { useCardModal } from '../contexts/CardModalContext';
+import { PageHeader, PageShell } from '../components/layout/PageShell';
 import { markOnboardingStep } from '../components/common/OnboardingChecklist';
+import { cn } from '@/lib/utils';
 
 const DEFAULT_FILTERS: MarketplaceFilters = {
   setName: 'all',
@@ -131,24 +132,12 @@ export function BrowsePage() {
   const gameLabel = isPokemon ? 'Pokemon' : 'One Piece';
 
   return (
-    <div className="relative mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-      <div className="page-accent-strip" />
-
-      {/* Header */}
-      <div className="mb-8 border-l-4 border-accent pl-4 shadow-[inset_0_0_20px_var(--ring-accent)]">
-        <span className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-accent">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent shadow-[0_0_6px_var(--accent)]" />
-          MARKETPLACE
-        </span>
-        <h1 className="mt-1 font-display text-[clamp(1.5rem,3vw,2.2rem)] font-bold leading-tight tracking-tight">
-          Browse{' '}
-          <span className="text-gradient">{gameLabel}</span>{' '}
-          <span className="text-ink-primary">Cards</span>
-        </h1>
-        <p className="mt-1 text-sm font-semibold text-ink-secondary">
-          Analyze cards with marketplace filters, pricing surfaces, and collection actions.
-        </p>
-      </div>
+    <PageShell>
+      <PageHeader
+        eyebrow="Marketplace"
+        title={`Browse ${gameLabel} cards`}
+        description="Filter by set, rarity, and price — then open any card for market detail."
+      />
 
       <SearchFilters
         searchQuery={searchQuery}
@@ -186,10 +175,12 @@ export function BrowsePage() {
               key={key}
               type="button"
               onClick={() => setMarketplaceFilters({ ...marketplaceFilters, [key]: 'all' })}
-              className="inline-flex items-center gap-1.5 border border-accent bg-accent-muted px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-accent transition-all hover:bg-accent/20 neon-flood"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-accent bg-accent-muted px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-accent transition-all hover:bg-accent/20"
             >
               {label}
-              <span aria-hidden="true" className="text-accent ml-1">×</span>
+              <span aria-hidden="true" className="ml-1 text-accent">
+                ×
+              </span>
               <span className="sr-only">Remove {label} filter</span>
             </button>
           ))}
@@ -197,7 +188,7 @@ export function BrowsePage() {
             <button
               type="button"
               onClick={handleResetBrowseState}
-              className="border border-border-default bg-surface-raised px-3 py-1 text-xs font-bold uppercase tracking-wider text-ink-muted transition-all hover:border-accent hover:text-accent neon-flood"
+              className="cursor-pointer rounded-lg border border-border-default bg-surface-raised px-3 py-1 text-xs font-bold uppercase tracking-wider text-ink-muted transition-all hover:border-accent hover:text-accent"
             >
               Clear all
             </button>
@@ -220,7 +211,12 @@ export function BrowsePage() {
           isOnePiece={isOnePiece}
         />
 
-        <section className="min-w-0">
+        <section
+          className={cn(
+            'min-w-0 rounded-2xl border border-border-subtle bg-surface-raised/40 p-3 sm:p-4',
+            cardsWithMarketplaceFilters.length === 0 && !isLoading && 'flex items-center justify-center'
+          )}
+        >
           {error ? (
             <ErrorMessage message={error} onRetry={refetch} />
           ) : isLoading ? (
@@ -242,6 +238,6 @@ export function BrowsePage() {
           )}
         </section>
       </div>
-    </div>
+    </PageShell>
   );
 }

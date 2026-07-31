@@ -91,25 +91,30 @@ export function ZoomModal({ imageSrc, label, onClose }: ZoomModalProps) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.15 }}
+      transition={{ duration: 0.18 }}
       className="fixed inset-0 z-[80] flex items-center justify-center bg-black/85 p-2 backdrop-blur-sm sm:p-4"
+      style={{ perspective: 1200 }}
       onClick={onClose}
       role="presentation"
     >
       {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events */}
-      <div
-        className="flex w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-border-strong bg-surface-overlay shadow-2xl"
+      <motion.div
+        initial={{ opacity: 0, scale: 0.72, filter: 'blur(10px)', rotateX: 12 }}
+        animate={{ opacity: 1, scale: 1, filter: 'blur(0px)', rotateX: 0 }}
+        transition={{ type: 'spring', stiffness: 340, damping: 28 }}
+        className="relative flex w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-foil/35 bg-surface-overlay shadow-2xl shadow-glow-foil"
         style={{
-          // Account for padding on the backdrop; keep entire dialog in view
           height: 'min(calc(100dvh - 1rem), 52rem)',
           maxHeight: 'calc(100dvh - 1rem)',
           width: 'min(56rem, calc(100vw - 1rem))',
+          transformStyle: 'preserve-3d',
         }}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-label={label}
       >
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-1 bg-gradient-to-r from-accent via-foil to-accent" aria-hidden />
         <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-border-subtle px-3 sm:px-4">
           <span className="truncate text-sm font-medium text-ink-primary">{label}</span>
           <div className="flex shrink-0 items-center gap-2">
@@ -119,14 +124,14 @@ export function ZoomModal({ imageSrc, label, onClose }: ZoomModalProps) {
             <button
               type="button"
               onClick={resetView}
-              className="rounded-md px-2 py-1 text-xs text-ink-muted hover:bg-surface-inset hover:text-ink-primary"
+              className="cursor-pointer rounded-md px-2 py-1 text-xs text-ink-muted hover:bg-surface-inset hover:text-ink-primary"
             >
               Reset
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md p-1 text-ink-muted hover:bg-surface-inset hover:text-ink-primary"
+              className="cursor-pointer rounded-md p-1 text-ink-muted hover:bg-surface-inset hover:text-ink-primary"
               aria-label="Close"
             >
               <X className="h-4 w-4" />
@@ -149,7 +154,6 @@ export function ZoomModal({ imageSrc, label, onClose }: ZoomModalProps) {
               src={imageSrc}
               alt={label}
               draggable={false}
-              // Fit within the viewport without upscaling past native pixels at 100%.
               className="max-h-full max-w-full select-none rounded-md object-contain"
               style={{
                 width: 'auto',
@@ -165,7 +169,7 @@ export function ZoomModal({ imageSrc, label, onClose }: ZoomModalProps) {
         <div className="flex h-9 shrink-0 items-center justify-center border-t border-border-subtle px-3 text-[11px] text-ink-muted">
           Scroll to zoom · Drag to pan · + / − · 0 to reset · Esc to close
         </div>
-      </div>
+      </motion.div>
     </motion.div>
   );
 

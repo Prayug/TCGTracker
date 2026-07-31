@@ -4,7 +4,6 @@ import { tieredPackService } from '../../../services/tieredPackService';
 import { useGame } from '../../../contexts/GameContext';
 import { PackOpeningModal } from './PackOpeningModal';
 import { Package, Sparkles, History, Zap, ChevronDown } from 'lucide-react';
-import { SectionLabel } from '../../../components/common/SectionLabel';
 import { PageEmptyState } from '../../../components/common/PageEmptyState';
 import { formatCurrency } from '../../../utils/cardDisplay';
 
@@ -42,35 +41,35 @@ export const PackShop: React.FC = () => {
   const getTierColor = (tier: string) => {
     switch (tier) {
       case 'starter':
-        return 'from-slate-500 to-slate-700';
+        return 'from-surface-overlay to-surface-raised';
       case 'bronze':
-        return 'from-orange-500 to-amber-700';
+        return 'from-[#1a222c] to-[#0b0f14]';
       case 'silver':
-        return 'from-slate-300 to-slate-500';
+        return 'from-[#12201c] to-[#0b0f14]';
       case 'gold':
-        return 'from-yellow-400 to-amber-600';
+        return 'from-[#1c2410] via-[#121820] to-[#0b0f14]';
       case 'platinum':
-        return 'from-violet-400 to-fuchsia-700';
+        return 'from-[#102428] via-[#0b0f14] to-[#05060a]';
       default:
-        return 'from-blue-500 to-indigo-700';
+        return 'from-surface-overlay to-surface-raised';
     }
   };
 
-  /** Tier-matched glow used for the hover border/shadow on pack cards. */
+  /** Unified Chromatic Vault hover — chartreuse / foil, not rainbow */
   const getTierGlow = (tier: string) => {
     switch (tier) {
       case 'starter':
-        return 'hover:border-slate-400/60 hover:shadow-[0_16px_40px_-12px_rgba(100,116,139,0.45)]';
+        return 'hover:border-border-strong';
       case 'bronze':
-        return 'hover:border-amber-500/60 hover:shadow-[0_16px_40px_-12px_rgba(217,119,6,0.45)]';
+        return 'hover:border-foil/40';
       case 'silver':
-        return 'hover:border-slate-300/70 hover:shadow-[0_16px_40px_-12px_rgba(148,163,184,0.5)]';
+        return 'hover:border-foil/50';
       case 'gold':
-        return 'hover:border-yellow-400/60 hover:shadow-[0_16px_40px_-12px_rgba(234,179,8,0.5)]';
+        return 'hover:border-accent/55 hover:shadow-glow-accent';
       case 'platinum':
-        return 'hover:border-fuchsia-400/60 hover:shadow-[0_16px_40px_-12px_rgba(192,38,211,0.5)]';
+        return 'hover:border-accent/60 hover:shadow-glow-foil';
       default:
-        return 'hover:border-blue-400/60 hover:shadow-[0_16px_40px_-12px_rgba(59,130,246,0.5)]';
+        return 'hover:border-border-strong';
     }
   };
 
@@ -86,12 +85,15 @@ export const PackShop: React.FC = () => {
 
   return (
     <div className="section-stack">
-      <div>
-        <SectionLabel className="text-violet-300/90">Simulated rip lab</SectionLabel>
-        <h2 className="mt-2 text-3xl font-bold text-ink-primary">
+      <div className="space-y-2">
+        <p className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-foil">
+          <span className="h-1.5 w-1.5 rounded-full bg-accent shadow-glow-accent" aria-hidden />
+          Simulated rip lab
+        </p>
+        <h2 className="font-display text-h1 text-ink-primary">
           {isOnePiece ? 'One Piece pack shop' : 'Pack shop'}
         </h2>
-        <p className="mt-2 text-sm text-ink-muted">
+        <p className="max-w-2xl text-sm text-ink-secondary">
           Open tiered packs with play-money odds — results are simulated, not financial advice.
           {isOnePiece ? ' Pulls come from One Piece set pools.' : ''}
         </p>
@@ -111,7 +113,7 @@ export const PackShop: React.FC = () => {
           </article>
           <article className="card min-w-0">
             <p className="section-label mb-2">Pull value</p>
-            <p className="truncate text-3xl font-bold tabular-nums text-emerald-300">
+            <p className="truncate text-3xl font-bold tabular-nums text-gain">
               {formatCurrency(history.totalValue)}
             </p>
           </article>
@@ -252,7 +254,7 @@ export const PackShop: React.FC = () => {
 
                   <button
                     type="button"
-                    className={`mt-auto flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r py-3 text-sm font-bold text-white shadow-md transition-all hover:opacity-90 hover:shadow-lg active:scale-[0.99] ${getTierColor(pack.tier)}`}
+                    className="mt-auto flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-accent py-3 text-sm font-bold text-primary-foreground shadow-glow-accent transition-all hover:bg-accent-hover active:scale-[0.99]"
                     onClick={() => handleOpenPack(pack, !!boostedPacks[pack.id])}
                   >
                     <Sparkles className="h-4 w-4" />

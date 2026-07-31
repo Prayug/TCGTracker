@@ -37,7 +37,15 @@ export interface SetValueHistoryPoint {
   cardsPriced: number;
 }
 
-export type ValueHistoryRange = '30d' | '90d' | '1y' | 'all';
+export type ValueHistoryRange = '1d' | '7d' | '30d' | '90d' | 'all';
+
+export const VALUE_HISTORY_RANGES: { key: ValueHistoryRange; label: string }[] = [
+  { key: '1d', label: '1D' },
+  { key: '7d', label: '1W' },
+  { key: '30d', label: '1M' },
+  { key: '90d', label: '3M' },
+  { key: 'all', label: 'All' },
+];
 
 class SetTrackerService {
   getOwnedCardIds(): Set<string> {
@@ -104,9 +112,9 @@ class SetTrackerService {
 
   async getSetValueHistory(
     setId: string,
-    range: ValueHistoryRange = '90d'
+    range: ValueHistoryRange = '30d'
   ): Promise<SetValueHistoryPoint[]> {
-    const cacheKey = `set_value_history_v3_${setId}_${range}`;
+    const cacheKey = `set_value_history_v4_${setId}_${range}`;
     const cached = cacheService.get<SetValueHistoryPoint[]>(cacheKey);
     if (cached) return cached;
 
