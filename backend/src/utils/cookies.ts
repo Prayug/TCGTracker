@@ -3,15 +3,35 @@ import { env } from '../config/env';
 
 export const AUTH_COOKIE_NAME = 'tcg_token';
 
-const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+/** Parse JWT_EXPIRES_IN-style values (`7d`, `24h`, `3600s`, bare seconds) into seconds. */
+export function parseExpiresInToSeconds(value: string, fallbackSeconds = 7 * 24 * 60 * 60): number {
+  const trimmed = value.trim();
+  const match = /^(\d+)([smhd])?$/i.exec(trimmed);
+  if (!match) return fallbackSeconds;
+  const amount = parseInt(match[1], 10);
+  const unit = (match[2] || 's').toLowerCase();
+  switch (unit) {
+    case 's':
+      return amount;
+    case 'm':
+      return amount * 60;
+    case 'h':
+      return amount * 60 * 60;
+    case 'd':
+      return amount * 24 * 60 * 60;
+    default:
+      return fallbackSeconds;
+  }
+}
 
 export function setAuthCookie(res: Response, token: string): void {
+  const maxAgeSeconds = parseExpiresInToSeconds(env.jwt.expiresIn);
   const parts = [
     `${AUTH_COOKIE_NAME}=${encodeURIComponent(token)}`,
     'HttpOnly',
     'Path=/',
     'SameSite=Lax',
-    `Max-Age=${Math.floor(MAX_AGE_MS / 1000)}`,
+    `Max-Age=${maxAgeSeconds}`,
   ];
   if (env.isProduction) {
     parts.push('Secure');
