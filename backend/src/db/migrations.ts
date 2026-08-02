@@ -992,6 +992,498 @@ export const migrations: Migration[] = [
       logger.info('Skipping prediction variant identity rollback (SQLite limitation)');
     },
   },
+  {
+    id: 24,
+    name: 'data_integrity_and_platform_features',
+    up: async (db: Database) => {
+      const run = (sql: string, params: unknown[] = []): Promise<void> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, params, (err) => {
+            if (err && !String(err.message).includes('duplicate column')) reject(err);
+            else resolve();
+          });
+        });
+
+      const get = <T>(sql: string, params: unknown[] = []): Promise<T | undefined> =>
+        new Promise((resolve, reject) => {
+          db.get(sql, params, (err, row) => (err ? reject(err) : resolve(row as T | undefined)));
+        });
+
+      const columnExists = async (table: string, column: string): Promise<boolean> => {
+        const row = await get<{ name: string }>(
+          `SELECT name FROM pragma_table_info('${table}') WHERE name = ?`,
+          [column]
+        );
+        return !!row;
+      };
+
+      const indexExists = async (name: string): Promise<boolean> => {
+        const row = await get<{ name: string }>(
+          `SELECT name FROM sqlite_master WHERE type='index' AND name = ?`,
+          [name]
+        );
+        return !!row;
+      };
+
+      // --- 1. signal_score on card_predictions (migration 23 may have been skipped on live) ---
+      if (!(await columnExists('card_predictions', 'signal_score'))) {
+        await run('ALTER TABLE card_predictions ADD COLUMN signal_score REAL');
+        logger.info('Added signal_score to card_predictions');
+      }
+
+      // --- 2. Deduplicate calibration_samples then enforce unique index ---
+      const calCount = await get<{ n: number }>('SELECT COUNT(*) AS n FROM calibration_samples');
+      const calDistinct = await get<{ n: number }>(
+        `SELECT COUNT(*) AS n FROM (
+           SELECT 1 FROM calibration_samples
+           GROUP BY horizon, card_id, source, COALESCE(prediction_date, '')
+         )`
+      );
+      if ((calCount?.n ?? 0) > (calDistinct?.n ?? 0)) {
+        logger.info('Deduplicating calibration_samples', {
+          before: calCount?.n,
+          distinct: calDistinct?.n,
+        });
+        await run(`CREATE TABLE calibration_samples_deduped (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          horizon INTEGER NOT NULL,
+          card_id TEXT NOT NULL,
+          run_id INTEGER,
+          signal_score REAL NOT NULL,
+          predicted_return REAL NOT NULL,
+          actual_return REAL NOT NULL,
+          source TEXT NOT NULL DEFAULT 'forward_test',
+          prediction_date TEXT,
+          created_at TEXT DEFAULT (datetime('now'))
+        )`);
+        await run(`INSERT INTO calibration_samples_deduped
+          (horizon, card_id, run_id, signal_score, predicted_return, actual_return, source, prediction_date, created_at)
+          SELECT horizon, card_id, MAX(run_id), AVG(signal_score), AVG(predicted_return), AVG(actual_return),
+                 source, prediction_date, MIN(created_at)
+          FROM calibration_samples
+          GROUP BY horizon, card_id, source, COALESCE(prediction_date, '')`);
+        await run('DROP TABLE calibration_samples');
+        await run('ALTER TABLE calibration_samples_deduped RENAME TO calibration_samples');
+        await run(
+          'CREATE INDEX IF NOT EXISTS idx_calibration_samples_horizon ON calibration_samples(horizon)'
+        );
+        await run(
+          'CREATE INDEX IF NOT EXISTS idx_calibration_samples_prediction_date ON calibration_samples(prediction_date)'
+        );
+        const after = await get<{ n: number }>('SELECT COUNT(*) AS n FROM calibration_samples');
+        logger.info('calibration_samples deduped', { after: after?.n });
+      }
+
+      if (!(await indexExists('uq_calibration_samples'))) {
+        await run(
+          'CREATE UNIQUE INDEX IF NOT EXISTS uq_calibration_samples ON calibration_samples(horizon, card_id, source, prediction_date)'
+        );
+        logger.info('Created uq_calibration_samples');
+      }
+
+      // --- 3. Backfill prediction identity from card_mappings ---
+      await run(`UPDATE card_predictions
+        SET unique_identifier = (
+          SELECT cm.uniqueIdentifier FROM card_mappings cm
+          WHERE cm.cardId = card_predictions.card_id
+          ORDER BY CASE
+            WHEN cm.variantKey IS NULL OR cm.variantKey IN ('normal', 'Normal', '') THEN 0
+            ELSE 1
+          END, cm.uniqueIdentifier
+          LIMIT 1
+        )
+        WHERE unique_identifier IS NULL OR unique_identifier = ''`);
+
+      await run(`UPDATE card_predictions
+        SET variant_key = (
+          SELECT cm.variantKey FROM card_mappings cm
+          WHERE cm.uniqueIdentifier = card_predictions.unique_identifier
+          LIMIT 1
+        )
+        WHERE (variant_key IS NULL OR variant_key = '')
+          AND unique_identifier IS NOT NULL AND unique_identifier <> ''`);
+
+      // Normalize remaining nulls so UNIQUE works (SQLite allows multiple NULLs).
+      await run(
+        `UPDATE card_predictions SET unique_identifier = '' WHERE unique_identifier IS NULL`
+      );
+
+      // --- 4. Deduplicate card_predictions per (run_id, card_id, unique_identifier) ---
+      await run(`DELETE FROM prediction_results
+        WHERE prediction_id IN (
+          SELECT cp.id FROM card_predictions cp
+          WHERE cp.id NOT IN (
+            SELECT MAX(id) FROM card_predictions
+            GROUP BY run_id, card_id, COALESCE(unique_identifier, '')
+          )
+        )`);
+      await run(`DELETE FROM card_predictions
+        WHERE id NOT IN (
+          SELECT MAX(id) FROM card_predictions
+          GROUP BY run_id, card_id, COALESCE(unique_identifier, '')
+        )`);
+
+      if (!(await indexExists('uq_card_predictions_run_card_uid'))) {
+        await run(
+          `CREATE UNIQUE INDEX IF NOT EXISTS uq_card_predictions_run_card_uid
+           ON card_predictions(run_id, card_id, unique_identifier)`
+        );
+      }
+
+      // --- 5. Drop unused snake_case image columns if present ---
+      if (await columnExists('card_mappings', 'image_small')) {
+        try {
+          await run('ALTER TABLE card_mappings DROP COLUMN image_small');
+          await run('ALTER TABLE card_mappings DROP COLUMN image_large');
+          logger.info('Dropped unused image_small/image_large columns');
+        } catch (err) {
+          logger.warn('Could not drop legacy image columns (SQLite version?)', { error: err });
+        }
+      }
+
+      // --- 6. Canonical price series ---
+      await run(`CREATE TABLE IF NOT EXISTS canonical_price_history (
+        uniqueIdentifier TEXT NOT NULL,
+        date TEXT NOT NULL,
+        price REAL NOT NULL,
+        marketPrice REAL,
+        lowPrice REAL,
+        highPrice REAL,
+        volume INTEGER,
+        source TEXT NOT NULL,
+        productName TEXT,
+        groupName TEXT,
+        updatedAt TEXT DEFAULT (datetime('now')),
+        PRIMARY KEY (uniqueIdentifier, date)
+      )`);
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_canonical_price_date ON canonical_price_history(date)'
+      );
+
+      // --- 7. Data quality checks ---
+      await run(`CREATE TABLE IF NOT EXISTS data_quality_checks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        check_name TEXT NOT NULL,
+        severity TEXT NOT NULL,
+        status TEXT NOT NULL,
+        metric_value REAL,
+        threshold REAL,
+        details_json TEXT,
+        checked_at TEXT DEFAULT (datetime('now'))
+      )`);
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_data_quality_checked ON data_quality_checks(checked_at)'
+      );
+
+      // --- 8. Server watchlists / wishlist / tracked ---
+      await run(`CREATE TABLE IF NOT EXISTS user_watchlists (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        card_id TEXT NOT NULL,
+        card_name TEXT NOT NULL,
+        game TEXT NOT NULL DEFAULT 'pokemon',
+        list_type TEXT NOT NULL CHECK(list_type IN ('watchlist', 'wishlist', 'tracked')),
+        priority TEXT,
+        target_price REAL,
+        notes TEXT,
+        card_data TEXT,
+        client_id TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, card_id, list_type, game),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )`);
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_user_watchlists_user ON user_watchlists(user_id)'
+      );
+
+      // --- 9. Portfolio lots for P&L ---
+      await run(`CREATE TABLE IF NOT EXISTS portfolio_lots (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        collection_id INTEGER,
+        card_id TEXT NOT NULL,
+        card_name TEXT NOT NULL,
+        quantity INTEGER NOT NULL DEFAULT 1,
+        cost_basis REAL NOT NULL DEFAULT 0,
+        acquired_at TEXT,
+        sold_at TEXT,
+        sale_price REAL,
+        realized_pnl REAL,
+        condition TEXT,
+        notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (collection_id) REFERENCES user_collections(id) ON DELETE SET NULL
+      )`);
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_portfolio_lots_user ON portfolio_lots(user_id)'
+      );
+
+      // --- 10. Richer alerts ---
+      if (!(await columnExists('price_alerts', 'alert_type'))) {
+        await run(
+          `ALTER TABLE price_alerts ADD COLUMN alert_type TEXT NOT NULL DEFAULT 'price_threshold'`
+        );
+      }
+      if (!(await columnExists('price_alerts', 'threshold_pct'))) {
+        await run('ALTER TABLE price_alerts ADD COLUMN threshold_pct REAL');
+      }
+      if (!(await columnExists('price_alerts', 'baseline_price'))) {
+        await run('ALTER TABLE price_alerts ADD COLUMN baseline_price REAL');
+      }
+      if (!(await columnExists('price_alerts', 'metadata_json'))) {
+        await run('ALTER TABLE price_alerts ADD COLUMN metadata_json TEXT');
+      }
+      // Relax target_price requirement for non-price alerts (keep column nullable-ish via 0 default usage)
+
+      // --- 11. Helpful indexes ---
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_prediction_results_status_pred ON prediction_results(status, prediction_id)'
+      );
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_user_collections_user ON user_collections(user_id)'
+      );
+
+      logger.info('Migration 24: data integrity and platform features complete');
+    },
+    down: async (_db: Database) => {
+      logger.info('Skipping migration 24 rollback (destructive / SQLite limitation)');
+    },
+  },
+  {
+    id: 25,
+    name: 'email_verification',
+    up: async (db: Database) => {
+      const run = (sql: string, params: unknown[] = []): Promise<void> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, params, (err) => (err ? reject(err) : resolve()));
+        });
+      const columnExists = (table: string, column: string): Promise<boolean> =>
+        new Promise((resolve, reject) => {
+          db.all(`PRAGMA table_info(${table})`, [], (err, rows: Array<{ name: string }>) => {
+            if (err) return reject(err);
+            resolve((rows || []).some((r) => r.name === column));
+          });
+        });
+
+      if (!(await columnExists('users', 'email_verified'))) {
+        await run('ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0');
+        // Existing accounts stay usable
+        await run('UPDATE users SET email_verified = 1');
+      }
+      if (!(await columnExists('users', 'email_verification_token'))) {
+        await run('ALTER TABLE users ADD COLUMN email_verification_token TEXT');
+      }
+      if (!(await columnExists('users', 'email_verification_expires'))) {
+        await run('ALTER TABLE users ADD COLUMN email_verification_expires TEXT');
+      }
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_users_verification_token ON users(email_verification_token)'
+      );
+      logger.info('Migration 25: email verification columns added');
+    },
+    down: async (_db: Database) => {
+      logger.info('Skipping migration 25 rollback (SQLite limitation)');
+    },
+  },
+  {
+    id: 26,
+    name: 'graded_data_verification_and_refresh',
+    up: async (db: Database) => {
+      const run = (sql: string, params: unknown[] = []): Promise<void> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, params, (err) => (err ? reject(err) : resolve()));
+        });
+      const columnExists = (table: string, column: string): Promise<boolean> =>
+        new Promise((resolve, reject) => {
+          db.all(`PRAGMA table_info(${table})`, [], (err, rows: Array<{ name: string }>) => {
+            if (err) return reject(err);
+            resolve((rows || []).some((r) => r.name === column));
+          });
+        });
+
+      // Track where each graded price came from and whether the product was verified.
+      if (!(await columnExists('graded_prices', 'productId'))) {
+        await run('ALTER TABLE graded_prices ADD COLUMN productId TEXT');
+      }
+      if (!(await columnExists('graded_prices', 'matchScore'))) {
+        await run('ALTER TABLE graded_prices ADD COLUMN matchScore REAL');
+      }
+      if (!(await columnExists('graded_prices', 'verified'))) {
+        await run('ALTER TABLE graded_prices ADD COLUMN verified INTEGER DEFAULT 0');
+      }
+      if (!(await columnExists('graded_prices', 'sourceUrl'))) {
+        await run('ALTER TABLE graded_prices ADD COLUMN sourceUrl TEXT');
+      }
+      await run('CREATE INDEX IF NOT EXISTS idx_graded_prices_verified ON graded_prices(verified)');
+
+      // population_cache gets a cardId column so scarcity scoring can look up by card.
+      if (!(await columnExists('population_cache', 'cardId'))) {
+        await run('ALTER TABLE population_cache ADD COLUMN cardId TEXT');
+      }
+      await run('CREATE INDEX IF NOT EXISTS idx_population_cache_cardId ON population_cache(cardId)');
+
+      // Nightly refresh queue: which cards users actually looked at.
+      await run(`CREATE TABLE IF NOT EXISTS graded_refresh_queue (
+        cardId TEXT PRIMARY KEY,
+        cardName TEXT NOT NULL,
+        setId TEXT,
+        setName TEXT,
+        cardNumber TEXT,
+        lastRequestedAt INTEGER NOT NULL,
+        lastRefreshedAt INTEGER
+      )`);
+
+      // Purge + rebuild: generic "Grade N" rows are a condition legend, not real
+      // company slab prices; legacy Apify population payloads were fabricated.
+      await run(`DELETE FROM graded_prices WHERE grader = 'generic'`);
+      await run(`DELETE FROM graded_prices WHERE fetchedAt < datetime('now', '-12 hours')`);
+      await run('DELETE FROM population_cache');
+
+      logger.info('Migration 26: graded data verification columns + purge complete');
+    },
+    down: async (_db: Database) => {
+      logger.info('Skipping migration 26 rollback (SQLite limitation)');
+    },
+  },
+  {
+    id: 27,
+    name: 'pc_set_mappings',
+    up: async (db: Database) => {
+      const run = (sql: string, params: unknown[] = []): Promise<void> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, params, (err) => (err ? reject(err) : resolve()));
+        });
+
+      // Our setName -> PriceCharting console name, learned from verified matches.
+      // Lets the bulk sweep hit product pages directly instead of searching.
+      await run(`CREATE TABLE IF NOT EXISTS pc_set_mappings (
+        ourSetName TEXT PRIMARY KEY,
+        consoleName TEXT NOT NULL,
+        learnedAt INTEGER NOT NULL
+      )`);
+
+      logger.info('Migration 27: pc_set_mappings table created');
+    },
+    down: async (_db: Database) => {
+      logger.info('Skipping migration 27 rollback (SQLite limitation)');
+    },
+  },
+  {
+    id: 28,
+    name: 'graded_price_history',
+    up: async (db: Database) => {
+      const run = (sql: string, params: unknown[] = []): Promise<void> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, params, (err) => (err ? reject(err) : resolve()));
+        });
+
+      // Daily slab price series (mirrors price_history for raw). Live cache stays
+      // in graded_prices; this table appends one row per card/grader/grade/day.
+      await run(`CREATE TABLE IF NOT EXISTS graded_price_history (
+        cardId TEXT NOT NULL,
+        date TEXT NOT NULL,
+        grader TEXT NOT NULL,
+        grade TEXT NOT NULL,
+        price REAL,
+        soldListings INTEGER DEFAULT 0,
+        productId TEXT,
+        verified INTEGER DEFAULT 0,
+        sourceUrl TEXT,
+        source TEXT NOT NULL DEFAULT 'pricecharting',
+        PRIMARY KEY (cardId, date, grader, grade)
+      )`);
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_graded_price_history_card_date ON graded_price_history(cardId, date)'
+      );
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_graded_price_history_lookup ON graded_price_history(cardId, grader, grade, date)'
+      );
+
+      // Seed today's series from the current cache so charts aren't empty on day one.
+      await run(`INSERT OR IGNORE INTO graded_price_history
+        (cardId, date, grader, grade, price, soldListings, productId, verified, sourceUrl, source)
+        SELECT cardId,
+               COALESCE(date(fetchedAt), date('now')),
+               grader,
+               grade,
+               price,
+               COALESCE(soldListings, 0),
+               productId,
+               COALESCE(verified, 0),
+               sourceUrl,
+               'pricecharting'
+        FROM graded_prices
+        WHERE price IS NOT NULL AND price > 0`);
+
+      logger.info('Migration 28: graded_price_history table created + seeded');
+    },
+    down: async (db: Database) => {
+      const run = (sql: string): Promise<void> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, (err) => (err ? reject(err) : resolve()));
+        });
+      await run('DROP TABLE IF EXISTS graded_price_history');
+    },
+  },
+  {
+    id: 29,
+    name: 'population_history_and_slab_insights',
+    up: async (db: Database) => {
+      const run = (sql: string, params: unknown[] = []): Promise<void> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, params, (err) => (err ? reject(err) : resolve()));
+        });
+
+      // Daily population snapshots for pop-regime / supply-shock detection.
+      await run(`CREATE TABLE IF NOT EXISTS population_history (
+        cardId TEXT NOT NULL,
+        date TEXT NOT NULL,
+        psaTotal INTEGER,
+        psa10 INTEGER,
+        psa9 INTEGER,
+        cgcTotal INTEGER,
+        cgc10 INTEGER,
+        verified INTEGER DEFAULT 0,
+        productId TEXT,
+        PRIMARY KEY (cardId, date)
+      )`);
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_population_history_date ON population_history(date)'
+      );
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_population_history_psa10 ON population_history(cardId, psa10)'
+      );
+
+      // Seed today from latest population_cache payloads so radar isn't empty.
+      await run(`INSERT OR IGNORE INTO population_history
+        (cardId, date, psaTotal, psa10, psa9, cgcTotal, cgc10, verified, productId)
+        SELECT
+          cardId,
+          date('now'),
+          CAST(json_extract(payload, '$.companies.psa.total') AS INTEGER),
+          CAST(json_extract(payload, '$.companies.psa.grade10') AS INTEGER),
+          CAST(json_extract(payload, '$.companies.psa.grade9') AS INTEGER),
+          CAST(json_extract(payload, '$.companies.cgc.total') AS INTEGER),
+          CAST(json_extract(payload, '$.companies.cgc.grade10') AS INTEGER),
+          COALESCE(CAST(json_extract(payload, '$.verified') AS INTEGER), 0),
+          json_extract(payload, '$.productId')
+        FROM population_cache
+        WHERE cardId IS NOT NULL AND cardId != ''
+          AND json_extract(payload, '$.companies.psa.total') IS NOT NULL`);
+
+      logger.info('Migration 29: population_history created + seeded');
+    },
+    down: async (db: Database) => {
+      const run = (sql: string): Promise<void> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, (err) => (err ? reject(err) : resolve()));
+        });
+      await run('DROP TABLE IF EXISTS population_history');
+    },
+  },
 ];
 
 // Run pending migrations
