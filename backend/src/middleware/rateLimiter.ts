@@ -1,11 +1,29 @@
 import rateLimit from 'express-rate-limit';
+import { Request } from 'express';
 import { env } from '../config/env';
+
+function isCaptureSessionsPath(req: Request): boolean {
+  const url = req.originalUrl || req.url || '';
+  return url.includes('/api/capture-sessions');
+}
 
 // General API rate limiter
 export const apiLimiter = rateLimit({
   windowMs: env.rateLimit.windowMs,
   max: env.rateLimit.maxRequests,
   message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Phone QR capture polls every couple seconds from desktop + phone; don't
+  // burn the global budget on that relay traffic.
+  skip: isCaptureSessionsPath,
+});
+
+/** Generous limiter for phone↔desktop capture relay (poll + image upload). */
+export const captureSessionLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 240,
+  message: 'Too many capture-session requests, please wait a moment.',
   standardHeaders: true,
   legacyHeaders: false,
 });

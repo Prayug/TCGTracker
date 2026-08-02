@@ -26,8 +26,37 @@ export const corsMiddleware = () => {
     .map((o) => o.trim())
     .filter(Boolean);
 
+  const allowPrivateLan = !env.isProduction;
+
   return cors({
-    origin: origins.length === 1 ? origins[0] : origins,
+    origin: (requestOrigin, callback) => {
+      if (!requestOrigin) {
+        callback(null, true);
+        return;
+      }
+      if (origins.includes('*') || origins.includes(requestOrigin)) {
+        callback(null, true);
+        return;
+      }
+      if (allowPrivateLan) {
+        try {
+          const host = new URL(requestOrigin).hostname;
+          const isLan =
+            host === 'localhost' ||
+            host === '127.0.0.1' ||
+            /^192\.168\.\d{1,3}\.\d{1,3}$/.test(host) ||
+            /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host) ||
+            /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(host);
+          if (isLan) {
+            callback(null, true);
+            return;
+          }
+        } catch {
+          // fall through
+        }
+      }
+      callback(new Error(`CORS blocked for origin: ${requestOrigin}`));
+    },
     credentials: true,
     optionsSuccessStatus: 200,
   });

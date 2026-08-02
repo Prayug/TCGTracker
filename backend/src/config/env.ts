@@ -29,6 +29,7 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
   EMAIL_FROM: z.string().optional(),
+  APP_URL: z.string().optional(),
   SENTRY_DSN: z.string().optional(),
   SENTRY_ENVIRONMENT: z.string().default('development'),
   ADMIN_USERNAME: z.string().default('admin'),
@@ -87,6 +88,21 @@ export const env = {
     password: parsedEnv.data.SMTP_PASSWORD,
     from: parsedEnv.data.EMAIL_FROM || 'noreply@tcgtracker.com',
   },
+  /** Public frontend origin for email links. */
+  appUrl: (() => {
+    if (parsedEnv.data.APP_URL) {
+      return parsedEnv.data.APP_URL.replace(/\/$/, '');
+    }
+    const origins = (parsedEnv.data.CORS_ORIGIN || 'http://localhost:5173')
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean);
+    if (parsedEnv.data.NODE_ENV === 'development') {
+      const local = origins.find((o) => /localhost|127\.0\.0\.1/.test(o));
+      if (local) return local.replace(/\/$/, '');
+    }
+    return (origins[0] || 'http://localhost:5173').replace(/\/$/, '');
+  })(),
   sentry: {
     dsn: parsedEnv.data.SENTRY_DSN,
     environment: parsedEnv.data.SENTRY_ENVIRONMENT,
