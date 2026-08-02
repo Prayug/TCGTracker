@@ -179,6 +179,7 @@ export const initializeDatabase = (): Promise<void> => {
         model_version TEXT DEFAULT '1.0.0',
         unique_identifier TEXT,
         variant_key TEXT,
+        signal_score REAL,
         UNIQUE(run_id, card_id, unique_identifier),
         FOREIGN KEY (run_id) REFERENCES prediction_runs(id) ON DELETE CASCADE
       )`,
@@ -220,6 +221,19 @@ export const initializeDatabase = (): Promise<void> => {
         soldListings INTEGER DEFAULT 0,
         fetchedAt TEXT DEFAULT (datetime('now')),
         UNIQUE(cardId, grader, grade)
+      )`,
+      `CREATE TABLE IF NOT EXISTS graded_price_history (
+        cardId TEXT NOT NULL,
+        date TEXT NOT NULL,
+        grader TEXT NOT NULL,
+        grade TEXT NOT NULL,
+        price REAL,
+        soldListings INTEGER DEFAULT 0,
+        productId TEXT,
+        verified INTEGER DEFAULT 0,
+        sourceUrl TEXT,
+        source TEXT NOT NULL DEFAULT 'pricecharting',
+        PRIMARY KEY (cardId, date, grader, grade)
       )`,
       `CREATE TABLE IF NOT EXISTS external_market_signals (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -358,6 +372,8 @@ export const initializeDatabase = (): Promise<void> => {
       'CREATE INDEX IF NOT EXISTS idx_binder_slots_card ON binder_slots(card_id)',
       'CREATE INDEX IF NOT EXISTS idx_graded_prices_card ON graded_prices(cardId)',
       'CREATE INDEX IF NOT EXISTS idx_graded_prices_grader ON graded_prices(grader, grade)',
+      'CREATE INDEX IF NOT EXISTS idx_graded_price_history_card_date ON graded_price_history(cardId, date)',
+      'CREATE INDEX IF NOT EXISTS idx_graded_price_history_lookup ON graded_price_history(cardId, grader, grade, date)',
     ];
 
     for (const indexSql of indexes) {
