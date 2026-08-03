@@ -9,7 +9,6 @@ import { logger } from '../utils/logger';
 
 const router = Router();
 
-// Validation schemas
 const registerSchema = z.object({
   body: z.object({
     username: z.string().min(3).max(50),
@@ -39,73 +38,40 @@ const changePasswordSchema = z.object({
   }),
 });
 
+const resendSchema = z.object({
+  body: z.object({
+    email: z.string().email(),
+  }),
+});
+
+const verifySchema = z.object({
+  body: z.object({
+    token: z.string().min(16).max(200),
+  }),
+});
+
 export const createAuthRouter = (authService: AuthService) => {
-  /**
-   * @swagger
-   * /api/auth/register:
-   *   post:
-   *     summary: Register a new user
-   *     tags: [Auth]
-   *     requestBody:
-   *       required: true
-   *       content:
-   *         application/json:
-   *           schema:
-   *             type: object
-   *             required:
-   *               - username
-   *               - email
-   *               - password
-   *             properties:
-   *               username:
-   *                 type: string
-   *               email:
-   *                 type: string
-   *               password:
-   *                 type: string
-   *     responses:
-   *       201:
-   *         description: User registered successfully
-   *       400:
-   *         description: Validation error or user already exists
-   */
   router.post('/register', authLimiter, validate(registerSchema), async (req, res: Response) => {
     try {
       const { username, email, password } = req.body;
       const result = await authService.register(username, email, password);
-      setAuthCookie(res, result.token);
-      res.status(201).json({ user: result.user });
+
+      // Never create a session on register — user must verify email first.
+      clearAuthCookie(res);
+      res.status(201).json({
+        user: result.user,
+        requiresVerification: true,
+        emailSent: result.emailSent,
+        ...(result.verifyUrl ? { verifyUrl: result.verifyUrl } : {}),
+        message: result.emailSent
+          ? 'Check your email for a verification link before signing in.'
+          : 'Account created, but email could not be sent. Use the verification link shown, or configure SMTP.',
+      });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
   });
 
-  /**
-   * @swagger
-   * /api/auth/login:
-   *   post:
-   *     summary: Login user
-   *     tags: [Auth]
-   *     requestBody:
-   *       required: true
-   *       content:
-   *         application/json:
-   *           schema:
-   *             type: object
-   *             required:
-   *               - email
-   *               - password
-   *             properties:
-   *               email:
-   *                 type: string
-   *               password:
-   *                 type: string
-   *     responses:
-   *       200:
-   *         description: Login successful
-   *       401:
-   *         description: Invalid credentials
-   */
   router.post('/login', authLimiter, validate(loginSchema), async (req, res: Response) => {
     try {
       const { email, password } = req.body;
@@ -113,6 +79,12 @@ export const createAuthRouter = (authService: AuthService) => {
       setAuthCookie(res, result.token);
       res.json({ user: result.user });
     } catch (error: any) {
+      if (error.message === 'EMAIL_NOT_VERIFIED') {
+        return res.status(403).json({
+          error: 'Please verify your email before signing in.',
+          code: 'EMAIL_NOT_VERIFIED',
+        });
+      }
       res.status(401).json({ error: error.message });
     }
   });
@@ -122,20 +94,60 @@ export const createAuthRouter = (authService: AuthService) => {
     res.json({ success: true });
   });
 
-  /**
-   * @swagger
-   * /api/auth/me:
-   *   get:
-   *     summary: Get current user
-   *     tags: [Auth]
-   *     security:
-   *       - bearerAuth: []
-   *     responses:
-   *       200:
-   *         description: User data
-   *       401:
-   *         description: Unauthorized
-   */
+  /** Confirm email from the link in the verification message. */
+  router.post('/verify-email', authLimiter, validate(verifySchema), async (req, res: Response) => {
+    try {
+      const { token } = req.body;
+      const result = await authService.verifyEmailToken(token);
+      setAuthCookie(res, result.authToken);
+      res.json({
+        user: result.user,
+        message: 'Email verified. You are signed in.',
+      });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  /** Also support GET so the email link can open directly in a browser. */
+  router.get('/verify-email', authLimiter, async (req, res: Response) => {
+    try {
+      const token = String(req.query.token || '');
+      if (!token) {
+        return res.status(400).json({ error: 'Missing verification token' });
+      }
+      const result = await authService.verifyEmailToken(token);
+      setAuthCookie(res, result.authToken);
+      res.json({
+        user: result.user,
+        message: 'Email verified. You are signed in.',
+      });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  router.post(
+    '/resend-verification',
+    authLimiter,
+    validate(resendSchema),
+    async (req, res: Response) => {
+      try {
+        const { email } = req.body;
+        const result = await authService.resendVerificationEmail(email);
+        res.json({
+          success: true,
+          emailSent: result.emailSent,
+          ...(result.verifyUrl ? { verifyUrl: result.verifyUrl } : {}),
+          message: 'If that email is registered and unverified, a new link was sent.',
+        });
+      } catch (error: any) {
+        logger.error('Resend verification failed', { error: error.message });
+        res.status(500).json({ error: 'Failed to resend verification email' });
+      }
+    }
+  );
+
   router.get('/me', optionalAuth, async (req: AuthRequest, res: Response) => {
     try {
       if (!req.user) {
@@ -144,6 +156,11 @@ export const createAuthRouter = (authService: AuthService) => {
 
       const user = await authService.getUserById(req.user.id);
       if (!user) {
+        return res.json({ user: null });
+      }
+      // Unverified sessions shouldn't linger
+      if (!user.email_verified) {
+        clearAuthCookie(res);
         return res.json({ user: null });
       }
       res.json({ user });
@@ -157,42 +174,20 @@ export const createAuthRouter = (authService: AuthService) => {
     try {
       const updates = req.body;
       const user = await authService.updateUser(req.user!.id, updates);
+      if (updates.email && !user.email_verified) {
+        clearAuthCookie(res);
+        return res.json({
+          user,
+          requiresVerification: true,
+          message: 'Email updated. Please verify the new address before signing in again.',
+        });
+      }
       res.json({ user });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
   });
 
-  /**
-   * @swagger
-   * /api/auth/change-password:
-   *   post:
-   *     summary: Change user password
-   *     tags: [Auth]
-   *     security:
-   *       - bearerAuth: []
-   *     requestBody:
-   *       required: true
-   *       content:
-   *         application/json:
-   *           schema:
-   *             type: object
-   *             required:
-   *               - oldPassword
-   *               - newPassword
-   *             properties:
-   *               oldPassword:
-   *                 type: string
-   *               newPassword:
-   *                 type: string
-   *     responses:
-   *       200:
-   *         description: Password changed successfully
-   *       400:
-   *         description: Invalid current password
-   *       401:
-   *         description: Unauthorized
-   */
   router.post(
     '/change-password',
     passwordChangeLimiter,
@@ -211,4 +206,3 @@ export const createAuthRouter = (authService: AuthService) => {
 
   return router;
 };
-
