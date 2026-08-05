@@ -12,6 +12,7 @@
     "add-promo-images": "ts-node src/scripts/addPromoImages.ts",
     "image-stats": "ts-node src/scripts/imageStats.ts",
     "debug-db": "ts-node src/scripts/debugDatabase.ts",
+    "rebuild-calibration": "ts-node src/scripts/rebuildCalibration.ts",
     "sample-cards": "ts-node src/scripts/sampleCards.ts",
     "upload-db-to-cloud": "ts-node src/scripts/uploadDbToCloud.ts",
     "restore-db-from-cloud": "ts-node src/scripts/restoreDbFromCloud.ts",
