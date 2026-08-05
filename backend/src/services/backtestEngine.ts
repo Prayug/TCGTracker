@@ -29,7 +29,7 @@ import {
   CardQualityFilter,
   DEFAULT_CARD_QUALITY_FILTER,
 } from './predictionEngine';
-import { CalibrationModel } from './returnCalibration';
+import { CalibrationModel, strongBuyThresholdForHorizon } from './returnCalibration';
 
 export interface BacktestCardResult {
   cardId: string;
@@ -179,8 +179,14 @@ export async function runBacktest(
   const db = getDb();
 
   let cards: any[] = await new Promise((resolve, reject) => {
-    let sql = `SELECT cm.cardId, cm.cardName, cm.setId, cm.setName, cm.cardNumber, cm.rarity, cm.uniqueIdentifier
-               FROM card_mappings cm WHERE cm.cardName IS NOT NULL`;
+    // Rarity falls back to catalog_cards — card_mappings often has blank rarity,
+    // and without a resolved rarity isRarityInvestmentWorthy() rejects every card.
+    let sql = `SELECT cm.cardId, cm.cardName, cm.setId, cm.setName, cm.cardNumber,
+                      COALESCE(NULLIF(TRIM(cm.rarity), ''), cc.rarity) AS rarity,
+                      cm.uniqueIdentifier
+               FROM card_mappings cm
+               LEFT JOIN catalog_cards cc ON cc.cardId = cm.cardId
+               WHERE cm.cardName IS NOT NULL`;
     const params: any[] = [];
 
     if (cardIdFilter && cardIdFilter.length > 0) {
@@ -189,9 +195,18 @@ export async function runBacktest(
     }
 
     if (sampleSize && sampleSize > 0 && (!cardIdFilter || cardIdFilter.length === 0)) {
-      // Random subset keeps calibration harvests bounded.
+      // Random subset keeps calibration harvests bounded. Restrict to rows that
+      // actually have price history so random draws aren't 84% wasted on
+      // catalog-only cards that fail minDataPoints immediately.
       sql += ` AND cm.cardId IN (
-        SELECT cardId FROM card_mappings WHERE cardName IS NOT NULL ORDER BY RANDOM() LIMIT ?
+        SELECT cm2.cardId FROM card_mappings cm2
+        WHERE cm2.cardName IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM price_history ph
+            WHERE ph.uniqueIdentifier = cm2.uniqueIdentifier
+              AND ph.source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
+          )
+        ORDER BY RANDOM() LIMIT ?
       )`;
       params.push(sampleSize);
     }
@@ -273,7 +288,13 @@ export async function runBacktest(
         returns.push(actualReturn);
       }
 
-      const category = determineCategory(scores, expectedReturns.expected90dReturn, priceChanges, recoveryMetrics);
+      const category = determineCategory(
+        scores,
+        expectedReturns.expected90dReturn,
+        priceChanges,
+        recoveryMetrics,
+        strongBuyThresholdForHorizon(90, calibrationModels)
+      );
 
       cardResults.push({
         cardId: card.cardId,

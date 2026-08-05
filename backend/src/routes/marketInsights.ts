@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import { getDb } from '../db/database';
 import { logger } from '../utils/logger';
 import { runPredictions, getLatestPredictions, isPredictionWindow, PredictionWindow, computeSetAgeDays } from '../services/predictionEngine';
 import { runBacktest, getBacktestResults } from '../services/backtestEngine';
@@ -14,8 +15,10 @@ import {
   storeBacktestSamples,
   buildCalibrationModel,
 } from '../services/returnCalibration';
-import { getDb } from '../db/database';
-import { AuthRequest } from '../middleware/auth';
+import { getHorizonSupportStatus, windowToHorizonDays } from '../services/horizonSupport';
+import { runDataQualityChecks, getLatestDataQualityChecks } from '../services/dataQualityService';
+import { AuthRequest, authenticate } from '../middleware/auth';
+import { requireAdmin } from '../middleware/admin';
 
 const router = Router();
 
@@ -49,9 +52,20 @@ router.get('/predictions', asyncHandler(async (req, res) => {
     : undefined;
   const releaseDateFrom = req.query.releaseDateFrom as string | undefined;
   const releaseDateTo = req.query.releaseDateTo as string | undefined;
+  const gameParam = (req.query.game as string | undefined)?.toLowerCase();
+  const game = gameParam === 'onepiece' || gameParam === 'pokemon' ? gameParam : undefined;
 
   const windowParam = (req.query.window as string) || '90d';
   const window: PredictionWindow = isPredictionWindow(windowParam) ? windowParam : '90d';
+  const horizonSupport = await getHorizonSupportStatus();
+  const horizonDays = windowToHorizonDays(window);
+
+  // Prefer a supported window when the requested one lacks history.
+  let effectiveWindow = window;
+  if (horizonSupport.unsupported.includes(horizonDays)) {
+    const fallback = ([90, 30, 7] as const).find((h) => horizonSupport.supported.includes(h));
+    if (fallback) effectiveWindow = `${fallback}d` as PredictionWindow;
+  }
 
   const predictions = await getLatestPredictions(limit, category, {
     minPrice,
@@ -65,18 +79,53 @@ router.get('/predictions', asyncHandler(async (req, res) => {
     search,
     sortBy: sortBy as 'return' | 'confidence' | 'price' | 'name' | 'risk',
     sortOrder: sortOrder as 'asc' | 'desc',
-  }, window);
+    game,
+  }, effectiveWindow);
 
   res.json({
     data: predictions,
     count: predictions.length,
-    window,
+    window: effectiveWindow,
+    requestedWindow: window,
+    horizonSupport,
+    experimental: horizonSupport.experimental.includes(windowToHorizonDays(effectiveWindow)),
     modelVersion: '3.2.0',
   });
 }));
 
-router.get('/overview', asyncHandler(async (_req, res) => {
+router.get('/horizon-support', asyncHandler(async (_req, res) => {
+  const horizonSupport = await getHorizonSupportStatus(true);
+  res.json({ data: horizonSupport });
+}));
+
+router.get('/data-quality', asyncHandler(async (_req, res) => {
+  const summary = await getLatestDataQualityChecks();
+  res.json({
+    data: summary.checks,
+    runAt: summary.runAt,
+    passed: summary.passed,
+    warned: summary.warned,
+    failed: summary.failed,
+  });
+}));
+
+router.post('/data-quality/run', authenticate, requireAdmin, asyncHandler(async (_req, res) => {
+  const summary = await runDataQualityChecks();
+  res.json({ data: summary });
+}));
+
+router.get('/overview', asyncHandler(async (req, res) => {
   const db = getDb();
+  const gameParam = (req.query.game as string | undefined)?.toLowerCase();
+  const game = gameParam === 'onepiece' || gameParam === 'pokemon' ? gameParam : undefined;
+  const gameClause =
+    game === 'onepiece' ? ` AND card_id LIKE 'op:%'` :
+    game === 'pokemon' ? ` AND card_id NOT LIKE 'op:%'` :
+    '';
+  const cpGameClause =
+    game === 'onepiece' ? ` AND cp.card_id LIKE 'op:%'` :
+    game === 'pokemon' ? ` AND cp.card_id NOT LIKE 'op:%'` :
+    '';
 
   const statsRow: any = await new Promise((resolve, reject) => {
     db.get(
@@ -89,7 +138,7 @@ router.get('/overview', asyncHandler(async (_req, res) => {
         SUM(CASE WHEN expected_90d_return > 0.01 THEN 1 ELSE 0 END) AS bullishCount,
         SUM(CASE WHEN expected_90d_return < -0.01 THEN 1 ELSE 0 END) AS bearishCount
       FROM card_predictions
-      WHERE run_id = (SELECT MAX(id) FROM prediction_runs)`,
+      WHERE run_id = (SELECT MAX(id) FROM prediction_runs)${gameClause}`,
       [],
       (err, row: any) => err ? reject(err) : resolve(row)
     );
@@ -99,7 +148,7 @@ router.get('/overview', asyncHandler(async (_req, res) => {
     db.all(
       `SELECT category, COUNT(*) AS count
        FROM card_predictions
-       WHERE run_id = (SELECT MAX(id) FROM prediction_runs)
+       WHERE run_id = (SELECT MAX(id) FROM prediction_runs)${gameClause}
        GROUP BY category
        ORDER BY count DESC`,
       [],
@@ -117,7 +166,7 @@ router.get('/overview', asyncHandler(async (_req, res) => {
        ) cm ON cm.cardId = cp.card_id
        WHERE cp.run_id = (SELECT MAX(id) FROM prediction_runs)
          AND cp.expected_90d_return IS NOT NULL
-         AND cp.confidence_score >= 55
+         AND cp.confidence_score >= 55${cpGameClause}
        ORDER BY cp.expected_90d_return DESC
        LIMIT 5`,
       [],
@@ -135,7 +184,7 @@ router.get('/overview', asyncHandler(async (_req, res) => {
        ) cm ON cm.cardId = cp.card_id
        WHERE cp.run_id = (SELECT MAX(id) FROM prediction_runs)
          AND cp.expected_90d_return IS NOT NULL
-         AND cp.confidence_score >= 55
+         AND cp.confidence_score >= 55${cpGameClause}
        ORDER BY cp.expected_90d_return ASC
        LIMIT 5`,
       [],
@@ -155,7 +204,7 @@ router.get('/overview', asyncHandler(async (_req, res) => {
         END AS bucket,
         COUNT(*) AS count
        FROM card_predictions
-       WHERE run_id = (SELECT MAX(id) FROM prediction_runs)
+       WHERE run_id = (SELECT MAX(id) FROM prediction_runs)${gameClause}
        GROUP BY bucket
        ORDER BY bucket DESC`,
       [],
@@ -233,8 +282,8 @@ router.get('/card/:cardId', asyncHandler(async (req, res) => {
        LEFT JOIN (
          SELECT cardId, MIN(cardName) AS cardName, MIN(setName) AS setName, MIN(setId) AS setId,
                 MIN(cardNumber) AS cardNumber, MIN(rarity) AS rarity,
-                 MIN(COALESCE(NULLIF(imageLarge, ''), NULLIF(image_large, ''))) AS imageLarge,
-                 MIN(COALESCE(NULLIF(imageSmall, ''), NULLIF(image_small, ''))) AS imageSmall,
+                 MIN(NULLIF(imageLarge, '')) AS imageLarge,
+                 MIN(NULLIF(imageSmall, '')) AS imageSmall,
                 MIN(COALESCE(tcgplayerProductId, CAST(productId AS TEXT))) AS tcgplayerProductId
          FROM card_mappings
          GROUP BY cardId
@@ -329,7 +378,7 @@ router.get('/card/:cardId', asyncHandler(async (req, res) => {
   });
 }));
 
-router.post('/run-predictions', asyncHandler(async (_req, res) => {
+router.post('/run-predictions', authenticate, requireAdmin, asyncHandler(async (_req, res) => {
   logger.info('Manual prediction run requested');
   const result = await runPredictions();
   // Best-effort: resolve any matured forward-test windows after a new run.
@@ -349,7 +398,7 @@ router.post('/run-predictions', asyncHandler(async (_req, res) => {
   });
 }));
 
-router.post('/backtest', asyncHandler(async (req, res) => {
+router.post('/backtest', authenticate, requireAdmin, asyncHandler(async (req, res) => {
   const { backtestDate, windowDays = 90, cardIds } = req.body;
 
   if (!backtestDate) {
@@ -382,7 +431,7 @@ router.get('/calibration/status', asyncHandler(async (_req, res) => {
   res.json({ data: getCalibrationStatus(models) });
 }));
 
-router.post('/calibration/rebuild', asyncHandler(async (_req, res) => {
+router.post('/calibration/rebuild', authenticate, requireAdmin, asyncHandler(async (_req, res) => {
   logger.info('Manual calibration rebuild requested');
   await collectForwardTestSamples();
   const models = await rebuildAllCalibrationModels();
@@ -392,7 +441,7 @@ router.post('/calibration/rebuild', asyncHandler(async (_req, res) => {
   });
 }));
 
-router.post('/calibration/harvest', asyncHandler(async (_req, res) => {
+router.post('/calibration/harvest', authenticate, requireAdmin, asyncHandler(async (_req, res) => {
   // Harvest long-horizon samples from historical backtests. Cutoffs are chosen
   // so the forward window has matured against real price history.
   const { harvestBacktestSamples } = await import('../services/returnCalibration');
@@ -423,7 +472,7 @@ router.get('/forward-test', asyncHandler(async (_req, res) => {
   res.json(status);
 }));
 
-router.post('/forward-test/update', asyncHandler(async (_req, res) => {
+router.post('/forward-test/update', authenticate, requireAdmin, asyncHandler(async (_req, res) => {
   const result = await updateActualResults();
   try {
     await collectForwardTestSamples();
@@ -440,7 +489,7 @@ router.get('/external-signals/:cardId', asyncHandler(async (req, res) => {
   res.json({ data: signals });
 }));
 
-router.post('/run-scrape', asyncHandler(async (_req, res) => {
+router.post('/run-scrape', authenticate, requireAdmin, asyncHandler(async (_req, res) => {
   logger.info('Manual signal scrape requested');
   const result = await runSignalScrape();
   res.status(202).json({
