@@ -395,6 +395,22 @@ async function fetchActualPrice(
 
   // Prefer the exact finish/variant the prediction was made on.
   if (uniqueIdentifier) {
+    if (uniqueIdentifier.startsWith('op:')) {
+      const catalogId = uniqueIdentifier.slice(3);
+      const byOp = await lookup(
+        `SELECT marketPrice, inventoryPrice AS price, date
+         FROM onepiece_price_history
+         WHERE catalogId = ?
+           AND date <= ?
+           AND date >= date(?, ?)
+           AND date >= ?
+           AND (marketPrice > 0 OR inventoryPrice > 0)
+         ORDER BY date DESC LIMIT 1`,
+        [catalogId, targetStr, targetStr, `-${slackDays} days`, predictionDate]
+      );
+      if (byOp != null) return byOp;
+    }
+
     const byUid = await lookup(
       `SELECT ph.marketPrice, ph.price, ph.date
        FROM price_history ph

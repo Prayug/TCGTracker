@@ -58,18 +58,29 @@ export function getPriceAtDate(points: PricePoint[], targetDate: Date): number |
   return null;
 }
 
+/**
+ * Calendar-window moving averages: averages the prices observed within the
+ * trailing N calendar days (measured from the latest quote), not the last N
+ * rows. Sparse series therefore get honest, date-correct averages.
+ */
 export function computeMovingAverages(points: PricePoint[]): MovingAverages {
-  const sorted = [...points].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  const prices = sorted.map(p => p.marketPrice ?? p.price).filter(p => p > 0);
-  if (prices.length === 0) return { ma7: null, ma30: null, ma90: null };
+  const sorted = [...points]
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    .map(p => ({ date: p.date.includes('T') ? p.date.split('T')[0] : p.date, price: p.marketPrice ?? p.price }))
+    .filter(p => p.price > 0);
+  if (sorted.length === 0) return { ma7: null, ma30: null, ma90: null };
 
-  const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0);
+  const lastDateMs = new Date(`${sorted[sorted.length - 1].date}T00:00:00Z`).getTime();
+  const DAY_MS = 86_400_000;
 
-  const ma7 = prices.length >= 7 ? sum(prices.slice(-7)) / 7 : null;
-  const ma30 = prices.length >= 30 ? sum(prices.slice(-30)) / 30 : null;
-  const ma90 = prices.length >= 90 ? sum(prices.slice(-90)) / 90 : null;
+  const maOverDays = (days: number): number | null => {
+    const cutoffMs = lastDateMs - (days - 1) * DAY_MS;
+    const window = sorted.filter(p => new Date(`${p.date}T00:00:00Z`).getTime() >= cutoffMs);
+    if (window.length === 0) return null;
+    return window.reduce((a, b) => a + b.price, 0) / window.length;
+  };
 
-  return { ma7, ma30, ma90 };
+  return { ma7: maOverDays(7), ma30: maOverDays(30), ma90: maOverDays(90) };
 }
 
 export function computePriceChanges(points: PricePoint[]): PriceChanges {
@@ -97,13 +108,26 @@ export function computePriceChanges(points: PricePoint[]): PriceChanges {
 }
 
 export function computeVolatility(points: PricePoint[], days: number = 30): VolatilityMetrics {
-  const sorted = [...points].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  const recent = sorted.slice(-Math.max(days, 30));
-  const prices = recent.map(p => p.marketPrice ?? p.price).filter(p => p > 0);
-  if (prices.length < 7) {
+  const sorted = [...points]
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    .map(p => ({
+      date: p.date.includes('T') ? p.date.split('T')[0] : p.date,
+      price: p.marketPrice ?? p.price,
+    }))
+    .filter(p => p.price > 0);
+  if (sorted.length === 0) {
+    return { dailyVolatility: 0.05, weeklyVolatility: 0.12, monthlyVolatility: 0.25 };
+  }
+
+  const lastDateMs = new Date(`${sorted[sorted.length - 1].date}T00:00:00Z`).getTime();
+  const DAY_MS = 86_400_000;
+  const cutoffMs = lastDateMs - (Math.max(days, 30) - 1) * DAY_MS;
+  const recent = sorted.filter(p => new Date(`${p.date}T00:00:00Z`).getTime() >= cutoffMs);
+
+  if (recent.length < 7) {
     // Return elevated uncertainty values instead of arbitrary defaults
     // This naturally penalizes sparse-data cards through risk scoring
-    const dataRatio = prices.length / 7;
+    const dataRatio = recent.length / 7;
     const uncertaintyScale = 1 + (1 - dataRatio) * 2; // 1x-3x multiplier
     return {
       dailyVolatility: 0.05 * uncertaintyScale,
@@ -111,9 +135,22 @@ export function computeVolatility(points: PricePoint[], days: number = 30): Vola
       monthlyVolatility: 0.25 * uncertaintyScale,
     };
   }
+
+  // Day-over-day log returns, skipping gaps so sparse series don't get
+  // inflated variance from multi-day moves.
   const logReturns: number[] = [];
-  for (let i = 1; i < prices.length; i++) {
-    logReturns.push(Math.log(prices[i] / prices[i - 1]));
+  for (let i = 1; i < recent.length; i++) {
+    const prev = recent[i - 1];
+    const curr = recent[i];
+    const gapDays = Math.max(1, Math.round(
+      (new Date(`${curr.date}T00:00:00Z`).getTime() - new Date(`${prev.date}T00:00:00Z`).getTime()) / DAY_MS
+    ));
+    if (gapDays > 1) {
+      // Normalize multi-day moves to an approximate per-day return.
+      logReturns.push(Math.log(curr.price / prev.price) / Math.sqrt(gapDays));
+    } else {
+      logReturns.push(Math.log(curr.price / prev.price));
+    }
   }
   const mean = logReturns.reduce((a, b) => a + b, 0) / logReturns.length;
   const variance = logReturns.reduce((a, b) => a + (b - mean) ** 2, 0) / logReturns.length;
@@ -225,6 +262,8 @@ export function analyzeSimilarCards(
 /**
  * Computes the market-wide average return over a given number of days.
  * This serves as a benchmark for comparing individual card predictions.
+ * Returns are measured from the quote at (latest date - days) to the latest
+ * quote, so sparse series contribute correct calendar-window returns.
  */
 export function computeMarketBenchmark(
   allPriceHistories: PricePoint[][],
@@ -235,13 +274,15 @@ export function computeMarketBenchmark(
   for (const history of allPriceHistories) {
     const sorted = [...history].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     const prices = sorted.map(p => p.marketPrice ?? p.price).filter(p => p > 0);
-
-    if (prices.length < days + 1) continue;
+    if (prices.length < 2) continue;
 
     const currentPrice = prices[prices.length - 1];
-    const pastPrice = prices[prices.length - 1 - days];
+    const currentDate = sorted[sorted.length - 1].date;
+    const targetDate = new Date(currentDate);
+    targetDate.setDate(targetDate.getDate() - days);
+    const pastPrice = getPriceAtDate(sorted, targetDate);
 
-    if (pastPrice > 0 && currentPrice > 0) {
+    if (pastPrice && pastPrice > 0 && currentPrice > 0) {
       returns.push((currentPrice - pastPrice) / pastPrice);
     }
   }
