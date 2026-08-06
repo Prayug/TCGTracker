@@ -18,7 +18,8 @@ export class SetCodeService {
    * Initialize by loading all sets from Pokemon TCG API
    */
   async initialize(): Promise<void> {
-    if (this.initialized && this.dynamicSetMap.size > 0) {
+    // Retry when we only have local name→id maps and no API set metadata (images/series).
+    if (this.initialized && this.dynamicSetMap.size > 0 && this.setById.size > 0) {
       logger.info('SetCodeService already initialized with ' + this.dynamicSetMap.size + ' mappings');
       return;
     }
@@ -191,10 +192,17 @@ export class SetCodeService {
 
     this.dynamicSetMap.clear();
     localSets.forEach((entry) => {
-      this.addSetMappings({
+      const images = {
+        logo: `https://images.pokemontcg.io/${entry.setId}/logo.png`,
+        symbol: `https://images.pokemontcg.io/${entry.setId}/symbol.png`,
+      };
+      const stub: PokemonApiSet = {
         id: entry.setId,
         name: entry.setName,
-      });
+        images,
+      };
+      this.setById.set(entry.setId, stub);
+      this.addSetMappings(stub);
     });
 
     this.initialized = true;

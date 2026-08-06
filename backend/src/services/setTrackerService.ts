@@ -7,6 +7,7 @@ import {
 import {
   extractBestListingPrice,
   ListingPriceFields,
+  resolveListingPrice,
 } from '../utils/resolveListingPrice';
 
 const PRICE_SOURCES = "('tcgcsv', 'tcgdex', 'catalog_fallback')";
@@ -54,6 +55,10 @@ export interface SetCatalogRow {
   latestPrice: number | null;
   priceDate: string | null;
   priceSource: 'market_sync' | 'tcgplayer_catalog' | null;
+  /** Extra reverse-holo market quote when distinct from the primary finish. */
+  reversePrice: number | null;
+  reversePriceDate: string | null;
+  reversePriceSource: 'market_sync' | 'tcgplayer_catalog' | null;
 }
 
 export interface SetCardDto {
@@ -62,12 +67,32 @@ export interface SetCardDto {
   number: string;
   rarity?: string;
   marketPrice: number;
+  /** Reverse-holo market price counted toward master set when present. */
+  reverseMarketPrice: number;
   hasPriceData: boolean;
   priceSource: 'market_sync' | 'tcgplayer_catalog' | null;
   priceDate: string | null;
   images: { small: string; large: string };
   set: { id: string; name: string; releaseDate: string; total: number };
 }
+
+/** True for reverse / reverse-holo finishes (TCGPlayer + mapping key variants). */
+export const isReverseFinish = (subTypeName: string, variantKey: string): boolean => {
+  const combined = `${subTypeName} ${variantKey}`.toLowerCase().replace(/[\s_\-]/g, '');
+  return combined.includes('reverseholo');
+};
+
+export const extractReversePriceFromVariants = (
+  prices?: Record<string, ListingPriceFields>
+): number | null => {
+  if (!prices) return null;
+  for (const [key, fields] of Object.entries(prices)) {
+    if (!isReverseFinish(key, key)) continue;
+    const price = resolveListingPrice(fields);
+    if (price > 0) return price;
+  }
+  return null;
+};
 
 const dbAll = <T>(sql: string, params: unknown[] = []): Promise<T[]> =>
   new Promise((resolve, reject) => {
@@ -97,6 +122,13 @@ export const resolveSetMeta = async (
   eraLabel?: string;
   images?: { symbol: string; logo: string };
 } | null> => {
+  const slugify = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/&/g, ' and ')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
   try {
     const { enrichSetById } = await import('./setListService');
     const enriched = await enrichSetById(setId);
@@ -105,16 +137,36 @@ export const resolveSetMeta = async (
     // fall through to DB lookup
   }
 
-  const row = await dbGet<{ id: string; name: string; releaseDate: string; total: number }>(
+  let row = await dbGet<{ id: string; name: string; releaseDate: string; total: number }>(
     `
     SELECT setId as id, setName as name, MAX(setReleaseDate) as releaseDate, COUNT(*) as total
     FROM catalog_cards cc
     WHERE setId = ? OR setName = ?
     GROUP BY setId, setName
+    ORDER BY total DESC
     LIMIT 1
     `,
     [setId, setId]
   );
+
+  // Vault imports / Collectr slugs often use "black-bolt" instead of catalog setId.
+  if (!row) {
+    const needle = slugify(setId);
+    const spaced = needle.replace(/-/g, ' ');
+    row = await dbGet<{ id: string; name: string; releaseDate: string; total: number }>(
+      `
+      SELECT setId as id, setName as name, MAX(setReleaseDate) as releaseDate, COUNT(*) as total
+      FROM catalog_cards
+      WHERE lower(setName) = lower(?)
+         OR lower(replace(replace(replace(setName, '&', ' and '), ' ', '-'), '--', '-')) = ?
+         OR lower(setName) = lower(?)
+      GROUP BY setId, setName
+      ORDER BY total DESC
+      LIMIT 1
+      `,
+      [spaced, needle, setId]
+    );
+  }
 
   if (row) {
     const { classifySetEra, getEraLabel, resolveSetImages } = await import('../utils/setEra');
@@ -130,7 +182,7 @@ export const resolveSetMeta = async (
       series: apiMeta?.series,
       era,
       eraLabel: getEraLabel(era),
-      images: resolveSetImages(apiMeta?.images),
+      images: resolveSetImages(apiMeta?.images, apiMeta?.id || row.id),
     };
   }
 
@@ -165,43 +217,82 @@ interface ResolvedPrice {
   date: string | null;
   source: 'market_sync';
   priority: number;
+  isReverse: boolean;
 }
 
-const buildPriceLookup = (
-  rows: {
-    cardId: string;
-    cardName: string;
-    setId: string;
-    setName: string;
-    cardNumber: string | null;
-    tcgplayerProductId: string | null;
-    marketPrice: number;
-    date: string;
-    subTypeName: string;
-    variantKey: string;
-    rarity: string | null;
-  }[]
-) => {
-  const byCardId = new Map<string, ResolvedPrice>();
-  const bySetNumber = new Map<string, ResolvedPrice>();
-  const bySetNameNumber = new Map<string, ResolvedPrice>();
-  const byCardNameNumber = new Map<string, ResolvedPrice>();
-  const byProductId = new Map<string, ResolvedPrice>();
+type MarketPriceRow = {
+  cardId: string;
+  cardName: string;
+  setId: string;
+  setName: string;
+  cardNumber: string | null;
+  tcgplayerProductId: string | null;
+  marketPrice: number;
+  date: string;
+  subTypeName: string;
+  variantKey: string;
+  rarity: string | null;
+};
 
-  const consider = (
-    map: Map<string, ResolvedPrice>,
-    key: string,
-    candidate: ResolvedPrice
-  ) => {
-    const existing = map.get(key);
-    if (
-      !existing ||
-      candidate.priority < existing.priority ||
-      (candidate.priority === existing.priority && candidate.price > existing.price)
-    ) {
-      map.set(key, candidate);
-    }
-  };
+const considerResolvedPrice = (
+  map: Map<string, ResolvedPrice>,
+  key: string,
+  candidate: ResolvedPrice
+) => {
+  const existing = map.get(key);
+  if (
+    !existing ||
+    candidate.priority < existing.priority ||
+    (candidate.priority === existing.priority && candidate.price > existing.price)
+  ) {
+    map.set(key, candidate);
+  }
+};
+
+const indexResolvedPrice = (
+  maps: {
+    byCardId: Map<string, ResolvedPrice>;
+    bySetNumber: Map<string, ResolvedPrice>;
+    bySetNameNumber: Map<string, ResolvedPrice>;
+    byCardNameNumber: Map<string, ResolvedPrice>;
+    byProductId: Map<string, ResolvedPrice>;
+  },
+  row: MarketPriceRow,
+  resolved: ResolvedPrice
+) => {
+  if (row.cardId) considerResolvedPrice(maps.byCardId, row.cardId, resolved);
+  if (row.setId && row.cardNumber) {
+    considerResolvedPrice(maps.bySetNumber, `${row.setId}::${row.cardNumber}`, resolved);
+  }
+  if (row.setName && row.cardNumber) {
+    considerResolvedPrice(
+      maps.bySetNameNumber,
+      `${normalizeSetKey(row.setName)}::${row.cardNumber}`,
+      resolved
+    );
+  }
+  if (row.cardName && row.cardNumber) {
+    considerResolvedPrice(
+      maps.byCardNameNumber,
+      `${normalizeSetKey(row.cardName)}::${row.cardNumber}`,
+      resolved
+    );
+  }
+  if (row.tcgplayerProductId) {
+    considerResolvedPrice(maps.byProductId, row.tcgplayerProductId, resolved);
+  }
+};
+
+const emptyPriceMaps = () => ({
+  byCardId: new Map<string, ResolvedPrice>(),
+  bySetNumber: new Map<string, ResolvedPrice>(),
+  bySetNameNumber: new Map<string, ResolvedPrice>(),
+  byCardNameNumber: new Map<string, ResolvedPrice>(),
+  byProductId: new Map<string, ResolvedPrice>(),
+});
+
+const buildPriceLookup = (rows: MarketPriceRow[]) => {
+  const maps = emptyPriceMaps();
 
   for (const row of rows) {
     if (!row.marketPrice || row.marketPrice <= 0) continue;
@@ -211,43 +302,74 @@ const buildPriceLookup = (
       date: row.date,
       source: 'market_sync',
       priority: variantPriority(row.rarity, row.subTypeName, row.variantKey),
+      isReverse: isReverseFinish(row.subTypeName, row.variantKey),
     };
 
-    if (row.cardId) consider(byCardId, row.cardId, resolved);
-    if (row.setId && row.cardNumber) {
-      consider(bySetNumber, `${row.setId}::${row.cardNumber}`, resolved);
-    }
-    if (row.setName && row.cardNumber) {
-      consider(bySetNameNumber, `${normalizeSetKey(row.setName)}::${row.cardNumber}`, resolved);
-    }
-    if (row.cardName && row.cardNumber) {
-      consider(byCardNameNumber, `${normalizeSetKey(row.cardName)}::${row.cardNumber}`, resolved);
-    }
-    if (row.tcgplayerProductId) {
-      consider(byProductId, row.tcgplayerProductId, resolved);
-    }
+    indexResolvedPrice(maps, row, resolved);
   }
 
-  return { byCardId, bySetNumber, bySetNameNumber, byCardNameNumber, byProductId };
+  return maps;
 };
 
-const fetchMarketPricesForSet = async (setId: string, setName?: string) => {
-  const keys = await resolveSetSearchKeys(setId, setName);
-  const where = buildSetMappingWhereClause(keys);
+/** One reverse-holo quote per card identity — used as the extra master-set slot. */
+const buildReversePriceLookup = (rows: MarketPriceRow[]) => {
+  const maps = emptyPriceMaps();
 
-  return dbAll<{
+  for (const row of rows) {
+    if (!row.marketPrice || row.marketPrice <= 0) continue;
+    if (!isReverseFinish(row.subTypeName, row.variantKey)) continue;
+
+    // Among reverse listings only, prefer the higher market quote.
+    const resolved: ResolvedPrice = {
+      price: row.marketPrice,
+      date: row.date,
+      source: 'market_sync',
+      priority: 0,
+      isReverse: true,
+    };
+
+    indexResolvedPrice(maps, row, resolved);
+  }
+
+  return maps;
+};
+
+const pickFromPriceMaps = (
+  row: {
     cardId: string;
     cardName: string;
     setId: string;
     setName: string;
     cardNumber: string | null;
     tcgplayerProductId: string | null;
-    marketPrice: number;
-    date: string;
-    subTypeName: string;
-    variantKey: string;
-    rarity: string | null;
-  }>(
+  },
+  lookup: ReturnType<typeof emptyPriceMaps>
+): ResolvedPrice | undefined => {
+  const fromId = lookup.byCardId.get(row.cardId);
+  const fromNumber =
+    row.setId && row.cardNumber
+      ? lookup.bySetNumber.get(`${row.setId}::${row.cardNumber}`)
+      : undefined;
+  const fromSetNameNumber =
+    row.setName && row.cardNumber
+      ? lookup.bySetNameNumber.get(`${normalizeSetKey(row.setName)}::${row.cardNumber}`)
+      : undefined;
+  const fromCardNameNumber =
+    row.cardName && row.cardNumber
+      ? lookup.byCardNameNumber.get(`${normalizeSetKey(row.cardName)}::${row.cardNumber}`)
+      : undefined;
+  const fromProduct = row.tcgplayerProductId
+    ? lookup.byProductId.get(row.tcgplayerProductId)
+    : undefined;
+
+  return fromId || fromProduct || fromSetNameNumber || fromCardNameNumber || fromNumber;
+};
+
+const fetchMarketPricesForSet = async (setId: string, setName?: string) => {
+  const keys = await resolveSetSearchKeys(setId, setName);
+  const where = buildSetMappingWhereClause(keys);
+
+  return dbAll<MarketPriceRow>(
     `
     SELECT
       cm.cardId,
@@ -279,51 +401,77 @@ const fetchMarketPricesForSet = async (setId: string, setName?: string) => {
 };
 
 const resolvePriceForCatalogRow = (
-  row: Omit<SetCatalogRow, 'latestPrice' | 'priceDate' | 'priceSource'>,
-  lookup: ReturnType<typeof buildPriceLookup>
-): Pick<SetCatalogRow, 'latestPrice' | 'priceDate' | 'priceSource'> => {
-  const fromId = lookup.byCardId.get(row.cardId);
-  const fromNumber =
-    row.setId && row.cardNumber
-      ? lookup.bySetNumber.get(`${row.setId}::${row.cardNumber}`)
-      : undefined;
-  const fromSetNameNumber =
-    row.setName && row.cardNumber
-      ? lookup.bySetNameNumber.get(`${normalizeSetKey(row.setName)}::${row.cardNumber}`)
-      : undefined;
-  const fromCardNameNumber =
-    row.cardName && row.cardNumber
-      ? lookup.byCardNameNumber.get(`${normalizeSetKey(row.cardName)}::${row.cardNumber}`)
-      : undefined;
-  const fromProduct = row.tcgplayerProductId
-    ? lookup.byProductId.get(row.tcgplayerProductId)
-    : undefined;
+  row: Omit<
+    SetCatalogRow,
+    | 'latestPrice'
+    | 'priceDate'
+    | 'priceSource'
+    | 'reversePrice'
+    | 'reversePriceDate'
+    | 'reversePriceSource'
+  >,
+  lookup: ReturnType<typeof buildPriceLookup>,
+  reverseLookup: ReturnType<typeof buildReversePriceLookup>
+): Pick<
+  SetCatalogRow,
+  | 'latestPrice'
+  | 'priceDate'
+  | 'priceSource'
+  | 'reversePrice'
+  | 'reversePriceDate'
+  | 'reversePriceSource'
+> => {
+  const market = pickFromPriceMaps(row, lookup);
 
-  const market =
-    fromId ||
-    fromProduct ||
-    fromSetNameNumber ||
-    fromCardNameNumber ||
-    fromNumber;
+  let latestPrice: number | null = null;
+  let priceDate: string | null = null;
+  let priceSource: SetCatalogRow['priceSource'] = null;
+  let primaryIsReverse = false;
 
   if (market) {
-    return {
-      latestPrice: market.price,
-      priceDate: market.date,
-      priceSource: 'market_sync',
-    };
+    latestPrice = market.price;
+    priceDate = market.date;
+    priceSource = 'market_sync';
+    primaryIsReverse = market.isReverse;
+  } else {
+    const catalogBest = extractBestListingPrice(parsePrices(row.tcgplayerPrices));
+    if (catalogBest.price > 0) {
+      latestPrice = catalogBest.price;
+      priceDate = null;
+      priceSource = 'tcgplayer_catalog';
+      primaryIsReverse = !!catalogBest.variantKey && isReverseFinish(catalogBest.variantKey, catalogBest.variantKey);
+    }
   }
 
-  const catalogPrice = extractMarketPriceFromVariants(parsePrices(row.tcgplayerPrices));
-  if (catalogPrice !== null && catalogPrice > 0) {
-    return {
-      latestPrice: catalogPrice,
-      priceDate: null,
-      priceSource: 'tcgplayer_catalog',
-    };
+  // Master-set reverse slot: only when primary finish is not already the reverse.
+  let reversePrice: number | null = null;
+  let reversePriceDate: string | null = null;
+  let reversePriceSource: SetCatalogRow['reversePriceSource'] = null;
+
+  if (!primaryIsReverse) {
+    const reverse = pickFromPriceMaps(row, reverseLookup);
+    if (reverse) {
+      reversePrice = reverse.price;
+      reversePriceDate = reverse.date;
+      reversePriceSource = 'market_sync';
+    } else {
+      const fromCatalog = extractReversePriceFromVariants(parsePrices(row.tcgplayerPrices));
+      if (fromCatalog !== null && fromCatalog > 0) {
+        reversePrice = fromCatalog;
+        reversePriceDate = null;
+        reversePriceSource = 'tcgplayer_catalog';
+      }
+    }
   }
 
-  return { latestPrice: null, priceDate: null, priceSource: null };
+  return {
+    latestPrice,
+    priceDate,
+    priceSource,
+    reversePrice,
+    reversePriceDate,
+    reversePriceSource,
+  };
 };
 
 export const fetchSetCatalogRows = async (setId: string): Promise<SetCatalogRow[]> => {
@@ -333,8 +481,19 @@ export const fetchSetCatalogRows = async (setId: string): Promise<SetCatalogRow[
   );
   const marketRows = await fetchMarketPricesForSet(setId, catalogSetName?.setName);
   const lookup = buildPriceLookup(marketRows);
+  const reverseLookup = buildReversePriceLookup(marketRows);
 
-  const catalogBase = await dbAll<Omit<SetCatalogRow, 'latestPrice' | 'priceDate' | 'priceSource'>>(
+  const catalogBase = await dbAll<
+    Omit<
+      SetCatalogRow,
+      | 'latestPrice'
+      | 'priceDate'
+      | 'priceSource'
+      | 'reversePrice'
+      | 'reversePriceDate'
+      | 'reversePriceSource'
+    >
+  >(
     `
     SELECT
       cc.cardId,
@@ -363,14 +522,17 @@ export const fetchSetCatalogRows = async (setId: string): Promise<SetCatalogRow[
   if (catalogBase.length > 0) {
     return catalogBase.map((row) => ({
       ...row,
-      ...resolvePriceForCatalogRow(row, lookup),
+      ...resolvePriceForCatalogRow(row, lookup, reverseLookup),
     }));
   }
 
   return [];
 };
 
-export const rowToSetCardDto = (row: SetCatalogRow, setMeta: { id: string; name: string; releaseDate: string; total: number }): SetCardDto => {
+export const rowToSetCardDto = (
+  row: SetCatalogRow,
+  setMeta: { id: string; name: string; releaseDate: string; total: number }
+): SetCardDto => {
   const fromSync = typeof row.latestPrice === 'number' && row.latestPrice > 0 ? row.latestPrice : null;
   const fromCatalog = extractMarketPriceFromVariants(parsePrices(row.tcgplayerPrices));
   const marketPrice = fromSync ?? (fromCatalog !== null && fromCatalog > 0 ? fromCatalog : 0);
@@ -378,12 +540,16 @@ export const rowToSetCardDto = (row: SetCatalogRow, setMeta: { id: string; name:
     row.priceSource ??
     (fromSync !== null ? 'market_sync' : fromCatalog !== null && fromCatalog > 0 ? 'tcgplayer_catalog' : null);
 
+  const reverseMarketPrice =
+    typeof row.reversePrice === 'number' && row.reversePrice > 0 ? row.reversePrice : 0;
+
   return {
     id: row.cardId,
     name: row.cardName,
     number: row.cardNumber || '',
     rarity: row.rarity || undefined,
     marketPrice,
+    reverseMarketPrice,
     hasPriceData: marketPrice > 0,
     priceSource,
     priceDate: row.priceDate,
@@ -410,9 +576,19 @@ export interface SetSummaryResult {
   ownedCount: number;
   wishlistCount: number;
   completionPct: number;
+  /** Primary checklist finishes only (one price per catalog card). */
+  checklistValue: number;
+  /** Sum of reverse-holo finishes counted toward master set. */
+  reverseHoloValue: number;
+  reverseHoloCount: number;
+  /** Checklist + reverse holos (Collectr-style total set / master set). */
   masterSetValue: number;
   ownedValue: number;
   missingValue: number;
+  /** Missing reverse-holo finish value (master-set cost component). */
+  missingReverseValue: number;
+  ownedReverseCount: number;
+  /** Missing primary + missing reverse (when includeReverseInCost). */
   costToComplete: number;
   pricedCardCount: number;
   priceCoveragePct: number;
@@ -420,28 +596,49 @@ export interface SetSummaryResult {
   catalogPriceCount: number;
 }
 
+export interface SetSummaryOptions {
+  /** Card IDs for which the reverse-holo finish is owned (master-set aware). */
+  ownedReverseIds?: Set<string>;
+  /** When true, costToComplete includes missing reverse finishes. Default true. */
+  includeReverseInCost?: boolean;
+}
+
 export const computeSetSummary = (
   cards: SetCardDto[],
   ownedIds: Set<string>,
-  wishlistIds: Set<string>
+  wishlistIds: Set<string>,
+  options: SetSummaryOptions = {}
 ): SetSummaryResult => {
   const setMeta = cards[0]?.set;
-  let masterSetValue = 0;
+  const ownedReverseIds = options.ownedReverseIds ?? new Set<string>();
+  // Master-set cost only when the caller opts in (ownedReverseIds and/or flag).
+  const includeReverseInCost =
+    options.includeReverseInCost === true || options.ownedReverseIds !== undefined;
+  let checklistValue = 0;
+  let reverseHoloValue = 0;
+  let reverseHoloCount = 0;
   let ownedValue = 0;
   let missingValue = 0;
+  let missingReverseValue = 0;
   let pricedCardCount = 0;
   let ownedCount = 0;
+  let ownedReverseCount = 0;
   let marketSyncCount = 0;
   let catalogPriceCount = 0;
 
   for (const card of cards) {
     const price = getCardMarketPrice(card);
+    const reverse = card.reverseMarketPrice > 0 ? card.reverseMarketPrice : 0;
     if (price > 0) {
       pricedCardCount++;
       if (card.priceSource === 'market_sync') marketSyncCount++;
       else if (card.priceSource === 'tcgplayer_catalog') catalogPriceCount++;
     }
-    masterSetValue += price;
+    checklistValue += price;
+    if (reverse > 0) {
+      reverseHoloValue += reverse;
+      reverseHoloCount++;
+    }
 
     if (ownedIds.has(card.id)) {
       ownedCount++;
@@ -449,11 +646,21 @@ export const computeSetSummary = (
     } else {
       missingValue += price;
     }
+
+    if (reverse > 0) {
+      if (ownedReverseIds.has(card.id)) {
+        ownedReverseCount++;
+        ownedValue += reverse;
+      } else if (includeReverseInCost) {
+        missingReverseValue += reverse;
+      }
+    }
   }
 
   const totalCards = cards.length;
   const completionPct = totalCards > 0 ? (ownedCount / totalCards) * 100 : 0;
   const priceCoveragePct = totalCards > 0 ? (pricedCardCount / totalCards) * 100 : 0;
+  const costToComplete = missingValue + (includeReverseInCost ? missingReverseValue : 0);
 
   return {
     setId: setMeta?.id || '',
@@ -463,10 +670,15 @@ export const computeSetSummary = (
     ownedCount,
     wishlistCount: wishlistIds.size,
     completionPct,
-    masterSetValue,
+    checklistValue,
+    reverseHoloValue,
+    reverseHoloCount,
+    masterSetValue: checklistValue + reverseHoloValue,
     ownedValue,
     missingValue,
-    costToComplete: missingValue,
+    missingReverseValue,
+    ownedReverseCount,
+    costToComplete,
     pricedCardCount,
     priceCoveragePct,
     marketSyncCount,
@@ -474,7 +686,7 @@ export const computeSetSummary = (
   };
 };
 
-export type ValueHistoryRange = '30d' | '90d' | '1y' | 'all';
+export type ValueHistoryRange = '1d' | '7d' | '30d' | '90d' | 'all';
 
 export type SetValueHistoryRow = {
   date: string;
@@ -485,6 +697,16 @@ export type SetValueHistoryRow = {
 /** Minimum catalog coverage and value share before a daily total is chart-worthy. */
 const SET_VALUE_HISTORY_MIN_COVERAGE = 0.5;
 const SET_VALUE_HISTORY_MIN_VALUE_RATIO = 0.25;
+
+const RANGE_DAYS: Record<Exclude<ValueHistoryRange, 'all'>, number> = {
+  '1d': 1,
+  '7d': 7,
+  '30d': 30,
+  '90d': 90,
+};
+
+/** Safety cap for "all" — unbounded price_history scans can stall the whole API. */
+const ALL_RANGE_MAX_DAYS = 365 * 5;
 
 /**
  * Drop leading days where only a handful of cards had prices (pre-sync noise).
@@ -515,12 +737,9 @@ export const trimUnreliableSetValueHistory = <T extends SetValueHistoryRow>(
   return history.slice(startIdx);
 };
 
-const rangeToCutoff = (range: ValueHistoryRange): string | null => {
-  const now = new Date();
-  const days =
-    range === '30d' ? 30 : range === '90d' ? 90 : range === '1y' ? 365 : null;
-  if (days === null) return null;
-  const d = new Date(now);
+const rangeToCutoff = (range: ValueHistoryRange): string => {
+  const days = range === 'all' ? ALL_RANGE_MAX_DAYS : RANGE_DAYS[range];
+  const d = new Date();
   d.setUTCDate(d.getUTCDate() - days);
   return d.toISOString().slice(0, 10);
 };
@@ -582,18 +801,29 @@ const resolveHistoryRowToCatalogId = (
 };
 
 const pickBetterPriceForDate = (
-  existing: { price: number; priority: number } | undefined,
+  existing: { price: number; priority: number; isReverse: boolean } | undefined,
   price: number,
-  priority: number
-): { price: number; priority: number } => {
-  if (!existing || priority < existing.priority) return { price, priority };
-  if (priority === existing.priority && price > existing.price) return { price, priority };
+  priority: number,
+  isReverse: boolean
+): { price: number; priority: number; isReverse: boolean } => {
+  if (!existing || priority < existing.priority) return { price, priority, isReverse };
+  if (priority === existing.priority && price > existing.price) {
+    return { price, priority, isReverse };
+  }
+  return existing;
+};
+
+const pickBetterReverseForDate = (
+  existing: number | undefined,
+  price: number
+): number => {
+  if (existing === undefined || price > existing) return price;
   return existing;
 };
 
 export const fetchSetValueHistory = async (
   setId: string,
-  range: ValueHistoryRange = '90d'
+  range: ValueHistoryRange = '30d'
 ): Promise<{ date: string; setValue: number; cardsPriced: number }[]> => {
   const catalogCards = await dbAll<CatalogCardRef>(
     `
@@ -644,20 +874,25 @@ export const fetchSetValueHistory = async (
       AND ph.source IN ${PRICE_SOURCES}
       AND ph.marketPrice IS NOT NULL AND ph.marketPrice > 0
       AND cm.cardName NOT LIKE '%Binder%'
-      ${cutoff ? 'AND ph.date >= ?' : ''}
+      AND ph.date >= ?
     ORDER BY ph.date ASC
     `,
-    cutoff ? [...where.params, cutoff] : where.params
+    [...where.params, cutoff]
   );
 
-  // One best price per catalog card per date (same card list as master set value)
-  const byCatalogCard = new Map<string, Map<string, { price: number; priority: number }>>();
+  // Primary finish + optional reverse slot per catalog card per date (matches master set value)
+  const byCatalogCard = new Map<
+    string,
+    Map<string, { price: number; priority: number; isReverse: boolean }>
+  >();
+  const reverseByCatalogCard = new Map<string, Map<string, number>>();
   const rarityByCatalogId = new Map(catalogCards.map((c) => [c.cardId, c.rarity]));
 
   for (const row of historyRows) {
     const catalogId = resolveHistoryRowToCatalogId(row, catalogIndex);
     if (!catalogId) continue;
 
+    const isReverse = isReverseFinish(row.subTypeName, row.variantKey);
     const priority = variantPriority(
       rarityByCatalogId.get(catalogId) ?? row.rarity,
       row.subTypeName,
@@ -669,8 +904,17 @@ export const fetchSetValueHistory = async (
     const existing = dateMap.get(row.date);
     dateMap.set(
       row.date,
-      pickBetterPriceForDate(existing, row.marketPrice, priority)
+      pickBetterPriceForDate(existing, row.marketPrice, priority, isReverse)
     );
+
+    if (isReverse) {
+      if (!reverseByCatalogCard.has(catalogId)) reverseByCatalogCard.set(catalogId, new Map());
+      const reverseDateMap = reverseByCatalogCard.get(catalogId)!;
+      reverseDateMap.set(
+        row.date,
+        pickBetterReverseForDate(reverseDateMap.get(row.date), row.marketPrice)
+      );
+    }
   }
 
   if (byCatalogCard.size === 0) return [];
@@ -679,22 +923,39 @@ export const fetchSetValueHistory = async (
   for (const dateMap of byCatalogCard.values()) {
     for (const date of dateMap.keys()) allDates.add(date);
   }
+  for (const dateMap of reverseByCatalogCard.values()) {
+    for (const date of dateMap.keys()) allDates.add(date);
+  }
 
   const sortedDates = [...allDates].sort();
-  const lastPrice = new Map<string, number>();
+  const lastPrimary = new Map<string, { price: number; isReverse: boolean }>();
+  const lastReverse = new Map<string, number>();
   const result: { date: string; setValue: number; cardsPriced: number }[] = [];
 
   for (const date of sortedDates) {
     for (const [catalogId, dateMap] of byCatalogCard) {
       const point = dateMap.get(date);
-      if (point) lastPrice.set(catalogId, point.price);
+      if (point) lastPrimary.set(catalogId, { price: point.price, isReverse: point.isReverse });
+    }
+    for (const [catalogId, dateMap] of reverseByCatalogCard) {
+      const reversePrice = dateMap.get(date);
+      if (reversePrice !== undefined) lastReverse.set(catalogId, reversePrice);
     }
 
     let setValue = 0;
     let cardsPriced = 0;
-    for (const price of lastPrice.values()) {
-      setValue += price;
-      cardsPriced++;
+    const catalogIds = new Set([...lastPrimary.keys(), ...lastReverse.keys()]);
+    for (const catalogId of catalogIds) {
+      const primary = lastPrimary.get(catalogId);
+      if (primary) {
+        setValue += primary.price;
+        cardsPriced++;
+      }
+      const reverse = lastReverse.get(catalogId);
+      // Extra reverse slot only when primary isn't already the reverse finish
+      if (reverse !== undefined && reverse > 0 && !primary?.isReverse) {
+        setValue += reverse;
+      }
     }
 
     result.push({ date, setValue, cardsPriced });

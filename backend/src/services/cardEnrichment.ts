@@ -10,10 +10,18 @@ import {
 interface EnrichedCard {
   investmentData?: {
     psaData: {
-      population: { grade10: number; grade9: number; grade8: number; grade7: number; total: number };
-      prices: { grade10: number; grade9: number; grade8: number; raw: number };
+      population: {
+        grade10: number | null;
+        grade9: number | null;
+        grade8: number | null;
+        grade7: number | null;
+        total: number | null;
+      };
+      prices: { grade10: number | null; grade9: number | null; grade8: number | null; raw: number };
       popReport: { lowPop: boolean; grade10Percentage: number; totalSubmissions: number };
       returnRate: number;
+      fetchedAt: string | null;
+      stale: boolean;
     };
     priceHistory: Array<{ date: string; price: number }>;
     marketAnalysis: {
@@ -53,6 +61,151 @@ interface PriceHistoryRow {
 interface CardMappingRow {
   cardId: string;
   uniqueIdentifier: string;
+}
+
+interface GradedLookup {
+  grade10: number | null;
+  grade9: number | null;
+  grade8: number | null;
+  raw: number | null;
+  fetchedAt: string | null;
+}
+
+interface PopulationLookup {
+  grade10: number | null;
+  grade9: number | null;
+  total: number | null;
+  fetchedAt: string | null;
+}
+
+const GRADED_CACHE_TTL_MS = 15 * 60 * 1000;
+let gradedCache: { at: number; data: Map<string, GradedLookup> } = { at: 0, data: new Map() };
+let populationCache: { at: number; data: Map<string, PopulationLookup> } = {
+  at: 0,
+  data: new Map(),
+};
+
+async function allRows<T>(sql: string, params: unknown[]): Promise<T[]> {
+  const db = getDb();
+  return new Promise((resolve, reject) => {
+    db.all(sql, params, (err, rows: any[]) => {
+      if (err) reject(err);
+      else resolve((rows || []) as T[]);
+    });
+  });
+}
+
+/**
+ * Real slab prices for a batch of cardIds (from graded_prices). Absent grades
+ * stay null — never fabricated zeros.
+ */
+async function fetchGradedLookups(cardIds: string[]): Promise<Map<string, GradedLookup>> {
+  const now = Date.now();
+  if (gradedCache.data.size > 0 && now - gradedCache.at < GRADED_CACHE_TTL_MS) {
+    return gradedCache.data;
+  }
+  const map = new Map<string, GradedLookup>();
+  const unique = [...new Set(cardIds)];
+  const BATCH_SIZE = 100;
+  for (let i = 0; i < unique.length; i += BATCH_SIZE) {
+    const batch = unique.slice(i, i + BATCH_SIZE);
+    const placeholders = batch.map(() => '?').join(',');
+    const rows = await allRows<{
+      cardId: string;
+      grader: string;
+      grade: string;
+      price: number;
+      fetchedAt: string;
+    }>(
+      `SELECT cardId, grader, grade, price, MAX(fetchedAt) as fetchedAt
+       FROM graded_prices
+       WHERE cardId IN (${placeholders}) AND verified = 1 AND price IS NOT NULL AND price > 0
+       GROUP BY cardId, grader, grade`,
+      batch
+    );
+    for (const cardId of unique) {
+      map.set(cardId, {
+        grade10: null,
+        grade9: null,
+        grade8: null,
+        raw: null,
+        fetchedAt: null,
+      });
+    }
+    for (const row of rows) {
+      const entry = map.get(row.cardId);
+      if (!entry) continue;
+      const key = `${row.grader}::${row.grade}`;
+      if (key === 'psa::10') entry.grade10 = row.price;
+      else if (key === 'psa::9') entry.grade9 = row.price;
+      else if (key === 'psa::8') entry.grade8 = row.price;
+      else if (row.grader === 'ungraded') entry.raw = row.price;
+      if (entry.fetchedAt == null || (row.fetchedAt && row.fetchedAt > entry.fetchedAt)) {
+        entry.fetchedAt = row.fetchedAt;
+      }
+    }
+  }
+  gradedCache = { at: now, data: map };
+  return map;
+}
+
+/**
+ * Real PSA population census for a batch of cardIds. Only valid payloads with
+ * a 10-element positional array (or an explicit grade10) are accepted.
+ */
+async function fetchPopulationLookups(cardIds: string[]): Promise<Map<string, PopulationLookup>> {
+  const now = Date.now();
+  if (populationCache.data.size > 0 && now - populationCache.at < GRADED_CACHE_TTL_MS) {
+    return populationCache.data;
+  }
+  const map = new Map<string, PopulationLookup>();
+  const unique = [...new Set(cardIds)];
+  const BATCH_SIZE = 100;
+  for (let i = 0; i < unique.length; i += BATCH_SIZE) {
+    const batch = unique.slice(i, i + BATCH_SIZE);
+    const placeholders = batch.map(() => '?').join(',');
+    const rows = await allRows<{ cardId: string; payload: string; fetchedAt: number }>(
+      `SELECT cardId, payload, MAX(fetchedAt) as fetchedAt
+       FROM population_cache
+       WHERE cardId IN (${placeholders})
+       GROUP BY cardId`,
+      batch
+    );
+    for (const cardId of unique) {
+      map.set(cardId, { grade10: null, grade9: null, total: null, fetchedAt: null });
+    }
+    for (const row of rows) {
+      try {
+        const parsed = JSON.parse(row.payload);
+        const psa = parsed?.companies?.psa;
+        if (!psa) continue;
+        let grade10: number | null = null;
+        let grade9: number | null = null;
+        if (Array.isArray(psa.pop)) {
+          const arr = psa.pop.map((v: unknown) => Number(v));
+          if (arr.length >= 10 && arr.every((v: number) => Number.isFinite(v))) {
+            grade10 = arr[9];
+            grade9 = arr[8];
+          }
+        } else {
+          if (psa.grade10 != null) grade10 = Number(psa.grade10) || null;
+          if (psa.grade9 != null) grade9 = Number(psa.grade9) || null;
+        }
+        const total = typeof psa.total === 'number' ? psa.total : null;
+        if (grade10 == null && grade9 == null && total == null) continue;
+        const existing = map.get(row.cardId);
+        if (!existing) continue;
+        existing.grade10 = grade10;
+        existing.grade9 = grade9;
+        existing.total = total;
+        existing.fetchedAt = new Date(row.fetchedAt).toISOString();
+      } catch {
+        // skip malformed payloads
+      }
+    }
+  }
+  populationCache = { at: now, data: map };
+  return map;
 }
 
 function mapCategoryToFlags(category: string): { isUndervalued: boolean; isOvervalued: boolean } {
@@ -361,6 +514,10 @@ export async function enrichCardsWithInvestmentData<T extends { id?: string; car
     const priceHistories = await fetchPriceHistories(uniqueIdentifiers);
     const latestSnapshots = await fetchLatestSnapshots(cardIds);
 
+    // 4. Fetch real graded prices + population census (batched)
+    const gradedLookups = await fetchGradedLookups(cardIds);
+    const populationLookups = await fetchPopulationLookups(cardIds);
+
     // 4. Enrich each card
     return cards.map(card => {
       const cardId = (card as any).id || (card as any).cardId;
@@ -386,16 +543,42 @@ export async function enrichCardsWithInvestmentData<T extends { id?: string; car
       const expected30dReturn = prediction?.expected_30d_return || 0;
       const { isUndervalued, isOvervalued } = mapCategoryToFlags(category);
 
+      const graded = gradedLookups.get(cardId);
+      const pop = populationLookups.get(cardId);
+      const grade10 = pop?.grade10 ?? null;
+      const total = pop?.total ?? null;
+      const grade10Percentage = grade10 != null && total != null && total > 0
+        ? (grade10 / total) * 100
+        : 0;
+      const lowPop = grade10 != null && total != null && grade10 > 0 && grade10 < 500 && grade10Percentage < 5;
+      const psaFetchedAt = graded?.fetchedAt ?? pop?.fetchedAt ?? null;
+      const psaStale = psaFetchedAt != null
+        ? Date.now() - new Date(psaFetchedAt).getTime() > 12 * 60 * 60 * 1000
+        : false;
+
       const investmentData: EnrichedCard['investmentData'] = {
         psaData: {
-          population: { grade10: 0, grade9: 0, grade8: 0, grade7: 0, total: 0 },
-          prices: { grade10: 0, grade9: 0, grade8: 0, raw: prediction?.current_price || latestSnapshot || 0 },
+          population: {
+            grade10: grade10 != null && grade10 > 0 ? grade10 : null,
+            grade9: pop?.grade9 != null && pop.grade9 > 0 ? pop.grade9 : null,
+            grade8: null,
+            grade7: null,
+            total: total != null && total > 0 ? total : null,
+          },
+          prices: {
+            grade10: graded?.grade10 ?? null,
+            grade9: graded?.grade9 ?? null,
+            grade8: graded?.grade8 ?? null,
+            raw: prediction?.current_price || latestSnapshot || 0,
+          },
           popReport: {
-            lowPop: false,
-            grade10Percentage: 0,
-            totalSubmissions: 0,
+            lowPop,
+            grade10Percentage,
+            totalSubmissions: total ?? 0,
           },
           returnRate: 0,
+          fetchedAt: psaFetchedAt,
+          stale: psaStale,
         },
         priceHistory: priceHistory.map(p => ({ date: p.date, price: p.price })),
         marketAnalysis: {
