@@ -148,17 +148,46 @@ function extractVariantLabel(name: string): string | null {
   return match ? match[1].trim().toUpperCase() : null;
 }
 
+/** Normalize verbose OPTCG / TCGPlayer variant strings for comparison. */
+function normalizeVariantKey(variant: string | null): string | null {
+  if (!variant) return null;
+  const v = variant.toUpperCase().replace(/\s+/g, ' ').trim();
+  if (v.includes('RED SUPER')) return 'RED_SUPER_ALT';
+  if (v.includes('SUPER ALTERNATE') || v === 'MANGA') return 'SUPER_ALT';
+  if (v.includes('WANTED POSTER')) return 'WANTED';
+  if (v.includes('ALTERNATE ART') || v === 'PARALLEL' || v === 'BOX TOPPER') return 'PARALLEL';
+  if (v === 'SP' || v.endsWith(' SP')) return 'SP';
+  if (v === 'TR' || v.includes('TREASURE')) return 'TR';
+  return v;
+}
+
 const VARIANT_EQUIVALENTS: Record<string, Set<string>> = {
-  SP: new Set(['SP', 'TR']),
-  TR: new Set(['TR', 'SP']),
+  SP: new Set(['SP']),
+  TR: new Set(['TR']),
+  PARALLEL: new Set(['PARALLEL']),
+  SUPER_ALT: new Set(['SUPER_ALT', 'MANGA']),
+  RED_SUPER_ALT: new Set(['RED_SUPER_ALT']),
+  WANTED: new Set(['WANTED']),
 };
 
 function variantsEquivalent(a: string | null, b: string | null): boolean {
-  if (!a && !b) return true;
-  if (!a || !b) return false;
-  if (a === b) return true;
-  return VARIANT_EQUIVALENTS[a]?.has(b) ?? false;
+  const na = normalizeVariantKey(a);
+  const nb = normalizeVariantKey(b);
+  if (!na && !nb) return true;
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  return VARIANT_EQUIVALENTS[na]?.has(nb) ?? false;
 }
+
+function variantsConflict(a: string | null, b: string | null): boolean {
+  const na = normalizeVariantKey(a);
+  const nb = normalizeVariantKey(b);
+  if (!na || !nb) return false;
+  return !variantsEquivalent(na, nb);
+}
+
+/** Minimum score to accept a TCGPlayer listing; below this we fall back to OPTCG. */
+export const MIN_TCG_LISTING_SCORE = 10;
 
 function scoreListingMatch(
   listing: TcgPlayerListing,
@@ -172,32 +201,58 @@ function scoreListingMatch(
 
   let score = 0;
 
-  if (variantsEquivalent(cardVariant, listingVariant)) score += 20;
+  // Hard reject: "Sabo (SP)" must never match "Sabo (Red Super Alternate Art)".
+  if (variantsConflict(cardVariant, listingVariant)) {
+    return -100;
+  }
+
+  if (variantsEquivalent(cardVariant, listingVariant)) score += 40;
+  if (cardLower.includes('red super') && listingLower.includes('red super')) score += 30;
+  // Don't let "Red Super Alternate Art" also score as plain Super Alternate Art.
+  if (
+    cardLower.includes('super alternate') &&
+    listingLower.includes('super alternate') &&
+    !cardLower.includes('red super') &&
+    !listingLower.includes('red super')
+  ) {
+    score += 25;
+  }
+  if (cardLower.includes('wanted poster') && listingLower.includes('wanted poster')) score += 25;
   if (cardLower.includes('parallel') && listingLower.includes('parallel')) score += 15;
   if (cardLower.includes('reprint') && listingLower.includes('reprint')) score += 15;
   if (cardImageId.includes('_p1') && listingLower.includes('parallel')) score += 10;
-  if (cardImageId.includes('_p2') && (listingVariant === 'TR' || listingVariant === 'SP')) score += 10;
+  if (cardImageId.includes('_p2') && (listingLower.includes('super alternate') || listingLower.includes('manga'))) {
+    score += 15;
+  }
+  if (cardImageId.includes('_p3') && listingLower.includes('red super')) score += 20;
+  if (cardImageId.includes('_p4') && listingLower.includes('wanted')) score += 15;
   if (cardImageId.includes('_r') && listingLower.includes('reprint')) score += 10;
-  if (!cardVariant && !listingVariant && !cardImageId.match(/_[pr]\d/i)) score += 5;
+  if (!cardVariant && !listingVariant && !cardImageId.match(/_[pr]\d/i)) score += 15;
 
   return score;
 }
 
-function pickBestListing(
+/** Exported for unit tests — prefers exact variant match, rejects conflicts. */
+export function pickBestListing(
   listings: TcgPlayerListing[],
   cardName: string,
   cardImageId: string
 ): TcgPlayerListing | null {
   if (!listings.length) return null;
-  if (listings.length === 1) return listings[0];
 
   const ranked = [...listings].sort((a, b) => {
     const scoreDiff = scoreListingMatch(b, cardName, cardImageId) - scoreListingMatch(a, cardName, cardImageId);
     if (scoreDiff !== 0) return scoreDiff;
-    return (b.marketPrice ?? 0) - (a.marketPrice ?? 0);
+    // Prefer closer (not higher) prices when scores tie — never jackpot on mismatch.
+    return (a.marketPrice ?? 0) - (b.marketPrice ?? 0);
   });
 
-  return ranked[0] ?? null;
+  const best = ranked[0];
+  if (!best) return null;
+  if (scoreListingMatch(best, cardName, cardImageId) < MIN_TCG_LISTING_SCORE) {
+    return null;
+  }
+  return best;
 }
 
 export async function findTcgPlayerListing(input: {

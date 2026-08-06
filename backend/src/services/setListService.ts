@@ -82,7 +82,8 @@ export const getEnrichedSets = async (): Promise<EnrichedPokemonSet[]> => {
       name: row.name,
       series,
     });
-    const images = resolveSetImages(apiMeta?.images);
+    const imageSetId = apiMeta?.id || normalizedId || row.id;
+    const images = resolveSetImages(apiMeta?.images, imageSetId);
 
     enriched.push({
       id: row.id,
@@ -96,7 +97,14 @@ export const getEnrichedSets = async (): Promise<EnrichedPokemonSet[]> => {
     });
   }
 
-  return sortSetsForDisplay(enriched);
+  // Catalog can emit multiple names under one setId (e.g. svp). Prefer the larger checklist.
+  const deduped = new Map<string, EnrichedPokemonSet>();
+  for (const set of enriched) {
+    const prev = deduped.get(set.id);
+    if (!prev || set.total > prev.total) deduped.set(set.id, set);
+  }
+
+  return sortSetsForDisplay([...deduped.values()]);
 };
 
 export const enrichSetById = async (
@@ -143,6 +151,6 @@ export const enrichSetById = async (
     series,
     era,
     eraLabel: getEraLabel(era),
-    images: resolveSetImages(apiMeta?.images),
+    images: resolveSetImages(apiMeta?.images, apiMeta?.id || normalizedId || row.id),
   };
 };
