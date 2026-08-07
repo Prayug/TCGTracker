@@ -37,6 +37,11 @@ exports.DEFAULT_CARD_QUALITY_FILTER = void 0;
 exports.computeSeasonalityAdjustment = computeSeasonalityAdjustment;
 exports.isRarityInvestmentWorthy = isRarityInvestmentWorthy;
 exports.hasMeaningfulPriceMovement = hasMeaningfulPriceMovement;
+exports.dedupePriceHistoryByDate = dedupePriceHistoryByDate;
+exports.countLiveQuotes = countLiveQuotes;
+exports.countDistinctPrices = countDistinctPrices;
+exports.calendarSpanDays = calendarSpanDays;
+exports.hasAdequateTrackingHistory = hasAdequateTrackingHistory;
 exports.computeSetAgeDays = computeSetAgeDays;
 exports.getAdaptiveMinDataPoints = getAdaptiveMinDataPoints;
 exports.getAdaptiveMinMovementPct = getAdaptiveMinMovementPct;
@@ -53,6 +58,7 @@ exports.computeCompetitiveMetaScore = computeCompetitiveMetaScore;
 exports.computeGradingScore = computeGradingScore;
 exports.computeGradingPremiumPotential = computeGradingPremiumPotential;
 exports.computeExpectedReturns = computeExpectedReturns;
+exports.computeCalibratedConfidence = computeCalibratedConfidence;
 exports.computePriceRanges = computePriceRanges;
 exports.determineCategory = determineCategory;
 exports.generateSuggestedAction = generateSuggestedAction;
@@ -66,6 +72,9 @@ const database_1 = require("../db/database");
 const logger_1 = require("../utils/logger");
 const marketAnalyzer_1 = require("./marketAnalyzer");
 const externalSignalService_1 = require("./externalSignalService");
+const topMoversQuality_1 = require("./topMoversQuality");
+const returnCalibration_1 = require("./returnCalibration");
+const horizonSupport_1 = require("./horizonSupport");
 // --- Utility helpers for smooth interpolation ---
 function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
@@ -100,7 +109,7 @@ function linearMap(value, breakpoints) {
     }
     return sorted[sorted.length - 1].output;
 }
-const MODEL_VERSION = '3.2.0';
+const MODEL_VERSION = '4.0.0';
 // --- Seasonality ---
 /**
  * Computes a seasonality adjustment based on TCG release cycles.
@@ -187,6 +196,29 @@ const RARITY_SQL_PATTERNS = {
     'Rare Holo V': '%Rare Holo V%',
     'Rare Holo VMAX': '%Rare Holo VMAX%',
     'Rare Holo VSTAR': '%Rare Holo VSTAR%',
+    // One Piece catalog codes / labels
+    'C': 'C',
+    'UC': 'UC',
+    'R': 'R',
+    'L': 'L',
+    'SR': 'SR',
+    'SEC': 'SEC',
+    'AA': 'AA',
+    'LAA': 'LAA',
+    'SP': 'SP',
+    'TR': 'TR',
+    'MANGA': '%Manga%',
+    'SAA': 'SAA',
+    'DON': '%DON%',
+    'Common': '%Common%',
+    'Uncommon': '%Uncommon%',
+    'Rare': 'Rare',
+    'Leader': '%Leader%',
+    'Super Rare': '%Super Rare%',
+    'Alternate Art': '%Alternate Art%',
+    'Special Rare': '%Special%',
+    'Treasure Rare': '%Treasure%',
+    'Manga Rare': '%Manga%',
 };
 function buildRarityWhereClause(column, rarities) {
     var _a;
@@ -240,6 +272,107 @@ function hasMeaningfulPriceMovement(priceHistory, minRangePct = 5) {
     const rangePct = ((max - min) / min) * 100;
     return rangePct >= minRangePct;
 }
+const HISTORY_SOURCE_PRIORITY = {
+    tcgdex: 0,
+    catalog_fallback: 1,
+    tcgcsv: 2,
+};
+/**
+ * One quote per calendar day, preferring live TCGdex over catalog/legacy dumps.
+ */
+function dedupePriceHistoryByDate(rows) {
+    var _a, _b, _c, _d;
+    const byDate = new Map();
+    for (const row of rows) {
+        const price = (_b = (_a = row.price) !== null && _a !== void 0 ? _a : row.marketPrice) !== null && _b !== void 0 ? _b : 0;
+        if (price <= 0)
+            continue;
+        const date = row.date.includes('T') ? row.date.split('T')[0] : row.date;
+        const source = row.source || '';
+        const rank = (_c = HISTORY_SOURCE_PRIORITY[source]) !== null && _c !== void 0 ? _c : 9;
+        const existing = byDate.get(date);
+        if (!existing || rank < existing.rank) {
+            byDate.set(date, {
+                point: {
+                    date,
+                    price,
+                    marketPrice: (_d = row.marketPrice) !== null && _d !== void 0 ? _d : price,
+                    volume: row.volume,
+                },
+                rank,
+                source,
+            });
+        }
+    }
+    return [...byDate.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([, entry]) => entry.point);
+}
+function countLiveQuotes(rows) {
+    var _a, _b;
+    const days = new Set();
+    for (const row of rows) {
+        if ((row.source || '') !== 'tcgdex')
+            continue;
+        const price = (_b = (_a = row.price) !== null && _a !== void 0 ? _a : row.marketPrice) !== null && _b !== void 0 ? _b : 0;
+        if (price <= 0)
+            continue;
+        days.add(row.date.includes('T') ? row.date.split('T')[0] : row.date);
+    }
+    return days.size;
+}
+function countDistinctPrices(priceHistory) {
+    const prices = priceHistory
+        .map(p => { var _a, _b; return (_b = (_a = p.price) !== null && _a !== void 0 ? _a : p.marketPrice) !== null && _b !== void 0 ? _b : 0; })
+        .filter(p => p > 0)
+        .map(p => Math.round(p * 100) / 100);
+    return new Set(prices).size;
+}
+function calendarSpanDays(priceHistory) {
+    if (priceHistory.length < 2)
+        return 0;
+    const first = priceHistory[0].date.includes('T')
+        ? priceHistory[0].date.split('T')[0]
+        : priceHistory[0].date;
+    const last = priceHistory[priceHistory.length - 1].date.includes('T')
+        ? priceHistory[priceHistory.length - 1].date.split('T')[0]
+        : priceHistory[priceHistory.length - 1].date;
+    const a = new Date(`${first}T00:00:00Z`).getTime();
+    const b = new Date(`${last}T00:00:00Z`).getTime();
+    if (Number.isNaN(a) || Number.isNaN(b))
+        return 0;
+    return Math.max(0, Math.round((b - a) / 86400000));
+}
+/**
+ * Reject sparse / step-function / cliffy series that inflate expected returns
+ * without real market tracking (e.g. one catalog snapshot + flat feed plateaus).
+ */
+function hasAdequateTrackingHistory(priceHistory, liveQuoteCount, options = {}) {
+    var _a, _b, _c, _d, _e;
+    const minPoints = (_a = options.minPoints) !== null && _a !== void 0 ? _a : getAdaptiveMinDataPoints(options.setReleaseDate);
+    const minDistinct = (_b = options.minDistinctPrices) !== null && _b !== void 0 ? _b : 5;
+    const minLive = (_c = options.minLiveQuotes) !== null && _c !== void 0 ? _c : Math.max(3, Math.ceil(minPoints / 2));
+    const minSpan = (_d = options.minSpanDays) !== null && _d !== void 0 ? _d : (computeSetAgeDays(options.setReleaseDate) >= 0 &&
+        computeSetAgeDays(options.setReleaseDate) < 90
+        ? 7
+        : 21);
+    const cliffPct = (_e = options.cliffPct) !== null && _e !== void 0 ? _e : 50;
+    if (priceHistory.length < minPoints)
+        return false;
+    if (liveQuoteCount < minLive)
+        return false;
+    if (countDistinctPrices(priceHistory) < minDistinct)
+        return false;
+    if (calendarSpanDays(priceHistory) < minSpan)
+        return false;
+    return (0, topMoversQuality_1.isGradualMove)(priceHistory.map(p => {
+        var _a, _b;
+        return ({
+            date: p.date.includes('T') ? p.date.split('T')[0] : p.date,
+            price: (_b = (_a = p.price) !== null && _a !== void 0 ? _a : p.marketPrice) !== null && _b !== void 0 ? _b : 0,
+        });
+    }), { cliffPct, minPoints });
+}
 /**
  * Returns the number of days since a set was released, or -1 if unknown.
  */
@@ -281,7 +414,7 @@ function getAdaptiveMinMovementPct(setReleaseDate) {
         return 2;
     return 5;
 }
-function isCardInvestmentWorthy(card, priceHistory, currentPrice, filter = exports.DEFAULT_CARD_QUALITY_FILTER, setReleaseDate) {
+function isCardInvestmentWorthy(card, priceHistory, currentPrice, filter = exports.DEFAULT_CARD_QUALITY_FILTER, setReleaseDate, liveQuoteCount) {
     if (!currentPrice || currentPrice < filter.minPrice || currentPrice > filter.maxPrice) {
         return false;
     }
@@ -299,6 +432,12 @@ function isCardInvestmentWorthy(card, priceHistory, currentPrice, filter = expor
         if (!hasMeaningfulPriceMovement(priceHistory, minPct)) {
             return false;
         }
+    }
+    if (!hasAdequateTrackingHistory(priceHistory, liveQuoteCount !== null && liveQuoteCount !== void 0 ? liveQuoteCount : priceHistory.length, {
+        minPoints: minDataPoints,
+        setReleaseDate,
+    })) {
+        return false;
     }
     return true;
 }
@@ -351,7 +490,7 @@ function computeLiquidityScore(priceHistory, currentPrice, volatility, setReleas
     return Math.round(Math.max(0, Math.min(100, score)));
 }
 function computeDataQualityScore(priceHistory) {
-    var _a, _b, _c, _d, _f, _g;
+    var _a, _b, _c, _d, _e, _f;
     if (priceHistory.length < 2)
         return 0;
     let score = 100;
@@ -384,7 +523,7 @@ function computeDataQualityScore(priceHistory) {
     for (let i = 1; i < priceHistory.length - 1; i++) {
         const prev = (_b = (_a = priceHistory[i - 1].price) !== null && _a !== void 0 ? _a : priceHistory[i - 1].marketPrice) !== null && _b !== void 0 ? _b : 0;
         const curr = (_d = (_c = priceHistory[i].price) !== null && _c !== void 0 ? _c : priceHistory[i].marketPrice) !== null && _d !== void 0 ? _d : 0;
-        const next = (_g = (_f = priceHistory[i + 1].price) !== null && _f !== void 0 ? _f : priceHistory[i + 1].marketPrice) !== null && _g !== void 0 ? _g : 0;
+        const next = (_f = (_e = priceHistory[i + 1].price) !== null && _e !== void 0 ? _e : priceHistory[i + 1].marketPrice) !== null && _f !== void 0 ? _f : 0;
         if (prev > 0 && curr > 0 && next > 0) {
             const spikeUp = (curr - prev) / prev;
             const revert = (curr - next) / curr;
@@ -399,11 +538,13 @@ function computeDataQualityScore(priceHistory) {
     return Math.max(0, Math.min(100, score));
 }
 /**
- * One mapping row per cardId. Rarity falls back to catalog_cards — card_mappings
- * often has blank rarity (~94% of current predictions), which previously made
- * the default rarity filter return an empty list.
+ * Prefer the predicted finish when available; otherwise one row per cardId.
+ * Rarity falls back to catalog_cards — card_mappings often has blank rarity.
  */
 const CARD_METADATA_JOIN = `
+  LEFT JOIN card_mappings cm_pred
+    ON cp.unique_identifier IS NOT NULL
+   AND cm_pred.uniqueIdentifier = cp.unique_identifier
   LEFT JOIN (
     SELECT
       cm.cardId,
@@ -412,13 +553,38 @@ const CARD_METADATA_JOIN = `
       MIN(cm.setId) AS setId,
       MIN(cm.cardNumber) AS cardNumber,
       MIN(COALESCE(NULLIF(TRIM(cm.rarity), ''), NULLIF(TRIM(cc.rarity), ''))) AS rarity,
-      MIN(COALESCE(NULLIF(cm.imageLarge, ''), NULLIF(cm.image_large, ''))) AS imageLarge,
-      MIN(COALESCE(NULLIF(cm.imageSmall, ''), NULLIF(cm.image_small, ''))) AS imageSmall,
+      MIN(NULLIF(cm.imageLarge, '')) AS imageLarge,
+      MIN(NULLIF(cm.imageSmall, '')) AS imageSmall,
       MIN(COALESCE(cm.tcgplayerProductId, CAST(cm.productId AS TEXT))) AS tcgplayerProductId
     FROM card_mappings cm
     LEFT JOIN catalog_cards cc ON cc.cardId = cm.cardId
     GROUP BY cm.cardId
-  ) cm ON cm.cardId = cp.card_id
+  ) cm_fallback ON cm_fallback.cardId = cp.card_id
+`;
+const CARD_METADATA_SELECT = `
+  COALESCE(cm_pred.cardName, cm_fallback.cardName) AS cardName,
+  COALESCE(cm_pred.setName, cm_fallback.setName) AS setName,
+  COALESCE(cm_pred.setId, cm_fallback.setId) AS setId,
+  COALESCE(cm_pred.cardNumber, cm_fallback.cardNumber) AS cardNumber,
+  COALESCE(
+    NULLIF(TRIM(cm_pred.rarity), ''),
+    cm_fallback.rarity
+  ) AS rarity,
+  COALESCE(
+    NULLIF(cm_pred.imageLarge, ''),
+    cm_fallback.imageLarge
+  ) AS imageLarge,
+  COALESCE(
+    NULLIF(cm_pred.imageSmall, ''),
+    cm_fallback.imageSmall
+  ) AS imageSmall,
+  COALESCE(
+    cm_pred.tcgplayerProductId,
+    CAST(cm_pred.productId AS TEXT),
+    cm_fallback.tcgplayerProductId
+  ) AS tcgplayerProductId,
+  COALESCE(cp.unique_identifier, cm_pred.uniqueIdentifier) AS unique_identifier,
+  COALESCE(cp.variant_key, cm_pred.variantKey) AS variant_key
 `;
 function computeTrendScore(priceChanges, movingAverages, currentPrice) {
     if (!currentPrice || currentPrice <= 0)
@@ -700,46 +866,56 @@ async function fetchAvgGradingTotal(cardId) {
     }
 }
 async function fetchPsa10Population(cardId) {
-    var _a, _b, _c, _d, _f;
+    var _a;
     const db = (0, database_1.getDb)();
     try {
         const row = await new Promise((resolve, reject) => {
-            db.get(`SELECT grade10, pop10, psa10, grade_10 FROM population_cache
-         WHERE cardId = ? OR card_id = ?
-         ORDER BY fetchedAt DESC LIMIT 1`, [cardId, cardId], (err, r) => {
-                // Table/column may vary — fall through on error
-                if (err)
-                    resolve(undefined);
-                else
-                    resolve(r);
-            });
+            db.get(`SELECT payload FROM population_cache
+         WHERE cardId = ? OR cacheKey LIKE ? OR cacheKey LIKE ?
+         ORDER BY fetchedAt DESC LIMIT 1`, [cardId, `%${cardId}|%`, `%|${cardId}|%`], (err, r) => (err ? reject(err) : resolve(r)));
         });
-        if (!row) {
-            // Try graded_prices / alternate shape
-            const alt = await new Promise((resolve) => {
-                db.get(`SELECT population FROM population_cache WHERE cardId = ? LIMIT 1`, [cardId], (_e, r) => resolve(r));
-            });
-            if ((alt === null || alt === void 0 ? void 0 : alt.population) != null) {
-                try {
-                    const parsed = typeof alt.population === 'string' ? JSON.parse(alt.population) : alt.population;
-                    const n = (_b = (_a = parsed === null || parsed === void 0 ? void 0 : parsed.grade10) !== null && _a !== void 0 ? _a : parsed === null || parsed === void 0 ? void 0 : parsed.psa10) !== null && _b !== void 0 ? _b : parsed === null || parsed === void 0 ? void 0 : parsed['10'];
-                    return n != null ? Number(n) : null;
-                }
-                catch (_g) {
-                    return null;
-                }
+        if (!(row === null || row === void 0 ? void 0 : row.payload)) {
+            return null;
+        }
+        const parsed = JSON.parse(row.payload);
+        const psa = (_a = parsed === null || parsed === void 0 ? void 0 : parsed.companies) === null || _a === void 0 ? void 0 : _a.psa;
+        if (!psa)
+            return null;
+        if (Array.isArray(psa.pop)) {
+            const arr = psa.pop.map((v) => Number(v));
+            if (arr.length >= 10 && arr.every((v) => Number.isFinite(v))) {
+                const n = arr[9];
+                return n > 0 ? n : null;
             }
             return null;
         }
-        const n = (_f = (_d = (_c = row.grade10) !== null && _c !== void 0 ? _c : row.pop10) !== null && _d !== void 0 ? _d : row.psa10) !== null && _f !== void 0 ? _f : row.grade_10;
-        return n != null ? Number(n) : null;
+        if (psa.grade10 != null) {
+            const n = Number(psa.grade10);
+            return n > 0 ? n : null;
+        }
+        return null;
     }
-    catch (_h) {
+    catch (_b) {
         return null;
     }
 }
-function computeExpectedReturns(scores, seasonalityAdjustment = 0) {
-    var _a, _b, _c;
+/**
+ * Maps the raw (biased) model signal to realistic expected returns.
+ *
+ * The raw tanh-based output systematically overpredicts (~2-5x). When a
+ * calibration model is available for a horizon, the raw signal is looked up in
+ * the learned signal→realized-return curve; otherwise the raw output is
+ * corrected by the nearest horizon's bias. All outputs are clamped to caps
+ * derived from the observed return distribution.
+ *
+ * The calibration bucket key is the RAW signal (the same scale stored on
+ * `signal_score`), never the squashed/sqrt-scaled placeholder. Passing a
+ * differently-scaled key to the curve maps everything to edge buckets and
+ * destroys the model's spread (the v4.0.0 bug that squeezed every expected
+ * 7d return into [-0.4%, +5.6%]).
+ */
+function computeExpectedReturns(scores, seasonalityAdjustment = 0, models) {
+    var _a, _b, _c, _d;
     // Normalize all scores to [-1, 1] range centered at 0
     const trendN = (scores.trendScore - 50) / 50;
     const recoveryN = (scores.recoveryScore - 50) / 50;
@@ -763,27 +939,86 @@ function computeExpectedReturns(scores, seasonalityAdjustment = 0) {
         0.08 * gradingN +
         lifecycleN +
         metaN;
-    // Sigmoid squash to prevent extreme predictions
-    // Output range: approximately [-0.25, +0.25] for 30-day
-    const squashed = Math.tanh(rawSignal * 2.5) * 0.25;
+    // Sigmoid squash to prevent extreme raw predictions.
+    const squashed = Math.tanh(rawSignal * 3.0) * 0.40;
     // Apply seasonality adjustment (±5%)
-    const adjusted30d = squashed + seasonalityAdjustment * 0.05;
-    // Time-horizon scaling using sqrt(t) — accounts for diminishing predictability
-    const expected7dReturn = adjusted30d * Math.sqrt(7 / 30);
-    const expected30dReturn = adjusted30d;
-    const expected90dReturn = adjusted30d * Math.sqrt(90 / 30);
-    const expected180dReturn = adjusted30d * Math.sqrt(180 / 30);
+    const raw30 = squashed + seasonalityAdjustment * 0.05;
+    // Time-horizon scaling using sqrt(t) — only used when no calibration model
+    // exists for a horizon (the curve itself already encodes horizon-specific
+    // realized returns when present).
+    const raw7 = raw30 * Math.sqrt(7 / 30);
+    const raw90 = raw30 * Math.sqrt(90 / 30);
+    const raw180 = raw30 * Math.sqrt(180 / 30);
     // Long-term mean reversion: cards rarely sustain extreme growth for a full
     // year, so dampen the 365d projection proportionally to signal strength.
-    const longTermDampening = 1 / (1 + Math.abs(adjusted30d) * 2);
-    const expected365dReturn = adjusted30d * Math.sqrt(365 / 30) * longTermDampening;
+    const longTermDampening = 1 / (1 + Math.abs(raw30) * 2);
+    const raw365 = raw30 * Math.sqrt(365 / 30) * longTermDampening;
+    const calibrate = (horizon, fallbackRaw, fallbackCap) => {
+        var _a;
+        const model = models === null || models === void 0 ? void 0 : models[horizon];
+        const cap = (0, returnCalibration_1.returnCapForHorizon)(horizon, model, fallbackCap);
+        const calibrated = (0, returnCalibration_1.calibrateReturn)(rawSignal, model);
+        if (calibrated) {
+            // Calibrated values are bucket estimates; still clamp to observed extremes.
+            let expected = clamp(calibrated.expectedReturn, -cap, cap);
+            // Directional honesty: below the curve's zero crossing the market is
+            // flat/down more often than not — never emit a positive call there.
+            // A tiny negative (never exactly 0) keeps the call visible to the
+            // forward-test tracker, where a 0 prediction is a guaranteed miss.
+            const threshold = (0, returnCalibration_1.positiveThresholdForHorizon)(horizon, models !== null && models !== void 0 ? models : {});
+            if (threshold != null && rawSignal < threshold) {
+                const magnitude = (_a = model === null || model === void 0 ? void 0 : model.marketMedianReturn) !== null && _a !== void 0 ? _a : 0;
+                expected = Math.min(expected, -Math.max(0.001, Math.abs(magnitude) * 0.1));
+            }
+            return expected;
+        }
+        const bias = (0, returnCalibration_1.biasCorrectionForHorizon)(horizon, models !== null && models !== void 0 ? models : {});
+        return clamp(fallbackRaw - bias, -cap, cap);
+    };
+    const expected7dReturn = calibrate(7, raw7, 0.12);
+    const expected30dReturn = calibrate(30, raw30, 0.25);
+    const expected90dReturn = calibrate(90, raw90, 0.45);
+    const expected180dReturn = calibrate(180, raw180, 0.65);
+    const expected365dReturn = calibrate(365, raw365, 0.90);
+    const cal30 = (0, returnCalibration_1.calibrateReturn)(rawSignal, models === null || models === void 0 ? void 0 : models[30]);
+    const residualStd30d = (_d = cal30 === null || cal30 === void 0 ? void 0 : cal30.residualStd) !== null && _d !== void 0 ? _d : null;
     return {
         expected7dReturn,
         expected30dReturn,
         expected90dReturn,
         expected180dReturn,
         expected365dReturn,
+        rawSignal,
+        residualStd30d,
     };
+}
+/**
+ * Confidence score calibrated against the model's historical residual spread.
+ * A wide realized-error band (from calibration) directly lowers confidence, so
+ * the reported % reflects real-world dispersion instead of heuristics alone.
+ */
+function computeCalibratedConfidence(params) {
+    const { trendScore, demandScore, liquidityScore, dataQualityScore, riskScore, historyLength, adaptiveMinDP, residualStd30d, monthlyVolatility = 0, } = params;
+    const baseConfidence = Math.max(20, Math.min(95, 50
+        + (trendScore > 60 ? 10 : trendScore > 40 ? 5 : 0)
+        + (historyLength > 90 ? 15 : historyLength > 30 ? 8 : historyLength > adaptiveMinDP ? 3 : historyLength > 5 ? 1 : 0)
+        + (demandScore > 60 ? 10 : 0)
+        + (liquidityScore > 60 ? 8 : liquidityScore > 40 ? 4 : 0)
+        + (dataQualityScore > 70 ? 5 : dataQualityScore > 50 ? 2 : 0)
+        - (riskScore > 70 ? 10 : riskScore > 50 ? 5 : 0)
+        - (historyLength < adaptiveMinDP ? 20 : historyLength < 14 ? 5 : 0)
+        - (dataQualityScore < 40 ? 10 : dataQualityScore < 60 ? 5 : 0)));
+    let uncertaintyPenalty = 0;
+    if (residualStd30d != null) {
+        // ~4% residual std → no penalty; ~12%+ → max penalty.
+        uncertaintyPenalty = clamp((residualStd30d - 0.04) * 450, 0, 35);
+    }
+    else {
+        // Fallback: volatility-based uncertainty (legacy behavior).
+        uncertaintyPenalty = clamp(monthlyVolatility * 0.5 * 100 * 0.35, 0, 35);
+    }
+    let confidenceScore = Math.max(10, Math.min(95, Math.round(baseConfidence - uncertaintyPenalty)));
+    return confidenceScore;
 }
 function computePriceRanges(currentPrice, expectedReturn, volatility, days, confidence, historicalReturns) {
     const mid = currentPrice * (1 + expectedReturn);
@@ -821,10 +1056,16 @@ function computePriceRanges(currentPrice, expectedReturn, volatility, days, conf
         high: Math.round(high * 100) / 100,
     };
 }
-function determineCategory(scores, expected90dReturn, priceChanges, recoveryMetrics) {
+function determineCategory(scores, expected90dReturn, priceChanges, recoveryMetrics, strongBuyThreshold = 0.06) {
     var _a;
-    // Priority 1: Strong buy — high expected return with manageable risk
-    if (expected90dReturn >= 0.15 && scores.riskScore < 70 && scores.liquidityScore >= 40) {
+    const sq = expected90dReturn;
+    // Thresholds are calibrated to realistic (post-calibration) 90d return
+    // magnitudes: the market median sits near ~2-4%, so meaningful signals are
+    // far smaller than the old uncalibrated ±15%+ bands.
+    // Priority 1: Strong buy — a genuinely selective top-slice call. The bar is
+    // derived from the calibration curve (75th-percentile bucket mean) so only a
+    // small fraction of cards qualify instead of 45-82%.
+    if (sq >= strongBuyThreshold && scores.riskScore < 65 && scores.liquidityScore >= 40) {
         return 'strong_buy';
     }
     // Priority 2: Avoid — very high risk regardless of expected return
@@ -845,7 +1086,7 @@ function determineCategory(scores, expected90dReturn, priceChanges, recoveryMetr
         return 'momentum';
     }
     // Priority 6: Watch dip — moderate expected return
-    if (expected90dReturn >= 0.05 && scores.riskScore < 75 && scores.liquidityScore >= 35) {
+    if (sq >= 0.03 && scores.riskScore < 75 && scores.liquidityScore >= 35) {
         return 'watch_dip';
     }
     // Priority 7: Stagnant — low movement and low liquidity
@@ -854,7 +1095,7 @@ function determineCategory(scores, expected90dReturn, priceChanges, recoveryMetr
         return 'stagnant';
     }
     // Default: lean toward watch_dip if positive expected return, else stagnant
-    return expected90dReturn > 0 ? 'watch_dip' : 'stagnant';
+    return sq > 0 ? 'watch_dip' : 'stagnant';
 }
 function generateSuggestedAction(category, scores) {
     switch (category) {
@@ -960,10 +1201,35 @@ function fetchSetReleaseDate(setId) {
         });
     });
 }
+function isOnePieceUid(uniqueIdentifier) {
+    return uniqueIdentifier.startsWith('op:');
+}
 function fetchCardPriceHistory(uniqueIdentifier) {
     const db = (0, database_1.getDb)();
+    // One Piece series lives in a parallel table; UID is namespaced `op:{catalogId}`.
+    if (isOnePieceUid(uniqueIdentifier)) {
+        const catalogId = uniqueIdentifier.slice(3);
+        return new Promise((resolve, reject) => {
+            db.all(`SELECT date, marketPrice, inventoryPrice, source FROM onepiece_price_history
+         WHERE catalogId = ?
+         ORDER BY date ASC`, [catalogId], (err, rows) => {
+                if (err)
+                    return reject(err);
+                resolve((rows || []).map((r) => {
+                    var _a, _b, _c;
+                    return ({
+                        date: r.date,
+                        price: (_b = (_a = r.marketPrice) !== null && _a !== void 0 ? _a : r.inventoryPrice) !== null && _b !== void 0 ? _b : 0,
+                        marketPrice: (_c = r.marketPrice) !== null && _c !== void 0 ? _c : r.inventoryPrice,
+                        volume: undefined,
+                        source: r.source || 'optcg',
+                    });
+                }));
+            });
+        });
+    }
     return new Promise((resolve, reject) => {
-        db.all(`SELECT date, price, marketPrice, volume FROM price_history
+        db.all(`SELECT date, price, marketPrice, volume, source FROM price_history
        WHERE uniqueIdentifier = ? AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
        ORDER BY date ASC`, [uniqueIdentifier], (err, rows) => {
             if (err)
@@ -975,6 +1241,7 @@ function fetchCardPriceHistory(uniqueIdentifier) {
                     price: (_a = r.price) !== null && _a !== void 0 ? _a : 0,
                     marketPrice: (_b = r.marketPrice) !== null && _b !== void 0 ? _b : r.price,
                     volume: r.volume,
+                    source: r.source,
                 });
             }));
         });
@@ -982,14 +1249,14 @@ function fetchCardPriceHistory(uniqueIdentifier) {
 }
 /** Resolved rarity from card_mappings with catalog_cards fallback. */
 const RESOLVED_RARITY_EXPR = "COALESCE(NULLIF(TRIM(cm.rarity), ''), cc.rarity)";
-function fetchAllCards(filter = exports.DEFAULT_CARD_QUALITY_FILTER) {
+function fetchPokemonCards(filter = exports.DEFAULT_CARD_QUALITY_FILTER) {
     const db = (0, database_1.getDb)();
     const { clause: rarityClause, params: rarityParams } = buildRarityWhereClause(RESOLVED_RARITY_EXPR, filter.rarities);
     return new Promise((resolve, reject) => {
         db.all(`SELECT cm.cardId, cm.cardName, cm.setId, cm.setName, cm.cardNumber,
               ${RESOLVED_RARITY_EXPR} AS rarity,
-              cm.uniqueIdentifier, ph_stats.latest_price, ph_stats.data_point_count,
-              cc.setReleaseDate
+              cm.uniqueIdentifier, cm.variantKey, ph_stats.latest_price, ph_stats.data_point_count,
+              cc.setReleaseDate, 'pokemon' AS game
        FROM card_mappings cm
        LEFT JOIN catalog_cards cc ON cc.cardId = cm.cardId
        INNER JOIN (
@@ -1027,20 +1294,76 @@ function fetchAllCards(filter = exports.DEFAULT_CARD_QUALITY_FILTER) {
         });
     });
 }
-async function predictSingleCard(card, allCardReturns, filter = exports.DEFAULT_CARD_QUALITY_FILTER) {
-    var _a;
+/** One Piece cards with enough price history for prediction scoring. */
+function fetchOnePieceCards(filter = exports.DEFAULT_CARD_QUALITY_FILTER) {
+    const db = (0, database_1.getDb)();
+    return new Promise((resolve, reject) => {
+        db.all(`SELECT
+         'op:' || oc.catalogId AS cardId,
+         oc.cardName,
+         oc.setId,
+         oc.setName,
+         oc.cardSetId AS cardNumber,
+         oc.rarity,
+         'op:' || oc.catalogId AS uniqueIdentifier,
+         'normal' AS variantKey,
+         ph_stats.latest_price,
+         ph_stats.data_point_count,
+         NULL AS setReleaseDate,
+         'onepiece' AS game
+       FROM onepiece_catalog oc
+       INNER JOIN (
+         SELECT
+           catalogId,
+           COUNT(DISTINCT date) AS data_point_count,
+           (
+             SELECT COALESCE(oph2.marketPrice, oph2.inventoryPrice)
+             FROM onepiece_price_history oph2
+             WHERE oph2.catalogId = oph.catalogId
+             ORDER BY oph2.date DESC
+             LIMIT 1
+           ) AS latest_price
+         FROM onepiece_price_history oph
+         GROUP BY catalogId
+         HAVING data_point_count >= 5
+           AND latest_price >= ?
+           AND latest_price <= ?
+       ) ph_stats ON ph_stats.catalogId = oc.catalogId
+       WHERE oc.cardName IS NOT NULL AND TRIM(oc.cardName) <> ''
+       ORDER BY oc.cardName ASC`, [filter.minPrice, filter.maxPrice], (err, rows) => {
+            if (err)
+                return reject(err);
+            resolve(rows || []);
+        });
+    });
+}
+async function fetchAllCards(filter = exports.DEFAULT_CARD_QUALITY_FILTER) {
+    const [pokemon, onePiece] = await Promise.all([
+        fetchPokemonCards(filter),
+        fetchOnePieceCards(filter).catch((err) => {
+            logger_1.logger.warn('One Piece card fetch for predictions failed:', err);
+            return [];
+        }),
+    ]);
+    return [...pokemon, ...onePiece];
+}
+async function predictSingleCard(card, allCardReturns, filter = exports.DEFAULT_CARD_QUALITY_FILTER, calibrationModels) {
+    var _a, _b, _c, _d;
     try {
         const uid = card.uniqueIdentifier;
         if (!uid)
             return null;
-        const priceHistory = await fetchCardPriceHistory(uid);
-        if (priceHistory.length < filter.minDataPoints)
+        const rawHistory = await fetchCardPriceHistory(uid);
+        const liveQuoteCount = countLiveQuotes(rawHistory);
+        const priceHistory = dedupePriceHistoryByDate(rawHistory);
+        const setReleaseDate = (_a = card.setReleaseDate) !== null && _a !== void 0 ? _a : await fetchSetReleaseDate(card.setId);
+        const minDataPoints = getAdaptiveMinDataPoints(setReleaseDate);
+        if (priceHistory.length < minDataPoints)
             return null;
         const currentPrice = (0, marketAnalyzer_1.getLatestPrice)(priceHistory);
         if (!currentPrice || currentPrice <= 0)
             return null;
-        const setReleaseDate = (_a = card.setReleaseDate) !== null && _a !== void 0 ? _a : await fetchSetReleaseDate(card.setId);
-        if (!isCardInvestmentWorthy(card, priceHistory, currentPrice, filter, setReleaseDate)) {
+        if (!isCardInvestmentWorthy(card, priceHistory, currentPrice, filter, setReleaseDate, liveQuoteCount)) {
             return null;
         }
         const movingAverages = (0, marketAnalyzer_1.computeMovingAverages)(priceHistory);
@@ -1074,32 +1397,45 @@ async function predictSingleCard(card, allCardReturns, filter = exports.DEFAULT_
             competitiveMetaScore,
             gradingScore,
         };
+        const models = calibrationModels !== null && calibrationModels !== void 0 ? calibrationModels : (await (0, returnCalibration_1.getCalibrationModels)());
         const seasonalityAdjustment = computeSeasonalityAdjustment(card.cardName, card.setName);
-        const expectedReturns = computeExpectedReturns(scores, seasonalityAdjustment);
+        const expectedReturns = computeExpectedReturns(scores, seasonalityAdjustment, models);
+        const horizonStatus = await (0, horizonSupport_1.getHorizonSupportStatus)();
+        const honestReturn = (days, value) => horizonStatus.unsupported.includes(days) ? null : value;
         const historicalReturns30d = computeHistoricalReturns(priceHistory, 30);
         const historicalReturns90d = computeHistoricalReturns(priceHistory, 90);
         // Adaptive confidence scoring — use set-age-aware thresholds so newer cards
         // aren't penalized as heavily for having less historical data.
         const adaptiveMinDP = getAdaptiveMinDataPoints(setReleaseDate);
-        const baseConfidence = Math.max(20, Math.min(95, 50
-            + (trendScore > 60 ? 10 : trendScore > 40 ? 5 : 0)
-            + (priceHistory.length > 90 ? 15 : priceHistory.length > 30 ? 8 : priceHistory.length > adaptiveMinDP ? 3 : priceHistory.length > 5 ? 1 : 0)
-            + (demandScore > 60 ? 10 : 0)
-            + (liquidityScore > 60 ? 8 : liquidityScore > 40 ? 4 : 0)
-            + (dataQualityScore > 70 ? 5 : dataQualityScore > 50 ? 2 : 0)
-            - (riskScore > 70 ? 10 : riskScore > 50 ? 5 : 0)
-            - (priceHistory.length < adaptiveMinDP ? 20 : priceHistory.length < 14 ? 5 : 0)
-            - (dataQualityScore < 40 ? 10 : dataQualityScore < 60 ? 5 : 0)));
-        const volatilityAdjust = volatility.monthlyVolatility;
-        let confidenceScore = Math.max(10, Math.min(95, Math.round(baseConfidence * (1 - volatilityAdjust * 0.5))));
+        const confidenceScore = computeCalibratedConfidence({
+            trendScore,
+            demandScore,
+            liquidityScore,
+            dataQualityScore,
+            riskScore,
+            historyLength: priceHistory.length,
+            adaptiveMinDP,
+            residualStd30d: expectedReturns.residualStd30d,
+            monthlyVolatility: volatility.monthlyVolatility,
+        });
         if (confidenceScore < filter.minConfidence)
             return null;
-        const category = determineCategory(scores, expectedReturns.expected90dReturn, priceChanges, recoveryMetrics);
-        const predicted7d = computePriceRanges(currentPrice, expectedReturns.expected7dReturn, volatility.dailyVolatility, 7, confidenceScore, historicalReturns30d);
-        const predicted30d = computePriceRanges(currentPrice, expectedReturns.expected30dReturn, volatility.dailyVolatility, 30, confidenceScore, historicalReturns30d);
-        const predicted90d = computePriceRanges(currentPrice, expectedReturns.expected90dReturn, volatility.dailyVolatility, 90, confidenceScore, historicalReturns90d);
-        const predicted180d = computePriceRanges(currentPrice, expectedReturns.expected180dReturn, volatility.dailyVolatility, 180, confidenceScore, historicalReturns90d);
-        const predicted365d = computePriceRanges(currentPrice, expectedReturns.expected365dReturn, volatility.dailyVolatility, 365, confidenceScore, historicalReturns90d);
+        const category = determineCategory(scores, expectedReturns.expected90dReturn, priceChanges, recoveryMetrics, (0, returnCalibration_1.strongBuyThresholdForHorizon)(90, models));
+        const er7 = (_b = honestReturn(7, expectedReturns.expected7dReturn)) !== null && _b !== void 0 ? _b : expectedReturns.expected7dReturn;
+        const er30 = (_c = honestReturn(30, expectedReturns.expected30dReturn)) !== null && _c !== void 0 ? _c : expectedReturns.expected30dReturn;
+        const er90 = (_d = honestReturn(90, expectedReturns.expected90dReturn)) !== null && _d !== void 0 ? _d : expectedReturns.expected90dReturn;
+        const er180 = honestReturn(180, expectedReturns.expected180dReturn);
+        const er365 = honestReturn(365, expectedReturns.expected365dReturn);
+        const predicted7d = computePriceRanges(currentPrice, er7, volatility.dailyVolatility, 7, confidenceScore, historicalReturns30d);
+        const predicted30d = computePriceRanges(currentPrice, er30, volatility.dailyVolatility, 30, confidenceScore, historicalReturns30d);
+        const predicted90d = computePriceRanges(currentPrice, er90, volatility.dailyVolatility, 90, confidenceScore, historicalReturns90d);
+        const zeroBand = { low: currentPrice, mid: currentPrice, high: currentPrice };
+        const predicted180d = er180 == null
+            ? zeroBand
+            : computePriceRanges(currentPrice, er180, volatility.dailyVolatility, 180, confidenceScore, historicalReturns90d);
+        const predicted365d = er365 == null
+            ? zeroBand
+            : computePriceRanges(currentPrice, er365, volatility.dailyVolatility, 365, confidenceScore, historicalReturns90d);
         const externalSignalsJson = JSON.stringify(externalSignals);
         const explanation = generateExplanation(category, scores, priceChanges, recoveryMetrics, movingAverages, currentPrice, externalSignalsJson);
         const riskFactors = generateRiskFactors(scores, volatility, priceChanges, externalSignalsJson);
@@ -1111,17 +1447,19 @@ async function predictSingleCard(card, allCardReturns, filter = exports.DEFAULT_
             setId: card.setId,
             cardNumber: card.cardNumber,
             rarity: card.rarity,
+            uniqueIdentifier: uid,
+            variantKey: card.variantKey || uid.split('|').pop() || 'normal',
             currentPrice,
             predicted7d,
             predicted30d,
             predicted90d,
             predicted180d,
             predicted365d,
-            expected7dReturn: expectedReturns.expected7dReturn,
-            expected30dReturn: expectedReturns.expected30dReturn,
-            expected90dReturn: expectedReturns.expected90dReturn,
-            expected180dReturn: expectedReturns.expected180dReturn,
-            expected365dReturn: expectedReturns.expected365dReturn,
+            expected7dReturn: er7,
+            expected30dReturn: er30,
+            expected90dReturn: er90,
+            expected180dReturn: er180 !== null && er180 !== void 0 ? er180 : 0,
+            expected365dReturn: er365 !== null && er365 !== void 0 ? er365 : 0,
             confidenceScore,
             riskScore,
             category,
@@ -1132,6 +1470,7 @@ async function predictSingleCard(card, allCardReturns, filter = exports.DEFAULT_
             modelVersion: MODEL_VERSION,
             gradingScore,
             gradingPremiumPotential,
+            signalScore: expectedReturns.rawSignal,
         };
     }
     catch (err) {
@@ -1141,8 +1480,12 @@ async function predictSingleCard(card, allCardReturns, filter = exports.DEFAULT_
 }
 async function runPredictions() {
     const db = (0, database_1.getDb)();
+    const horizonSupport = await (0, horizonSupport_1.getHorizonSupportStatus)(true);
     const runId = await new Promise((resolve, reject) => {
-        db.run(`INSERT INTO prediction_runs (model_version, notes) VALUES (?, ?)`, [MODEL_VERSION, 'Scheduled prediction run'], function (err) {
+        db.run(`INSERT INTO prediction_runs (model_version, notes) VALUES (?, ?)`, [
+            MODEL_VERSION,
+            `Scheduled prediction run; historyDays=${horizonSupport.historyDays}; experimental=[${horizonSupport.experimental.join(',')}]`,
+        ], function (err) {
             if (err)
                 reject(err);
             else
@@ -1152,7 +1495,8 @@ async function runPredictions() {
     const cards = await fetchAllCards();
     let succeeded = 0;
     let failed = 0;
-    const insertStmt = `INSERT INTO card_predictions (
+    const calibrationModels = await (0, returnCalibration_1.getCalibrationModels)();
+    const insertStmt = `INSERT OR IGNORE INTO card_predictions (
     run_id, card_id, prediction_date, current_price,
     predicted_7d_low, predicted_7d_mid, predicted_7d_high,
     predicted_30d_low, predicted_30d_mid, predicted_30d_high,
@@ -1162,16 +1506,18 @@ async function runPredictions() {
     expected_7d_return, expected_30d_return, expected_90d_return,
     expected_180d_return, expected_365d_return,
     confidence_score, risk_score, category, suggested_action,
-    explanation, risk_factors, external_signals_json, model_version
-  ) VALUES (?, ?, date('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    explanation, risk_factors, external_signals_json, model_version,
+    unique_identifier, variant_key, signal_score
+  ) VALUES (?, ?, date('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
     for (const card of cards) {
         try {
-            const prediction = await predictSingleCard(card);
+            const prediction = await predictSingleCard(card, undefined, exports.DEFAULT_CARD_QUALITY_FILTER, calibrationModels);
             if (!prediction) {
                 failed++;
                 continue;
             }
             await new Promise((resolve, reject) => {
+                var _a;
                 db.run(insertStmt, [
                     runId, prediction.cardId, prediction.currentPrice,
                     prediction.predicted7d.low, prediction.predicted7d.mid, prediction.predicted7d.high,
@@ -1183,6 +1529,8 @@ async function runPredictions() {
                     prediction.expected180dReturn, prediction.expected365dReturn,
                     prediction.confidenceScore, prediction.riskScore, prediction.category, prediction.suggestedAction,
                     prediction.explanation, prediction.riskFactors, prediction.externalSignals, prediction.modelVersion,
+                    prediction.uniqueIdentifier || null, prediction.variantKey || null,
+                    (_a = prediction.signalScore) !== null && _a !== void 0 ? _a : null,
                 ], function (err) {
                     if (err)
                         reject(err);
@@ -1197,8 +1545,26 @@ async function runPredictions() {
             failed++;
         }
     }
-    logger_1.logger.info(`Prediction run ${runId} complete: ${succeeded} succeeded, ${failed} failed`);
-    return { runId, total: cards.length, succeeded, failed };
+    // Closed loop: harvest matured outcomes and rebuild calibration curves so the
+    // next run maps raw signals to realistic returns.
+    try {
+        const { collectForwardTestSamples, rebuildAllCalibrationModels } = await Promise.resolve().then(() => __importStar(require('./returnCalibration')));
+        const collected = await collectForwardTestSamples(runId);
+        if (collected > 0) {
+            logger_1.logger.info(`Calibration: ${collected} new forward-test samples`);
+        }
+        await rebuildAllCalibrationModels();
+        logger_1.logger.info('Calibration models rebuilt after prediction run');
+    }
+    catch (err) {
+        logger_1.logger.warn('Calibration rebuild after prediction run failed:', err);
+    }
+    logger_1.logger.info(`Prediction run ${runId} complete: ${succeeded} succeeded, ${failed} failed`, {
+        historyDays: horizonSupport.historyDays,
+        supportedHorizons: horizonSupport.supported,
+        experimentalHorizons: horizonSupport.experimental,
+    });
+    return { runId, total: cards.length, succeeded, failed, horizonSupport };
 }
 const WINDOW_RETURN_COLUMNS = {
     '7d': 'expected_7d_return',
@@ -1226,7 +1592,7 @@ async function resolveEraToSetIds(eras) {
         .map(row => row.setId);
 }
 async function getLatestPredictions(limit = 100, category, filters, window = '90d') {
-    var _a, _b;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
     const db = (0, database_1.getDb)();
     // Resolve era filter to set IDs up-front (single DB query)
     let eraSetIds = null;
@@ -1246,8 +1612,8 @@ async function getLatestPredictions(limit = 100, category, filters, window = '90
         effectiveSetIds = eraSetIds;
     }
     let sql = `
-    SELECT cp.*, cm.cardName, cm.setName, cm.setId, cm.cardNumber, cm.rarity,
-           cm.imageSmall, cm.imageLarge, cm.tcgplayerProductId
+    SELECT cp.*,
+           ${CARD_METADATA_SELECT}
     FROM card_predictions cp
     ${CARD_METADATA_JOIN}
     WHERE cp.run_id = (SELECT MAX(id) FROM prediction_runs)
@@ -1256,6 +1622,12 @@ async function getLatestPredictions(limit = 100, category, filters, window = '90
     if (category) {
         sql += ' AND cp.category = ?';
         params.push(category);
+    }
+    if ((filters === null || filters === void 0 ? void 0 : filters.game) === 'onepiece') {
+        sql += ` AND cp.card_id LIKE 'op:%'`;
+    }
+    else if ((filters === null || filters === void 0 ? void 0 : filters.game) === 'pokemon') {
+        sql += ` AND cp.card_id NOT LIKE 'op:%'`;
     }
     if ((filters === null || filters === void 0 ? void 0 : filters.minPrice) !== undefined) {
         sql += ' AND cp.current_price >= ?';
@@ -1269,15 +1641,17 @@ async function getLatestPredictions(limit = 100, category, filters, window = '90
         sql += ' AND cp.confidence_score >= ?';
         params.push(filters.minConfidence);
     }
+    const rarityColumn = `COALESCE(NULLIF(TRIM(cm_pred.rarity), ''), cm_fallback.rarity)`;
     if ((filters === null || filters === void 0 ? void 0 : filters.rarities) && filters.rarities.length > 0) {
-        const { clause, params: rarityParams } = buildRarityWhereClause('cm.rarity', filters.rarities);
+        const { clause, params: rarityParams } = buildRarityWhereClause(rarityColumn, filters.rarities);
         sql += ` AND ${clause}`;
         params.push(...rarityParams);
     }
+    const setIdColumn = `COALESCE(cm_pred.setId, cm_fallback.setId)`;
     // Era/Set filtering: use IN clause with resolved set IDs
     if (effectiveSetIds && effectiveSetIds.length > 0) {
         const placeholders = effectiveSetIds.map(() => '?').join(',');
-        sql += ` AND cm.setId IN (${placeholders})`;
+        sql += ` AND ${setIdColumn} IN (${placeholders})`;
         params.push(...effectiveSetIds);
     }
     // Release date range filtering: join catalog_cards for setReleaseDate
@@ -1295,10 +1669,29 @@ async function getLatestPredictions(limit = 100, category, filters, window = '90
             params.push(filters.releaseDateTo);
         }
     }
-    // Old prediction runs have NULL for the 180d/365d columns — fall back to 90d.
-    const orderColumn = (_b = WINDOW_RETURN_COLUMNS[window]) !== null && _b !== void 0 ? _b : WINDOW_RETURN_COLUMNS['90d'];
-    sql += ` ORDER BY COALESCE(cp.${orderColumn}, cp.expected_90d_return) DESC LIMIT ?`;
-    params.push(limit);
+    if (filters === null || filters === void 0 ? void 0 : filters.search) {
+        sql += ' AND (cm_fallback.cardName LIKE ? OR cm_pred.cardName LIKE ?)';
+        const like = `%${filters.search}%`;
+        params.push(like, like);
+    }
+    const sortColumn = (() => {
+        var _a;
+        switch (filters === null || filters === void 0 ? void 0 : filters.sortBy) {
+            case 'confidence': return 'cp.confidence_score';
+            case 'price': return 'cp.current_price';
+            case 'name': return 'COALESCE(cm_pred.cardName, cm_fallback.cardName)';
+            case 'risk': return 'cp.risk_score';
+            default: {
+                const col = (_a = WINDOW_RETURN_COLUMNS[window]) !== null && _a !== void 0 ? _a : WINDOW_RETURN_COLUMNS['90d'];
+                return `COALESCE(cp.${col}, cp.expected_90d_return)`;
+            }
+        }
+    })();
+    const sortDir = (filters === null || filters === void 0 ? void 0 : filters.sortOrder) === 'asc' ? 'ASC' : 'DESC';
+    // Over-fetch so post-filter for tracking quality can still fill the page.
+    const fetchLimit = Math.min(Math.max(limit * 4, limit + 50), 2000);
+    sql += ` ORDER BY ${sortColumn} ${sortDir} LIMIT ?`;
+    params.push(fetchLimit);
     const rows = await new Promise((resolve, reject) => {
         db.all(sql, params, (err, r) => {
             if (err)
@@ -1306,9 +1699,42 @@ async function getLatestPredictions(limit = 100, category, filters, window = '90
             resolve(r || []);
         });
     });
-    const mapped = rows.map((r) => {
-        var _a, _b, _c, _d, _f, _g, _h, _j;
-        return ({
+    // Resolve UIDs up front (old runs lack unique_identifier).
+    const resolvedMappings = await Promise.all(rows.map(async (r) => {
+        const stored = r.unique_identifier;
+        if (stored) {
+            const meta = await lookupMappingMeta(stored);
+            return {
+                uid: stored,
+                variantKey: r.variant_key || (meta === null || meta === void 0 ? void 0 : meta.variantKey) || stored.split('|').pop() || undefined,
+                productId: (meta === null || meta === void 0 ? void 0 : meta.productId) || r.tcgplayerProductId || undefined,
+            };
+        }
+        return resolveMappingForPrediction(r.card_id, r.current_price);
+    }));
+    // Batch-load history for unique UIDs only.
+    const uniqueUids = [
+        ...new Set(resolvedMappings.map((m) => m === null || m === void 0 ? void 0 : m.uid).filter((u) => !!u)),
+    ];
+    const historyByUid = new Map();
+    await Promise.all(uniqueUids.map(async (uid) => {
+        historyByUid.set(uid, await fetchCardPriceHistory(uid));
+    }));
+    const mapped = [];
+    for (let i = 0; i < rows.length; i++) {
+        if (mapped.length >= limit)
+            break;
+        const r = rows[i];
+        const resolved = resolvedMappings[i];
+        if (!(resolved === null || resolved === void 0 ? void 0 : resolved.uid))
+            continue;
+        const rawHistory = historyByUid.get(resolved.uid) || [];
+        const liveQuoteCount = countLiveQuotes(rawHistory);
+        const priceHistory = dedupePriceHistoryByDate(rawHistory);
+        if (!hasAdequateTrackingHistory(priceHistory, liveQuoteCount)) {
+            continue;
+        }
+        mapped.push({
             id: r.id,
             cardId: r.card_id,
             cardName: r.cardName || '',
@@ -1316,9 +1742,11 @@ async function getLatestPredictions(limit = 100, category, filters, window = '90
             setName: r.setName || '',
             cardNumber: r.cardNumber || '',
             rarity: r.rarity || '',
+            uniqueIdentifier: resolved.uid,
+            variantKey: resolved.variantKey,
             imageSmall: r.imageSmall || undefined,
             imageLarge: r.imageLarge || undefined,
-            tcgplayerProductId: r.tcgplayerProductId || undefined,
+            tcgplayerProductId: resolved.productId || r.tcgplayerProductId || undefined,
             currentPrice: r.current_price,
             predicted7dLow: r.predicted_7d_low,
             predicted7dMid: r.predicted_7d_mid,
@@ -1329,10 +1757,10 @@ async function getLatestPredictions(limit = 100, category, filters, window = '90
             predicted90dLow: r.predicted_90d_low,
             predicted90dMid: r.predicted_90d_mid,
             predicted90dHigh: r.predicted_90d_high,
-            predicted180dLow: (_a = r.predicted_180d_low) !== null && _a !== void 0 ? _a : null,
-            predicted180dMid: (_b = r.predicted_180d_mid) !== null && _b !== void 0 ? _b : null,
-            predicted180dHigh: (_c = r.predicted_180d_high) !== null && _c !== void 0 ? _c : null,
-            predicted365dLow: (_d = r.predicted_365d_low) !== null && _d !== void 0 ? _d : null,
+            predicted180dLow: (_b = r.predicted_180d_low) !== null && _b !== void 0 ? _b : null,
+            predicted180dMid: (_c = r.predicted_180d_mid) !== null && _c !== void 0 ? _c : null,
+            predicted180dHigh: (_d = r.predicted_180d_high) !== null && _d !== void 0 ? _d : null,
+            predicted365dLow: (_e = r.predicted_365d_low) !== null && _e !== void 0 ? _e : null,
             predicted365dMid: (_f = r.predicted_365d_mid) !== null && _f !== void 0 ? _f : null,
             predicted365dHigh: (_g = r.predicted_365d_high) !== null && _g !== void 0 ? _g : null,
             expected7dReturn: r.expected_7d_return,
@@ -1348,8 +1776,9 @@ async function getLatestPredictions(limit = 100, category, filters, window = '90
             riskFactors: r.risk_factors,
             externalSignals: r.external_signals_json,
             modelVersion: r.model_version,
+            signalScore: (_k = r.signal_score) !== null && _k !== void 0 ? _k : undefined,
         });
-    });
+    }
     // Enrich with grading premium signals (AI grades + PSA-10 scarcity)
     await Promise.all(mapped.map(async (row) => {
         const [avgTotal, psa10] = await Promise.all([
@@ -1361,4 +1790,56 @@ async function getLatestPredictions(limit = 100, category, filters, window = '90
         row.gradingPremiumPotential = computeGradingPremiumPotential(gradingScore);
     }));
     return mapped;
+}
+/** Match a stored prediction price back to the mapping UID used at score time. */
+async function resolveMappingForPrediction(cardId, currentPrice) {
+    if (!cardId || currentPrice == null)
+        return null;
+    const db = (0, database_1.getDb)();
+    const row = await new Promise((resolve, reject) => {
+        db.get(`SELECT cm.uniqueIdentifier, cm.variantKey,
+              COALESCE(cm.tcgplayerProductId, CAST(cm.productId AS TEXT)) AS productId
+       FROM card_mappings cm
+       WHERE cm.cardId = ?
+         AND ABS(
+           COALESCE((
+             SELECT COALESCE(ph.marketPrice, ph.price)
+             FROM price_history ph
+             WHERE ph.uniqueIdentifier = cm.uniqueIdentifier
+               AND ph.source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
+             ORDER BY ph.date DESC
+             LIMIT 1
+           ), -1) - ?
+         ) < 0.02
+       ORDER BY (
+         SELECT COUNT(DISTINCT ph.date)
+         FROM price_history ph
+         WHERE ph.uniqueIdentifier = cm.uniqueIdentifier
+           AND ph.source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
+       ) DESC
+       LIMIT 1`, [cardId, currentPrice], (err, r) => (err ? reject(err) : resolve(r || null)));
+    });
+    if (!(row === null || row === void 0 ? void 0 : row.uniqueIdentifier))
+        return null;
+    return {
+        uid: row.uniqueIdentifier,
+        variantKey: row.variantKey || row.uniqueIdentifier.split('|').pop() || undefined,
+        productId: row.productId || undefined,
+    };
+}
+async function lookupMappingMeta(uniqueIdentifier) {
+    const db = (0, database_1.getDb)();
+    const row = await new Promise((resolve, reject) => {
+        db.get(`SELECT variantKey,
+              COALESCE(tcgplayerProductId, CAST(productId AS TEXT)) AS productId
+       FROM card_mappings
+       WHERE uniqueIdentifier = ?
+       LIMIT 1`, [uniqueIdentifier], (err, r) => (err ? reject(err) : resolve(r || null)));
+    });
+    if (!row)
+        return null;
+    return {
+        variantKey: row.variantKey || undefined,
+        productId: row.productId || undefined,
+    };
 }

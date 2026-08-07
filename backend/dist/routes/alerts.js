@@ -11,8 +11,15 @@ const createAlertSchema = zod_1.z.object({
     body: zod_1.z.object({
         cardId: zod_1.z.string(),
         cardName: zod_1.z.string(),
-        targetPrice: zod_1.z.number().positive(),
-        condition: zod_1.z.enum(['above', 'below']),
+        targetPrice: zod_1.z.number().nonnegative().optional().default(0),
+        condition: zod_1.z.enum(['above', 'below']).optional().default('above'),
+        alertType: zod_1.z
+            .enum(['price_threshold', 'percent_change', 'volume_drop', 'category_change', 'graded_premium'])
+            .optional()
+            .default('price_threshold'),
+        thresholdPct: zod_1.z.number().optional(),
+        baselinePrice: zod_1.z.number().optional(),
+        metadata: zod_1.z.record(zod_1.z.unknown()).optional(),
     }),
 });
 const toggleAlertSchema = zod_1.z.object({
@@ -82,8 +89,8 @@ const createAlertsRouter = (alertService) => {
      */
     router.post('/', auth_1.authenticate, (0, validation_1.validate)(createAlertSchema), async (req, res) => {
         try {
-            const { cardId, cardName, targetPrice, condition } = req.body;
-            const alert = await alertService.createAlert(req.user.id, cardId, cardName, targetPrice, condition);
+            const { cardId, cardName, targetPrice, condition, alertType, thresholdPct, baselinePrice, metadata } = req.body;
+            const alert = await alertService.createAlert(req.user.id, cardId, cardName, targetPrice !== null && targetPrice !== void 0 ? targetPrice : 0, condition !== null && condition !== void 0 ? condition : 'above', { alertType, thresholdPct, baselinePrice, metadata });
             res.status(201).json({ alert });
         }
         catch (error) {

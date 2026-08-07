@@ -34,12 +34,13 @@ const syncVaultSchema = zod_1.z.object({
         cards: zod_1.z.array(zod_1.z.object({
             id: zod_1.z.string(),
             card: zod_1.z.record(zod_1.z.unknown()),
-            purchasePrice: zod_1.z.number(),
+            purchasePrice: zod_1.z.coerce.number(),
             purchaseDate: zod_1.z.string(),
-            quantity: zod_1.z.number().int().positive(),
+            quantity: zod_1.z.coerce.number().int().positive(),
             condition: zod_1.z.string(),
-            notes: zod_1.z.string().optional(),
-            gradingResult: zod_1.z.record(zod_1.z.unknown()).optional(),
+            notes: zod_1.z.string().nullish(),
+            gradingResult: zod_1.z.unknown().optional(),
+            game: zod_1.z.string().optional(),
         })),
     }),
 });
@@ -57,6 +58,33 @@ const createPortfolioRouter = (portfolioService) => {
         try {
             const stats = await portfolioService.getPortfolioStats(req.user.id);
             (0, apiResponse_1.ok)(res, { stats });
+        }
+        catch (error) {
+            (0, apiResponse_1.fail)(res, error.message);
+        }
+    });
+    router.get('/lots', auth_1.authenticate, async (req, res) => {
+        try {
+            const openOnly = req.query.openOnly === 'true';
+            const lots = await portfolioService.getLots(req.user.id, openOnly);
+            (0, apiResponse_1.ok)(res, { lots });
+        }
+        catch (error) {
+            (0, apiResponse_1.fail)(res, error.message);
+        }
+    });
+    router.post('/lots/:id/close', auth_1.authenticate, async (req, res) => {
+        var _a, _b;
+        try {
+            const lotId = parseInt(req.params.id, 10);
+            const salePrice = Number((_a = req.body) === null || _a === void 0 ? void 0 : _a.salePrice);
+            if (!Number.isFinite(salePrice) || salePrice < 0) {
+                return (0, apiResponse_1.fail)(res, 'salePrice is required', 400);
+            }
+            const lot = await portfolioService.closeLot(req.user.id, lotId, salePrice, (_b = req.body) === null || _b === void 0 ? void 0 : _b.soldAt);
+            if (!lot)
+                return (0, apiResponse_1.fail)(res, 'Lot not found', 404);
+            (0, apiResponse_1.ok)(res, { lot });
         }
         catch (error) {
             (0, apiResponse_1.fail)(res, error.message);

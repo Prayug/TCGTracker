@@ -1,21 +1,54 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getPopulationCounts = void 0;
+exports.savePopulationScrape = exports.getAllCachedPopulations = exports.getCachedPopulationByCardId = exports.getPopulationCounts = void 0;
 const database_1 = require("../db/database");
 const logger_1 = require("../utils/logger");
+const priceChartingClient_1 = require("./priceChartingClient");
+const priceChartingResolver_1 = require("./priceChartingResolver");
 const CACHE_TTL_MS = 1000 * 60 * 60 * 12; // 12 hours
 const REQUEST_TIMEOUT_MS = 12000;
-const REQUEST_DELAY_MS = 1500; // 1.5s delay between scrapes to avoid rate limiting
 const BECKETT_SPORT_POKEMON = '477173';
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
-const normalize = (value) => (value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 const buildCacheKey = (input) => [
-    normalize(input.cardId),
-    normalize(input.cardName),
-    normalize(input.setId),
-    normalize(input.setName),
-    normalize(input.cardNumber),
-    normalize(input.variant),
+    (0, priceChartingClient_1.normalize)(input.cardId),
+    (0, priceChartingClient_1.normalize)(input.cardName),
+    (0, priceChartingClient_1.normalize)(input.setId),
+    (0, priceChartingClient_1.normalize)(input.setName),
+    (0, priceChartingClient_1.normalize)(input.cardNumber),
+    (0, priceChartingClient_1.normalize)(input.variant),
 ].join('|');
 const withTimeout = async (promise, ms) => {
     let timeoutId;
@@ -52,12 +85,38 @@ const runQuery = (sql, params) => {
         });
     });
 };
+const sanitizeCompanies = (companies) => {
+    Object.keys(companies).forEach((grader) => {
+        const company = companies[grader];
+        if (!company)
+            return;
+        if (typeof company.total === 'number' && company.total <= 0) {
+            company.total = null;
+            if (company.status === 'ok') {
+                company.status = 'unavailable';
+            }
+        }
+        if (company.status === 'error' && company.message) {
+            if (company.message.startsWith('beckett_')) {
+                company.message = 'Beckett temporarily unavailable';
+            }
+            else if (company.message.startsWith('pricecharting_')) {
+                company.message = 'Population source temporarily unavailable';
+            }
+            else if (company.message === 'request_timeout') {
+                company.message = 'Lookup timed out';
+            }
+        }
+    });
+    return companies;
+};
 const getCachedPopulation = async (cacheKey) => {
     const row = await queryOne(`SELECT payload, fetchedAt FROM population_cache WHERE cacheKey = ?`, [cacheKey]);
     if (!row) {
         return null;
     }
-    if (Date.now() - row.fetchedAt > CACHE_TTL_MS) {
+    const age = Date.now() - row.fetchedAt;
+    if (age > CACHE_TTL_MS) {
         return null;
     }
     try {
@@ -70,118 +129,40 @@ const getCachedPopulation = async (cacheKey) => {
         if (hasLegacyApifyPayload) {
             return null;
         }
-        Object.keys(parsed.companies || {}).forEach((grader) => {
-            const company = parsed.companies[grader];
-            if (!company)
-                return;
-            if (typeof company.total === 'number' && company.total <= 0) {
-                company.total = null;
-                if (company.status === 'ok') {
-                    company.status = 'unavailable';
-                }
-            }
-            if (company.status === 'error' && company.message) {
-                if (company.message.startsWith('beckett_')) {
-                    company.message = 'Beckett temporarily unavailable';
-                }
-                else if (company.message.startsWith('pricecharting_')) {
-                    company.message = 'Population source temporarily unavailable';
-                }
-                else if (company.message === 'request_timeout') {
-                    company.message = 'Lookup timed out';
-                }
-            }
-        });
-        return { ...parsed, cached: true };
+        sanitizeCompanies(parsed.companies);
+        return {
+            ...parsed,
+            cached: true,
+            stale: age > CACHE_TTL_MS,
+            ageHours: Math.round(age / 3600000),
+        };
     }
     catch (_a) {
         return null;
     }
 };
 const saveCachedPopulation = async (cacheKey, payload) => {
-    await runQuery(`INSERT OR REPLACE INTO population_cache (cacheKey, payload, fetchedAt) VALUES (?, ?, ?)`, [cacheKey, JSON.stringify(payload), Date.now()]);
-};
-const scoreCandidate = (candidate, input) => {
-    const title = normalize(candidate.title);
-    const setName = normalize(candidate.setName);
-    const cardName = normalize(input.cardName);
-    const inputSet = normalize(input.setName);
-    const inputCardNumber = normalize(input.cardNumber);
-    let score = 0;
-    if (title.includes(cardName)) {
-        score += 60;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r;
+    await runQuery(`INSERT OR REPLACE INTO population_cache (cacheKey, cardId, payload, fetchedAt) VALUES (?, ?, ?, ?)`, [cacheKey, payload.cardId || null, JSON.stringify(payload), Date.now()]);
+    // Daily pop snapshot for regime / supply-shock radar (best-effort).
+    if (payload.cardId) {
+        try {
+            const { snapshotPopulationHistory } = await Promise.resolve().then(() => __importStar(require('./slabInsightsService')));
+            await snapshotPopulationHistory({
+                cardId: payload.cardId,
+                psaTotal: (_c = (_b = (_a = payload.companies) === null || _a === void 0 ? void 0 : _a.psa) === null || _b === void 0 ? void 0 : _b.total) !== null && _c !== void 0 ? _c : null,
+                psa10: (_f = (_e = (_d = payload.companies) === null || _d === void 0 ? void 0 : _d.psa) === null || _e === void 0 ? void 0 : _e.grade10) !== null && _f !== void 0 ? _f : null,
+                psa9: (_j = (_h = (_g = payload.companies) === null || _g === void 0 ? void 0 : _g.psa) === null || _h === void 0 ? void 0 : _h.grade9) !== null && _j !== void 0 ? _j : null,
+                cgcTotal: (_m = (_l = (_k = payload.companies) === null || _k === void 0 ? void 0 : _k.cgc) === null || _l === void 0 ? void 0 : _l.total) !== null && _m !== void 0 ? _m : null,
+                cgc10: (_q = (_p = (_o = payload.companies) === null || _o === void 0 ? void 0 : _o.cgc) === null || _p === void 0 ? void 0 : _p.grade10) !== null && _q !== void 0 ? _q : null,
+                verified: payload.verified === true,
+                productId: (_r = payload.productId) !== null && _r !== void 0 ? _r : null,
+            });
+        }
+        catch (_s) {
+            // Table may not exist yet mid-migration; ignore.
+        }
     }
-    if (inputSet && (setName.includes(inputSet) || inputSet.includes(setName))) {
-        score += 30;
-    }
-    if (inputCardNumber && title.includes(inputCardNumber)) {
-        score += 20;
-    }
-    return score;
-};
-const parsePriceChartingSearchRows = (html) => {
-    const rows = [];
-    const rowRegex = /<tr id="product-[^"]+"[\s\S]*?<a href="(https:\/\/www\.pricecharting\.com\/game\/[^"]+)"[^>]*>\s*([\s\S]*?)<\/a>[\s\S]*?<a href="\/console\/[^"]+">\s*([\s\S]*?)\s*<\/a>[\s\S]*?<\/tr>/g;
-    let match = rowRegex.exec(html);
-    while (match) {
-        const [, url, rawTitle, rawSet] = match;
-        rows.push({
-            url,
-            title: rawTitle.replace(/<[^>]+>/g, '').trim(),
-            setName: rawSet.replace(/<[^>]+>/g, '').trim(),
-        });
-        match = rowRegex.exec(html);
-    }
-    return rows;
-};
-const sumPopArray = (values) => {
-    if (!Array.isArray(values) || values.length === 0) {
-        return null;
-    }
-    const nums = values.map((v) => Number(v)).filter((v) => Number.isFinite(v) && v >= 0);
-    if (nums.length === 0) {
-        return null;
-    }
-    const total = nums.reduce((acc, v) => acc + v, 0);
-    return total > 0 ? total : null;
-};
-const fetchPriceChartingPopulations = async (input) => {
-    var _a;
-    const query = [input.cardName, input.cardNumber, input.variant, input.setName]
-        .filter(Boolean)
-        .join(' ')
-        .trim();
-    const searchUrl = `https://www.pricecharting.com/search-products?exclude-variants=false&q=${encodeURIComponent(query)}&region-name=all&type=prices&go=Go`;
-    const searchResponse = await withTimeout(fetch(searchUrl, { headers: { Accept: 'text/html' } }), REQUEST_TIMEOUT_MS);
-    if (!searchResponse.ok) {
-        throw new Error(`pricecharting_search_${searchResponse.status}`);
-    }
-    const searchHtml = await searchResponse.text();
-    const rows = parsePriceChartingSearchRows(searchHtml);
-    if (rows.length === 0) {
-        return { psa: null, cgc: null };
-    }
-    const ranked = rows
-        .map((row) => ({ row, score: scoreCandidate({ title: row.title, setName: row.setName }, input) }))
-        .sort((a, b) => b.score - a.score);
-    const best = (_a = ranked[0]) === null || _a === void 0 ? void 0 : _a.row;
-    if (!best) {
-        return { psa: null, cgc: null };
-    }
-    const cardResponse = await withTimeout(fetch(best.url, { headers: { Accept: 'text/html' } }), REQUEST_TIMEOUT_MS);
-    if (!cardResponse.ok) {
-        throw new Error(`pricecharting_card_${cardResponse.status}`);
-    }
-    const cardHtml = await cardResponse.text();
-    const popMatch = cardHtml.match(/VGPC\.pop_data\s*=\s*(\{[\s\S]*?\});/);
-    if (!popMatch) {
-        return { psa: null, cgc: null };
-    }
-    const popData = JSON.parse(popMatch[1]);
-    return {
-        psa: sumPopArray(popData.psa),
-        cgc: sumPopArray(popData.cgc),
-    };
 };
 const parseBeckettRows = (html) => {
     var _a;
@@ -221,12 +202,12 @@ const fetchBeckettPopulation = async (input) => {
     if (rows.length === 0) {
         return null;
     }
-    const inputName = normalize(input.cardName);
-    const inputSet = normalize(input.setName);
-    const inputNum = normalize(input.cardNumber);
+    const inputName = (0, priceChartingClient_1.normalize)(input.cardName);
+    const inputSet = (0, priceChartingClient_1.normalize)(input.setName);
+    const inputNum = (0, priceChartingClient_1.normalize)(input.cardNumber);
     const ranked = rows
         .map((row) => {
-        const candidate = normalize(row.setTitle);
+        const candidate = (0, priceChartingClient_1.normalize)(row.setTitle);
         let score = 0;
         if (candidate.includes(inputName))
             score += 60;
@@ -239,30 +220,70 @@ const fetchBeckettPopulation = async (input) => {
         .sort((a, b) => b.score - a.score);
     return (_b = (_a = ranked[0]) === null || _a === void 0 ? void 0 : _a.row.total) !== null && _b !== void 0 ? _b : null;
 };
-let lastScrapeTime = 0;
-const resolveGrader = async (grader, input) => {
+const buildGraderResult = (grader, pop, extra) => {
+    const total = pop && pop.length > 0 ? pop.reduce((acc, v) => acc + v, 0) : null;
+    return {
+        grader,
+        total: total && total > 0 ? total : null,
+        grade10: pop && pop.length >= 10 ? pop[9] : null,
+        grade9: pop && pop.length >= 9 ? pop[8] : null,
+        pop,
+        status: total && total > 0 ? 'ok' : 'unavailable',
+        source: total && total > 0 ? 'scrape' : 'none',
+        message: total && total > 0 ? undefined : 'No population result found',
+        ...extra,
+    };
+};
+/**
+ * ONE hardened product resolution yields both PSA and CGC census. A single
+ * valid 10-element positional array (index 0 = Grade 1 .. 9 = Grade 10)
+ * is required before a population is accepted — no more total=1 garbage.
+ */
+const fetchPriceChartingPopulations = async (input) => {
+    const resolved = await (0, priceChartingResolver_1.resolveProduct)({
+        cardName: input.cardName,
+        setId: input.setId,
+        setName: input.setName,
+        cardNumber: input.cardNumber,
+    }, 1500);
+    if (!resolved) {
+        throw new Error('pricecharting_no_match');
+    }
+    const { match, pageData } = resolved;
+    const verified = pageData.productId === match.productId;
+    return {
+        psa: buildGraderResult('psa', pageData.psaPop, {
+            productId: pageData.productId,
+            verified,
+            matchScore: match.matchScore,
+        }),
+        cgc: buildGraderResult('cgc', pageData.cgcPop, {
+            productId: pageData.productId,
+            verified,
+            matchScore: match.matchScore,
+        }),
+        productId: pageData.productId,
+        verified,
+        matchScore: match.matchScore,
+    };
+};
+const resolveGrader = async (grader, input, pcScrape) => {
     try {
-        const now = Date.now();
-        const elapsed = now - lastScrapeTime;
-        if (elapsed < REQUEST_DELAY_MS) {
-            await delay(REQUEST_DELAY_MS - elapsed);
+        if ((grader === 'psa' || grader === 'cgc') && pcScrape) {
+            return pcScrape[grader];
         }
-        lastScrapeTime = Date.now();
         if (grader === 'psa' || grader === 'cgc') {
-            const totals = await fetchPriceChartingPopulations(input);
-            const total = grader === 'psa' ? totals.psa : totals.cgc;
-            return {
-                grader,
-                total,
-                status: total !== null ? 'ok' : 'unavailable',
-                source: total !== null ? 'scrape' : 'none',
-                message: total !== null ? undefined : 'No population result found',
-            };
+            return buildGraderResult(grader, null, {
+                message: 'No population result found',
+            });
         }
         const beckettTotal = await fetchBeckettPopulation(input);
         return {
             grader,
             total: beckettTotal,
+            grade10: null,
+            grade9: null,
+            pop: null,
             status: beckettTotal !== null ? 'ok' : 'unavailable',
             source: beckettTotal !== null ? 'scrape' : 'none',
             message: beckettTotal !== null ? undefined : 'No population result found',
@@ -285,6 +306,9 @@ const resolveGrader = async (grader, input) => {
         return {
             grader,
             total: null,
+            grade10: null,
+            grade9: null,
+            pop: null,
             status: 'error',
             source: 'none',
             message,
@@ -292,15 +316,26 @@ const resolveGrader = async (grader, input) => {
     }
 };
 const getPopulationCounts = async (input) => {
+    var _a, _b;
     const key = buildCacheKey(input);
     const cached = await getCachedPopulation(key);
     if (cached) {
         return cached;
     }
+    let pcScrape = null;
+    try {
+        pcScrape = await fetchPriceChartingPopulations(input);
+    }
+    catch (error) {
+        logger_1.logger.warn('PriceCharting population scrape failed', {
+            cardName: input.cardName,
+            error: error.message,
+        });
+    }
     const [psa, cgc, beckett] = await Promise.all([
-        resolveGrader('psa', input),
-        resolveGrader('cgc', input),
-        resolveGrader('beckett', input),
+        resolveGrader('psa', input, pcScrape),
+        resolveGrader('cgc', input, pcScrape),
+        resolveGrader('beckett', input, pcScrape),
     ]);
     const payload = {
         key,
@@ -312,6 +347,10 @@ const getPopulationCounts = async (input) => {
         variant: input.variant,
         fetchedAt: Date.now(),
         cached: false,
+        stale: false,
+        ageHours: 0,
+        productId: (_a = pcScrape === null || pcScrape === void 0 ? void 0 : pcScrape.productId) !== null && _a !== void 0 ? _a : null,
+        verified: (_b = pcScrape === null || pcScrape === void 0 ? void 0 : pcScrape.verified) !== null && _b !== void 0 ? _b : false,
         companies: { psa, cgc, beckett },
     };
     await saveCachedPopulation(key, payload).catch((error) => {
@@ -320,3 +359,82 @@ const getPopulationCounts = async (input) => {
     return payload;
 };
 exports.getPopulationCounts = getPopulationCounts;
+/**
+ * Look up the freshest cached population payload for a cardId (used by the
+ * prediction engine's scarcity scoring and the nightly refresh).
+ */
+const getCachedPopulationByCardId = async (cardId) => {
+    const row = await queryOne(`SELECT payload FROM population_cache WHERE cardId = ? ORDER BY fetchedAt DESC LIMIT 1`, [cardId]);
+    if (!row)
+        return null;
+    try {
+        const parsed = JSON.parse(row.payload);
+        sanitizeCompanies(parsed.companies);
+        return { ...parsed, cached: true };
+    }
+    catch (_a) {
+        return null;
+    }
+};
+exports.getCachedPopulationByCardId = getCachedPopulationByCardId;
+const getAllCachedPopulations = async () => {
+    const db = (0, database_1.getDb)();
+    const rows = await new Promise((resolve, reject) => {
+        db.all(`SELECT cardId, payload FROM population_cache WHERE cardId IS NOT NULL`, (err, r) => (err ? reject(err) : resolve(r || [])));
+    });
+    const results = [];
+    for (const row of rows) {
+        try {
+            results.push({ cardId: row.cardId, payload: JSON.parse(row.payload) });
+        }
+        catch (_a) {
+            // skip malformed payloads
+        }
+    }
+    return results;
+};
+exports.getAllCachedPopulations = getAllCachedPopulations;
+/**
+ * Save a population payload from a shared product-page scrape (nightly refresh).
+ */
+const savePopulationScrape = async (cardId, input, match, pageData) => {
+    const verified = pageData.productId === match.productId;
+    const psa = buildGraderResult('psa', pageData.psaPop, {
+        productId: pageData.productId,
+        verified,
+        matchScore: match.matchScore,
+    });
+    const cgc = buildGraderResult('cgc', pageData.cgcPop, {
+        productId: pageData.productId,
+        verified,
+        matchScore: match.matchScore,
+    });
+    const beckett = {
+        grader: 'beckett',
+        total: null,
+        grade10: null,
+        grade9: null,
+        pop: null,
+        status: 'unavailable',
+        source: 'none',
+        message: 'No population result found',
+    };
+    const payload = {
+        key: buildCacheKey({ ...input, cardId }),
+        cardId,
+        cardName: input.cardName,
+        setId: input.setId,
+        setName: input.setName,
+        cardNumber: input.cardNumber,
+        variant: input.variant,
+        fetchedAt: Date.now(),
+        cached: false,
+        stale: false,
+        ageHours: 0,
+        productId: pageData.productId,
+        verified,
+        companies: { psa, cgc, beckett },
+    };
+    await saveCachedPopulation(payload.key, payload);
+};
+exports.savePopulationScrape = savePopulationScrape;

@@ -20,52 +20,119 @@ exports.ERA_GROUPS = [
     { id: 'other', label: 'Other', sortOrder: 15 },
 ];
 const eraSortIndex = new Map(exports.ERA_GROUPS.map((g) => [g.id, g.sortOrder]));
+/** Official Black Star / era promo set ids → parent era (not a separate Promos bucket). */
+const PROMO_SET_ERA = {
+    mep: 'mega',
+    svp: 'sv',
+    swshp: 'swsh',
+    smp: 'sm',
+    xyp: 'xy',
+    bwp: 'bw',
+    hsp: 'hgss',
+    dpp: 'dp',
+    np: 'neo', // Nintendo Black Star Promos (Neo → e-Card window)
+    basep: 'base',
+};
+/** Infer parent era from promo / special-set naming when the set id isn't a known promo code. */
+function eraFromPromoLabel(name, series, id) {
+    const blob = `${id} ${name} ${series}`;
+    if (/\bmep\b|mega evolution/.test(blob))
+        return 'mega';
+    if (/\bsvp\b|scarlet|violet/.test(blob))
+        return 'sv';
+    if (/\bswshp?\b|sword|shield|\bpgo\b|celebrations/.test(blob))
+        return 'swsh';
+    if (/\bsmp\b|sun\s*(&|and)?\s*moon|\bsm\b/.test(blob))
+        return 'sm';
+    if (/\bxyp\b|\bxy\b|generations|evolutions/.test(blob))
+        return 'xy';
+    if (/\bbwp\b|black\s*(&|and)?\s*white|\bbw\b/.test(blob))
+        return 'bw';
+    if (/\bhsp\b|heartgold|soulsilver|\bhgss\b/.test(blob))
+        return 'hgss';
+    if (/\bdpp\b|diamond|pearl|platinum|\bdp\b|\bpl\b/.test(blob))
+        return 'dp';
+    if (/\bex\b|delta species/.test(blob))
+        return 'ex';
+    if (/\becard\b|e-card|skyridge|aquapolis|expedition/.test(blob))
+        return 'ecard';
+    if (/\bnp\b|\bneo\b/.test(blob))
+        return 'neo';
+    if (/\bgym\b/.test(blob))
+        return 'gym';
+    if (/\bbasep?\b|wizards black star|base set/.test(blob))
+        return 'base';
+    return null;
+}
 const classifySetEra = (input) => {
+    var _a;
     const id = input.id.toLowerCase();
     const name = input.name.toLowerCase();
     const series = (input.series || '').toLowerCase();
-    if (series.includes('mega') || /^me\d|^me-|^me_/.test(id) || name.includes('mega evolution')) {
+    // Known promo set codes first so they never land in the Promos catch-all.
+    if (PROMO_SET_ERA[id])
+        return PROMO_SET_ERA[id];
+    if (series.includes('mega') || /^me\d|^me-|^me_|^mep$/.test(id) || name.includes('mega evolution')) {
         return 'mega';
     }
-    if (series.includes('scarlet') || series.includes('violet') || /^sv\d|^sv-/.test(id)) {
+    // zsv/rsv = SV-era special sets (Black Bolt / White Flare); sve = energies; svp = SV promos
+    if (series.includes('scarlet') ||
+        series.includes('violet') ||
+        /^(z|r)?sv\d|^sv-|^svp$|^sve$|^sv[a-z]/.test(id) ||
+        name === 'black bolt' ||
+        name === 'white flare') {
         return 'sv';
     }
-    if (series.includes('sword') || series.includes('shield') || /^swsh\d|^pgo|^cel\d/.test(id)) {
+    if (series.includes('sword') ||
+        series.includes('shield') ||
+        /^swsh\d|^swshp$|^pgo|^cel\d/.test(id)) {
         return 'swsh';
     }
-    if (series.includes('sun') || series.includes('moon') || /^sm\d|^sm-/.test(id)) {
+    if (series.includes('sun') || series.includes('moon') || /^sm\d|^sm-|^smp$/.test(id)) {
         return 'sm';
     }
-    if (series.includes(' xy') || series === 'xy' || series.startsWith('xy') || /^xy\d|^xy-|^dc1|^g1|^k1/.test(id)) {
+    if (series.includes(' xy') ||
+        series === 'xy' ||
+        series.startsWith('xy') ||
+        /^xy\d|^xy-|^xyp$|^dc1|^g1|^k1/.test(id)) {
         return 'xy';
     }
-    if (series.includes('black') || series.includes('white') || /^bw\d|^bw-/.test(id)) {
+    // Prefer series/id — do not use set name "black"/"white" (Black Bolt / White Flare are SV).
+    if (series.includes('black & white') ||
+        series.includes('black and white') ||
+        /^bw\d|^bw-|^bwp$/.test(id)) {
         return 'bw';
     }
     if (id === 'col1' || name.includes('call of legends'))
         return 'col';
-    if (series.includes('heartgold') || series.includes('soulsilver') || /^hgss\d|^hgss-/.test(id)) {
+    if (series.includes('heartgold') ||
+        series.includes('soulsilver') ||
+        /^hgss\d|^hgss-|^hsp$/.test(id)) {
         return 'hgss';
     }
-    if (series.includes('diamond') || series.includes('pearl') || /^dp\d|^pl\d|^pl-|^dp-/.test(id)) {
+    if (series.includes('diamond') ||
+        series.includes('pearl') ||
+        /^dp\d|^pl\d|^pl-|^dp-|^dpp$/.test(id)) {
         return 'dp';
     }
     if (series.includes('ex') || /^ex\d|^ex-/.test(id))
         return 'ex';
     if (series.includes('ecard') || series.includes('e-card') || /^ecard\d/.test(id))
         return 'ecard';
-    if (series.includes('neo') || /^neo\d|^neo-/.test(id))
+    if (series.includes('neo') || /^neo\d|^neo-|^np$/.test(id))
         return 'neo';
     if (series.includes('gym') || /^gym\d/.test(id))
         return 'gym';
-    if (series.includes('base') || /^base\d|^base-/.test(id))
+    if (series.includes('base') || /^base\d|^base-|^basep$/.test(id))
         return 'base';
+    // Promos / specials: fold into the parent era when we can tell which one.
     if (name.includes('promo') ||
         id.includes('promo') ||
         series.includes('promo') ||
+        name.includes('black star') ||
         name.includes('prize pack') ||
         name.includes('deck exclusive')) {
-        return 'promo';
+        return (_a = eraFromPromoLabel(name, series, id)) !== null && _a !== void 0 ? _a : 'promo';
     }
     return 'other';
 };
@@ -93,14 +160,19 @@ const compareSetsByEraAndRelease = (a, b) => {
 exports.compareSetsByEraAndRelease = compareSetsByEraAndRelease;
 const sortSetsForDisplay = (sets) => [...sets].sort(exports.compareSetsByEraAndRelease);
 exports.sortSetsForDisplay = sortSetsForDisplay;
-/** Use image URLs returned by the set API when available. */
-const resolveSetImages = (apiImages) => {
-    if ((apiImages === null || apiImages === void 0 ? void 0 : apiImages.logo) || (apiImages === null || apiImages === void 0 ? void 0 : apiImages.symbol)) {
-        return {
-            logo: apiImages.logo || '',
-            symbol: apiImages.symbol || '',
-        };
+/** Use API image URLs when present; otherwise build standard pokemontcg.io paths. */
+const resolveSetImages = (apiImages, setId) => {
+    const logo = (apiImages === null || apiImages === void 0 ? void 0 : apiImages.logo) || '';
+    const symbol = (apiImages === null || apiImages === void 0 ? void 0 : apiImages.symbol) || '';
+    if (logo || symbol) {
+        return { logo, symbol };
     }
-    return { logo: '', symbol: '' };
+    const id = (setId || '').trim();
+    if (!id)
+        return { logo: '', symbol: '' };
+    return {
+        logo: `https://images.pokemontcg.io/${id}/logo.png`,
+        symbol: `https://images.pokemontcg.io/${id}/symbol.png`,
+    };
 };
 exports.resolveSetImages = resolveSetImages;
