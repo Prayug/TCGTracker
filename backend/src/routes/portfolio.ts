@@ -37,12 +37,13 @@ const syncVaultSchema = z.object({
       z.object({
         id: z.string(),
         card: z.record(z.unknown()),
-        purchasePrice: z.number(),
+        purchasePrice: z.coerce.number(),
         purchaseDate: z.string(),
-        quantity: z.number().int().positive(),
+        quantity: z.coerce.number().int().positive(),
         condition: z.string(),
-        notes: z.string().optional(),
-        gradingResult: z.record(z.unknown()).optional(),
+        notes: z.string().nullish(),
+        gradingResult: z.unknown().optional(),
+        game: z.string().optional(),
       })
     ),
   }),
@@ -62,6 +63,36 @@ export const createPortfolioRouter = (portfolioService: PortfolioService) => {
     try {
       const stats = await portfolioService.getPortfolioStats(req.user!.id);
       ok(res, { stats });
+    } catch (error: any) {
+      fail(res, error.message);
+    }
+  });
+
+  router.get('/lots', authenticate, async (req: AuthRequest, res: Response) => {
+    try {
+      const openOnly = req.query.openOnly === 'true';
+      const lots = await portfolioService.getLots(req.user!.id, openOnly);
+      ok(res, { lots });
+    } catch (error: any) {
+      fail(res, error.message);
+    }
+  });
+
+  router.post('/lots/:id/close', authenticate, async (req: AuthRequest, res: Response) => {
+    try {
+      const lotId = parseInt(req.params.id, 10);
+      const salePrice = Number(req.body?.salePrice);
+      if (!Number.isFinite(salePrice) || salePrice < 0) {
+        return fail(res, 'salePrice is required', 400);
+      }
+      const lot = await portfolioService.closeLot(
+        req.user!.id,
+        lotId,
+        salePrice,
+        req.body?.soldAt
+      );
+      if (!lot) return fail(res, 'Lot not found', 404);
+      ok(res, { lot });
     } catch (error: any) {
       fail(res, error.message);
     }

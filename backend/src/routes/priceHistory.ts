@@ -12,6 +12,7 @@ import { getOnePiecePriceHistory } from '../services/onePiecePriceHistoryService
 import {
   cliffPctForPeriod,
   isGradualMove,
+  maxEndpointChangePctForPeriod,
   minPointsForPeriod,
   pickPreferredSourceRow,
 } from '../services/topMoversQuality';
@@ -428,9 +429,11 @@ router.get('/top-movers', (req: Request, res: Response) => {
   const minAbsDollarChange = 1;
   // Allow sparse history: find baseline on/before period start, within 2x the window
   const baselineSlackDays = Math.max(days * 2, days + 3);
-  const candidatePool = 150;
+  // Large enough that cliff-filtered survivors still fill gainers + losers
+  const candidatePool = 400;
   const cliffPct = cliffPctForPeriod(days);
   const minPoints = minPointsForPeriod(days);
+  const maxEndpointPct = maxEndpointChangePctForPeriod(days);
   const db = getDb();
 
   const sources = `'tcgcsv', 'tcgdex', 'catalog_fallback'`;
@@ -541,6 +544,9 @@ router.get('/top-movers', (req: Request, res: Response) => {
             if (absDollar < minAbsDollarChange) continue;
 
             const changePct = ((current.price - prevPrice) / prevPrice) * 100;
+            // Drop endpoint cliffs before pooling so data errors don't crowd out real movers
+            if (Math.abs(changePct) > maxEndpointPct) continue;
+
             entries.push({
               productName: current.productName,
               currentPrice: current.price,

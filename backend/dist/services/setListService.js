@@ -49,7 +49,8 @@ const getEnrichedSets = async () => {
             name: row.name,
             series,
         });
-        const images = (0, setEra_1.resolveSetImages)(apiMeta === null || apiMeta === void 0 ? void 0 : apiMeta.images);
+        const imageSetId = (apiMeta === null || apiMeta === void 0 ? void 0 : apiMeta.id) || normalizedId || row.id;
+        const images = (0, setEra_1.resolveSetImages)(apiMeta === null || apiMeta === void 0 ? void 0 : apiMeta.images, imageSetId);
         enriched.push({
             id: row.id,
             name: row.name,
@@ -61,7 +62,14 @@ const getEnrichedSets = async () => {
             images,
         });
     }
-    return (0, setEra_1.sortSetsForDisplay)(enriched);
+    // Catalog can emit multiple names under one setId (e.g. svp). Prefer the larger checklist.
+    const deduped = new Map();
+    for (const set of enriched) {
+        const prev = deduped.get(set.id);
+        if (!prev || set.total > prev.total)
+            deduped.set(set.id, set);
+    }
+    return (0, setEra_1.sortSetsForDisplay)([...deduped.values()]);
 };
 exports.getEnrichedSets = getEnrichedSets;
 const enrichSetById = async (setId) => {
@@ -100,7 +108,7 @@ const enrichSetById = async (setId) => {
         series,
         era,
         eraLabel: (0, setEra_1.getEraLabel)(era),
-        images: (0, setEra_1.resolveSetImages)(apiMeta === null || apiMeta === void 0 ? void 0 : apiMeta.images),
+        images: (0, setEra_1.resolveSetImages)(apiMeta === null || apiMeta === void 0 ? void 0 : apiMeta.images, (apiMeta === null || apiMeta === void 0 ? void 0 : apiMeta.id) || normalizedId || row.id),
     };
 };
 exports.enrichSetById = enrichSetById;

@@ -47,6 +47,7 @@ const setTracker_1 = __importDefault(require("./routes/setTracker"));
 const enhancedPacks_1 = __importDefault(require("./routes/enhancedPacks"));
 const marketInsights_1 = __importDefault(require("./routes/marketInsights"));
 const grading_1 = __importDefault(require("./routes/grading"));
+const captureSessions_1 = __importDefault(require("./routes/captureSessions"));
 const database_1 = require("./db/database");
 const migrations_1 = require("./db/migrations");
 const dataFetcher_1 = require("./services/dataFetcher");
@@ -66,17 +67,19 @@ const authService_1 = require("./services/authService");
 const alertService_1 = require("./services/alertService");
 const portfolioService_1 = require("./services/portfolioService");
 const binderService_1 = require("./services/binderService");
+const watchlistService_1 = require("./services/watchlistService");
 const auth_2 = require("./routes/auth");
 const alerts_1 = require("./routes/alerts");
 const portfolio_1 = require("./routes/portfolio");
 const binders_1 = require("./routes/binders");
+const watchlists_1 = require("./routes/watchlists");
 const setCodeService_1 = require("./services/setCodeService");
 const sentry_1 = require("./config/sentry");
 (0, sentry_1.initSentry)();
 const app = (0, express_1.default)();
 const port = env_1.env.port;
-// 12mb supports base64 card images for AI grading analyze endpoint
-const BODY_LIMIT = '12mb';
+// 20mb supports phone capture + grading base64 payloads
+const BODY_LIMIT = '20mb';
 app.set('trust proxy', 1);
 app.use((0, security_1.securityMiddleware)());
 app.use((0, security_1.corsMiddleware)());
@@ -115,7 +118,7 @@ async function initializeSetCodeService(retries = 3) {
     }
     logger_1.logger.error('CRITICAL: Failed to initialize set code service after all retries.');
 }
-function setupRoutes(authService, alertService, portfolioService, binderService) {
+function setupRoutes(authService, alertService, portfolioService, binderService, watchlistService) {
     app.use('/api-docs', swagger_ui_express_1.default.serve, swagger_ui_express_1.default.setup(swagger_1.swaggerSpec));
     logger_1.logger.info(`API Documentation available at http://${env_1.env.host}:${port}/api-docs`);
     node_cron_1.default.schedule('0 2 * * *', async () => {
@@ -129,6 +132,21 @@ function setupRoutes(authService, alertService, portfolioService, binderService)
             logger_1.logger.info('Daily price data update completed', result);
             const imageResult = await (0, cardImageBackfillService_1.backfillCardMappingImages)();
             logger_1.logger.info('Post-price-update image backfill completed', imageResult);
+            try {
+                const { materializeCanonicalPrices } = await Promise.resolve().then(() => __importStar(require('./services/canonicalPriceService')));
+                const canonical = await materializeCanonicalPrices();
+                logger_1.logger.info('Canonical prices refreshed', canonical);
+            }
+            catch (canonErr) {
+                logger_1.logger.warn('Canonical price materialization failed', { error: canonErr.message });
+            }
+            try {
+                const triggered = await alertService.evaluateAllSmartAlertsFromPrices();
+                logger_1.logger.info('Smart alerts evaluated after price update', { triggered });
+            }
+            catch (alertErr) {
+                logger_1.logger.warn('Smart alert evaluation failed', { error: alertErr.message });
+            }
         }
         catch (error) {
             logger_1.logger.error('Failed to update price data', { error: error.message });
@@ -156,6 +174,13 @@ function setupRoutes(authService, alertService, portfolioService, binderService)
             logger_1.logger.info('Price update catch-up completed', result);
             const imageResult = await (0, cardImageBackfillService_1.backfillCardMappingImages)();
             logger_1.logger.info('Post-catch-up image backfill completed', imageResult);
+            try {
+                const triggered = await alertService.evaluateAllSmartAlertsFromPrices();
+                logger_1.logger.info('Smart alerts evaluated after catch-up', { triggered });
+            }
+            catch (alertErr) {
+                logger_1.logger.warn('Smart alert evaluation failed after catch-up', { error: alertErr.message });
+            }
         }
         catch (error) {
             logger_1.logger.error('Price update catch-up failed', { error: error.message });
@@ -185,9 +210,27 @@ function setupRoutes(authService, alertService, portfolioService, binderService)
             logger_1.logger.error('Failed to sync One Piece data', { error: error.message });
         }
     }, { timezone: 'America/New_York' });
+    // Nightly graded slab-price + population refresh (2:30 AM ET). Runs a
+    // time-budgeted full-catalog sweep so EVERY card eventually gets slab prices
+    // and population (not just viewed cards); idempotent + resumable nightly.
+    node_cron_1.default.schedule('30 2 * * *', async () => {
+        logger_1.logger.info('Running scheduled graded data refresh...');
+        try {
+            const { runAllCardsRefresh } = await Promise.resolve().then(() => __importStar(require('./services/gradedRefreshService')));
+            const { withDbJobLock } = await Promise.resolve().then(() => __importStar(require('./utils/dbJobLock')));
+            const result = await withDbJobLock('graded-refresh', () => runAllCardsRefresh({ maxDurationMs: 1000 * 60 * 120 }), {
+                skipIfBusy: true,
+            });
+            logger_1.logger.info('Graded data refresh completed', result);
+        }
+        catch (error) {
+            logger_1.logger.error('Graded data refresh failed', { error: error.message });
+        }
+    }, { timezone: 'America/New_York' });
     app.use('/api/auth', (0, auth_2.createAuthRouter)(authService));
     app.use('/api/alerts', (0, alerts_1.createAlertsRouter)(alertService));
     app.use('/api/portfolio', (0, portfolio_1.createPortfolioRouter)(portfolioService));
+    app.use('/api/watchlists', (0, watchlists_1.createWatchlistsRouter)(watchlistService));
     app.use('/api/prices', priceHistory_1.default);
     app.use('/api/cards', setTracker_1.default);
     app.use('/api/cards', cardSearch_1.default);
@@ -196,6 +239,7 @@ function setupRoutes(authService, alertService, portfolioService, binderService)
     app.use('/api/binders', (0, binders_1.createBinderRouter)(binderService));
     app.use('/api/market-insights', marketInsights_1.default);
     app.use('/api/grading', grading_1.default);
+    app.use('/api/capture-sessions', rateLimiter_1.captureSessionLimiter, captureSessions_1.default);
     node_cron_1.default.schedule('0 3 * * *', async () => {
         logger_1.logger.info('Running scheduled prediction run...');
         try {
@@ -207,6 +251,25 @@ function setupRoutes(authService, alertService, portfolioService, binderService)
         }
         catch (error) {
             logger_1.logger.error('Failed to run predictions', { error: error.message });
+        }
+    }, { timezone: 'America/New_York' });
+    // Data quality + retention after predictions (3:30 AM ET).
+    node_cron_1.default.schedule('30 3 * * *', async () => {
+        logger_1.logger.info('Running data quality checks and retention...');
+        try {
+            const { runDataQualityChecks } = await Promise.resolve().then(() => __importStar(require('./services/dataQualityService')));
+            const { runRetentionPolicies } = await Promise.resolve().then(() => __importStar(require('./services/retentionService')));
+            const quality = await runDataQualityChecks();
+            const retention = await runRetentionPolicies({ keepPredictionRuns: 30 });
+            logger_1.logger.info('Data quality + retention completed', {
+                passed: quality.passed,
+                warned: quality.warned,
+                failed: quality.failed,
+                ...retention,
+            });
+        }
+        catch (error) {
+            logger_1.logger.error('Data quality / retention failed', { error: error.message });
         }
     }, { timezone: 'America/New_York' });
     // Full signal scrape daily at 4:00 AM ET (after price update + prediction run).
@@ -403,6 +466,8 @@ function setupRoutes(authService, alertService, portfolioService, binderService)
                 endpoints: {
                     auth: '/api/auth',
                     alerts: '/api/alerts',
+                    portfolio: '/api/portfolio',
+                    watchlists: '/api/watchlists',
                     prices: '/api/prices',
                     cards: '/api/cards',
                     packs: '/api/packs',
@@ -455,11 +520,13 @@ async function bootstrap() {
         const alertService = new alertService_1.AlertService(db);
         const portfolioService = new portfolioService_1.PortfolioService(db);
         const binderService = new binderService_1.BinderService(db);
+        const watchlistService = new watchlistService_1.WatchlistService(db);
         await Promise.all([
             authService.init(),
             alertService.init(),
+            watchlistService.ensureSchema(),
         ]);
-        setupRoutes(authService, alertService, portfolioService, binderService);
+        setupRoutes(authService, alertService, portfolioService, binderService, watchlistService);
         void initializeSetCodeService().catch((error) => {
             logger_1.logger.error('Background set code service initialization failed', {
                 error: error.message,

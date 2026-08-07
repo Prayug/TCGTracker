@@ -9,6 +9,7 @@ import setTrackerRouter from './routes/setTracker';
 import enhancedPacksRouter from './routes/enhancedPacks';
 import marketInsightsRouter from './routes/marketInsights';
 import gradingRouter from './routes/grading';
+import captureSessionsRouter from './routes/captureSessions';
 import { initializeDatabase, getDb } from './db/database';
 import { runMigrations } from './db/migrations';
 import { updatePriceData, getRunDate, hasCompletedPriceUpdateFor } from './services/dataFetcher';
@@ -19,7 +20,7 @@ import { env } from './config/env';
 import { swaggerSpec } from './config/swagger';
 import { corsMiddleware, securityMiddleware } from './middleware/security';
 import { csrfProtection } from './middleware/csrf';
-import { apiLimiter } from './middleware/rateLimiter';
+import { apiLimiter, captureSessionLimiter } from './middleware/rateLimiter';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { authenticate, AuthRequest } from './middleware/auth';
 import { requireAdmin } from './middleware/admin';
@@ -28,10 +29,12 @@ import { AuthService } from './services/authService';
 import { AlertService } from './services/alertService';
 import { PortfolioService } from './services/portfolioService';
 import { BinderService } from './services/binderService';
+import { WatchlistService } from './services/watchlistService';
 import { createAuthRouter } from './routes/auth';
 import { createAlertsRouter } from './routes/alerts';
 import { createPortfolioRouter } from './routes/portfolio';
 import { createBinderRouter } from './routes/binders';
+import { createWatchlistsRouter } from './routes/watchlists';
 import { setCodeService } from './services/setCodeService';
 import { initSentry } from './config/sentry';
 
@@ -39,8 +42,8 @@ initSentry();
 
 const app = express();
 const port = env.port;
-// 12mb supports base64 card images for AI grading analyze endpoint
-const BODY_LIMIT = '12mb';
+// 20mb supports phone capture + grading base64 payloads
+const BODY_LIMIT = '20mb';
 
 app.set('trust proxy', 1);
 
@@ -89,7 +92,8 @@ function setupRoutes(
   authService: AuthService,
   alertService: AlertService,
   portfolioService: PortfolioService,
-  binderService: BinderService
+  binderService: BinderService,
+  watchlistService: WatchlistService
 ) {
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
   logger.info(`API Documentation available at http://${env.host}:${port}/api-docs`);
@@ -107,6 +111,19 @@ function setupRoutes(
         logger.info('Daily price data update completed', result);
         const imageResult = await backfillCardMappingImages();
         logger.info('Post-price-update image backfill completed', imageResult);
+        try {
+          const { materializeCanonicalPrices } = await import('./services/canonicalPriceService');
+          const canonical = await materializeCanonicalPrices();
+          logger.info('Canonical prices refreshed', canonical);
+        } catch (canonErr: any) {
+          logger.warn('Canonical price materialization failed', { error: canonErr.message });
+        }
+        try {
+          const triggered = await alertService.evaluateAllSmartAlertsFromPrices();
+          logger.info('Smart alerts evaluated after price update', { triggered });
+        } catch (alertErr: any) {
+          logger.warn('Smart alert evaluation failed', { error: alertErr.message });
+        }
       } catch (error: any) {
         logger.error('Failed to update price data', { error: error.message });
       }
@@ -138,6 +155,12 @@ function setupRoutes(
       logger.info('Price update catch-up completed', result);
       const imageResult = await backfillCardMappingImages();
       logger.info('Post-catch-up image backfill completed', imageResult);
+      try {
+        const triggered = await alertService.evaluateAllSmartAlertsFromPrices();
+        logger.info('Smart alerts evaluated after catch-up', { triggered });
+      } catch (alertErr: any) {
+        logger.warn('Smart alert evaluation failed after catch-up', { error: alertErr.message });
+      }
     } catch (error: any) {
       logger.error('Price update catch-up failed', { error: error.message });
     }
@@ -175,9 +198,33 @@ function setupRoutes(
     { timezone: 'America/New_York' }
   );
 
+  // Nightly graded slab-price + population refresh (2:30 AM ET). Runs a
+  // time-budgeted full-catalog sweep so EVERY card eventually gets slab prices
+  // and population (not just viewed cards); idempotent + resumable nightly.
+  cron.schedule(
+    '30 2 * * *',
+    async () => {
+      logger.info('Running scheduled graded data refresh...');
+      try {
+        const { runAllCardsRefresh } = await import('./services/gradedRefreshService');
+        const { withDbJobLock } = await import('./utils/dbJobLock');
+        const result = await withDbJobLock('graded-refresh', () =>
+          runAllCardsRefresh({ maxDurationMs: 1000 * 60 * 120 })
+        , {
+          skipIfBusy: true,
+        });
+        logger.info('Graded data refresh completed', result);
+      } catch (error: any) {
+        logger.error('Graded data refresh failed', { error: error.message });
+      }
+    },
+    { timezone: 'America/New_York' }
+  );
+
   app.use('/api/auth', createAuthRouter(authService));
   app.use('/api/alerts', createAlertsRouter(alertService));
   app.use('/api/portfolio', createPortfolioRouter(portfolioService));
+  app.use('/api/watchlists', createWatchlistsRouter(watchlistService));
   app.use('/api/prices', priceHistoryRouter);
   app.use('/api/cards', setTrackerRouter);
   app.use('/api/cards', cardSearchRouter);
@@ -186,6 +233,7 @@ function setupRoutes(
   app.use('/api/binders', createBinderRouter(binderService));
   app.use('/api/market-insights', marketInsightsRouter);
   app.use('/api/grading', gradingRouter);
+  app.use('/api/capture-sessions', captureSessionLimiter, captureSessionsRouter);
 
   cron.schedule(
     '0 3 * * *',
@@ -199,6 +247,29 @@ function setupRoutes(
         logger.info('Scheduled prediction run completed');
       } catch (error: any) {
         logger.error('Failed to run predictions', { error: error.message });
+      }
+    },
+    { timezone: 'America/New_York' }
+  );
+
+  // Data quality + retention after predictions (3:30 AM ET).
+  cron.schedule(
+    '30 3 * * *',
+    async () => {
+      logger.info('Running data quality checks and retention...');
+      try {
+        const { runDataQualityChecks } = await import('./services/dataQualityService');
+        const { runRetentionPolicies } = await import('./services/retentionService');
+        const quality = await runDataQualityChecks();
+        const retention = await runRetentionPolicies({ keepPredictionRuns: 30 });
+        logger.info('Data quality + retention completed', {
+          passed: quality.passed,
+          warned: quality.warned,
+          failed: quality.failed,
+          ...retention,
+        });
+      } catch (error: any) {
+        logger.error('Data quality / retention failed', { error: error.message });
       }
     },
     { timezone: 'America/New_York' }
@@ -414,6 +485,8 @@ function setupRoutes(
         endpoints: {
           auth: '/api/auth',
           alerts: '/api/alerts',
+          portfolio: '/api/portfolio',
+          watchlists: '/api/watchlists',
           prices: '/api/prices',
           cards: '/api/cards',
           packs: '/api/packs',
@@ -470,13 +543,15 @@ async function bootstrap() {
     const alertService = new AlertService(db);
     const portfolioService = new PortfolioService(db);
     const binderService = new BinderService(db);
+    const watchlistService = new WatchlistService(db);
 
     await Promise.all([
       authService.init(),
       alertService.init(),
+      watchlistService.ensureSchema(),
     ]);
 
-    setupRoutes(authService, alertService, portfolioService, binderService);
+    setupRoutes(authService, alertService, portfolioService, binderService, watchlistService);
 
     void initializeSetCodeService().catch((error) => {
       logger.error('Background set code service initialization failed', {

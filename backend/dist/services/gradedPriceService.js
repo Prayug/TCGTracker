@@ -1,212 +1,278 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getGradedPrices = void 0;
+exports.getGradedPrices = exports.getAllGradedPriceHistory = exports.getGradedPriceHistory = exports.saveGradedScrape = void 0;
 const database_1 = require("../db/database");
+const logger_1 = require("../utils/logger");
 const promisified_1 = require("../db/promisified");
+const priceChartingResolver_1 = require("./priceChartingResolver");
 const CACHE_TTL_MS = 1000 * 60 * 60 * 12;
-const REQUEST_TIMEOUT_MS = 12000;
-const REQUEST_DELAY_MS = 1500;
-const delay = (ms) => new Promise((r) => setTimeout(r, ms));
-const normalize = (value) => (value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-const withTimeout = async (promise, ms) => {
-    let timeoutId;
-    const timeoutPromise = new Promise((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error('request_timeout')), ms);
-    });
+const HISTORY_TIMEZONE = 'America/New_York';
+/** Calendar date in ET — same convention as raw price_history run dates. */
+const getHistoryDate = () => new Intl.DateTimeFormat('en-CA', {
+    timeZone: HISTORY_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+}).format(new Date());
+const parseCachedPrices = (prices) => prices.split('||').map((part) => {
+    const [grader, grade, price, soldListings] = part.split('::');
+    return {
+        grader,
+        grade,
+        price: price ? parseFloat(price) : null,
+        soldListings: parseInt(soldListings, 10) || 0,
+    };
+});
+const resultFromCache = (cached, stale) => {
+    const fetchedMs = new Date(cached.fetchedAt + 'Z').getTime();
+    const age = Date.now() - fetchedMs;
+    return {
+        cardId: cached.cardId,
+        cardName: cached.cardName,
+        setName: cached.setName,
+        prices: parseCachedPrices(cached.prices),
+        fetchedAt: cached.fetchedAt,
+        cached: true,
+        verified: cached.verified === 1,
+        productId: cached.productId || null,
+        matchScore: cached.matchScore != null ? Number(cached.matchScore) : null,
+        stale,
+        ageHours: Number.isFinite(age) ? Math.max(0, Math.round(age / 3600000)) : null,
+    };
+};
+const serveCachedGradedPrices = (cached, stale) => {
+    const result = resultFromCache(cached, stale);
     try {
-        return await Promise.race([promise, timeoutPromise]);
-    }
-    finally {
-        clearTimeout(timeoutId);
-    }
-};
-const scoreCandidate = (candidate, cardName, setName, cardNumber) => {
-    const title = normalize(candidate.title);
-    const cSet = normalize(candidate.setName);
-    const cName = normalize(cardName);
-    const iSet = normalize(setName);
-    const iNum = normalize(cardNumber);
-    let score = 0;
-    if (title.includes(cName))
-        score += 60;
-    if (iSet && (cSet.includes(iSet) || iSet.includes(cSet)))
-        score += 30;
-    if (iNum && title.includes(iNum))
-        score += 20;
-    return score;
-};
-const parsePriceChartingSearchRows = (html) => {
-    const rows = [];
-    const rowRegex = /<tr id="product-[^"]+"[\s\S]*?<a href="(https:\/\/www\.pricecharting\.com\/game\/[^"]+)"[^>]*>\s*([\s\S]*?)<\/a>[\s\S]*?<a href="\/console\/[^"]+">\s*([\s\S]*?)\s*<\/a>[\s\S]*?<\/tr>/g;
-    let match = rowRegex.exec(html);
-    while (match) {
-        const [, url, rawTitle, rawSet] = match;
-        rows.push({
-            url,
-            title: rawTitle.replace(/<[^>]+>/g, '').trim(),
-            setName: rawSet.replace(/<[^>]+>/g, '').trim(),
+        snapshotHistoryFromPrices(result.cardId, result.prices, {
+            productId: result.productId,
+            verified: result.verified,
         });
-        match = rowRegex.exec(html);
     }
-    return rows;
+    catch (error) {
+        logger_1.logger.warn('Failed to snapshot graded price history from cache', {
+            cardId: result.cardId,
+            error: error.message,
+        });
+    }
+    return result;
 };
-const searchBestProductUrl = async (cardName, setName, cardNumber) => {
-    var _a, _b;
-    const query = [cardName, cardNumber, setName].filter(Boolean).join(' ').trim();
-    const searchUrl = `https://www.pricecharting.com/search-products?exclude-variants=false&q=${encodeURIComponent(query)}&region-name=all&type=prices&go=Go`;
-    const searchResponse = await withTimeout(fetch(searchUrl, { headers: { Accept: 'text/html' } }), REQUEST_TIMEOUT_MS);
-    if (!searchResponse.ok)
-        return null;
-    const searchHtml = await searchResponse.text();
-    const rows = parsePriceChartingSearchRows(searchHtml);
-    if (rows.length === 0)
-        return null;
-    const ranked = rows
-        .map((row) => ({ row, score: scoreCandidate(row, cardName, setName || '', cardNumber) }))
-        .sort((a, b) => b.score - a.score);
-    return ((_b = (_a = ranked[0]) === null || _a === void 0 ? void 0 : _a.row) === null || _b === void 0 ? void 0 : _b.url) || null;
-};
-const parseGradedPriceRow = (html) => {
-    const prices = [];
-    const knownLabels = [
-        'Ungraded', 'PSA 10', 'PSA 9', 'PSA 8', 'PSA 7', 'PSA 6', 'PSA 5',
-        'CGC 10', 'CGC 9.5', 'CGC 9', 'CGC 8',
-        'BGS 10', 'BGS 9.5', 'BGS 9', 'BGS 8',
-        'SGC 10', 'SGC 9.5', 'SGC 9',
-        'Grade 10', 'Grade 9.5', 'Grade 9', 'Grade 8', 'Grade 7', 'Grade 6', 'Grade 5',
-        'BGS 10 Black', 'CGC 10 Pristine', 'CGC 10 Prist.',
-    ];
-    const labelIndexes = [];
-    for (const label of knownLabels) {
-        const idx = html.indexOf(`>${label}<`);
-        if (idx !== -1) {
-            labelIndexes.push({ label, idx });
-        }
-    }
-    labelIndexes.sort((a, b) => a.idx - b.idx);
-    if (labelIndexes.length === 0)
-        return prices;
-    const priceRegex = /\$([0-9,]+\.\d{2})/g;
-    const priceMatches = [];
-    let pm;
-    while ((pm = priceRegex.exec(html)) !== null) {
-        if (pm[1] === '0.00')
-            continue;
-        const val = parseFloat(pm[1].replace(/,/g, ''));
-        priceMatches.push(val);
-    }
-    const grouped = [];
-    for (let i = 0; i < labelIndexes.length; i++) {
-        const current = labelIndexes[i];
-        const next = labelIndexes[i + 1];
-        const sectionEnd = next ? next.idx : html.length;
-        const section = html.slice(current.idx, sectionEnd);
-        grouped.push(current.label);
-        const sectionPrices = [];
-        const spRegex = /\$([0-9,]+\.\d{2})/g;
-        let sp;
-        while ((sp = spRegex.exec(section)) !== null) {
-            const val = parseFloat(sp[1].replace(/,/g, ''));
-            if (val > 0)
-                sectionPrices.push(val);
-        }
-        if (sectionPrices.length > 0) {
-            const grader = current.label.startsWith('Grade ')
-                ? 'generic'
-                : current.label.includes(' ')
-                    ? current.label.split(' ')[0].toLowerCase()
-                    : 'ungraded';
-            const grade = current.label.startsWith('Grade ')
-                ? current.label.replace('Grade ', '')
-                : current.label === 'Ungraded'
-                    ? 'ungraded'
-                    : current.label.split(' ').slice(1).join(' ');
-            prices.push({
-                grader,
-                grade,
-                price: sectionPrices[0],
-                soldListings: 0,
-            });
-        }
-    }
-    const filterRegex = /(PSA 10|CGC 10|BGS 10|SGC 10|BGS 10 Black|CGC 10 Prist\.?|Grade [\d.]+)\s*\((\d+)\)/g;
-    let fm;
-    while ((fm = filterRegex.exec(html)) !== null) {
-        const label = fm[1];
-        const count = parseInt(fm[2], 10);
-        const grader = label.startsWith('Grade ')
-            ? 'generic'
-            : label.includes(' ')
-                ? label.split(' ')[0].toLowerCase()
-                : 'generic';
-        const grade = label.startsWith('Grade ')
-            ? label.replace('Grade ', '')
-            : label.split(' ').slice(1).join(' ');
-        const existing = prices.find((p) => p.grader === grader && p.grade === grade);
-        if (existing) {
-            existing.soldListings = count;
-        }
-    }
-    return prices;
-};
-let lastScrapeTime = 0;
-const getGradedPrices = async (cardId, cardName, setId, setName, cardNumber) => {
+/** Ensure today's history point exists from the live cache (idempotent upsert). */
+const snapshotHistoryFromPrices = (cardId, prices, meta) => {
+    var _a;
     const db = (0, database_1.getDb)();
-    const cached = await (0, promisified_1.dbGet)(`SELECT cardId, cardName, setId, setName,
-            GROUP_CONCAT(grader || '::' || grade || '::' || COALESCE(price, '') || '::' || soldListings, '||') as prices,
-            MAX(fetchedAt) as fetchedAt
-     FROM graded_prices WHERE cardId = ? GROUP BY cardId`, [cardId]);
-    if (cached && cached.prices) {
-        const age = Date.now() - new Date(cached.fetchedAt + 'Z').getTime();
-        if (age < CACHE_TTL_MS) {
-            const p = cached.prices.split('||').map((part) => {
-                const [grader, grade, price, soldListings] = part.split('::');
-                return {
-                    grader,
-                    grade,
-                    price: price ? parseFloat(price) : null,
-                    soldListings: parseInt(soldListings, 10) || 0,
-                };
-            });
-            return {
-                cardId: cached.cardId,
-                cardName: cached.cardName,
-                setName: cached.setName,
-                prices: p,
-                fetchedAt: cached.fetchedAt,
-                cached: true,
-            };
-        }
-    }
-    const now = Date.now();
-    const elapsed = now - lastScrapeTime;
-    if (elapsed < REQUEST_DELAY_MS) {
-        await delay(REQUEST_DELAY_MS - elapsed);
-    }
-    lastScrapeTime = Date.now();
-    const url = await searchBestProductUrl(cardName, setName, cardNumber);
-    if (!url) {
-        return { cardId, cardName, setName: setName || '', prices: [], fetchedAt: new Date().toISOString(), cached: false };
-    }
-    const pageResponse = await withTimeout(fetch(url, { headers: { Accept: 'text/html' } }), REQUEST_TIMEOUT_MS);
-    if (!pageResponse.ok) {
-        return { cardId, cardName, setName: setName || '', prices: [], fetchedAt: new Date().toISOString(), cached: false };
-    }
-    const html = await pageResponse.text();
-    const prices = parseGradedPriceRow(html);
-    const stmt = db.prepare(`INSERT OR REPLACE INTO graded_prices (cardId, cardName, setId, setName, grader, grade, price, soldListings, fetchedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`);
+    const runDate = getHistoryDate();
+    const stmt = db.prepare(`INSERT INTO graded_price_history
+      (cardId, date, grader, grade, price, soldListings, productId, verified, sourceUrl, source)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pricecharting')
+     ON CONFLICT(cardId, date, grader, grade) DO UPDATE SET
+       price = excluded.price,
+       soldListings = excluded.soldListings,
+       productId = excluded.productId,
+       verified = excluded.verified,
+       sourceUrl = excluded.sourceUrl`);
     for (const p of prices) {
-        stmt.run([cardId, cardName, setId || '', setName || '', p.grader, p.grade, p.price, p.soldListings]);
+        // Skip PriceCharting "ungraded" — raw belongs on the TCGPlayer chart, not slabs.
+        if (p.grader === 'ungraded')
+            continue;
+        if (p.price == null || !Number.isFinite(p.price) || p.price <= 0)
+            continue;
+        stmt.run([
+            cardId,
+            runDate,
+            p.grader,
+            p.grade,
+            p.price,
+            p.soldListings,
+            meta.productId,
+            meta.verified ? 1 : 0,
+            (_a = meta.sourceUrl) !== null && _a !== void 0 ? _a : null,
+        ]);
     }
     stmt.finalize();
+};
+/**
+ * Persist slab prices parsed from a shared product-page scrape (nightly refresh).
+ * Also appends a daily history row so graded series can be graphed like raw prices.
+ */
+const saveGradedScrape = async (cardId, input, match, pageData) => {
+    const db = (0, database_1.getDb)();
+    const verified = pageData.productId === match.productId;
+    const stmt = db.prepare(`INSERT OR REPLACE INTO graded_prices
+      (cardId, cardName, setId, setName, grader, grade, price, soldListings, fetchedAt, productId, matchScore, verified, sourceUrl)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?, ?)`);
+    for (const p of pageData.gradedPrices) {
+        stmt.run([
+            cardId,
+            input.cardName,
+            null,
+            input.setName || null,
+            p.grader,
+            p.grade,
+            p.price,
+            p.soldListings,
+            match.productId,
+            match.matchScore,
+            verified ? 1 : 0,
+            match.url,
+        ]);
+    }
+    stmt.finalize();
+    snapshotHistoryFromPrices(cardId, pageData.gradedPrices, {
+        productId: match.productId,
+        verified,
+        sourceUrl: match.url,
+    });
+};
+exports.saveGradedScrape = saveGradedScrape;
+const getGradedPriceHistory = async (cardId, grader, grade, days = 365) => {
+    const clampedDays = Math.min(Math.max(days, 1), 2000);
+    const rows = await (0, promisified_1.dbAll)(`SELECT date, price, COALESCE(soldListings, 0) AS soldListings
+     FROM graded_price_history
+     WHERE cardId = ?
+       AND grader = ?
+       AND grade = ?
+       AND price IS NOT NULL
+       AND price > 0
+       AND date >= date('now', ?)
+     ORDER BY date ASC`, [cardId, grader, grade, `-${clampedDays} days`]);
     return {
+        cardId,
+        grader,
+        grade,
+        points: rows.map((r) => ({
+            date: r.date,
+            price: Number(r.price),
+            soldListings: Number(r.soldListings) || 0,
+        })),
+    };
+};
+exports.getGradedPriceHistory = getGradedPriceHistory;
+/** All grader/grade series for one card — for Collectr-style multi-line charts. */
+const getAllGradedPriceHistory = async (cardId, days = 365) => {
+    const clampedDays = Math.min(Math.max(days, 1), 2000);
+    const rows = await (0, promisified_1.dbAll)(`SELECT date, grader, grade, price, COALESCE(soldListings, 0) AS soldListings
+     FROM graded_price_history
+     WHERE cardId = ?
+       AND grader != 'ungraded'
+       AND price IS NOT NULL
+       AND price > 0
+       AND date >= date('now', ?)
+     ORDER BY grader ASC, grade ASC, date ASC`, [cardId, `-${clampedDays} days`]);
+    const byKey = new Map();
+    for (const r of rows) {
+        const key = `${r.grader}::${r.grade}`;
+        let series = byKey.get(key);
+        if (!series) {
+            series = {
+                cardId,
+                grader: r.grader,
+                grade: r.grade,
+                points: [],
+                latestPrice: null,
+            };
+            byKey.set(key, series);
+        }
+        const price = Number(r.price);
+        series.points.push({
+            date: r.date,
+            price,
+            soldListings: Number(r.soldListings) || 0,
+        });
+        series.latestPrice = price;
+    }
+    return { cardId, series: [...byKey.values()] };
+};
+exports.getAllGradedPriceHistory = getAllGradedPriceHistory;
+const getGradedPrices = async (cardId, cardName, setId, setName, cardNumber, options) => {
+    var _a, _b;
+    const allowLiveScrape = (options === null || options === void 0 ? void 0 : options.allowLiveScrape) !== false;
+    const cached = await (0, promisified_1.dbGet)(`SELECT cardId, cardName, setId, setName,
+            GROUP_CONCAT(grader || '::' || grade || '::' || COALESCE(price, '') || '::' || soldListings, '||') as prices,
+            MAX(fetchedAt) as fetchedAt,
+            MAX(COALESCE(verified, 0)) as verified,
+            MAX(productId) as productId,
+            MAX(matchScore) as matchScore
+     FROM graded_prices WHERE cardId = ? AND COALESCE(verified, 0) = 1 GROUP BY cardId`, [cardId]);
+    // Stale-while-revalidate: always paint cached slabs immediately.
+    // Live PriceCharting scrapes are slow and should never block the modal.
+    if (cached === null || cached === void 0 ? void 0 : cached.prices) {
+        const fetchedMs = new Date(cached.fetchedAt + 'Z').getTime();
+        const age = Date.now() - fetchedMs;
+        const fresh = Number.isFinite(age) && age < CACHE_TTL_MS;
+        if (fresh || !allowLiveScrape) {
+            return serveCachedGradedPrices(cached, !fresh);
+        }
+        // Kick a background refresh but return cache now.
+        void (async () => {
+            try {
+                const resolved = await (0, priceChartingResolver_1.resolveProduct)({ cardName, setId, setName, cardNumber }, 1500);
+                if (resolved && resolved.pageData.gradedPrices.length > 0) {
+                    await (0, exports.saveGradedScrape)(cardId, { cardName, setName, cardNumber }, resolved.match, resolved.pageData);
+                }
+            }
+            catch (error) {
+                logger_1.logger.warn('Background graded price refresh failed', {
+                    cardId,
+                    error: error.message,
+                });
+            }
+        })();
+        return serveCachedGradedPrices(cached, true);
+    }
+    const input = {
+        cardName,
+        setName,
+        cardNumber,
+    };
+    const empty = (extra = {}) => ({
         cardId,
         cardName,
         setName: setName || '',
-        prices,
+        prices: [],
         fetchedAt: new Date().toISOString(),
         cached: false,
-    };
+        verified: false,
+        productId: null,
+        matchScore: null,
+        stale: false,
+        ageHours: null,
+        ...extra,
+    });
+    if (!allowLiveScrape) {
+        return empty({ stale: true });
+    }
+    try {
+        const resolved = await (0, priceChartingResolver_1.resolveProduct)({ cardName, setId, setName, cardNumber }, 1500);
+        if (!resolved || resolved.pageData.gradedPrices.length === 0) {
+            return empty({
+                productId: (_a = resolved === null || resolved === void 0 ? void 0 : resolved.pageData.productId) !== null && _a !== void 0 ? _a : null,
+                matchScore: (_b = resolved === null || resolved === void 0 ? void 0 : resolved.match.matchScore) !== null && _b !== void 0 ? _b : null,
+            });
+        }
+        const { match, pageData } = resolved;
+        const verified = pageData.productId === match.productId;
+        await (0, exports.saveGradedScrape)(cardId, input, match, pageData);
+        return {
+            cardId,
+            cardName,
+            setName: setName || '',
+            prices: pageData.gradedPrices,
+            fetchedAt: new Date().toISOString(),
+            cached: false,
+            verified,
+            productId: match.productId,
+            matchScore: match.matchScore,
+            stale: false,
+            ageHours: 0,
+        };
+    }
+    catch (error) {
+        logger_1.logger.warn('Graded price scrape failed', {
+            cardId,
+            cardName,
+            error: error.message,
+        });
+        return empty();
+    }
 };
 exports.getGradedPrices = getGradedPrices;
