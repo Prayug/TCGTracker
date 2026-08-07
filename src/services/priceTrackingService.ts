@@ -1,6 +1,7 @@
 import { PokemonCard } from '../types/pokemon';
 import { OnePieceCard } from '../types/onepiece';
 import { getCardPrice } from '../utils/cardPrice';
+import { syncLocalListsToServer, type WatchlistSyncItem } from './watchlistSyncService';
 
 export type TrackableCard = PokemonCard | OnePieceCard;
 
@@ -67,6 +68,59 @@ class PriceTrackingService {
 
   private saveTracked(cards: TrackedCard[], game?: Game) {
     localStorage.setItem(trackedKey(game), JSON.stringify(cards));
+    void this.syncTrackedToServer();
+  }
+
+  /** Push pokemon + onepiece tracked cards to the server watchlist. */
+  async syncTrackedToServer(): Promise<void> {
+    const items: WatchlistSyncItem[] = [
+      ...this.getTrackedCards('pokemon'),
+      ...this.getTrackedCards('onepiece'),
+    ].map((t) => ({
+      id: t.id,
+      cardId: t.id,
+      cardName: t.card?.name || t.id,
+      game: t.game || 'pokemon',
+      listType: 'tracked' as const,
+      initialPrice: t.initialPrice,
+      addedAt: t.addedAt,
+      card: t.card,
+    }));
+    if (items.length === 0) {
+      const { syncListTypeWipe } = await import('./watchlistSyncService');
+      await syncListTypeWipe('tracked');
+      return;
+    }
+    await syncLocalListsToServer(items);
+  }
+
+  /**
+   * Replace local tracked lists from remote (no push). Used by login sync when
+   * remote wins.
+   */
+  replaceTrackedFromRemote(items: WatchlistSyncItem[]): void {
+    const mapped: TrackedCard[] = items.map((item) => {
+      const game: Game = item.game === 'onepiece' ? 'onepiece' : 'pokemon';
+      const card = (item.card as TrackableCard | undefined) ?? ({
+        id: item.cardId,
+        name: item.cardName,
+      } as TrackableCard);
+      const initialPrice = item.initialPrice ?? getCardPrice(card);
+      const addedAt = item.addedAt ?? new Date().toISOString();
+      return {
+        id: item.cardId || item.id,
+        card,
+        addedAt,
+        initialPrice,
+        priceHistory: [{ date: addedAt, price: initialPrice }],
+        game,
+      };
+    });
+    const pokemon = mapped.filter((t) => t.game !== 'onepiece');
+    const onepiece = mapped.filter((t) => t.game === 'onepiece');
+    localStorage.setItem(TRACKED_POKEMON, JSON.stringify(pokemon));
+    localStorage.setItem(TRACKED_ONEPIECE, JSON.stringify(onepiece));
+    window.dispatchEvent(new CustomEvent('tcg:tracked-updated'));
   }
 
   trackCard(card: TrackableCard, game: Game = 'pokemon'): void {

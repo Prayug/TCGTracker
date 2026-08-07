@@ -12,9 +12,18 @@ import { cardWishlistService } from '../../../services/cardWishlistService';
 import { useGame } from '../../../contexts/GameContext';
 import { useToast } from '../../../components/common/Toast';
 import { fetchCardPopulation, PopulationLookupResponse } from '../../../services/populationApi';
-import { fetchGradedPrices, GradedPriceResult, GradedPriceEntry } from '../../../services/gradedPricesApi';
-import { formatCurrency } from '../../../utils/cardDisplay';
+import {
+  fetchGradedPrices,
+  fetchGradedSpreads,
+  fetchAllGradedPriceHistory,
+  AllGradedPriceHistoryResult,
+  GradedPriceResult,
+  GradedPriceEntry,
+  GradedSpreadSummary,
+} from '../../../services/gradedPricesApi';
+import { formatCurrency, formatPercent } from '../../../utils/cardDisplay';
 import { toIsoDate } from '../../../utils/priceHistory';
+import { GradedMultiPriceChart, gradedSeriesKey } from './GradedMultiPriceChart';
 
 interface InvestmentModalProps {
   card: PokemonCard | null;
@@ -39,10 +48,90 @@ function graderLabel(grader: string): string {
     cgc: 'CGC',
     bgs: 'BGS',
     sgc: 'SGC',
+    tag: 'TAG',
+    ace: 'ACE',
     generic: '',
     ungraded: 'Raw',
   };
   return map[grader] ?? grader.toUpperCase();
+}
+
+function formatGradeLabel(grade: string): string {
+  return grade
+    .split(/\s+/)
+    .map((part) => {
+      if (/^\d+(\.\d+)?$/.test(part)) return part;
+      return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+    })
+    .join(' ');
+}
+
+function gradedRowLabel(entry: GradedPriceEntry): string {
+  if (entry.grader === 'ungraded') return 'Raw';
+  const lab = graderLabel(entry.grader);
+  return `${lab} ${formatGradeLabel(entry.grade)}`.trim();
+}
+
+const GRADER_ORDER = ['ungraded', 'psa', 'cgc', 'bgs', 'sgc', 'tag', 'ace'];
+const GRADE_ORDER = ['10', '10 pristine', '10 black', '9.5', '9', '8', '7', '6', '5', '4', '3', '2', '1', 'ungraded'];
+
+function sortGradedEntries(a: GradedPriceEntry, b: GradedPriceEntry): number {
+  const ga = GRADER_ORDER.indexOf(a.grader);
+  const gb = GRADER_ORDER.indexOf(b.grader);
+  if (ga !== gb) return (ga === -1 ? 99 : ga) - (gb === -1 ? 99 : gb);
+  const oa = GRADE_ORDER.indexOf(a.grade);
+  const ob = GRADE_ORDER.indexOf(b.grade);
+  return (oa === -1 ? 99 : oa) - (ob === -1 ? 99 : ob);
+}
+
+function pickDefaultGradedSeries(
+  prices: GradedPriceEntry[]
+): { grader: string; grade: string } | null {
+  const priced = prices.filter(
+    (p) =>
+      p.price != null &&
+      p.price > 0 &&
+      p.grader !== 'ungraded' &&
+      p.grader !== 'generic'
+  );
+  if (priced.length === 0) return null;
+  const psa10 = priced.find((p) => p.grader === 'psa' && p.grade === '10');
+  if (psa10) return { grader: psa10.grader, grade: psa10.grade };
+  const any10 = priced.find((p) => p.grade === '10');
+  if (any10) return { grader: any10.grader, grade: any10.grade };
+  return { grader: priced[0].grader, grade: priced[0].grade };
+}
+
+function formatAsOf(isoOrEpoch: string | number | undefined | null): string {
+  if (isoOrEpoch == null) return '';
+  const date = typeof isoOrEpoch === 'number' ? new Date(isoOrEpoch) : new Date(isoOrEpoch);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+function FreshnessNote({
+  fetchedAt,
+  stale,
+}: {
+  fetchedAt?: string | number | null;
+  stale?: boolean | null;
+}) {
+  const label = formatAsOf(fetchedAt);
+  if (!label) return null;
+  return (
+    <span
+      className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+        stale ? 'bg-loss/15 text-loss' : 'bg-gain/15 text-gain'
+      }`}
+    >
+      {stale ? `stale · as of ${label}` : `as of ${label}`}
+    </span>
+  );
 }
 
 export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, onClose }) => {
@@ -60,21 +149,37 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
   const [isLoadingPopulation, setIsLoadingPopulation] = useState(false);
   const [showPopulation, setShowPopulation] = useState(false);
   const [gradedPrices, setGradedPrices] = useState<GradedPriceResult | null>(null);
+  const [gradedSpreads, setGradedSpreads] = useState<GradedSpreadSummary | null>(null);
   const [isLoadingGradedPrices, setIsLoadingGradedPrices] = useState(false);
   const [showGradedPrices, setShowGradedPrices] = useState(true);
+  const [selectedGradedSeries, setSelectedGradedSeries] = useState<{
+    grader: string;
+    grade: string;
+  } | null>(null);
+  const [allGradedHistory, setAllGradedHistory] = useState<AllGradedPriceHistoryResult | null>(
+    null
+  );
+  const [isLoadingGradedHistory, setIsLoadingGradedHistory] = useState(false);
 
   const hasGradedPrices = gradedPrices?.prices && gradedPrices.prices.length > 0;
 
   useEffect(() => {
     if (!isOpen) {
       setGradedPrices(null);
+      setGradedSpreads(null);
       setShowGradedPrices(true);
       setIsLoadingGradedPrices(false);
+      setSelectedGradedSeries(null);
+      setAllGradedHistory(null);
+      setIsLoadingGradedHistory(false);
       return;
     }
 
     setGradedPrices(null);
+    setGradedSpreads(null);
     setShowGradedPrices(true);
+    setSelectedGradedSeries(null);
+    setAllGradedHistory(null);
   }, [card?.id, isOpen]);
 
   const variantOptions = React.useMemo(() => {
@@ -94,25 +199,36 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
     }));
   }, [card]);
 
-  const groupedGradedPrices = React.useMemo(() => {
+  const gradedRows = React.useMemo(() => {
     if (!gradedPrices?.prices) return [];
-    const groups = new Map<string, GradedPriceEntry[]>();
-    for (const p of gradedPrices.prices) {
-      const existing = groups.get(p.grader) || [];
-      existing.push(p);
-      groups.set(p.grader, existing);
-    }
-    return [...groups.entries()].map(([grader, entries]) => ({
-      grader,
-      label: graderLabel(grader),
-      entries: entries.sort((a, b) => {
-        const gradeOrder = ['10', '9.5', '9', '8', '7', '6', '5', '4', '3', '2', '1', 'ungraded'];
-        const ai = gradeOrder.indexOf(a.grade);
-        const bi = gradeOrder.indexOf(b.grade);
-        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
-      }),
-    }));
+    return [...gradedPrices.prices]
+      .filter((p) => p.grader !== 'ungraded' && p.grader !== 'generic')
+      .sort(sortGradedEntries);
   }, [gradedPrices]);
+
+  const selectedGradedEntry = React.useMemo(() => {
+    if (!selectedGradedSeries) return null;
+    return (
+      gradedRows.find(
+        (e) =>
+          e.grader === selectedGradedSeries.grader && e.grade === selectedGradedSeries.grade
+      ) ?? null
+    );
+  }, [gradedRows, selectedGradedSeries]);
+
+  // Compare slabs to TCGPlayer/canonical raw — never PriceCharting "ungraded".
+  const rawGradedPrice = gradedSpreads?.rawPrice ?? null;
+
+  const selectedVsRaw = React.useMemo(() => {
+    const price = selectedGradedEntry?.price;
+    if (price == null || price <= 0 || rawGradedPrice == null || rawGradedPrice <= 0) {
+      return null;
+    }
+    return {
+      multiple: price / rawGradedPrice,
+      premiumPct: ((price - rawGradedPrice) / rawGradedPrice) * 100,
+    };
+  }, [selectedGradedEntry?.price, rawGradedPrice]);
 
   useEffect(() => {
     if (card && isOpen) {
@@ -121,15 +237,18 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
       setIsTracked(priceTrackingService.isTracked(card.id, game));
       setIsWishlisted(cardWishlistService.isWishlisted(card.id, game));
     }
-  }, [card, isOpen, selectedVariant, game]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- don't refetch on same-id enrich
+  }, [card?.id, isOpen, selectedVariant, game]);
 
   useEffect(() => {
     if (card && isOpen) fetchPopulation();
-  }, [card, isOpen, selectedVariant]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [card?.id, isOpen, selectedVariant]);
 
   useEffect(() => {
     if (card && isOpen) fetchGradedPricesData();
-  }, [card, isOpen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [card?.id, isOpen]);
 
   useEffect(() => {
     if (!card || !isOpen) return;
@@ -220,18 +339,47 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
     if (!card) return;
     setIsLoadingGradedPrices(true);
     try {
-      const result = await fetchGradedPrices({
-        cardId: card.id,
-        cardName: card.name,
-        setId: card.set?.id,
-        setName: card.set?.name,
-        cardNumber: card.number,
-      });
+      const [result, spreads] = await Promise.all([
+        fetchGradedPrices({
+          cardId: card.id,
+          cardName: card.name,
+          setId: card.set?.id,
+          setName: card.set?.name,
+          cardNumber: card.number,
+        }),
+        fetchGradedSpreads(card.id),
+      ]);
       setGradedPrices(result);
+      setGradedSpreads(spreads);
+      if (result?.prices?.length) {
+        setSelectedGradedSeries((prev) => prev ?? pickDefaultGradedSeries(result.prices));
+      }
     } finally {
       setIsLoadingGradedPrices(false);
     }
   };
+
+  useEffect(() => {
+    if (!card || !isOpen) {
+      setAllGradedHistory(null);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoadingGradedHistory(true);
+    fetchAllGradedPriceHistory({ cardId: card.id, days: 365 })
+      .then((result) => {
+        if (cancelled) return;
+        setAllGradedHistory(result);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingGradedHistory(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [card?.id, isOpen]);
 
   if (!card) return null;
 
@@ -394,70 +542,148 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
             <button
               type="button"
               onClick={() => setShowGradedPrices((v) => !v)}
-              className="flex w-full items-center justify-between text-left text-sm text-ink-muted hover:text-ink-secondary"
+              className="flex w-full items-center justify-between gap-3 text-left text-sm text-ink-muted hover:text-ink-secondary"
               aria-expanded={showGradedPrices}
             >
-              <span className="font-medium text-ink-secondary">
+              <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 font-medium text-ink-secondary">
                 Slab prices
                 {isLoadingGradedPrices && (
-                  <Loader2 className="ml-2 inline h-3.5 w-3.5 animate-spin text-accent align-[-2px]" />
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />
+                )}
+                {gradedPrices && (
+                  <FreshnessNote
+                    fetchedAt={gradedPrices.fetchedAt}
+                    stale={gradedPrices.stale}
+                  />
                 )}
                 {!showGradedPrices && hasGradedPrices && (
-                  <span className="ml-2 font-normal tabular-nums text-ink-muted">
-                    {groupedGradedPrices
-                      .flatMap((g) =>
-                        g.entries.slice(0, 3).map(
-                          (e) => `${g.label ? `${g.label} ` : ''}${e.grade} ${e.price != null ? formatCurrency(e.price) : '—'}`
-                        )
+                  <span className="truncate font-normal tabular-nums text-ink-muted">
+                    {gradedRows
+                      .slice(0, 3)
+                      .map(
+                        (e) =>
+                          `${gradedRowLabel(e)} ${e.price != null ? formatCurrency(e.price) : '—'}`
                       )
                       .join(' · ')}
                   </span>
                 )}
               </span>
-              <span className="text-ink-muted">{showGradedPrices ? '▾' : '▸'}</span>
+              <span className="shrink-0 text-ink-muted">{showGradedPrices ? '▾' : '▸'}</span>
             </button>
             {showGradedPrices && (
-              <div className="mt-3 space-y-4">
+              <div className="mt-3">
                 {isLoadingGradedPrices ? (
                   <div className="flex items-center justify-center py-6">
                     <Loader2 className="h-5 w-5 animate-spin text-accent" />
                   </div>
-                ) : groupedGradedPrices.length === 0 ? (
+                ) : gradedRows.length === 0 ? (
                   <p className="py-4 text-center text-sm text-ink-muted">No graded prices available</p>
                 ) : (
-                  groupedGradedPrices.map((group) => (
-                    <div key={group.grader}>
-                      {group.label && (
-                        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                          {group.label}
-                        </p>
-                      )}
-                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                        {group.entries.map((entry) => (
-                          <div
-                            key={`${entry.grader}-${entry.grade}`}
-                            className="rounded-xl border border-border-default bg-surface-inset px-3 py-2 text-center"
-                          >
-                            <p className="text-xs font-medium text-ink-muted">
-                              {entry.grader === 'ungraded'
-                                ? 'Raw'
-                                : group.label
-                                  ? entry.grade
-                                  : `${graderLabel(entry.grader)} ${entry.grade}`.trim()}
+                  <div className="space-y-3">
+                    <div
+                      className="relative overflow-hidden rounded-2xl border border-border-default"
+                      style={{ background: 'var(--gradient-chrome)' }}
+                    >
+                      <div
+                        className="pointer-events-none absolute inset-0 opacity-80"
+                        style={{
+                          background:
+                            'radial-gradient(ellipse 80% 70% at 100% 0%, rgba(110,231,183,0.14), transparent 55%), radial-gradient(ellipse 60% 50% at 0% 100%, rgba(91,196,212,0.1), transparent 50%)',
+                        }}
+                        aria-hidden
+                      />
+                      <div className="relative px-4 pt-4 sm:px-5">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-display text-[11px] font-semibold uppercase tracking-[0.18em] text-foil">
+                              Graded price history
                             </p>
-                            <p className="mt-0.5 text-base font-bold tabular-nums text-ink-primary">
-                              {entry.price != null ? formatCurrency(entry.price) : '—'}
+                            <p className="mt-1 truncate font-display text-lg font-semibold tracking-tight text-ink-primary sm:text-xl">
+                              {selectedGradedEntry
+                                ? gradedRowLabel(selectedGradedEntry)
+                                : 'Toggle grades below'}
                             </p>
-                            {entry.soldListings > 0 && (
-                              <p className="mt-0.5 text-[11px] text-ink-muted">
-                                {entry.soldListings.toLocaleString()} sold
-                              </p>
-                            )}
                           </div>
-                        ))}
+                          {selectedVsRaw && selectedGradedEntry?.grader !== 'ungraded' && (
+                            <div className="shrink-0 text-right">
+                              <p className="font-mono text-2xl font-bold tabular-nums leading-none text-accent sm:text-3xl">
+                                {selectedVsRaw.multiple.toFixed(
+                                  selectedVsRaw.multiple >= 10 ? 1 : 2
+                                )}
+                                <span className="text-base font-semibold text-accent/80">×</span>
+                              </p>
+                              <p className="mt-1 text-[11px] font-medium text-ink-muted">vs raw</p>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-1">
+                          <p className="font-mono text-3xl font-bold tabular-nums tracking-tight text-ink-primary sm:text-4xl">
+                            {selectedGradedEntry?.price != null
+                              ? formatCurrency(selectedGradedEntry.price)
+                              : '—'}
+                          </p>
+                          <div className="mb-1 flex flex-wrap items-center gap-2 text-xs">
+                            {selectedVsRaw && selectedGradedEntry?.grader !== 'ungraded' && (
+                              <span
+                                className={`rounded-md px-2 py-0.5 font-mono font-semibold tabular-nums ${
+                                  selectedVsRaw.premiumPct >= 0
+                                    ? 'bg-gain-muted text-gain'
+                                    : 'bg-loss-muted text-loss'
+                                }`}
+                              >
+                                {formatPercent(selectedVsRaw.premiumPct, { signed: true })}
+                              </span>
+                            )}
+                            {selectedGradedEntry && selectedGradedEntry.soldListings > 0 && (
+                              <span className="text-ink-muted">
+                                {selectedGradedEntry.soldListings.toLocaleString()} comps
+                              </span>
+                            )}
+                            {rawGradedPrice != null &&
+                              selectedGradedEntry?.grader !== 'ungraded' && (
+                                <span className="text-ink-muted">
+                                  raw {formatCurrency(rawGradedPrice)}
+                                </span>
+                              )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="relative mt-2 border-t border-border-subtle/80 px-3 pb-3 pt-2 sm:px-4">
+                        {isLoadingGradedHistory && !allGradedHistory ? (
+                          <div className="flex h-[180px] items-center justify-center">
+                            <Loader2 className="h-5 w-5 animate-spin text-accent" />
+                          </div>
+                        ) : (
+                          <GradedMultiPriceChart
+                            history={allGradedHistory}
+                            livePrices={gradedRows}
+                            height={200}
+                            focusedKey={
+                              selectedGradedSeries
+                                ? gradedSeriesKey(
+                                    selectedGradedSeries.grader,
+                                    selectedGradedSeries.grade
+                                  )
+                                : null
+                            }
+                            onFocusKey={(key) => {
+                              const [grader, ...gradeParts] = key.split('::');
+                              setSelectedGradedSeries({
+                                grader,
+                                grade: gradeParts.join('::') || '10',
+                              });
+                            }}
+                          />
+                        )}
                       </div>
                     </div>
-                  ))
+
+                    <p className="text-[11px] text-ink-muted">
+                      Click a grade in the legend to show/hide · double-click to focus
+                    </p>
+                  </div>
                 )}
               </div>
             )}
@@ -472,14 +698,20 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
             >
               <span>
                 Graded pop
+                {populationData && (
+                  <FreshnessNote
+                    fetchedAt={populationData.fetchedAt}
+                    stale={populationData.stale}
+                  />
+                )}
                 {!showPopulation && populationData && (
                   <span className="ml-2 tabular-nums text-ink-muted">
                     {popCompanies
                       .map(({ key, label }) => {
-                        const val =
-                          populationData.companies?.[
-                            key as keyof PopulationLookupResponse['companies']
-                          ]?.total;
+                        const company = populationData.companies?.[
+                          key as keyof PopulationLookupResponse['companies']
+                        ];
+                        const val = company?.total;
                         return val != null ? `${label} ${val.toLocaleString()}` : null;
                       })
                       .filter(Boolean)
@@ -490,25 +722,36 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
               <span className="text-ink-muted">{showPopulation ? '▾' : '▸'}</span>
             </button>
             {showPopulation && (
-              <div className="mt-3 grid grid-cols-3 gap-3">
-                {popCompanies.map(({ key, label }) => {
-                  const data =
-                    populationData?.companies?.[
-                      key as keyof PopulationLookupResponse['companies']
-                    ];
-                  const value = data?.total;
-                  return (
-                    <div
-                      key={key}
-                      className="rounded-xl border border-border-default bg-surface-inset px-3 py-2.5 text-center"
-                    >
-                      <p className="text-xs font-medium text-ink-muted">{label}</p>
-                      <p className="mt-0.5 text-lg font-bold tabular-nums text-ink-primary">
-                        {isLoadingPopulation ? '…' : value != null ? value.toLocaleString() : '—'}
-                      </p>
-                    </div>
-                  );
-                })}
+              <div className="mt-3">
+                <div className="grid grid-cols-3 gap-3">
+                  {popCompanies.map(({ key, label }) => {
+                    const data =
+                      populationData?.companies?.[
+                        key as keyof PopulationLookupResponse['companies']
+                      ];
+                    const value = data?.total;
+                    const grade10 = data?.grade10;
+                    return (
+                      <div
+                        key={key}
+                        className="rounded-xl border border-border-default bg-surface-inset px-3 py-2.5 text-center"
+                      >
+                        <p className="text-xs font-medium text-ink-muted">{label}</p>
+                        <p className="mt-0.5 text-lg font-bold tabular-nums text-ink-primary">
+                          {isLoadingPopulation ? '…' : value != null ? value.toLocaleString() : '—'}
+                        </p>
+                        {grade10 != null && grade10 > 0 && (
+                          <p className="mt-0.5 text-[11px] text-ink-muted">
+                            {grade10.toLocaleString()} {key === 'psa' ? 'PSA 10' : key === 'cgc' ? 'CGC 10' : '10'}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-center text-[11px] text-ink-muted">
+                  Total graded submissions (all grades) · PSA 10 count is the top grade
+                </p>
               </div>
             )}
           </div>

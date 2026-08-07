@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   TrendingUp,
@@ -12,6 +12,11 @@ import {
   Bell,
   Package,
   CheckCheck,
+  Layers,
+  Sparkles,
+  Scale,
+  BookMarked,
+  Activity,
 } from 'lucide-react';
 import {
   priceTrackingService,
@@ -23,6 +28,7 @@ import {
   UnifiedAlert,
   AlertDigestEntry,
 } from '../../../services/unifiedAlertService';
+import type { ServerAlertType } from '../../../services/alertService';
 import { pokemonApi } from '../../../services/pokemonApi';
 import { onePieceApi } from '../../../services/onepieceApi';
 import { useGame } from '../../../contexts/GameContext';
@@ -36,9 +42,41 @@ import { vaultService } from '../../../services/vaultService';
 import { calculateGradedValue } from '../../../services/gradingService';
 import { getCardPrice } from '../../../utils/cardPrice';
 import { authService } from '../../../services/authService';
+import {
+  fetchPsa10SpreadsForCards,
+  fetchTopGradedPremiums,
+  GradedSpreadRow,
+} from '../../../services/gradedPricesApi';
+import { GradeWorthinessList } from './GradeWorthinessList';
+import {
+  CrossGraderArbPanel,
+  PremiumMoversPanel,
+  TopPremiumsPanel,
+} from './SlabMarketPanels';
+import {
+  CrackRegradePanel,
+  GradeLadderPanel,
+  PopRegimePanel,
+  SetSlabHeatmapPanel,
+  SlabBookPanel,
+  SubmitVsBuyPanel,
+} from './SlabInsightsPanels';
+import { FilterChip } from '../../../components/layout/PageShell';
+import { useCardModal } from '../../../contexts/CardModalContext';
+
+type PricesPanel = 'watchlist' | 'slabs';
+type SlabTab = 'grade' | 'arb' | 'owned' | 'pulse';
+
+const SLAB_TAB_COPY: Record<SlabTab, string> = {
+  grade: 'What to submit vs buy.',
+  arb: 'Cross-grader and crack gaps.',
+  owned: 'Cost basis vs live slab marks.',
+  pulse: 'Premium momentum, pop shocks, and ladders.',
+};
 
 export const PriceTrackingDashboard: React.FC = () => {
   const { game, isOnePiece, isPokemon } = useGame();
+  const { openCard } = useCardModal();
   const [trackedCards, setTrackedCards] = useState<TrackedCard[]>([]);
   const [alerts, setAlerts] = useState<UnifiedAlert[]>([]);
   const [digest, setDigest] = useState<AlertDigestEntry[]>([]);
@@ -48,7 +86,15 @@ export const PriceTrackingDashboard: React.FC = () => {
   const [showAlertForm, setShowAlertForm] = useState(false);
   const [selectedCardForAlert, setSelectedCardForAlert] = useState<TrackedCard | null>(null);
   const [alertTarget, setAlertTarget] = useState('');
-  const [alertType, setAlertType] = useState<'above' | 'below'>('above');
+  const [alertCondition, setAlertCondition] = useState<'above' | 'below'>('above');
+  const [alertKind, setAlertKind] = useState<ServerAlertType>('price_threshold');
+  const [alertThresholdPct, setAlertThresholdPct] = useState('10');
+  const [topPremiums, setTopPremiums] = useState<GradedSpreadRow[]>([]);
+  const [watchlistSpreads, setWatchlistSpreads] = useState<Record<string, GradedSpreadRow>>({});
+  const [panel, setPanel] = useState<PricesPanel>('watchlist');
+  const [slabTab, setSlabTab] = useState<SlabTab>('grade');
+  const [tradeableOnly, setTradeableOnly] = useState(true);
+  const [worthinessSetIds, setWorthinessSetIds] = useState<string[] | undefined>(undefined);
 
   const loadData = useCallback(async () => {
     setTrackedCards(priceTrackingService.getTrackedCards(game));
@@ -73,6 +119,79 @@ export const PriceTrackingDashboard: React.FC = () => {
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (!isPokemon) {
+      setTopPremiums([]);
+      return;
+    }
+    let cancelled = false;
+    void fetchTopGradedPremiums(12, { tradeableOnly }).then((rows) => {
+      if (!cancelled) setTopPremiums(rows);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isPokemon, tradeableOnly]);
+
+  const trackedIdsKey = useMemo(
+    () => trackedCards.map((t) => t.id).join('|'),
+    [trackedCards]
+  );
+
+  useEffect(() => {
+    if (!isPokemon || trackedCards.length === 0) {
+      setWatchlistSpreads({});
+      return;
+    }
+    let cancelled = false;
+    const ids = trackedCards.map((t) => t.id);
+    void fetchPsa10SpreadsForCards(ids).then((rows) => {
+      if (cancelled) return;
+      const map: Record<string, GradedSpreadRow> = {};
+      for (const row of rows) map[row.cardId] = row;
+      setWatchlistSpreads(map);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isPokemon, trackedIdsKey]);
+
+  useEffect(() => {
+    if (!isPokemon && panel === 'slabs') setPanel('watchlist');
+  }, [isPokemon, panel]);
+
+  const openGradedPremiumAlert = (card: {
+    cardId: string;
+    cardName: string;
+    premiumPct: number;
+    rawPrice: number;
+  }) => {
+    const tracked =
+      trackedCards.find((t) => t.id === card.cardId) ??
+      ({
+        id: card.cardId,
+        card: {
+          id: card.cardId,
+          name: card.cardName,
+          images: { small: '', large: '' },
+          set: { id: '', name: '', releaseDate: '', total: 0 },
+          number: '',
+          marketPrice: card.rawPrice,
+        },
+        initialPrice: card.rawPrice,
+        priceHistory: [{ price: card.rawPrice, date: new Date().toISOString() }],
+        addedAt: new Date().toISOString(),
+      } as TrackedCard);
+
+    const suggested = Math.max(5, Math.round(card.premiumPct * 0.85));
+    setSelectedCardForAlert(tracked);
+    setAlertKind('graded_premium');
+    setAlertCondition('below');
+    setAlertThresholdPct(String(suggested));
+    setAlertTarget(card.rawPrice > 0 ? card.rawPrice.toFixed(2) : '');
+    setShowAlertForm(true);
+  };
 
   useEffect(() => {
     const prices: Record<string, number> = {};
@@ -117,26 +236,51 @@ export const PriceTrackingDashboard: React.FC = () => {
   };
 
   const handleCreateAlert = async () => {
-    if (!selectedCardForAlert || !alertTarget) return;
+    if (!selectedCardForAlert) return;
+    const needsPct =
+      alertKind === 'percent_change' ||
+      alertKind === 'volume_drop' ||
+      alertKind === 'graded_premium';
+    const needsPrice = alertKind === 'price_threshold';
+    if (needsPrice && !alertTarget) return;
+    if (needsPct && !alertThresholdPct) return;
+
+    const lastPrice =
+      selectedCardForAlert.priceHistory[selectedCardForAlert.priceHistory.length - 1]?.price ??
+      selectedCardForAlert.initialPrice;
+    const targetPrice = needsPrice
+      ? parseFloat(alertTarget)
+      : lastPrice > 0
+        ? lastPrice
+        : 0;
+    const thresholdPct = needsPct ? parseFloat(alertThresholdPct) : undefined;
+
     await unifiedAlertService.createAlert(
       selectedCardForAlert.id,
       selectedCardForAlert.card.name,
-      parseFloat(alertTarget),
-      alertType
+      targetPrice,
+      alertCondition,
+      {
+        alertType: alertKind,
+        thresholdPct: Number.isFinite(thresholdPct) ? thresholdPct : undefined,
+        baselinePrice: lastPrice > 0 ? lastPrice : undefined,
+      }
     );
     // Also keep a local mirror for anonymous / offline digest evaluation
-    if (!authService.isAuthenticated()) {
+    if (!authService.isAuthenticated() && alertKind === 'price_threshold') {
       priceTrackingService.createAlert(
         selectedCardForAlert.id,
         selectedCardForAlert.card.name,
-        parseFloat(alertTarget),
-        alertType,
+        targetPrice,
+        alertCondition,
         game
       );
     }
     setShowAlertForm(false);
     setSelectedCardForAlert(null);
     setAlertTarget('');
+    setAlertKind('price_threshold');
+    setAlertThresholdPct('10');
     await loadData();
   };
 
@@ -177,15 +321,64 @@ export const PriceTrackingDashboard: React.FC = () => {
           <span className="h-1.5 w-1.5 rounded-full bg-accent shadow-glow-accent" aria-hidden />
           Price tracker
         </p>
-        <h2 className="font-display text-h1 text-ink-primary">Watchlist & alerts</h2>
+        <h2 className="font-display text-h1 text-ink-primary">
+          {panel === 'slabs' ? 'Slab market' : 'Watchlist & alerts'}
+        </h2>
         <p className="max-w-2xl text-sm text-ink-secondary">
-          Monitor favorites, spot movers, and set price triggers
-          {isOnePiece ? ' for One Piece' : ''}
-          {serverMode ? ' · synced to your account' : ' · stored on this device'}.
+          {panel === 'slabs'
+            ? SLAB_TAB_COPY[slabTab]
+            : `Monitor favorites, spot movers, and set price triggers${
+                isOnePiece ? ' for One Piece' : ''
+              }${serverMode ? ' · synced to your account' : ' · stored on this device'}.`}
         </p>
       </div>
 
-      {digest.length > 0 && (
+      {isPokemon && (
+        <div className="sticky top-0 z-20 space-y-1.5 bg-surface-overlay/90 py-2 backdrop-blur-md">
+          <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 [scrollbar-width:thin]">
+            <FilterChip
+              active={panel === 'watchlist'}
+              onClick={() => setPanel('watchlist')}
+              className="shrink-0"
+            >
+              <Star className="mr-1 inline h-3.5 w-3.5" aria-hidden />
+              Watchlist
+            </FilterChip>
+            <FilterChip
+              active={panel === 'slabs'}
+              onClick={() => setPanel('slabs')}
+              className="shrink-0"
+            >
+              <Layers className="mr-1 inline h-3.5 w-3.5" aria-hidden />
+              Slab market
+            </FilterChip>
+          </div>
+          {panel === 'slabs' && (
+            <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 [scrollbar-width:thin]">
+              {(
+                [
+                  { id: 'grade' as const, label: 'Grade', icon: Sparkles },
+                  { id: 'arb' as const, label: 'Arb', icon: Scale },
+                  { id: 'owned' as const, label: 'Owned', icon: BookMarked },
+                  { id: 'pulse' as const, label: 'Pulse', icon: Activity },
+                ] as const
+              ).map(({ id, label, icon: Icon }) => (
+                <FilterChip
+                  key={id}
+                  active={slabTab === id}
+                  onClick={() => setSlabTab(id)}
+                  className="shrink-0 text-xs"
+                >
+                  <Icon className="mr-1 inline h-3.5 w-3.5" aria-hidden />
+                  {label}
+                </FilterChip>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {panel === 'watchlist' && digest.length > 0 && (
         <div className="rounded-xl border border-accent/25 bg-accent/10 p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-ink-primary">
@@ -230,6 +423,7 @@ export const PriceTrackingDashboard: React.FC = () => {
         </div>
       )}
 
+      {panel === 'watchlist' && (
       <div className="stagger-children grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <TrackerStatCard
           icon={Package}
@@ -269,46 +463,104 @@ export const PriceTrackingDashboard: React.FC = () => {
           tone="alert"
         />
       </div>
+      )}
 
-      {isPokemon && gradedVaultCards.length > 0 && (
-        <div className="card-glass-scene">
-          <h3 className="mb-1 text-sm font-semibold text-ink-primary">
-            Graded vs raw differential
-          </h3>
-          <p className="mb-3 text-xs text-ink-muted">
-            From {gradedVaultCards.length} AI-graded vault card
-            {gradedVaultCards.length === 1 ? '' : 's'}
-          </p>
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <p className="text-[10px] uppercase tracking-wider text-ink-muted">Raw total</p>
-              <p className="font-mono text-sm font-semibold tabular-nums text-ink-primary">
-                {formatCurrency(gradingDiff.raw)}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-wider text-ink-muted">Est. graded</p>
-              <p className="font-mono text-sm font-semibold tabular-nums text-ink-primary">
-                {formatCurrency(gradingDiff.graded)}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-wider text-ink-muted">Uplift</p>
-              <p
-                className={`font-mono text-sm font-semibold tabular-nums ${
-                  gradingUpliftTotal >= 0 ? 'text-gain' : 'text-loss'
-                }`}
-              >
-                {gradingUpliftTotal >= 0 ? '+' : ''}
-                {formatCurrency(gradingUpliftTotal)}
-              </p>
-            </div>
-          </div>
+      {panel === 'slabs' && isPokemon && (
+        <div className="space-y-4">
+          {slabTab === 'grade' && (
+            <>
+              <GradeWorthinessList
+                limit={10}
+                title="Best cards to grade"
+                subtitle="Net after PSA fees × gem rate"
+                onAlertPremium={openGradedPremiumAlert}
+                setIds={worthinessSetIds}
+              />
+              <SubmitVsBuyPanel />
+              <SetSlabHeatmapPanel
+                selectedSetId={worthinessSetIds?.[0]}
+                onSelectSet={(setId) =>
+                  setWorthinessSetIds((prev) =>
+                    prev?.[0] === setId ? undefined : [setId]
+                  )
+                }
+                onClear={() => setWorthinessSetIds(undefined)}
+              />
+            </>
+          )}
+
+          {slabTab === 'arb' && (
+            <>
+              <CrossGraderArbPanel />
+              <CrackRegradePanel />
+              <TopPremiumsPanel
+                rows={topPremiums}
+                onAlertPremium={openGradedPremiumAlert}
+                tradeableOnly={tradeableOnly}
+                onTradeableOnlyChange={setTradeableOnly}
+              />
+            </>
+          )}
+
+          {slabTab === 'owned' && (
+            <>
+              {gradedVaultCards.length > 0 && (
+                <div className="card-glass-scene">
+                  <h3 className="mb-1 text-sm font-semibold text-ink-primary">
+                    Graded vs raw differential
+                  </h3>
+                  <p className="mb-3 text-xs text-ink-muted">
+                    From {gradedVaultCards.length} AI-graded vault card
+                    {gradedVaultCards.length === 1 ? '' : 's'}
+                  </p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider text-ink-muted">
+                        Raw total
+                      </p>
+                      <p className="font-mono text-sm font-semibold tabular-nums text-ink-primary">
+                        {formatCurrency(gradingDiff.raw)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider text-ink-muted">
+                        Est. graded
+                      </p>
+                      <p className="font-mono text-sm font-semibold tabular-nums text-ink-primary">
+                        {formatCurrency(gradingDiff.graded)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider text-ink-muted">Uplift</p>
+                      <p
+                        className={`font-mono text-sm font-semibold tabular-nums ${
+                          gradingUpliftTotal >= 0 ? 'text-gain' : 'text-loss'
+                        }`}
+                      >
+                        {gradingUpliftTotal >= 0 ? '+' : ''}
+                        {formatCurrency(gradingUpliftTotal)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <SlabBookPanel />
+            </>
+          )}
+
+          {slabTab === 'pulse' && (
+            <>
+              <PremiumMoversPanel onAlertPremium={openGradedPremiumAlert} />
+              <PopRegimePanel />
+              <GradeLadderPanel />
+              <CardComparePanel />
+            </>
+          )}
         </div>
       )}
 
-      {isPokemon && <CardComparePanel />}
-
+      {panel === 'watchlist' && (
+      <>
       <div className="card-glass-scene">
         <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-ink-primary">
           <Plus className="h-5 w-5 text-emerald-400" />
@@ -484,6 +736,7 @@ export const PriceTrackingDashboard: React.FC = () => {
                 tracked.initialPrice > 0 ? (change / tracked.initialPrice) * 100 : 0;
               const isPositive = change >= 0;
               const sparkData = buildSparklinePrices(tracked.priceHistory);
+              const slabSpread = watchlistSpreads[tracked.id];
 
               return (
                 <motion.div
@@ -513,7 +766,7 @@ export const PriceTrackingDashboard: React.FC = () => {
                           color={isPositive ? 'var(--gain)' : 'var(--loss)'}
                         />
                       </div>
-                      <div className="mt-3 grid grid-cols-3 gap-3">
+                      <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-4">
                         <div>
                           <p className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">
                             Initial
@@ -542,13 +795,35 @@ export const PriceTrackingDashboard: React.FC = () => {
                             {formatPercent(changePercent, { signed: true })}
                           </p>
                         </div>
+                        {isPokemon && slabSpread && (
+                          <div>
+                            <p className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">
+                              PSA 10 prem
+                            </p>
+                            <p className="text-sm font-bold tabular-nums text-accent">
+                              {slabSpread.premiumPct != null
+                                ? `${slabSpread.premiumPct >= 0 ? '+' : ''}${slabSpread.premiumPct.toFixed(0)}%`
+                                : '—'}
+                            </p>
+                            {slabSpread.netAfterFee != null && slabSpread.netAfterFee >= 40 && (
+                              <p className="text-[10px] tabular-nums text-gain">
+                                {formatCurrency(slabSpread.netAfterFee, { signed: true })} net
+                              </p>
+                            )}
+                            {slabSpread.stale && (
+                              <p className="text-[10px] text-ink-muted">stale quote</p>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <div className="mt-4 flex flex-wrap gap-2">
                         <button
                           type="button"
                           onClick={() => {
                             setSelectedCardForAlert(tracked);
-                            setAlertType('above');
+                            setAlertCondition('above');
+                            setAlertKind('price_threshold');
+                            setAlertThresholdPct('10');
                             setAlertTarget(
                               currentPrice > 0 ? (currentPrice * 1.1).toFixed(2) : ''
                             );
@@ -558,6 +833,30 @@ export const PriceTrackingDashboard: React.FC = () => {
                         >
                           <AlertCircle className="h-4 w-4" />
                           Set alert
+                        </button>
+                        {isPokemon && slabSpread?.premiumPct != null && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openGradedPremiumAlert({
+                                cardId: tracked.id,
+                                cardName: tracked.card.name,
+                                premiumPct: slabSpread.premiumPct!,
+                                rawPrice: slabSpread.rawPrice ?? currentPrice,
+                              })
+                            }
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-border-default px-3 py-2 text-sm font-medium text-ink-secondary hover:border-accent/40 hover:text-accent"
+                          >
+                            <Bell className="h-4 w-4" />
+                            Premium alert
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => openCard(tracked.card)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-border-default px-3 py-2 text-sm font-medium text-ink-secondary hover:bg-surface-hover"
+                        >
+                          Open
                         </button>
                         <button
                           type="button"
@@ -597,12 +896,38 @@ export const PriceTrackingDashboard: React.FC = () => {
                       <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
                         {alert.source === 'server' ? 'Cloud' : 'Local'}
                       </span>
+                      {alert.alertType ? (
+                        <span className="rounded-full bg-surface-hover px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-ink-secondary">
+                          {alert.alertType.replace(/_/g, ' ')}
+                        </span>
+                      ) : null}
                     </div>
                     <p className="mt-0.5 text-sm tabular-nums text-ink-muted">
-                      Triggers {alert.condition === 'above' ? '≥' : '≤'}{' '}
-                      <span className="font-semibold text-ink-secondary">
-                        {formatCurrency(alert.targetPrice)}
-                      </span>
+                      {alert.alertType === 'percent_change' ||
+                      alert.alertType === 'volume_drop' ||
+                      alert.alertType === 'graded_premium' ? (
+                        <>
+                          {alert.alertType === 'graded_premium'
+                            ? alert.condition === 'below'
+                              ? 'Premium ≤'
+                              : 'Premium ≥'
+                            : alert.condition === 'above'
+                              ? 'Change ≥'
+                              : 'Change ≤ −'}
+                          <span className="font-semibold text-ink-secondary">
+                            {Math.abs(alert.thresholdPct ?? 0)}%
+                          </span>
+                        </>
+                      ) : alert.alertType === 'category_change' ? (
+                        <>Triggers on category change</>
+                      ) : (
+                        <>
+                          Triggers {alert.condition === 'above' ? '≥' : '≤'}{' '}
+                          <span className="font-semibold text-ink-secondary">
+                            {formatCurrency(alert.targetPrice)}
+                          </span>
+                        </>
+                      )}
                     </p>
                   </div>
                   <button
@@ -617,6 +942,8 @@ export const PriceTrackingDashboard: React.FC = () => {
           </div>
         </div>
       )}
+      </>
+      )}
 
       {showAlertForm && selectedCardForAlert && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4">
@@ -625,38 +952,117 @@ export const PriceTrackingDashboard: React.FC = () => {
             animate={{ scale: 1, opacity: 1 }}
             className="w-full max-w-md rounded-2xl border border-border-strong bg-surface-overlay p-6 shadow-elevated"
           >
-            <h3 className="text-xl font-bold text-ink-primary">Create price alert</h3>
+            <h3 className="text-xl font-bold text-ink-primary">Create alert</h3>
             <p className="mt-1 text-sm text-ink-muted">{selectedCardForAlert.card.name}</p>
             <div className="mt-4 space-y-4">
-              <div>
-                <span className="section-label mb-2 block">Trigger when price goes</span>
-                <div className="inline-flex w-full rounded-lg border border-border-default bg-surface-inset p-1">
-                  {(['above', 'below'] as const).map((type) => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => setAlertType(type)}
-                      className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium capitalize ${
-                        alertType === type
-                          ? 'bg-surface-hover text-ink-primary'
-                          : 'text-ink-muted'
-                      }`}
-                    >
-                      {type === 'above' ? '↑ Above' : '↓ Below'}
-                    </button>
-                  ))}
-                </div>
-              </div>
               <label className="block">
-                <span className="section-label mb-2 block">Target price ($)</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={alertTarget}
-                  onChange={(e) => setAlertTarget(e.target.value)}
-                  className="input tabular-nums"
-                />
+                <span className="section-label mb-2 block">Alert type</span>
+                <select
+                  value={alertKind}
+                  onChange={(e) => setAlertKind(e.target.value as ServerAlertType)}
+                  className="input"
+                >
+                  <option value="price_threshold">Price threshold</option>
+                  <option value="percent_change">Percent change</option>
+                  <option value="volume_drop">Volume drop</option>
+                  <option value="category_change">Category change</option>
+                  <option value="graded_premium">Graded premium</option>
+                </select>
               </label>
+
+              {(alertKind === 'price_threshold' || alertKind === 'percent_change') && (
+                <div>
+                  <span className="section-label mb-2 block">
+                    {alertKind === 'percent_change' ? 'Direction' : 'Trigger when price goes'}
+                  </span>
+                  <div className="inline-flex w-full rounded-lg border border-border-default bg-surface-inset p-1">
+                    {(['above', 'below'] as const).map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => setAlertCondition(type)}
+                        className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium capitalize ${
+                          alertCondition === type
+                            ? 'bg-surface-hover text-ink-primary'
+                            : 'text-ink-muted'
+                        }`}
+                      >
+                        {type === 'above' ? '↑ Above' : '↓ Below'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {alertKind === 'price_threshold' && (
+                <label className="block">
+                  <span className="section-label mb-2 block">Target price ($)</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={alertTarget}
+                    onChange={(e) => setAlertTarget(e.target.value)}
+                    className="input tabular-nums"
+                  />
+                </label>
+              )}
+
+              {(alertKind === 'percent_change' || alertKind === 'volume_drop') && (
+                <label className="block">
+                  <span className="section-label mb-2 block">
+                    {alertKind === 'volume_drop' ? 'Volume drop (%)' : 'Change threshold (%)'}
+                  </span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={alertThresholdPct}
+                    onChange={(e) => setAlertThresholdPct(e.target.value)}
+                    className="input tabular-nums"
+                  />
+                </label>
+              )}
+
+              {alertKind === 'graded_premium' && (
+                <>
+                  <div>
+                    <span className="section-label mb-2 block">Trigger when premium goes</span>
+                    <div className="inline-flex w-full rounded-lg border border-border-default bg-surface-inset p-1">
+                      {(['above', 'below'] as const).map((type) => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => setAlertCondition(type)}
+                          className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium capitalize ${
+                            alertCondition === type
+                              ? 'bg-surface-hover text-ink-primary'
+                              : 'text-ink-muted'
+                          }`}
+                        >
+                          {type === 'above' ? '↑ Above' : '↓ Below'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <label className="block">
+                    <span className="section-label mb-2 block">Premium threshold (%)</span>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={alertThresholdPct}
+                      onChange={(e) => setAlertThresholdPct(e.target.value)}
+                      className="input tabular-nums"
+                    />
+                  </label>
+                </>
+              )}
+
+              {alertKind === 'category_change' && (
+                <p className="text-sm text-ink-muted">
+                  Fires when the card&apos;s market category changes between price updates.
+                </p>
+              )}
             </div>
             <div className="mt-6 flex gap-3">
               <button
@@ -672,6 +1078,7 @@ export const PriceTrackingDashboard: React.FC = () => {
                   setShowAlertForm(false);
                   setSelectedCardForAlert(null);
                   setAlertTarget('');
+                  setAlertKind('price_threshold');
                 }}
                 className="btn-secondary"
               >
