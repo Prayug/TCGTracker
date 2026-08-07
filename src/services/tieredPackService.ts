@@ -2,9 +2,17 @@ import { Pack, PackPull, PokemonCard, PackOpeningHistory, ValueRange } from '../
 import { pokemonApi, proxyImageUrl } from './pokemonApi';
 import { onePieceApi } from './onepieceApi';
 import { env } from '../config/env';
+import { packCardIdentity } from '../utils/packCardIdentity';
+import { packEraBandFromSet, pickCandidateByEraBand } from '../utils/packEraBand';
 
 const PACK_HISTORY_KEY = 'tcg_tiered_pack_history';
 const PACK_HISTORY_KEY_OP = 'tcg_tiered_pack_history_onepiece';
+
+type PullCandidate = {
+  card: PokemonCard;
+  pullKind: 'raw' | 'slab';
+  value: number;
+};
 
 class TieredPackService {
   // Track pulled card IDs across the session to prevent duplicates
@@ -162,12 +170,11 @@ class TieredPackService {
     try {
       let cardPool =
         game === 'onepiece' ? await this.fetchOnePieceCardPool() : await this.fetchCardPool();
-      console.log('cardPool: ', cardPool);
       if (cardPool.length === 0) {
         throw new Error('Unable to fetch cards. Please check your connection.');
       }
 
-      // Filter out cards already pulled this session
+      // Filter out cards already pulled this session (name + set + number, not raw cardId)
       const previousCount = cardPool.length;
       cardPool = cardPool.filter((card) => !this.pulledCardIds.has(this.getCardIdentifier(card)));
       if (cardPool.length === 0) {
@@ -180,15 +187,26 @@ class TieredPackService {
       );
 
       const ranges = boosted && pack.boostedValueRanges ? pack.boostedValueRanges : pack.valueRanges;
-      const selectedCard = this.selectCardFromRange(cardPool, ranges);
-      console.log('selectedCard: ', selectedCard);
-      if (!selectedCard) {
+      const rolledRange = this.selectValueRange(ranges);
+      const allowSlabs = game === 'pokemon';
+      const selected = this.selectPullInRange(cardPool, rolledRange, allowSlabs);
+
+      console.log(
+        'selectedCard:',
+        selected?.card,
+        'pullKind:',
+        selected?.pullKind,
+        'range:',
+        rolledRange.label
+      );
+      if (!selected) {
         throw new Error('No suitable card found in the pool for this value range.');
       }
 
+      const { card: selectedCard, pullKind, value: totalValue } = selected;
       this.pulledCardIds.add(this.getCardIdentifier(selectedCard));
 
-      const totalValue = selectedCard.marketPrice || pokemonApi.extractCardPrice(selectedCard);
+      const rawPrice = selectedCard.marketPrice || pokemonApi.extractCardPrice(selectedCard);
       const profit = totalValue - pack.price;
 
       const packPull: PackPull = {
@@ -197,6 +215,10 @@ class TieredPackService {
         totalValue,
         profit,
         openedAt: new Date().toISOString(),
+        pullKind,
+        ...(pullKind === 'slab'
+          ? { grader: 'PSA', grade: '10', rawPrice }
+          : {}),
       };
 
       this.addToHistory(packPull, game);
@@ -228,11 +250,9 @@ class TieredPackService {
     );
   }
 
-  // Get a unique identifier for a card (used for deduplication)
+  // Identity for session dedup: same physical card under pop3-1 vs tcgcsv-* must match
   private getCardIdentifier(card: PokemonCard): string {
-    return card.id ||
-      (card as PokemonCard & { uniqueIdentifier?: string }).uniqueIdentifier ||
-      `${card.set?.id || 'unknown'}-${card.number || 'unknown'}-${card.name || 'unknown'}`;
+    return packCardIdentity(card);
   }
 
   // Select which VALUE RANGE bracket based on probabilities
@@ -251,9 +271,11 @@ class TieredPackService {
     return ranges[0];
   }
 
-  // Fetch a large pool of cards from various sets
+  // Fetch a large pool of cards from various sets (includes PSA 10 when available)
   private async fetchCardPool(): Promise<PokemonCard[]> {
-    const resp = await fetch(`${env.apiUrl}/api/cards/pool?limit=10000`);
+    const resp = await fetch(`${env.apiUrl}/api/cards/pool?limit=10000&includeSlabs=1`, {
+      cache: 'no-store',
+    });
     
     if (!resp.ok) {
       throw new Error(`Failed to fetch card pool: ${resp.status}`);
@@ -280,11 +302,15 @@ class TieredPackService {
     const prices = cardsWithPrices.map((card: PokemonCard) => card.marketPrice || pokemonApi.extractCardPrice(card));
     const maxPrice = Math.max(...prices);
     const minPrice = Math.min(...prices);
-    console.log(`📊 Card pool stats: ${cardsWithPrices.length} cards, price range: $${minPrice.toFixed(2)} - $${maxPrice.toFixed(2)}`);
+    const withPsa10 = cardsWithPrices.filter((c: PokemonCard) => (c.psa10Price ?? 0) > 0).length;
+    console.log(
+      `📊 Card pool stats: ${cardsWithPrices.length} cards, price range: $${minPrice.toFixed(2)} - $${maxPrice.toFixed(2)}, PSA10: ${withPsa10}`
+    );
 
     // Rewrite image URLs to use the Vite proxy
     const rewritten = cardsWithPrices.map((card: PokemonCard) => ({
       ...card,
+      eraBand: card.eraBand || packEraBandFromSet(card.set),
       images: card.images ? {
         ...card.images,
         small: proxyImageUrl(card.images.small),
@@ -305,54 +331,67 @@ class TieredPackService {
     return shuffled;
   }
 
-  // Select a random card from the pool based on rolled value range
-  private selectCardFromRange(
+  // Fit the rolled $ bracket, then pick an era band first so vintage PSA 10s
+  // cannot drown modern chase in the same dollar range.
+  private selectPullInRange(
     cardPool: PokemonCard[],
-    ranges: ValueRange[]
-  ): PokemonCard | null {
-    const rolledRange = this.selectValueRange(ranges);
-    
-    // Try exact range first, then progressively widen
-    let candidates: PokemonCard[] = [];
+    rolledRange: ValueRange,
+    allowSlabs: boolean
+  ): PullCandidate | null {
     let expand = 0;
     const maxExpand = 5;
 
-    while (candidates.length === 0 && expand <= maxExpand) {
-      const min = rolledRange.min - expand * rolledRange.min * 0.3;
-      const max = rolledRange.max + expand * rolledRange.max * 0.5;
-
-      candidates = cardPool.filter(card => {
-        const price = card.marketPrice || pokemonApi.extractCardPrice(card);
-        return price >= min && price <= max;
-      });
-
-      // Remove duplicates
-      const seenIds = new Set<string>();
-      candidates = candidates.filter(card => {
-        const cardId = card.id ||
-          (card as PokemonCard & { uniqueIdentifier?: string }).uniqueIdentifier ||
-          `${card.set?.id || 'unknown'}-${card.number || 'unknown'}-${card.name || 'unknown'}`;
-
-        if (seenIds.has(cardId)) return false;
-        seenIds.add(cardId);
-        return true;
-      });
-
+    while (expand <= maxExpand) {
+      const candidates = this.collectCandidatesInRange(cardPool, rolledRange, allowSlabs, expand);
+      if (candidates.length > 0) {
+        return pickCandidateByEraBand(candidates, (c) => c.card.eraBand || packEraBandFromSet(c.card.set));
+      }
       expand++;
     }
 
-    if (candidates.length === 0) {
-      return null;
+    return null;
+  }
+
+  private collectCandidatesInRange(
+    cardPool: PokemonCard[],
+    rolledRange: ValueRange,
+    allowSlabs: boolean,
+    expand: number
+  ): PullCandidate[] {
+    const min = rolledRange.min - expand * rolledRange.min * 0.3;
+    const max = rolledRange.max + expand * rolledRange.max * 0.5;
+    const candidates: PullCandidate[] = [];
+    const seenKeys = new Set<string>();
+
+    for (const card of cardPool) {
+      const cardId = this.getCardIdentifier(card);
+
+      const rawPrice = card.marketPrice || pokemonApi.extractCardPrice(card);
+      if (rawPrice > 0 && rawPrice >= min && rawPrice <= max) {
+        const key = `${cardId}:raw`;
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          candidates.push({ card, pullKind: 'raw', value: rawPrice });
+        }
+      }
+
+      const psa10 = card.psa10Price;
+      if (
+        allowSlabs &&
+        typeof psa10 === 'number' &&
+        psa10 > 0 &&
+        psa10 >= min &&
+        psa10 <= max
+      ) {
+        const key = `${cardId}:slab`;
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          candidates.push({ card, pullKind: 'slab', value: psa10 });
+        }
+      }
     }
 
-    // Shuffle candidates to avoid any ordering bias, then pick uniformly at random
-    const shuffled = this.shuffleArray(candidates);
-
-    const randomIndex = typeof crypto !== 'undefined' && crypto.getRandomValues
-      ? crypto.getRandomValues(new Uint32Array(1))[0] % shuffled.length
-      : Math.floor(Math.random() * shuffled.length);
-    
-    return shuffled[randomIndex];
+    return candidates;
   }
 
   // Get pack opening history
