@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Pack } from '../../../types/pokemon';
 import { tieredPackService } from '../../../services/tieredPackService';
 import { useGame } from '../../../contexts/GameContext';
 import { PackOpeningModal } from './PackOpeningModal';
-import { Package, Sparkles, History, Zap, ChevronDown } from 'lucide-react';
+import { PackPullKindBadge } from './PackPullCardDisplay';
+import { Package, Sparkles, History, Zap, ChevronDown, ArrowRight } from 'lucide-react';
 import { PageEmptyState } from '../../../components/common/PageEmptyState';
 import { formatCurrency } from '../../../utils/cardDisplay';
 
@@ -95,9 +97,29 @@ export const PackShop: React.FC = () => {
         </h2>
         <p className="max-w-2xl text-sm text-ink-secondary">
           Open tiered packs with play-money odds — results are simulated, not financial advice.
-          {isOnePiece ? ' Pulls come from One Piece set pools.' : ''}
+          {isOnePiece
+            ? ' Pulls come from One Piece set pools.'
+            : ' Each tier can land a raw card or PSA 10 slab — whichever fits the pool at that value.'}
         </p>
       </div>
+
+      {isOnePiece && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-accent/25 bg-accent/10 px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-ink-primary">Prefer set-accurate OP odds?</p>
+            <p className="text-xs text-ink-secondary">
+              Use the One Piece pack simulator at <span className="font-mono text-accent">/open</span> for per-set pull rates and box/case rips.
+            </p>
+          </div>
+          <Link
+            to="/open"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-accent-hover"
+          >
+            Open /open simulator
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+      )}
 
       {history.packsOpened > 0 && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -286,7 +308,10 @@ export const PackShop: React.FC = () => {
                     className="h-10 w-10 shrink-0 object-contain"
                   />
                   <div className="min-w-0">
-                    <p className="truncate font-medium text-ink-primary">{pull.pack.name}</p>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <p className="truncate font-medium text-ink-primary">{pull.pack.name}</p>
+                      <PackPullKindBadge isSlab={pull.pullKind === 'slab'} className="!px-1.5 !py-0 !text-[9px]" />
+                    </div>
                     <p className="text-xs text-ink-muted">
                       {new Date(pull.openedAt).toLocaleString()}
                     </p>
