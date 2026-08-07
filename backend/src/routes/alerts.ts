@@ -11,8 +11,15 @@ const createAlertSchema = z.object({
   body: z.object({
     cardId: z.string(),
     cardName: z.string(),
-    targetPrice: z.number().positive(),
-    condition: z.enum(['above', 'below']),
+    targetPrice: z.number().nonnegative().optional().default(0),
+    condition: z.enum(['above', 'below']).optional().default('above'),
+    alertType: z
+      .enum(['price_threshold', 'percent_change', 'volume_drop', 'category_change', 'graded_premium'])
+      .optional()
+      .default('price_threshold'),
+    thresholdPct: z.number().optional(),
+    baselinePrice: z.number().optional(),
+    metadata: z.record(z.unknown()).optional(),
   }),
 });
 
@@ -84,13 +91,15 @@ export const createAlertsRouter = (alertService: AlertService) => {
    */
   router.post('/', authenticate, validate(createAlertSchema), async (req: AuthRequest, res: Response) => {
     try {
-      const { cardId, cardName, targetPrice, condition } = req.body;
+      const { cardId, cardName, targetPrice, condition, alertType, thresholdPct, baselinePrice, metadata } =
+        req.body;
       const alert = await alertService.createAlert(
         req.user!.id,
         cardId,
         cardName,
-        targetPrice,
-        condition
+        targetPrice ?? 0,
+        condition ?? 'above',
+        { alertType, thresholdPct, baselinePrice, metadata }
       );
       res.status(201).json({ alert });
     } catch (error: any) {

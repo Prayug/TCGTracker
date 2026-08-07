@@ -6,7 +6,10 @@ const enhancedPackService_1 = require("../services/enhancedPackService");
 const setCodeService_1 = require("../services/setCodeService");
 const logger_1 = require("../utils/logger");
 const pokemonApiClient_1 = require("../services/pokemonApiClient");
+const auth_1 = require("../middleware/auth");
+const admin_1 = require("../middleware/admin");
 const router = (0, express_1.Router)();
+const adminOnly = [auth_1.authenticate, admin_1.requireAdmin];
 /**
  * Get available sets for pack opening
  */
@@ -148,7 +151,7 @@ router.get('/stats/:setId', async (req, res) => {
 /**
  * Debug endpoint: Get set code service status
  */
-router.get('/debug/set-codes', async (req, res) => {
+router.get('/debug/set-codes', ...adminOnly, async (req, res) => {
     try {
         const stats = setCodeService_1.setCodeService.getSetMappingStats();
         const isInitialized = setCodeService_1.setCodeService.isInitialized();
@@ -171,7 +174,7 @@ router.get('/debug/set-codes', async (req, res) => {
 /**
  * Debug endpoint: Test set normalization
  */
-router.get('/debug/normalize-set/:setId', async (req, res) => {
+router.get('/debug/normalize-set/:setId', ...adminOnly, async (req, res) => {
     try {
         const { setId } = req.params;
         const { setName } = req.query;
@@ -203,7 +206,7 @@ router.get('/debug/normalize-set/:setId', async (req, res) => {
 /**
  * Debug endpoint: Get all Pokemon TCG API sets
  */
-router.get('/debug/all-sets', async (req, res) => {
+router.get('/debug/all-sets', ...adminOnly, async (req, res) => {
     try {
         const sets = await pokemonApiClient_1.pokemonApiClient.getSets(1000);
         res.json({

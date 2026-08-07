@@ -46,79 +46,10 @@ const populationService_1 = require("../services/populationService");
 const cardImageBackfillService_1 = require("../services/cardImageBackfillService");
 const cardEnrichment_1 = require("../services/cardEnrichment");
 const gradedPriceService_1 = require("../services/gradedPriceService");
+const gradedRefreshService_1 = require("../services/gradedRefreshService");
+const packPoolDedupe_1 = require("../utils/packPoolDedupe");
+const packEraBand_1 = require("../utils/packEraBand");
 const router = (0, express_1.Router)();
-const resolveListingPrice_1 = require("../utils/resolveListingPrice");
-const parsePrices = (value) => {
-    if (!value) {
-        return undefined;
-    }
-    try {
-        return JSON.parse(value);
-    }
-    catch (_a) {
-        return undefined;
-    }
-};
-const extractMarketPriceFromVariants = (prices) => {
-    const best = (0, resolveListingPrice_1.extractBestListingPrice)(prices);
-    return {
-        price: best.price > 0 ? best.price : null,
-        variantKey: best.variantKey,
-    };
-};
-/** Prefer the strongest daily snapshot when a card has multiple variant history rows. */
-const resolveSnapshotPrice = (row) => {
-    const resolved = (0, resolveListingPrice_1.resolveHistoryPointPrice)({
-        marketPrice: row.latestPrice,
-        lowPrice: row.latestLowPrice,
-        highPrice: row.latestHighPrice,
-    });
-    return resolved > 0 ? resolved : null;
-};
-const mapCatalogRowsToPokemonCards = (rows) => {
-    const seen = new Map();
-    for (const row of rows) {
-        if (!row.cardId)
-            continue;
-        const parsedPrices = parsePrices(row.tcgplayerPrices);
-        const fromListing = extractMarketPriceFromVariants(parsedPrices);
-        const snapshotPrice = resolveSnapshotPrice(row);
-        // Backend daily snapshot is the source of truth. Listing quotes are fallback only.
-        const derivedMarketPrice = snapshotPrice !== null && snapshotPrice !== void 0 ? snapshotPrice : fromListing.price;
-        const productId = row.tcgplayerProductId || undefined;
-        const next = {
-            id: row.cardId,
-            name: row.cardName,
-            number: row.cardNumber || '',
-            rarity: row.rarity || undefined,
-            artist: row.artist || undefined,
-            images: {
-                small: row.imageSmall || row.imageLarge || '',
-                large: row.imageLarge || row.imageSmall || '',
-            },
-            set: {
-                id: row.setId,
-                name: row.setName,
-                releaseDate: row.setReleaseDate || '2020-01-01',
-                total: 0,
-            },
-            tcgplayer: parsedPrices || productId
-                ? {
-                    productId,
-                    prices: parsedPrices,
-                }
-                : undefined,
-            marketPrice: typeof derivedMarketPrice === 'number' ? derivedMarketPrice : 0,
-            preferredVariant: fromListing.variantKey || undefined,
-            source: 'catalog_sync',
-        };
-        const existing = seen.get(row.cardId);
-        if (!existing || (next.marketPrice || 0) > (existing.marketPrice || 0)) {
-            seen.set(row.cardId, next);
-        }
-    }
-    return Array.from(seen.values());
-};
 /**
  * Read persisted card images from card_mappings (populated by the image backfill pipeline).
  */
@@ -183,6 +114,7 @@ router.get('/resolve-image', async (req, res) => {
  * Much faster and more reliable than Pokemon TCG API
  */
 router.get('/search', async (req, res) => {
+    var _a;
     try {
         const { query, setId, limit = '100' } = req.query;
         if (!query || typeof query !== 'string') {
@@ -190,134 +122,17 @@ router.get('/search', async (req, res) => {
                 error: 'Query parameter is required'
             });
         }
-        const db = (0, database_1.getDb)();
         const searchLimit = Math.min(parseInt(limit) || 100, 250);
-        let sql = `
-      SELECT
-        cc.cardId,
-        cc.cardName,
-        cc.setId,
-        cc.setName,
-        cc.setReleaseDate,
-        cc.cardNumber,
-        cc.rarity,
-        cc.types,
-        cc.artist,
-        cc.imageSmall,
-        cc.imageLarge,
-        cc.tcgplayerProductId,
-        cc.tcgplayerPrices,
-        ph.latestPrice as latestPrice,
-        ph.latestLowPrice as latestLowPrice,
-        ph.latestHighPrice as latestHighPrice
-      FROM catalog_cards cc
-      LEFT JOIN (
-        SELECT
-          cm.cardId,
-          -- Repair junk market vs low/high in SQL before picking the best variant snap.
-          MAX(
-            CASE
-              WHEN ph.lowPrice IS NOT NULL AND ph.lowPrice > 0 AND ph.marketPrice < ph.lowPrice * 0.5
-                THEN CASE
-                  WHEN ph.highPrice IS NOT NULL AND ph.highPrice > 0 AND ph.highPrice <= ph.lowPrice * 5
-                    THEN (ph.lowPrice + ph.highPrice) / 2.0
-                  ELSE ph.lowPrice
-                END
-              ELSE ph.marketPrice
-            END
-          ) as latestPrice,
-          NULL as latestLowPrice,
-          NULL as latestHighPrice
-        FROM price_history ph
-        JOIN card_mappings cm ON cm.uniqueIdentifier = ph.uniqueIdentifier
-        WHERE ph.source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
-          AND ph.marketPrice IS NOT NULL
-          AND ph.marketPrice > 0
-          AND (cm.cardId, ph.date) IN (
-            SELECT cm2.cardId, MAX(ph2.date)
-            FROM price_history ph2
-            JOIN card_mappings cm2 ON cm2.uniqueIdentifier = ph2.uniqueIdentifier
-            WHERE ph2.source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
-              AND ph2.marketPrice IS NOT NULL
-              AND ph2.marketPrice > 0
-            GROUP BY cm2.cardId
-          )
-        GROUP BY cm.cardId
-      ) ph ON cc.cardId = ph.cardId
-      WHERE cc.cardName LIKE ?
-    `;
-        const params = [`%${query}%`];
-        if (setId && typeof setId === 'string') {
-            sql += ' AND (cc.setId = ? OR cc.setName LIKE ?)';
-            params.push(setId, `%${setId}%`);
+        const normalizedSetId = typeof setId === 'string' && setId.trim().length > 0 ? setId.trim() : undefined;
+        let cards = (0, cardDatabase_1.mapCatalogRowsToPokemonCards)(await (0, cardDatabase_1.getCatalogCardsForQuery)(query, normalizedSetId, searchLimit));
+        if (cards.length === 0) {
+            cards = await (0, cardDatabase_1.mapLocalRowsToPokemonCards)(await (0, cardDatabase_1.getLocalCardsForQuery)(query, normalizedSetId, searchLimit));
         }
-        sql += ` ORDER BY cc.cardName ASC LIMIT ?`;
-        params.push(searchLimit);
-        db.all(sql, params, async (err, rows) => {
-            if (err) {
-                logger_1.logger.error('Error searching cards:', err);
-                return res.status(500).json({
-                    error: 'Database error',
-                    message: err.message
-                });
-            }
-            let cards = mapCatalogRowsToPokemonCards(rows);
-            if (cards.length === 0) {
-                const imageColumns = await (0, cardImageUtils_1.getImageColumnSelectFragment)();
-                const fallbackSql = `
-          SELECT DISTINCT
-            cm.cardId,
-            cm.cardName,
-            cm.setId,
-            cm.setName,
-            cm.cardNumber,
-            cm.rarity,
-            cm.tcgplayerProductId,
-            cm.uniqueIdentifier,
-            ${imageColumns}
-            ph.marketPrice as latestPrice,
-            ph.lowPrice as latestLowPrice,
-            ph.highPrice as latestHighPrice,
-            ph.date as priceDate
-          FROM card_mappings cm
-          LEFT JOIN (
-            SELECT uniqueIdentifier, marketPrice, lowPrice, highPrice, date
-            FROM price_history
-            WHERE (uniqueIdentifier, date) IN (
-              SELECT uniqueIdentifier, MAX(date)
-              FROM price_history
-              WHERE source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
-              GROUP BY uniqueIdentifier
-            )
-          ) ph ON cm.uniqueIdentifier = ph.uniqueIdentifier
-          WHERE cm.cardName LIKE ?
-          ${setId && typeof setId === 'string' ? 'AND (cm.setId = ? OR cm.setName LIKE ?)' : ''}
-          ORDER BY cm.cardName ASC
-          LIMIT ?
-        `;
-                const fallbackParams = [`%${query}%`];
-                if (setId && typeof setId === 'string') {
-                    fallbackParams.push(setId, `%${setId}%`);
-                }
-                fallbackParams.push(searchLimit);
-                const fallbackRows = await new Promise((resolve, reject) => {
-                    db.all(fallbackSql, fallbackParams, (fallbackErr, fallbackResult) => {
-                        if (fallbackErr) {
-                            reject(fallbackErr);
-                        }
-                        else {
-                            resolve(fallbackResult || []);
-                        }
-                    });
-                });
-                cards = await (0, cardDatabase_1.mapLocalRowsToPokemonCards)(fallbackRows);
-            }
-            logger_1.logger.info(`✅ Found ${cards.length} cards matching "${query}" from local database`);
-            res.json({
-                data: cards,
-                count: cards.length,
-                source: 'local_database'
-            });
+        logger_1.logger.info(`✅ Found ${cards.length} cards matching "${query}" from local database`);
+        res.json({
+            data: cards,
+            count: cards.length,
+            source: ((_a = cards[0]) === null || _a === void 0 ? void 0 : _a.source) === 'catalog_sync' ? 'catalog_database' : 'local_database',
         });
     }
     catch (error) {
@@ -402,6 +217,15 @@ router.get('/population', async (req, res) => {
             cardNumber: typeof cardNumber === 'string' ? cardNumber.trim() : undefined,
             variant: typeof variant === 'string' ? variant.trim() : undefined,
         });
+        if (result.cardId) {
+            void (0, gradedRefreshService_1.recordGradedRequest)({
+                cardId: result.cardId,
+                cardName: result.cardName,
+                setId: result.setId,
+                setName: result.setName,
+                cardNumber: result.cardNumber,
+            });
+        }
         return res.json(result);
     }
     catch (error) {
@@ -412,13 +236,19 @@ router.get('/population', async (req, res) => {
     }
 });
 /**
- * Get a random pool of cards with latest market prices from local DB
+ * Get a random pool of cards with latest market prices from local DB.
+ * Pass includeSlabs=1 to attach verified PSA 10 prices (psa10Price) via a
+ * second batched lookup — keep this off the RANDOM() query so pack opens
+ * don't hang on a graded_prices join.
  */
 router.get('/pool', async (req, res) => {
     try {
         const db = (0, database_1.getDb)();
-        const { limit = '250', minPrice = '0', maxPrice = '100000' } = req.query;
+        const { limit = '250', minPrice = '0', maxPrice = '100000', includeSlabs } = req.query;
         const poolLimit = Math.min(parseInt(limit) || 250, 10000); // Increased max to 10000 for better pool diversity
+        const withSlabs = includeSlabs === '1' ||
+            includeSlabs === 'true' ||
+            includeSlabs === 'yes';
         const imageColumns = await (0, cardImageUtils_1.getImageColumnSelectFragment)();
         // Exclude fake "sets" that are actually TCGPlayer product categories
         // These will NEVER have images in the Pokemon API
@@ -470,42 +300,12 @@ router.get('/pool', async (req, res) => {
         }
         exclusionClauses.push(PROMO_EXCLUSION_CLAUSE);
         const exclusionSql = exclusionClauses.join(' AND ');
-        // Select random cards with their latest market price from price_history
-        // ONLY from REAL Pokemon TCG sets (excludes product categories and promo sets)
-        const sql = `
-      SELECT 
-        cm.cardId,
-        cm.cardName,
-        cm.setId,
-        cm.setName,
-        cm.cardNumber,
-        cm.rarity,
-        cm.tcgplayerProductId,
-        cm.uniqueIdentifier,
-        ${imageColumns}
-        ph.marketPrice as latestPrice,
-        ph.date as priceDate
-      FROM card_mappings cm
-      JOIN (
-        SELECT ph1.uniqueIdentifier, ph1.marketPrice, ph1.date
-        FROM price_history ph1
-        JOIN (
-          SELECT uniqueIdentifier, MAX(date) AS maxDate
-          FROM price_history
-          WHERE source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
-          GROUP BY uniqueIdentifier
-        ) latest ON ph1.uniqueIdentifier = latest.uniqueIdentifier AND ph1.date = latest.maxDate
-        WHERE ph1.marketPrice IS NOT NULL
-      ) ph ON cm.uniqueIdentifier = ph.uniqueIdentifier
-      WHERE ph.marketPrice >= ? AND ph.marketPrice <= ?
-        AND cm.cardName IS NOT NULL AND TRIM(cm.cardName) <> ''
-        AND cm.setId IS NOT NULL AND TRIM(cm.setId) <> ''
-        AND cm.cardNumber IS NOT NULL AND TRIM(cm.cardNumber) <> ''
-        AND ${exclusionSql}
-      ORDER BY RANDOM()
-      LIMIT ?
-    `;
-        db.all(sql, [minPrice, maxPrice, ...exclusionParams, poolLimit], async (err, rows) => {
+        // Canonicalize duplicate API/TCGCSV rows, then take equal random slices
+        // from each era band (bulk + chase) so EX-era cards cannot fill the pool.
+        const sql = (0, packEraBand_1.buildStratifiedPackPoolSql)(imageColumns, exclusionSql);
+        const { bulk, chase } = (0, packEraBand_1.stratifiedPoolSliceSizes)(poolLimit);
+        const sliceLimits = packEraBand_1.PACK_ERA_BANDS.flatMap(() => [bulk, chase]);
+        db.all(sql, [minPrice, maxPrice, ...exclusionParams, ...sliceLimits], async (err, rows) => {
             if (err) {
                 logger_1.logger.error('Error fetching random card pool:', err);
                 return res.status(500).json({
@@ -513,13 +313,61 @@ router.get('/pool', async (req, res) => {
                     message: err.message
                 });
             }
-            // Use the helper function to properly map cards with stored images
-            const cards = await (0, cardDatabase_1.mapLocalRowsToPokemonCards)(rows);
-            res.json({
-                data: cards,
-                count: cards.length,
-                source: 'local_database'
-            });
+            try {
+                // Use the helper function to properly map cards with stored images
+                let cards = await (0, cardDatabase_1.mapLocalRowsToPokemonCards)(rows);
+                if (withSlabs && cards.length > 0) {
+                    const cardIds = [...new Set(cards.map((c) => c.id).filter(Boolean))];
+                    const psa10ByCardId = new Map();
+                    const BATCH = 400;
+                    for (let i = 0; i < cardIds.length; i += BATCH) {
+                        const batch = cardIds.slice(i, i + BATCH);
+                        const placeholders = batch.map(() => '?').join(',');
+                        const gradedRows = await new Promise((resolve, reject) => {
+                            db.all(`SELECT cardId, price
+                 FROM graded_prices
+                 WHERE cardId IN (${placeholders})
+                   AND grader = 'psa'
+                   AND grade = '10'
+                   AND verified = 1
+                   AND price IS NOT NULL
+                   AND price > 0`, batch, (gradedErr, result) => {
+                                if (gradedErr)
+                                    reject(gradedErr);
+                                else
+                                    resolve((result || []));
+                            });
+                        });
+                        for (const gr of gradedRows) {
+                            if (typeof gr.price === 'number' && gr.price > 0) {
+                                psa10ByCardId.set(gr.cardId, gr.price);
+                            }
+                        }
+                    }
+                    cards = cards.map((card) => {
+                        const psa10Price = psa10ByCardId.get(card.id);
+                        return psa10Price != null ? { ...card, psa10Price } : card;
+                    });
+                }
+                cards = (0, packPoolDedupe_1.dedupePackPoolCards)(cards).map((card) => ({
+                    ...card,
+                    eraBand: (0, packEraBand_1.packEraBandFromSet)(card.set),
+                }));
+                res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+                res.json({
+                    data: cards,
+                    count: cards.length,
+                    source: 'local_database',
+                    includeSlabs: withSlabs,
+                });
+            }
+            catch (mapErr) {
+                logger_1.logger.error('Error mapping/enriching card pool:', mapErr);
+                res.status(500).json({
+                    error: 'Internal server error',
+                    message: mapErr.message,
+                });
+            }
         });
     }
     catch (error) {
@@ -565,6 +413,25 @@ router.get('/pokemon', async (req, res) => {
         const shouldFetchAll = String(fetchAll).toLowerCase() !== 'false';
         const maxPagesToFetch = Math.min(Math.max(parseInt(maxPages, 10) || 4, 1), 10);
         buildLocalFallbackResponse = async () => {
+            // Prefer catalog_cards (complete number + art) over raw TCGCSV mappings.
+            // Mappings include sealed SKUs and rows with null cardNumber/images that
+            // previously produced white SVG placeholders and "#—" in Browse.
+            const catalogRows = await (0, cardDatabase_1.getCatalogCardsForQuery)(sanitizedQuery, normalizedSetId, limit).catch((err) => {
+                logger_1.logger.error('Catalog fallback query failed', err);
+                return [];
+            });
+            if (catalogRows.length > 0) {
+                const cards = await (0, cardEnrichment_1.enrichCardsWithInvestmentData)((0, cardDatabase_1.mapCatalogRowsToPokemonCards)(catalogRows));
+                return {
+                    data: cards,
+                    totalCount: cards.length,
+                    pageSize: limit,
+                    pagesFetched: 1,
+                    cached: false,
+                    source: 'catalog_database',
+                    fallback: true,
+                };
+            }
             const rows = await (0, cardDatabase_1.getLocalCardsForQuery)(sanitizedQuery, normalizedSetId, limit).catch((err) => {
                 logger_1.logger.error('Local fallback query failed', err);
                 return [];
@@ -869,11 +736,273 @@ router.get('/graded-prices', async (req, res) => {
             return res.status(400).json({ error: 'cardId and cardName are required' });
         }
         const result = await (0, gradedPriceService_1.getGradedPrices)(String(cardId), String(cardName), setId ? String(setId) : undefined, setName ? String(setName) : undefined, cardNumber ? String(cardNumber) : undefined);
+        void (0, gradedRefreshService_1.recordGradedRequest)({
+            cardId: String(cardId),
+            cardName: String(cardName),
+            setId: setId ? String(setId) : undefined,
+            setName: setName ? String(setName) : undefined,
+            cardNumber: cardNumber ? String(cardNumber) : undefined,
+        });
         res.json({ data: result });
     }
     catch (error) {
         logger_1.logger.error('Graded prices lookup failed', { error: error.message });
         res.status(500).json({ error: 'Failed to fetch graded prices' });
+    }
+});
+router.get('/graded-price-history', async (req, res) => {
+    try {
+        const cardId = req.query.cardId ? String(req.query.cardId) : '';
+        const days = req.query.days ? parseInt(String(req.query.days), 10) : 365;
+        const safeDays = Number.isFinite(days) ? days : 365;
+        if (!cardId) {
+            return res.status(400).json({ error: 'cardId is required' });
+        }
+        // Omit grader to fetch every series for a multi-line chart.
+        if (!req.query.grader) {
+            const all = await (0, gradedPriceService_1.getAllGradedPriceHistory)(cardId, safeDays);
+            return res.json({ data: all });
+        }
+        const grader = String(req.query.grader);
+        const grade = req.query.grade ? String(req.query.grade) : '10';
+        const result = await (0, gradedPriceService_1.getGradedPriceHistory)(cardId, grader, grade, safeDays);
+        res.json({ data: result });
+    }
+    catch (error) {
+        logger_1.logger.error('Graded price history lookup failed', { error: error.message });
+        res.status(500).json({ error: 'Failed to fetch graded price history' });
+    }
+});
+router.get('/graded-spreads', async (req, res) => {
+    try {
+        const { getGradedSpreadsForCard, getTopGradedPremiums, getPsa10SpreadsForCards, } = await Promise.resolve().then(() => __importStar(require('../services/gradedSpreadService')));
+        const cardId = req.query.cardId ? String(req.query.cardId) : null;
+        if (cardId) {
+            const summary = await getGradedSpreadsForCard(cardId);
+            return res.json({ data: summary });
+        }
+        const cardIds = parseCsvParam(req.query.cardIds);
+        if (cardIds && cardIds.length > 0) {
+            const batch = await getPsa10SpreadsForCards(cardIds);
+            return res.json({ data: batch, count: batch.length });
+        }
+        const limit = Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 200);
+        const tradeableOnly = String(req.query.tradeableOnly || '') === '1' ||
+            String(req.query.tradeableOnly || '').toLowerCase() === 'true';
+        const top = await getTopGradedPremiums(limit, { tradeableOnly });
+        res.json({ data: top, count: top.length });
+    }
+    catch (error) {
+        logger_1.logger.error('Graded spreads lookup failed', { error: error.message });
+        res.status(500).json({ error: 'Failed to fetch graded spreads' });
+    }
+});
+router.get('/graded-premium-movers', async (req, res) => {
+    try {
+        const { getTopPremiumMovers } = await Promise.resolve().then(() => __importStar(require('../services/gradedSpreadService')));
+        const days = Math.min(parseInt(String(req.query.days || '30'), 10) || 30, 90);
+        const limit = Math.min(parseInt(String(req.query.limit || '12'), 10) || 12, 50);
+        const movers = await getTopPremiumMovers({ days, limit });
+        res.json({ data: movers, count: movers.length, days });
+    }
+    catch (error) {
+        logger_1.logger.error('Graded premium movers lookup failed', { error: error.message });
+        res.status(500).json({ error: 'Failed to fetch premium movers' });
+    }
+});
+router.get('/cross-grader-arbs', async (req, res) => {
+    try {
+        const { getCrossGraderArbs } = await Promise.resolve().then(() => __importStar(require('../services/gradedSpreadService')));
+        const limit = Math.min(parseInt(String(req.query.limit || '12'), 10) || 12, 50);
+        const rows = await getCrossGraderArbs(limit);
+        res.json({ data: rows, count: rows.length });
+    }
+    catch (error) {
+        logger_1.logger.error('Cross-grader arb lookup failed', { error: error.message });
+        res.status(500).json({ error: 'Failed to fetch cross-grader arbs' });
+    }
+});
+/**
+ * Cards most worth submitting for a PSA 10: high slab premium × easy gem rate.
+ * Optional ?cardIds=a,b,c (or POST body) scopes to a vault / subset.
+ */
+const parseCsvParam = (value) => {
+    if (value == null || value === '')
+        return undefined;
+    if (Array.isArray(value)) {
+        return value.map((s) => String(s).trim()).filter(Boolean);
+    }
+    return String(value)
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+};
+router.get('/grade-worthiness', async (req, res) => {
+    try {
+        const { getGradeWorthinessLeaderboard, parseGradeWorthinessSort } = await Promise.resolve().then(() => __importStar(require('../services/gradeWorthinessService')));
+        const limit = Math.min(parseInt(String(req.query.limit || '40'), 10) || 40, 200);
+        const result = await getGradeWorthinessLeaderboard({
+            limit,
+            cardIds: parseCsvParam(req.query.cardIds),
+            eras: parseCsvParam(req.query.eras),
+            setIds: parseCsvParam(req.query.setIds),
+            sort: parseGradeWorthinessSort(req.query.sort),
+        });
+        res.json({ data: result });
+    }
+    catch (error) {
+        logger_1.logger.error('Grade worthiness lookup failed', { error: error.message });
+        res.status(500).json({ error: 'Failed to fetch grade worthiness' });
+    }
+});
+router.post('/grade-worthiness', async (req, res) => {
+    var _a, _b, _c, _d, _e, _f, _g, _h;
+    try {
+        const { getGradeWorthinessLeaderboard, parseGradeWorthinessSort } = await Promise.resolve().then(() => __importStar(require('../services/gradeWorthinessService')));
+        const limit = Math.min(parseInt(String(req.query.limit || ((_a = req.body) === null || _a === void 0 ? void 0 : _a.limit) || '40'), 10) || 40, 200);
+        const result = await getGradeWorthinessLeaderboard({
+            limit,
+            cardIds: parseCsvParam((_b = req.body) === null || _b === void 0 ? void 0 : _b.cardIds),
+            eras: parseCsvParam((_d = (_c = req.body) === null || _c === void 0 ? void 0 : _c.eras) !== null && _d !== void 0 ? _d : req.query.eras),
+            setIds: parseCsvParam((_f = (_e = req.body) === null || _e === void 0 ? void 0 : _e.setIds) !== null && _f !== void 0 ? _f : req.query.setIds),
+            sort: parseGradeWorthinessSort((_h = (_g = req.body) === null || _g === void 0 ? void 0 : _g.sort) !== null && _h !== void 0 ? _h : req.query.sort),
+        });
+        res.json({ data: result });
+    }
+    catch (error) {
+        logger_1.logger.error('Grade worthiness lookup failed', { error: error.message });
+        res.status(500).json({ error: 'Failed to fetch grade worthiness' });
+    }
+});
+/**
+ * Submit vs buy PSA 10 decision engine.
+ */
+router.get('/submit-vs-buy', async (req, res) => {
+    try {
+        const { getSubmitVsBuyLeaderboard } = await Promise.resolve().then(() => __importStar(require('../services/slabInsightsService')));
+        const limit = Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 100);
+        const result = await getSubmitVsBuyLeaderboard({
+            limit,
+            cardIds: parseCsvParam(req.query.cardIds),
+        });
+        res.json({ data: result });
+    }
+    catch (error) {
+        logger_1.logger.error('Submit vs buy lookup failed', { error: error.message });
+        res.status(500).json({ error: 'Failed to fetch submit vs buy' });
+    }
+});
+router.post('/submit-vs-buy', async (req, res) => {
+    var _a, _b, _c;
+    try {
+        const { getSubmitVsBuyLeaderboard } = await Promise.resolve().then(() => __importStar(require('../services/slabInsightsService')));
+        const limit = Math.min(parseInt(String(req.query.limit || ((_a = req.body) === null || _a === void 0 ? void 0 : _a.limit) || '20'), 10) || 20, 100);
+        const result = await getSubmitVsBuyLeaderboard({
+            limit,
+            cardIds: parseCsvParam((_c = (_b = req.body) === null || _b === void 0 ? void 0 : _b.cardIds) !== null && _c !== void 0 ? _c : req.query.cardIds),
+        });
+        res.json({ data: result });
+    }
+    catch (error) {
+        logger_1.logger.error('Submit vs buy lookup failed', { error: error.message });
+        res.status(500).json({ error: 'Failed to fetch submit vs buy' });
+    }
+});
+/** Set-level slab heatmap / regime map */
+router.get('/set-slab-heatmap', async (req, res) => {
+    try {
+        const { getSetSlabHeatmap } = await Promise.resolve().then(() => __importStar(require('../services/slabInsightsService')));
+        const limit = Math.min(parseInt(String(req.query.limit || '40'), 10) || 40, 100);
+        const minCards = Math.min(parseInt(String(req.query.minCards || '3'), 10) || 3, 50);
+        const result = await getSetSlabHeatmap({ limit, minCards });
+        res.json({ data: result });
+    }
+    catch (error) {
+        logger_1.logger.error('Set slab heatmap failed', { error: error.message });
+        res.status(500).json({ error: 'Failed to fetch set slab heatmap' });
+    }
+});
+/** Population regime / pop-report radar */
+router.get('/pop-regime', async (req, res) => {
+    try {
+        const { getPopRegimeRadar } = await Promise.resolve().then(() => __importStar(require('../services/slabInsightsService')));
+        const days = Math.min(parseInt(String(req.query.days || '30'), 10) || 30, 90);
+        const limit = Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 50);
+        const result = await getPopRegimeRadar({ days, limit });
+        res.json({ data: result });
+    }
+    catch (error) {
+        logger_1.logger.error('Pop regime radar failed', { error: error.message });
+        res.status(500).json({ error: 'Failed to fetch pop regime' });
+    }
+});
+/** Full grade-ladder economics */
+router.get('/grade-ladder', async (req, res) => {
+    try {
+        const { getGradeLadderLeaderboard } = await Promise.resolve().then(() => __importStar(require('../services/slabInsightsService')));
+        const limit = Math.min(parseInt(String(req.query.limit || '15'), 10) || 15, 50);
+        const result = await getGradeLadderLeaderboard({
+            limit,
+            cardIds: parseCsvParam(req.query.cardIds),
+        });
+        res.json({ data: result });
+    }
+    catch (error) {
+        logger_1.logger.error('Grade ladder lookup failed', { error: error.message });
+        res.status(500).json({ error: 'Failed to fetch grade ladder' });
+    }
+});
+/** Crack-and-regrade EV scanner */
+router.get('/crack-regrade', async (req, res) => {
+    try {
+        const { getCrackRegradeScanner } = await Promise.resolve().then(() => __importStar(require('../services/slabInsightsService')));
+        const limit = Math.min(parseInt(String(req.query.limit || '12'), 10) || 12, 50);
+        const result = await getCrackRegradeScanner(limit);
+        res.json({ data: result });
+    }
+    catch (error) {
+        logger_1.logger.error('Crack-regrade scanner failed', { error: error.message });
+        res.status(500).json({ error: 'Failed to fetch crack-regrade opportunities' });
+    }
+});
+/** Mark-to-market for owned slab book lots */
+router.post('/slab-marks', async (req, res) => {
+    var _a;
+    try {
+        const { getSlabMarksForLots } = await Promise.resolve().then(() => __importStar(require('../services/slabInsightsService')));
+        const lots = Array.isArray((_a = req.body) === null || _a === void 0 ? void 0 : _a.lots) ? req.body.lots : [];
+        const normalized = lots
+            .map((l) => ({
+            cardId: String((l === null || l === void 0 ? void 0 : l.cardId) || '').trim(),
+            grader: String((l === null || l === void 0 ? void 0 : l.grader) || 'PSA').trim(),
+            grade: String((l === null || l === void 0 ? void 0 : l.grade) || '10').trim(),
+        }))
+            .filter((l) => l.cardId);
+        const marks = await getSlabMarksForLots(normalized);
+        res.json({ data: marks, count: marks.length });
+    }
+    catch (error) {
+        logger_1.logger.error('Slab marks lookup failed', { error: error.message });
+        res.status(500).json({ error: 'Failed to fetch slab marks' });
+    }
+});
+/**
+ * Manually trigger the nightly slab-price + population refresh. One request per
+ * card serves both tables; data is strictly matched against PriceCharting.
+ * ?all=1 runs the full-catalog sweep instead of the priority queue.
+ */
+router.post('/refresh-graded-data', async (req, res) => {
+    try {
+        const { runGradedRefresh, runAllCardsRefresh } = await Promise.resolve().then(() => __importStar(require('../services/gradedRefreshService')));
+        const { withDbJobLock } = await Promise.resolve().then(() => __importStar(require('../utils/dbJobLock')));
+        const limit = Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 200);
+        const all = String(req.query.all || '') === '1';
+        const result = await withDbJobLock('graded-refresh', () => (all ? runAllCardsRefresh({ limit, delayMs: 1000 }) : runGradedRefresh(limit)), { skipIfBusy: true });
+        res.json({ data: result });
+    }
+    catch (error) {
+        logger_1.logger.error('Graded data refresh failed', { error: error.message });
+        res.status(500).json({ error: 'Failed to refresh graded data' });
     }
 });
 exports.default = router;

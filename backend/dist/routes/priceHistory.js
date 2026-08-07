@@ -308,9 +308,11 @@ router.get('/top-movers', (req, res) => {
     const minAbsDollarChange = 1;
     // Allow sparse history: find baseline on/before period start, within 2x the window
     const baselineSlackDays = Math.max(days * 2, days + 3);
-    const candidatePool = 150;
+    // Large enough that cliff-filtered survivors still fill gainers + losers
+    const candidatePool = 400;
     const cliffPct = (0, topMoversQuality_1.cliffPctForPeriod)(days);
     const minPoints = (0, topMoversQuality_1.minPointsForPeriod)(days);
+    const maxEndpointPct = (0, topMoversQuality_1.maxEndpointChangePctForPeriod)(days);
     const db = (0, database_1.getDb)();
     const sources = `'tcgcsv', 'tcgdex', 'catalog_fallback'`;
     db.get(`SELECT date as maxDate FROM price_history
@@ -421,6 +423,9 @@ router.get('/top-movers', (req, res) => {
                     if (absDollar < minAbsDollarChange)
                         continue;
                     const changePct = ((current.price - prevPrice) / prevPrice) * 100;
+                    // Drop endpoint cliffs before pooling so data errors don't crowd out real movers
+                    if (Math.abs(changePct) > maxEndpointPct)
+                        continue;
                     entries.push({
                         productName: current.productName,
                         currentPrice: current.price,

@@ -25,7 +25,7 @@ router.get('/sets/:setId/cards', async (req, res) => {
         if (!setMeta) {
             return res.status(404).json({ error: 'Set not found', setId });
         }
-        const rows = await (0, setTrackerService_1.fetchSetCatalogRows)(setId);
+        const rows = await (0, setTrackerService_1.fetchSetCatalogRows)(setMeta.id);
         const cards = rows.map((row) => (0, setTrackerService_1.rowToSetCardDto)(row, setMeta));
         const ownedIds = parseOwnedIds(req.query.ownedIds);
         const data = cards.map((card) => ({
@@ -61,11 +61,17 @@ router.get('/sets/:setId/summary', async (req, res) => {
         if (!setMeta) {
             return res.status(404).json({ error: 'Set not found', setId });
         }
-        const rows = await (0, setTrackerService_1.fetchSetCatalogRows)(setId);
+        const rows = await (0, setTrackerService_1.fetchSetCatalogRows)(setMeta.id);
         const cards = rows.map((row) => (0, setTrackerService_1.rowToSetCardDto)(row, setMeta));
         const ownedIds = parseOwnedIds(req.query.ownedIds);
         const wishlistIds = parseOwnedIds(req.query.wishlistIds);
-        const summary = (0, setTrackerService_1.computeSetSummary)(cards, ownedIds, wishlistIds);
+        const hasReverseParam = typeof req.query.ownedReverseIds === 'string';
+        const ownedReverseIds = hasReverseParam ? parseOwnedIds(req.query.ownedReverseIds) : undefined;
+        const includeReverseInCost = req.query.includeReverseInCost === 'true' || hasReverseParam;
+        const summary = (0, setTrackerService_1.computeSetSummary)(cards, ownedIds, wishlistIds, {
+            ownedReverseIds,
+            includeReverseInCost,
+        });
         res.json({ set: setMeta, summary });
     }
     catch (error) {
@@ -78,13 +84,13 @@ router.get('/sets/:setId/summary', async (req, res) => {
 });
 /**
  * GET /api/cards/sets/:setId/value-history — aggregated set value over time
- * Query: range = 30d | 90d | 1y | all
+ * Query: range = 1d | 7d | 30d | 90d | all
  */
 router.get('/sets/:setId/value-history', async (req, res) => {
     try {
         const { setId } = req.params;
-        const range = req.query.range || '90d';
-        const validRanges = ['30d', '90d', '1y', 'all'];
+        const range = req.query.range || '30d';
+        const validRanges = ['1d', '7d', '30d', '90d', 'all'];
         if (!(setId === null || setId === void 0 ? void 0 : setId.trim())) {
             return res.status(400).json({ error: 'Set ID is required' });
         }
@@ -98,14 +104,14 @@ router.get('/sets/:setId/value-history', async (req, res) => {
         if (!setMeta) {
             return res.status(404).json({ error: 'Set not found', setId });
         }
-        const history = await (0, setTrackerService_1.fetchSetValueHistory)(setId, range);
+        const history = await (0, setTrackerService_1.fetchSetValueHistory)(setMeta.id, range);
         res.json({
             setId: setMeta.id,
             setName: setMeta.name,
             range,
             data: history,
             count: history.length,
-            disclaimer: 'Values sum cards with price history only; sparse dates use last-known price carry-forward.',
+            disclaimer: 'Master set value sums the catalog checklist plus reverse-holo finishes when priced; sparse dates use last-known price carry-forward.',
         });
     }
     catch (error) {

@@ -9,6 +9,7 @@ exports.pickPreferredSourceRow = pickPreferredSourceRow;
 exports.isGradualMove = isGradualMove;
 exports.cliffPctForPeriod = cliffPctForPeriod;
 exports.minPointsForPeriod = minPointsForPeriod;
+exports.maxEndpointChangePctForPeriod = maxEndpointChangePctForPeriod;
 /** Prefer live TCGdex snapshots over catalog fallback / legacy tcgcsv. */
 exports.SOURCE_PRIORITY = ['tcgdex', 'catalog_fallback', 'tcgcsv'];
 function sourceRank(source) {
@@ -54,4 +55,18 @@ function cliffPctForPeriod(days) {
 }
 function minPointsForPeriod(days) {
     return days <= 1 ? 2 : 3;
+}
+/**
+ * Soft ceiling on endpoint-to-endpoint |%| before path filtering.
+ * Without this, the candidate pool fills with data-error cliffs (e.g. +100000%)
+ * and gradual filtering rejects every gainer for 7d/30d windows.
+ */
+function maxEndpointChangePctForPeriod(days) {
+    if (days <= 1)
+        return 200;
+    // Compound headroom under cliffPct with ~daily steps, hard-capped for sanity.
+    const cliff = cliffPctForPeriod(days);
+    const steps = Math.min(Math.max(days, minPointsForPeriod(days) - 1), 10);
+    const compounded = (Math.pow(1 + cliff / 100, steps) - 1) * 100;
+    return Math.min(compounded, 400);
 }

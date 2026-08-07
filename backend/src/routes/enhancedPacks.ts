@@ -4,8 +4,11 @@ import { enhancedPackService } from '../services/enhancedPackService';
 import { setCodeService } from '../services/setCodeService';
 import { logger } from '../utils/logger';
 import { pokemonApiClient } from '../services/pokemonApiClient';
+import { authenticate } from '../middleware/auth';
+import { requireAdmin } from '../middleware/admin';
 
 const router = Router();
+const adminOnly = [authenticate, requireAdmin];
 
 /**
  * Get available sets for pack opening
@@ -161,7 +164,7 @@ router.get('/stats/:setId', async (req, res) => {
 /**
  * Debug endpoint: Get set code service status
  */
-router.get('/debug/set-codes', async (req, res) => {
+router.get('/debug/set-codes', ...adminOnly, async (req, res) => {
   try {
     const stats = setCodeService.getSetMappingStats();
     const isInitialized = setCodeService.isInitialized();
@@ -185,7 +188,7 @@ router.get('/debug/set-codes', async (req, res) => {
 /**
  * Debug endpoint: Test set normalization
  */
-router.get('/debug/normalize-set/:setId', async (req, res) => {
+router.get('/debug/normalize-set/:setId', ...adminOnly, async (req, res) => {
   try {
     const { setId } = req.params;
     const { setName } = req.query;
@@ -228,7 +231,7 @@ router.get('/debug/normalize-set/:setId', async (req, res) => {
 /**
  * Debug endpoint: Get all Pokemon TCG API sets
  */
-router.get('/debug/all-sets', async (req, res) => {
+router.get('/debug/all-sets', ...adminOnly, async (req, res) => {
   try {
     const sets = await pokemonApiClient.getSets(1000);
     
