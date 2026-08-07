@@ -3,8 +3,14 @@ import { buildApiUrl } from '../config/env';
 export interface PopulationCompanyResult {
   grader: 'psa' | 'cgc' | 'beckett';
   total: number | null;
+  grade10?: number | null;
+  grade9?: number | null;
+  pop?: number[] | null;
   status: 'ok' | 'unavailable' | 'error';
   source: 'cache' | 'scrape' | 'none';
+  productId?: string | null;
+  verified?: boolean;
+  matchScore?: number | null;
   message?: string;
 }
 
@@ -18,6 +24,10 @@ export interface PopulationLookupResponse {
   variant?: string;
   fetchedAt: number;
   cached: boolean;
+  stale: boolean;
+  ageHours: number | null;
+  productId: string | null;
+  verified: boolean;
   companies: {
     psa: PopulationCompanyResult;
     cgc: PopulationCompanyResult;
