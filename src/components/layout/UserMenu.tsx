@@ -1,17 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, LogOut, Settings, User, Vault } from 'lucide-react';
-import { authService, User as AuthUser } from '../../services/authService';
+import { ChevronDown, LogIn, LogOut, Settings, UserPlus, Vault } from 'lucide-react';
+import { useAuth } from '../../hooks/useAuth';
+import { env } from '../../config/env';
+import { useToast } from '../common/Toast';
 
 export const UserMenu: React.FC = () => {
   const navigate = useNavigate();
+  const { user, logout, openAuthModal } = useAuth();
+  const { showToast } = useToast();
   const [open, setOpen] = useState(false);
-  const [user, setUser] = useState<AuthUser | null>(null);
   const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setUser(authService.getUser());
-  }, []);
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -70,6 +69,10 @@ export const UserMenu: React.FC = () => {
           <button
             type="button"
             role="menuitem"
+            onClick={() => {
+              navigate('/settings');
+              setOpen(false);
+            }}
             className="flex w-full items-center gap-2 px-3 py-2 text-sm text-ink-secondary hover:bg-surface-hover"
           >
             <Settings className="h-4 w-4 text-ink-muted" />
@@ -80,8 +83,7 @@ export const UserMenu: React.FC = () => {
               type="button"
               role="menuitem"
               onClick={() => {
-                authService.logout();
-                setUser(null);
+                void logout().then(() => showToast('Signed out — guest data restored', 'info'));
                 setOpen(false);
               }}
               className="flex w-full items-center gap-2 px-3 py-2 text-sm text-loss hover:bg-loss-muted"
@@ -90,11 +92,33 @@ export const UserMenu: React.FC = () => {
               Sign out
             </button>
           )}
-          {!user && (
-            <div className="flex items-center gap-2 px-3 py-2 text-xs text-ink-muted">
-              <User className="h-3.5 w-3.5" />
-              Sign in when backend auth is enabled
-            </div>
+          {!user && env.enableAuth && (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  openAuthModal('login');
+                  setOpen(false);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-accent hover:bg-accent-muted"
+              >
+                <LogIn className="h-3.5 w-3.5" />
+                Sign in
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  openAuthModal('register');
+                  setOpen(false);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-ink-secondary hover:bg-surface-hover"
+              >
+                <UserPlus className="h-3.5 w-3.5" />
+                Create account
+              </button>
+            </>
           )}
         </div>
       )}

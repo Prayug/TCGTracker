@@ -24,15 +24,15 @@ createRoot(rootEl).render(
   <StrictMode>
     <BrowserRouter>
       <ThemeProvider>
-        <AuthProvider>
-          <MotionConfig reducedMotion="user">
-            <ToastProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <MotionConfig reducedMotion="user">
               <ErrorBoundary>
                 <App />
               </ErrorBoundary>
-            </ToastProvider>
-          </MotionConfig>
-        </AuthProvider>
+            </MotionConfig>
+          </AuthProvider>
+        </ToastProvider>
       </ThemeProvider>
     </BrowserRouter>
   </StrictMode>
