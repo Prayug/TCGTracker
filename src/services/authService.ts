@@ -5,6 +5,7 @@ export interface User {
   id: number;
   username: string;
   email: string;
+  email_verified?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -12,6 +13,10 @@ export interface User {
 export interface AuthResponse {
   user: User;
   token?: string;
+  requiresVerification?: boolean;
+  emailSent?: boolean;
+  verifyUrl?: string;
+  message?: string;
 }
 
 class AuthService {
@@ -23,8 +28,8 @@ class AuthService {
       email,
       password,
     });
-
-    this.setUser(response.data.user);
+    // Never persist a session on register — email must be verified first.
+    this.clearUser();
     return response.data;
   }
 
@@ -35,6 +40,31 @@ class AuthService {
     });
 
     this.setUser(response.data.user);
+    return response.data;
+  }
+
+  async verifyEmail(token: string): Promise<AuthResponse> {
+    const response = await axios.post<AuthResponse>(buildApiUrl('/api/auth/verify-email'), {
+      token,
+    });
+    if (response.data.user) {
+      this.setUser(response.data.user);
+    }
+    return response.data;
+  }
+
+  async resendVerification(email: string): Promise<{
+    success: boolean;
+    emailSent?: boolean;
+    verifyUrl?: string;
+    message?: string;
+  }> {
+    const response = await axios.post<{
+      success: boolean;
+      emailSent?: boolean;
+      verifyUrl?: string;
+      message?: string;
+    }>(buildApiUrl('/api/auth/resend-verification'), { email });
     return response.data;
   }
 
@@ -65,12 +95,16 @@ class AuthService {
   }
 
   async updateProfile(username?: string, email?: string): Promise<User> {
-    const response = await axios.put<{ user: User }>(buildApiUrl('/api/auth/update'), {
-      username,
-      email,
-    });
+    const response = await axios.put<{ user: User; requiresVerification?: boolean }>(
+      buildApiUrl('/api/auth/update'),
+      { username, email }
+    );
 
-    this.setUser(response.data.user);
+    if (response.data.requiresVerification) {
+      this.clearUser();
+    } else {
+      this.setUser(response.data.user);
+    }
     return response.data.user;
   }
 
