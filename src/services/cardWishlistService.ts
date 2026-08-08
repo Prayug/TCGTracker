@@ -1,6 +1,7 @@
 import { PokemonCard } from '../types/pokemon';
 import { OnePieceCard } from '../types/onepiece';
 import { getCardPrice } from '../utils/cardPrice';
+import { syncLocalListsToServer, type WatchlistSyncItem } from './watchlistSyncService';
 
 export type WishlistPriority = 'high' | 'medium' | 'low';
 
@@ -37,6 +38,60 @@ class CardWishlistService {
 
   private save(items: WishlistItem[], game?: 'pokemon' | 'onepiece') {
     localStorage.setItem(storageKey(game), JSON.stringify(items));
+    notifyUpdated();
+    void this.syncWishlistToServer();
+  }
+
+  async syncWishlistToServer(): Promise<void> {
+    const items: WatchlistSyncItem[] = [
+      ...this.getItems('pokemon'),
+      ...this.getItems('onepiece'),
+    ].map((item) => ({
+      id: item.id,
+      cardId: item.card.id,
+      cardName: item.card.name,
+      game: item.game,
+      listType: 'wishlist' as const,
+      priority: item.priority,
+      targetPrice: item.targetPrice,
+      notes: item.notes,
+      addedAt: item.addedAt,
+      card: item.card,
+    }));
+    if (items.length === 0) {
+      const { syncListTypeWipe } = await import('./watchlistSyncService');
+      await syncListTypeWipe('wishlist');
+      return;
+    }
+    await syncLocalListsToServer(items);
+  }
+
+  /**
+   * Replace local wishlist from remote (no push). Used by login sync when
+   * remote wins.
+   */
+  replaceWishlistFromRemote(items: WatchlistSyncItem[]): void {
+    const mapped: WishlistItem[] = items.map((item) => {
+      const game: 'pokemon' | 'onepiece' =
+        item.game === 'onepiece' ? 'onepiece' : 'pokemon';
+      const card = (item.card as PokemonCard | OnePieceCard | undefined) ?? ({
+        id: item.cardId,
+        name: item.cardName,
+      } as PokemonCard);
+      return {
+        id: item.id || `wish-${item.cardId}`,
+        card,
+        addedAt: item.addedAt ?? new Date().toISOString(),
+        targetPrice: item.targetPrice,
+        priority: (item.priority as WishlistPriority) || 'medium',
+        notes: item.notes,
+        game,
+      };
+    });
+    const pokemon = mapped.filter((i) => i.game !== 'onepiece');
+    const onepiece = mapped.filter((i) => i.game === 'onepiece');
+    localStorage.setItem(STORAGE_KEY_POKEMON, JSON.stringify(pokemon));
+    localStorage.setItem(STORAGE_KEY_ONEPIECE, JSON.stringify(onepiece));
     notifyUpdated();
   }
 
