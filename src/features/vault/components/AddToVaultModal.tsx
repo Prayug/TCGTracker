@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PokemonCard, CardCondition } from '../../../types/pokemon';
+import { GradingResult } from '../../../types/grading';
 import { vaultService } from '../../../services/vaultService';
 import { markOnboardingStep } from '../../../components/common/OnboardingChecklist';
 import { Modal } from '../../../components/common/Modal';
@@ -13,6 +14,14 @@ interface AddToVaultModalProps {
   onClose: () => void;
   onSuccess?: () => void;
   game?: 'pokemon' | 'onepiece';
+  /** Prefill condition when opening (e.g. from AI grading). */
+  initialCondition?: CardCondition;
+  /** Prefill notes when opening. */
+  initialNotes?: string;
+  /** Prefill purchase price; falls back to market when omitted. */
+  initialPurchasePrice?: number;
+  /** Attach AI grading result to the vault entry on save. */
+  gradingResult?: GradingResult;
 }
 
 export const AddToVaultModal: React.FC<AddToVaultModalProps> = ({
@@ -21,6 +30,10 @@ export const AddToVaultModal: React.FC<AddToVaultModalProps> = ({
   onClose,
   onSuccess,
   game = 'pokemon',
+  initialCondition,
+  initialNotes,
+  initialPurchasePrice,
+  gradingResult,
 }) => {
   const [purchasePrice, setPurchasePrice] = useState('');
   const [quantity, setQuantity] = useState(1);
@@ -30,11 +43,27 @@ export const AddToVaultModal: React.FC<AddToVaultModalProps> = ({
   const { showToast } = useToast();
 
   useEffect(() => {
-    if (card) {
-      const marketPrice = card.marketPrice || pokemonApi.extractCardPrice(card);
-      setPurchasePrice(marketPrice > 0 ? marketPrice.toFixed(2) : '');
-    }
-  }, [card]);
+    if (!isOpen || !card) return;
+
+    const marketPrice = card.marketPrice || pokemonApi.extractCardPrice(card);
+    const pref =
+      initialPurchasePrice != null &&
+      Number.isFinite(initialPurchasePrice) &&
+      initialPurchasePrice >= 0
+        ? initialPurchasePrice
+        : marketPrice;
+    setPurchasePrice(pref > 0 ? pref.toFixed(2) : '');
+    setQuantity(1);
+    setCondition(initialCondition ?? 'raw');
+    setNotes(initialNotes ?? '');
+  }, [isOpen, card, initialCondition, initialNotes, initialPurchasePrice]);
+
+  const resetForm = () => {
+    setPurchasePrice('');
+    setQuantity(1);
+    setCondition('raw');
+    setNotes('');
+  };
 
   const handleSubmit = () => {
     if (!card) return;
@@ -50,15 +79,22 @@ export const AddToVaultModal: React.FC<AddToVaultModalProps> = ({
     setIsSubmitting(true);
 
     try {
-      vaultService.addToVault(card, price, quantity, condition, notes || undefined, game);
+      const entry = vaultService.addToVault(
+        card,
+        price,
+        quantity,
+        condition,
+        notes || undefined,
+        game
+      );
+      if (gradingResult) {
+        vaultService.updateVaultCard(entry.id, { gradingResult }, game);
+      }
       markOnboardingStep('vault');
 
       showToast(`Added ${quantity}x ${card.name} to your vault!`, 'success');
 
-      setPurchasePrice('');
-      setQuantity(1);
-      setCondition('raw');
-      setNotes('');
+      resetForm();
 
       if (onSuccess) onSuccess();
       onClose();
@@ -71,10 +107,7 @@ export const AddToVaultModal: React.FC<AddToVaultModalProps> = ({
   };
 
   const handleClose = () => {
-    setPurchasePrice('');
-    setQuantity(1);
-    setCondition('raw');
-    setNotes('');
+    resetForm();
     onClose();
   };
 

@@ -211,7 +211,12 @@ export function PredictionDetailPanel({ prediction, card, window: predictionWind
                   <div>
                     <h4 className="mb-1 text-xs font-medium text-violet-300">Grading Premium</h4>
                     <p className="text-xs text-ink-muted">
-                      Estimated +{Math.round(prediction.gradingPremiumPotential * 100)}% grading premium potential
+                      Estimated +{Math.round(prediction.gradingPremiumPotential * 100)}% grading
+                      premium potential
+                      {prediction.gradingScore != null
+                        ? ` · grade-worthiness score ${Math.round(prediction.gradingScore)}/100`
+                        : ''}
+                      . Open the card on Prices → Slab market for PSA 10 fees, pop, and comps.
                     </p>
                   </div>
                 </div>

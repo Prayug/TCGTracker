@@ -82,6 +82,16 @@ export const AVAILABLE_RARITIES = [
   'Rare Holo VSTAR',
 ] as const;
 
+/** One Piece catalog rarity codes (investment-leaning defaults exclude C/UC/PR). */
+export const AVAILABLE_OP_RARITIES = [
+  'R',
+  'L',
+  'SR',
+  'SEC',
+  'TR',
+  'DON!!',
+] as const;
+
 /** Keep in sync with backend/src/utils/setEra.ts ERA_GROUPS (minus promo/other noise). */
 export const AVAILABLE_ERAS = [
   { id: 'mega', label: 'Mega Evolution' },
@@ -324,15 +334,55 @@ export interface PredictionsResponse {
   data: CardPrediction[];
   count: number;
   window: string;
+  requestedWindow?: string;
+  horizonSupport?: HorizonSupportStatus;
+  experimental?: boolean;
   modelVersion: string;
 }
 
 export interface OverviewResponse extends MarketOverview {}
 
+export type HorizonDays = 7 | 30 | 90 | 180 | 365;
+
+export interface HorizonSupportStatus {
+  historyDays: number;
+  historyMinDate: string | null;
+  historyMaxDate: string | null;
+  supported: HorizonDays[];
+  experimental: HorizonDays[];
+  unsupported: HorizonDays[];
+  requirements: Record<HorizonDays, number>;
+}
+
+export interface CalibrationHorizonStatus {
+  horizon: number;
+  sampleCount: number;
+  bias: number | null;
+  marketMedianReturn: number | null;
+  builtAt: string | null;
+}
+
+export interface DataQualityCheckResult {
+  checkName: string;
+  severity: 'info' | 'warn' | 'error';
+  status: 'pass' | 'fail' | 'warn';
+  metricValue: number;
+  threshold: number | null;
+  details: Record<string, unknown>;
+}
+
+export interface DataQualityStatusResponse {
+  data: DataQualityCheckResult[];
+  runAt: string | null;
+  passed: number;
+  warned: number;
+  failed: number;
+}
+
 export type SortField = 'return' | 'confidence' | 'price' | 'name' | 'risk';
 export type SortDirection = 'asc' | 'desc';
 
 export interface InsightsTabType {
-  id: 'overview' | 'cards' | 'backtest' | 'forward';
+  id: 'overview' | 'cards' | 'backtest' | 'forward' | 'health';
   label: string;
 }
