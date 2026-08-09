@@ -107,10 +107,17 @@ export function PredictionCard({ prediction, card, window: predictionWindow = '9
           {prediction.gradingPremiumPotential != null &&
             prediction.gradingPremiumPotential >= 0.25 && (
               <span
-                title="High grading premium potential (AI grade quality + low PSA-10 pop)"
+                title={
+                  prediction.gradingScore != null
+                    ? `Grade-worthiness score ${Math.round(prediction.gradingScore)}/100 (AI grade quality + PSA-10 scarcity)`
+                    : 'High grading premium potential (AI grade quality + low PSA-10 pop)'
+                }
                 className="rounded-full border border-amber-400/40 bg-black/75 px-2 py-0.5 font-mono text-[10px] font-semibold tabular-nums text-amber-200"
               >
-                Grade +{Math.round(prediction.gradingPremiumPotential * 100)}%
+                {prediction.gradingScore != null
+                  ? `Grade ${Math.round(prediction.gradingScore)}`
+                  : 'Grade'}{' '}
+                +{Math.round(prediction.gradingPremiumPotential * 100)}%
               </span>
             )}
         </div>

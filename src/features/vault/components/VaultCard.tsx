@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { VaultCard as VaultCardType } from '../../../types/pokemon';
-import { Trash2, MoreHorizontal, Pencil } from 'lucide-react';
+import { Trash2, MoreHorizontal, Pencil, DollarSign } from 'lucide-react';
 import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
 import { vaultService } from '../../../services/vaultService';
+import { closeLot, fetchLots, type PortfolioLot } from '../../../services/portfolioApiService';
+import { useAuth } from '../../../hooks/useAuth';
 import { GradeBadge } from '../../grading/components/GradeBadge';
 import { proxyImageUrl, formatCurrency, formatPercent } from '../../../utils/cardDisplay';
 import { hasUsableCardImage, withResolvedCardImages } from '../../../utils/tcgPlayerImages';
@@ -13,6 +15,7 @@ import {
   isAssumedCost,
 } from '../../../utils/vaultCost';
 import { cn } from '@/lib/utils';
+import { getCardPrice } from '../../../utils/cardPrice';
 
 interface VaultCardProps {
   vaultCard: VaultCardType;
@@ -23,6 +26,7 @@ interface VaultCardProps {
   forceEdit?: boolean;
   onEditHandled?: () => void;
   view?: 'table' | 'grid';
+  onSold?: (realizedPnl: number | null) => void;
 }
 
 function isSystemNote(notes?: string): boolean {
@@ -65,12 +69,19 @@ export const VaultCard: React.FC<VaultCardProps> = ({
   forceEdit,
   onEditHandled,
   view = 'table',
+  onSold,
 }) => {
+  const { isAuthenticated } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [editQuantity, setEditQuantity] = useState(vaultCard.quantity);
   const [editPurchasePrice, setEditPurchasePrice] = useState(String(vaultCard.purchasePrice));
   const [editNotes, setEditNotes] = useState(vaultCard.notes || '');
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+  const [showSellModal, setShowSellModal] = useState(false);
+  const [salePrice, setSalePrice] = useState('');
+  const [sellBusy, setSellBusy] = useState(false);
+  const [sellError, setSellError] = useState<string | null>(null);
+  const [matchedLot, setMatchedLot] = useState<PortfolioLot | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [imgFailed, setImgFailed] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -116,6 +127,64 @@ export const VaultCard: React.FC<VaultCardProps> = ({
     });
     setIsEditing(false);
     onUpdate();
+  };
+
+  const openSellModal = async () => {
+    setMenuOpen(false);
+    setSellError(null);
+    setMatchedLot(null);
+    const market = getCardPrice(rawCard);
+    setSalePrice(market > 0 ? market.toFixed(2) : String(vaultCard.purchasePrice || ''));
+    setShowSellModal(true);
+    try {
+      const lots = await fetchLots(true);
+      const cardId = rawCard.id;
+      const matches = lots.filter((l) => l.card_id === cardId);
+      const byCondition = matches.find(
+        (l) => (l.condition || 'raw') === (condition || 'raw')
+      );
+      setMatchedLot(byCondition ?? matches[0] ?? null);
+    } catch {
+      setSellError('Could not load open lots from the server.');
+    }
+  };
+
+  /**
+   * Sync caveat: closeLot marks the server lot sold but does not rewrite
+   * user_collections. We reduce/remove the local vault entry so the next
+   * vault sync does not recreate an open lot for the sold quantity. Closed
+   * lots are preserved server-side (sync only deletes sold_at IS NULL).
+   */
+  const handleConfirmSell = async () => {
+    if (!matchedLot) {
+      setSellError('No open lot found for this holding. Sync your vault first.');
+      return;
+    }
+    const price = parseFloat(salePrice);
+    if (!Number.isFinite(price) || price < 0) {
+      setSellError('Enter a valid sale price.');
+      return;
+    }
+    setSellBusy(true);
+    setSellError(null);
+    try {
+      const closed = await closeLot(matchedLot.id, price);
+      const soldQty = matchedLot.quantity;
+      if (vaultCard.quantity <= soldQty) {
+        vaultService.removeFromVault(vaultCard.id);
+      } else {
+        vaultService.updateVaultCard(vaultCard.id, {
+          quantity: vaultCard.quantity - soldQty,
+        });
+      }
+      setShowSellModal(false);
+      onUpdate();
+      onSold?.(closed.realized_pnl ?? null);
+    } catch (err) {
+      setSellError(err instanceof Error ? err.message : 'Failed to close lot');
+    } finally {
+      setSellBusy(false);
+    }
   };
 
   const purchasedLabel = new Date(purchaseDate).toLocaleDateString('en-US', {
@@ -200,6 +269,7 @@ export const VaultCard: React.FC<VaultCardProps> = ({
               setEditPurchasePrice(String(vaultCard.purchasePrice));
               setEditNotes(notes || '');
             }}
+            onSell={isAuthenticated ? () => void openSellModal() : undefined}
           />
         ) : null}
         <ConfirmDialog
@@ -214,6 +284,18 @@ export const VaultCard: React.FC<VaultCardProps> = ({
           confirmLabel="Remove"
           variant="destructive"
         />
+        {showSellModal ? (
+          <SellLotModal
+            title={title}
+            lot={matchedLot}
+            salePrice={salePrice}
+            setSalePrice={setSalePrice}
+            busy={sellBusy}
+            error={sellError}
+            onConfirm={() => void handleConfirmSell()}
+            onCancel={() => setShowSellModal(false)}
+          />
+        ) : null}
       </>
     );
   }
@@ -383,6 +465,17 @@ export const VaultCard: React.FC<VaultCardProps> = ({
                 <Pencil className="h-3.5 w-3.5" />
                 Edit
               </button>
+              {isAuthenticated ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-ink-secondary hover:bg-surface-hover"
+                  onClick={() => void openSellModal()}
+                >
+                  <DollarSign className="h-3.5 w-3.5" />
+                  Sell
+                </button>
+              ) : null}
               <button
                 type="button"
                 role="menuitem"
@@ -421,6 +514,7 @@ export const VaultCard: React.FC<VaultCardProps> = ({
             setEditPurchasePrice(String(vaultCard.purchasePrice));
             setEditNotes(notes || '');
           }}
+          onSell={isAuthenticated ? () => void openSellModal() : undefined}
         />
       ) : null}
 
@@ -436,9 +530,96 @@ export const VaultCard: React.FC<VaultCardProps> = ({
         confirmLabel="Remove"
         variant="destructive"
       />
+
+      {showSellModal ? (
+        <SellLotModal
+          title={title}
+          lot={matchedLot}
+          salePrice={salePrice}
+          setSalePrice={setSalePrice}
+          busy={sellBusy}
+          error={sellError}
+          onConfirm={() => void handleConfirmSell()}
+          onCancel={() => setShowSellModal(false)}
+        />
+      ) : null}
     </>
   );
 };
+
+function SellLotModal({
+  title,
+  lot,
+  salePrice,
+  setSalePrice,
+  busy,
+  error,
+  onConfirm,
+  onCancel,
+}: {
+  title: string;
+  lot: PortfolioLot | null;
+  salePrice: string;
+  setSalePrice: (s: string) => void;
+  busy: boolean;
+  error: string | null;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const estPnl =
+    lot && Number.isFinite(parseFloat(salePrice))
+      ? (parseFloat(salePrice) - lot.cost_basis) * lot.quantity
+      : null;
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4">
+      <div className="w-full max-w-md rounded-2xl border border-border-strong bg-surface-overlay p-6 shadow-elevated">
+        <h3 className="text-lg font-semibold text-ink-primary">Sell {title}</h3>
+        <p className="mt-1 text-sm text-ink-muted">
+          {lot
+            ? `Close lot · ${lot.quantity}× · cost ${formatCurrency(lot.cost_basis)}/card`
+            : 'Looking up open lot…'}
+        </p>
+        <label className="mt-4 block">
+          <span className="mb-1.5 block text-xs text-ink-muted">Sale price / card ($)</span>
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            value={salePrice}
+            onChange={(e) => setSalePrice(e.target.value)}
+            className="input h-10 tabular-nums"
+            autoFocus
+          />
+        </label>
+        {estPnl != null ? (
+          <p
+            className={cn(
+              'mt-2 text-sm tabular-nums',
+              estPnl >= 0 ? 'text-gain' : 'text-loss'
+            )}
+          >
+            Est. realized P/L: {formatCurrency(estPnl, { signed: true })}
+          </p>
+        ) : null}
+        {error ? <p className="mt-2 text-sm text-loss">{error}</p> : null}
+        <div className="mt-5 flex gap-2">
+          <button
+            type="button"
+            className="btn-primary flex-1 justify-center"
+            disabled={busy || !lot}
+            onClick={onConfirm}
+          >
+            {busy ? 'Closing…' : 'Confirm sale'}
+          </button>
+          <button type="button" className="btn-secondary" disabled={busy} onClick={onCancel}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function EditPanel({
   vaultCardId,
@@ -454,6 +635,7 @@ function EditPanel({
   notes,
   onSave,
   onCancel,
+  onSell,
 }: {
   vaultCardId: string;
   title: string;
@@ -469,6 +651,7 @@ function EditPanel({
   notes: string;
   onSave: () => void;
   onCancel: () => void;
+  onSell?: () => void;
 }) {
   void quantity;
   void purchasePrice;
@@ -518,13 +701,18 @@ function EditPanel({
         </div>
       </div>
       {userNotes ? <p className="mt-2 max-w-xl text-xs text-ink-muted">{userNotes}</p> : null}
-      <div className="mt-3 flex gap-2">
+      <div className="mt-3 flex flex-wrap gap-2">
         <button type="button" onClick={onSave} className="btn-primary h-8 px-3 text-xs">
           Save
         </button>
         <button type="button" onClick={onCancel} className="btn-ghost h-8">
           Cancel
         </button>
+        {onSell ? (
+          <button type="button" onClick={onSell} className="btn-secondary h-8 px-3 text-xs">
+            Sell
+          </button>
+        ) : null}
       </div>
     </div>
   );

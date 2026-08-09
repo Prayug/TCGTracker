@@ -32,9 +32,21 @@ function getActivityKey(game?: 'pokemon' | 'onepiece'): string {
   return ACTIVITY_KEY_POKEMON;
 }
 
+function asVaultCardArray(value: unknown): VaultCard[] {
+  if (Array.isArray(value)) return value as VaultCard[];
+  if (value && typeof value === 'object') {
+    const items = (value as { items?: unknown; cards?: unknown }).items
+      ?? (value as { cards?: unknown }).cards;
+    if (Array.isArray(items)) return items as VaultCard[];
+  }
+  return [];
+}
+
 function hydrateVaultCardImages(cards: VaultCard[]): { cards: VaultCard[]; changed: boolean } {
+  if (!Array.isArray(cards)) return { cards: [], changed: false };
   let changed = false;
   const next = cards.map((entry) => {
+    if (!entry?.card) return entry;
     if (hasUsableCardImage(entry.card?.images)) return entry;
     const card = withResolvedCardImages(entry.card);
     if (card === entry.card) return entry;
@@ -50,12 +62,12 @@ class VaultService {
     try {
       const key = getStorageKey(game);
       const stored = localStorage.getItem(key);
-      const cards = stored ? (JSON.parse(stored) as VaultCard[]) : [];
+      const cards = stored ? asVaultCardArray(JSON.parse(stored)) : [];
 
       if (cards.length === 0 && (!game || game === 'pokemon')) {
         const legacy = localStorage.getItem(VAULT_STORAGE_KEY_LEGACY);
         if (legacy) {
-          const legacyCards = JSON.parse(legacy) as VaultCard[];
+          const legacyCards = asVaultCardArray(JSON.parse(legacy));
           const migrated = legacyCards.map((c) => ({ ...c, game: 'pokemon' as const }));
           if (migrated.length > 0) {
             const hydrated = hydrateVaultCardImages(migrated);
@@ -205,6 +217,12 @@ class VaultService {
     }
   }
 
+  /** Replace the entire vault (used when relinking Collectr IDs to catalog IDs). */
+  replaceVaultCards(vaultCards: VaultCard[], game?: 'pokemon' | 'onepiece'): void {
+    this.saveVaultCards(vaultCards, game);
+    void syncVaultToServer(vaultCards);
+  }
+
   clearVault(game?: 'pokemon' | 'onepiece'): void {
     const key = getStorageKey(game);
     localStorage.removeItem(key);
@@ -219,11 +237,19 @@ class VaultService {
 
   importVault(jsonData: string, game?: 'pokemon' | 'onepiece'): void {
     try {
-      const vaultCards = JSON.parse(jsonData) as VaultCard[];
+      const vaultCards = asVaultCardArray(JSON.parse(jsonData));
+      if (vaultCards.length === 0) {
+        throw new Error('Vault JSON must be a non-empty array of holdings');
+      }
+      if (!vaultCards.every((e) => e && typeof e === 'object' && e.card && e.id)) {
+        throw new Error('Each holding needs id and card fields');
+      }
       const { cards } = hydrateVaultCardImages(vaultCards);
       const normalized = cards.map((entry) => ({
         ...entry,
+        notes: entry.notes ?? undefined,
         purchasePrice: resolvePurchasePrice(entry.card, entry.purchasePrice),
+        game: entry.game || game || 'pokemon',
       }));
       this.saveVaultCards(normalized, game);
       void syncVaultToServer(normalized);
