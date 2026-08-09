@@ -178,6 +178,10 @@ export function MarketChapter() {
           cta="Set an alert"
         />
       </div>
+
+      <div className="mt-14">
+        <TopMovers />
+      </div>
     </section>
   );
 }
@@ -195,24 +199,15 @@ export function VaultChapter() {
         body="Holdings, set completion, binders and wishlists in one place — with the market value of everything you own, recalculated live."
       />
 
-      <div className="mt-12 grid gap-4 md:grid-cols-6">
+      <div className="mt-12">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-60px' }}
           transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
-          className="card-chrome rounded-2xl md:col-span-4"
+          className="card-chrome rounded-2xl"
         >
           <PortfolioSummary />
-        </motion.div>
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-60px' }}
-          transition={{ duration: 0.55, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
-          className="card-chrome rounded-2xl md:col-span-2"
-        >
-          <TopMovers />
         </motion.div>
       </div>
 
