@@ -30,6 +30,13 @@ import {
   holdingProfit,
   isAssumedCost,
 } from '../../../utils/vaultCost';
+import { useAuth } from '../../../hooks/useAuth';
+import {
+  fetchPortfolioStats,
+  type PortfolioStatsSummary,
+} from '../../../services/portfolioApiService';
+import { formatCurrency } from '../../../utils/cardDisplay';
+import { GradeWorthinessList } from '../../market/components/GradeWorthinessList';
 
 interface VaultViewProps {
   onOpenSet?: (setId: string) => void;
@@ -51,6 +58,7 @@ const CONDITION_OPTIONS: { value: '' | CardCondition; label: string }[] = [
 
 export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
   const { game, isPokemon } = useGame();
+  const { isAuthenticated } = useAuth();
   const { showToast } = useToast();
   const [vaultCards, setVaultCards] = useState<VaultCardType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -58,6 +66,7 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
   const [panel, setPanel] = useState<VaultPanel>('holdings');
   const [overflowOpen, setOverflowOpen] = useState(false);
   const overflowRef = useRef<HTMLDivElement>(null);
+  const [remoteStats, setRemoteStats] = useState<PortfolioStatsSummary | null>(null);
 
   const [search, setSearch] = useState('');
   const [setFilter, setSetFilter] = useState('');
@@ -74,12 +83,26 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
     setIsLoading(false);
   }, [game]);
 
+  const loadRemoteStats = useCallback(() => {
+    if (!isAuthenticated) {
+      setRemoteStats(null);
+      return;
+    }
+    void fetchPortfolioStats()
+      .then((s) => setRemoteStats(s))
+      .catch(() => setRemoteStats(null));
+  }, [isAuthenticated]);
+
   useEffect(() => {
     loadVaultCards();
-    const onVaultUpdated = () => loadVaultCards();
+    loadRemoteStats();
+    const onVaultUpdated = () => {
+      loadVaultCards();
+      loadRemoteStats();
+    };
     window.addEventListener('tcg:vault-updated', onVaultUpdated);
     return () => window.removeEventListener('tcg:vault-updated', onVaultUpdated);
-  }, [loadVaultCards]);
+  }, [loadVaultCards, loadRemoteStats]);
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -165,6 +188,11 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
   }, [vaultCards]);
 
   const setCount = setOptions.length;
+
+  const vaultCardIds = useMemo(
+    () => [...new Set(vaultCards.map((vc) => vc.card.id).filter(Boolean))],
+    [vaultCards]
+  );
 
   const filteredSorted = useMemo(() => {
     let list = [...vaultCards];
@@ -348,7 +376,11 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
         </div>
       ) : (
         <>
-          <VaultKpiStrip stats={stats} vaultCards={vaultCards} />
+          <VaultKpiStrip
+            stats={stats}
+            vaultCards={vaultCards}
+            realizedPnl={remoteStats?.realizedPnl}
+          />
 
           <VaultInsightStrip
             vaultCards={vaultCards}
@@ -360,6 +392,16 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
               setAssumedOnly(false);
             }}
           />
+
+          {isPokemon && vaultCardIds.length > 0 && (
+            <GradeWorthinessList
+              cardIds={vaultCardIds}
+              limit={10}
+              title="Best vault cards to grade"
+              subtitle="Among your holdings — net after PSA fees × gem rate"
+              emptyMessage="No vault cards clear the fee hurdle with a verified PSA 10 quote and pop report."
+            />
+          )}
 
           <div className="flex flex-wrap items-center gap-1">
             {(
@@ -519,6 +561,15 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
                       forceEdit={focusEditId === vaultCard.id}
                       onEditHandled={() => setFocusEditId(null)}
                       view="grid"
+                      onSold={(pnl) => {
+                        loadRemoteStats();
+                        showToast(
+                          pnl != null
+                            ? `Sale recorded · realized ${formatCurrency(pnl, { signed: true })}`
+                            : 'Sale recorded',
+                          'success'
+                        );
+                      }}
                     />
                   ))}
                 </div>
@@ -596,6 +647,15 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
                           forceEdit={focusEditId === vaultCard.id}
                           onEditHandled={() => setFocusEditId(null)}
                           view="table"
+                          onSold={(pnl) => {
+                            loadRemoteStats();
+                            showToast(
+                              pnl != null
+                                ? `Sale recorded · realized ${formatCurrency(pnl, { signed: true })}`
+                                : 'Sale recorded',
+                              'success'
+                            );
+                          }}
                         />
                       ))}
                     </div>

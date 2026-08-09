@@ -2,15 +2,15 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   RefreshCw, Play, Filter, ChevronDown, ChevronUp,
-  BarChart3, LayoutGrid, Clock, Activity, Package, Brain,
+  BarChart3, LayoutGrid, Clock, Activity, HeartPulse,
 } from 'lucide-react';
-import { useGame } from '../../../contexts/GameContext';
 import {
   CardPrediction,
   PREDICTION_WINDOWS,
   PREDICTION_WINDOW_LABELS,
   PredictionFilters,
   AVAILABLE_RARITIES,
+  AVAILABLE_OP_RARITIES,
   AVAILABLE_ERAS,
 } from '../types';
 import { useMarketInsights } from '../hooks/useMarketInsights';
@@ -20,21 +20,24 @@ import { PredictionCardsView } from './PredictionCardsView';
 import { PredictionDetailPanel } from './PredictionDetailPanel';
 import { BacktestPanel } from './BacktestPanel';
 import { ForwardTestPanel } from './ForwardTestPanel';
+import { ModelHealthPanel } from './ModelHealthPanel';
 
 const TABS = [
   { id: 'overview' as const, label: 'Overview', icon: <Activity className="h-4 w-4" /> },
   { id: 'cards' as const, label: 'Cards', icon: <LayoutGrid className="h-4 w-4" /> },
   { id: 'backtest' as const, label: 'Backtest', icon: <BarChart3 className="h-4 w-4" /> },
   { id: 'forward' as const, label: 'Forward Test', icon: <Clock className="h-4 w-4" /> },
+  { id: 'health' as const, label: 'Model health', icon: <HeartPulse className="h-4 w-4" /> },
 ];
 
 export function MarketInsightsPage() {
-  const { isOnePiece } = useGame();
   const {
     activeTab, setActiveTab,
     predictions, predictionsLoading, predictionsError,
     overview, overviewLoading, overviewError,
     backtestResults, forwardStatus,
+    calibration, dataQuality, healthLoading, healthError, loadModelHealth,
+    horizonSupport, windowExperimental, windowStatus,
     runningPrediction, runningBacktest, refreshingForward,
     predictionWindow, setPredictionWindow,
     filters, searchQuery, setSearchQuery,
@@ -44,9 +47,12 @@ export function MarketInsightsPage() {
     message,
     handleApplyFilters, handleResetFilters,
     handleRunPredictions, handleRunBacktest, handleRefreshForwardTest,
-    loadPredictions, loadOverview, showMessage,
+    loadPredictions, loadOverview,
     DEFAULT_FILTERS,
+    isOnePiece,
   } = useMarketInsights();
+
+  const rarityOptions = isOnePiece ? AVAILABLE_OP_RARITIES : AVAILABLE_RARITIES;
 
   const [showFilters, setShowFilters] = useState(false);
   const [draftFilters, setDraftFilters] = useState<PredictionFilters>(filters);
@@ -67,28 +73,8 @@ export function MarketInsightsPage() {
     filters.minPrice !== DEFAULT_FILTERS.minPrice ||
     filters.maxPrice !== DEFAULT_FILTERS.maxPrice ||
     filters.minConfidence !== DEFAULT_FILTERS.minConfidence ||
-    (filters.rarities && filters.rarities.length !== DEFAULT_FILTERS.rarities.length) ||
-    (filters.eras && filters.eras.length !== DEFAULT_FILTERS.eras.length);
-
-  if (isOnePiece) {
-    return (
-      <div className="mx-auto max-w-6xl">
-        <div className="flex flex-col items-center rounded-2xl border border-dashed border-border-strong bg-surface-raised p-12 text-center">
-          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-border-default bg-surface-inset">
-            <Brain className="h-8 w-8 text-ink-muted" />
-          </div>
-          <h3 className="mb-2 font-display text-xl font-semibold text-ink-primary">Coming soon</h3>
-          <p className="mx-auto mb-6 max-w-md text-sm text-ink-muted">
-            One Piece market insights and AI predictions are under development.
-          </p>
-          <a href="/browse" className="btn-secondary">
-            <Package className="h-4 w-4" />
-            Browse One Piece cards
-          </a>
-        </div>
-      </div>
-    );
-  }
+    (filters.rarities && filters.rarities.length !== (DEFAULT_FILTERS.rarities?.length ?? 0)) ||
+    (!isOnePiece && filters.eras && filters.eras.length !== (DEFAULT_FILTERS.eras?.length ?? 0));
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -101,6 +87,7 @@ export function MarketInsightsPage() {
           <h1 className="font-display text-h1 text-ink-primary">Market Insights</h1>
           <p className="text-sm text-ink-secondary sm:text-base">
             AI-powered price predictions and market analysis
+            {isOnePiece ? ' for One Piece' : ' for Pokémon'}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -135,24 +122,62 @@ export function MarketInsightsPage() {
         </motion.div>
       )}
 
+      {isOnePiece && !predictionsLoading && predictions.length === 0 && !predictionsError && (
+        <div className="mb-4 rounded-lg border border-border-default bg-surface-raised px-4 py-3 text-sm text-ink-secondary">
+          No One Piece predictions yet. Run Predictions to score cards with enough price history.
+        </div>
+      )}
+
       <div className="mb-4 space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium text-ink-muted">Prediction window:</span>
           <div className="inline-flex rounded-lg border border-border-default bg-surface-inset p-0.5">
-            {PREDICTION_WINDOWS.map(w => (
-              <button
-                key={w}
-                onClick={() => setPredictionWindow(w)}
-                className={`cursor-pointer rounded-lg px-3 py-1 text-xs font-medium transition-colors ${
-                  predictionWindow === w
-                    ? 'bg-accent/15 text-accent'
-                    : 'text-ink-muted hover:bg-surface-hover hover:text-ink-secondary'
-                }`}
-              >
-                {PREDICTION_WINDOW_LABELS[w]}
-              </button>
-            ))}
+            {PREDICTION_WINDOWS.map(w => {
+              const status = windowStatus(w);
+              const unsupported = status === 'unsupported';
+              const experimental = status === 'experimental';
+              return (
+                <button
+                  key={w}
+                  type="button"
+                  onClick={() => setPredictionWindow(w)}
+                  disabled={unsupported}
+                  title={
+                    unsupported
+                      ? 'Unsupported — not enough price history for this horizon'
+                      : experimental
+                        ? 'Experimental — limited history; treat estimates cautiously'
+                        : undefined
+                  }
+                  className={`relative cursor-pointer rounded-lg px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed ${
+                    unsupported
+                      ? 'opacity-35 text-ink-muted'
+                      : predictionWindow === w
+                        ? 'bg-accent/15 text-accent'
+                        : 'text-ink-muted hover:bg-surface-hover hover:text-ink-secondary'
+                  }`}
+                >
+                  {PREDICTION_WINDOW_LABELS[w]}
+                  {experimental && (
+                    <span className="ml-1 rounded bg-amber-500/20 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-amber-300">
+                      exp
+                    </span>
+                  )}
+                  {unsupported && (
+                    <span className="ml-1 rounded bg-surface-hover px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-ink-muted">
+                      n/a
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
+          {windowExperimental && (
+            <span className="text-[11px] text-amber-300/90" title="Experimental horizon">
+              Active window is experimental
+              {horizonSupport ? ` · ${horizonSupport.historyDays}d history` : ''}
+            </span>
+          )}
         </div>
 
         <div className="rounded-xl border border-border-default bg-surface-raised">
@@ -206,34 +231,36 @@ export function MarketInsightsPage() {
                   />
                   <div className="text-xs text-ink-muted">{draftFilters.minConfidence || 0}%</div>
                 </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-ink-muted">Era</label>
-                  <div className="max-h-32 overflow-y-auto rounded-lg border border-border-default bg-surface-inset p-2">
-                    {AVAILABLE_ERAS.map(era => (
-                      <label key={era.id} className="flex items-center gap-2 py-1">
-                        <input
-                          type="checkbox"
-                          checked={draftFilters.eras?.includes(era.id) || false}
-                          onChange={e => {
-                            setDraftFilters(prev => {
-                              const current = prev.eras || [];
-                              const newEras = e.target.checked
-                                ? [...current, era.id]
-                                : current.filter(r => r !== era.id);
-                              return { ...prev, eras: newEras };
-                            });
-                          }}
-                          className="h-3 w-3 rounded"
-                        />
-                        <span className="text-xs text-ink-secondary">{era.label}</span>
-                      </label>
-                    ))}
+                {!isOnePiece && (
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-ink-muted">Era</label>
+                    <div className="max-h-32 overflow-y-auto rounded-lg border border-border-default bg-surface-inset p-2">
+                      {AVAILABLE_ERAS.map(era => (
+                        <label key={era.id} className="flex items-center gap-2 py-1">
+                          <input
+                            type="checkbox"
+                            checked={draftFilters.eras?.includes(era.id) || false}
+                            onChange={e => {
+                              setDraftFilters(prev => {
+                                const current = prev.eras || [];
+                                const newEras = e.target.checked
+                                  ? [...current, era.id]
+                                  : current.filter(r => r !== era.id);
+                                return { ...prev, eras: newEras };
+                              });
+                            }}
+                            className="h-3 w-3 rounded"
+                          />
+                          <span className="text-xs text-ink-secondary">{era.label}</span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
                 <div>
                   <label className="mb-1 block text-xs font-medium text-ink-muted">Rarities</label>
                   <div className="max-h-32 overflow-y-auto rounded-lg border border-border-default bg-surface-inset p-2">
-                    {AVAILABLE_RARITIES.map(rarity => (
+                    {rarityOptions.map(rarity => (
                       <label key={rarity} className="flex items-center gap-2 py-1">
                         <input
                           type="checkbox"
@@ -355,6 +382,27 @@ export function MarketInsightsPage() {
             onRefresh={handleRefreshForwardTest}
             refreshing={refreshingForward}
           />
+        )}
+
+        {activeTab === 'health' && (
+          <div className="space-y-3">
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => loadModelHealth()}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border-default bg-surface-inset px-3 py-1.5 text-xs font-medium text-ink-secondary transition-colors hover:bg-surface-hover"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${healthLoading ? 'animate-spin' : ''}`} />
+                Refresh health
+              </button>
+            </div>
+            <ModelHealthPanel
+              calibration={calibration}
+              dataQuality={dataQuality}
+              loading={healthLoading}
+              error={healthError}
+            />
+          </div>
         )}
       </motion.div>
 

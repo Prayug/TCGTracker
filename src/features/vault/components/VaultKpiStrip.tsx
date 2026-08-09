@@ -9,6 +9,7 @@ import { buildValueSeries, seriesDelta } from '../utils/portfolioSeries';
 interface VaultKpiStripProps {
   stats: VaultStats;
   vaultCards: VaultCard[];
+  realizedPnl?: number | null;
 }
 
 function KpiTile({
@@ -52,7 +53,11 @@ function KpiTile({
   );
 }
 
-export const VaultKpiStrip: React.FC<VaultKpiStripProps> = ({ stats, vaultCards }) => {
+export const VaultKpiStrip: React.FC<VaultKpiStripProps> = ({
+  stats,
+  vaultCards,
+  realizedPnl,
+}) => {
   const series30 = useMemo(() => buildValueSeries(vaultCards, '30d'), [vaultCards]);
   const delta30 = useMemo(() => seriesDelta(series30), [series30]);
   const sparkData = useMemo(
@@ -64,6 +69,7 @@ export const VaultKpiStrip: React.FC<VaultKpiStripProps> = ({ stats, vaultCards 
   const d30Trend = delta30.dollar > 0 ? 'up' : delta30.dollar < 0 ? 'down' : 'neutral';
   const sparkColor =
     delta30.dollar >= 0 ? 'var(--gain)' : 'var(--loss)';
+  const showRealized = realizedPnl != null && Number.isFinite(realizedPnl);
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-12">
@@ -104,9 +110,21 @@ export const VaultKpiStrip: React.FC<VaultKpiStripProps> = ({ stats, vaultCards 
           </span>
         }
         hint={
-          <span className={stats.profit >= 0 ? 'text-gain' : 'text-loss'}>
-            {formatPercent(stats.profitPercentage, { signed: true })}
-          </span>
+          showRealized ? (
+            <span>
+              <span className={stats.profit >= 0 ? 'text-gain' : 'text-loss'}>
+                {formatPercent(stats.profitPercentage, { signed: true })}
+              </span>
+              <span className="text-ink-muted"> · Realized </span>
+              <span className={realizedPnl! >= 0 ? 'text-gain' : 'text-loss'}>
+                {formatCurrency(realizedPnl!, { signed: true })}
+              </span>
+            </span>
+          ) : (
+            <span className={stats.profit >= 0 ? 'text-gain' : 'text-loss'}>
+              {formatPercent(stats.profitPercentage, { signed: true })}
+            </span>
+          )
         }
       />
       <KpiTile
