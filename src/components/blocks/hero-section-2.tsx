@@ -1,10 +1,12 @@
 import { lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, ChevronDown } from 'lucide-react';
+import { ArrowRight, ChevronDown, LogIn } from 'lucide-react';
 import { motion, useScroll, useTransform } from 'motion/react';
 import { buttonVariants } from '@/components/ui/button';
 import { AnimatedGroup } from '@/components/ui/animated-group';
 import { cn } from '@/lib/utils';
+import { useAuth } from '../../hooks/useAuth';
+import { env } from '../../config/env';
 
 const HeroCardStage = lazy(() =>
   import('../three/HeroCardStage').then((m) => ({ default: m.HeroCardStage }))
@@ -22,6 +24,7 @@ const transitionVariants = {
 };
 
 export function HeroSection() {
+  const { user, openAuthModal } = useAuth();
   const { scrollY } = useScroll();
   const stageOpacity = useTransform(scrollY, [0, 480], [1, 0]);
   const stageScale = useTransform(scrollY, [0, 480], [1, 0.92]);
@@ -85,6 +88,19 @@ export function HeroSection() {
               >
                 Open vault
               </Link>
+              {env.enableAuth && !user && (
+                <button
+                  type="button"
+                  onClick={() => openAuthModal('login')}
+                  className={cn(
+                    buttonVariants({ size: 'lg', variant: 'ghost' }),
+                    'h-11 cursor-pointer gap-2 rounded-full px-5 text-base text-ink-secondary hover:text-ink-primary'
+                  )}
+                >
+                  <LogIn className="h-4 w-4" />
+                  Sign in
+                </button>
+              )}
             </div>
           </AnimatedGroup>
         </motion.div>

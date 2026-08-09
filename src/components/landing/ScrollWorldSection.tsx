@@ -9,6 +9,7 @@ import {
   type MotionValue,
 } from 'motion/react';
 import {
+  ArrowDown,
   ArrowUpRight,
   LineChart,
   Package,
@@ -87,6 +88,11 @@ const FEATURES: {
   { key: 'insights', label: 'Insights', hint: 'Forecasts', href: '/market-insights', icon: LineChart, chapter: 'insights' },
 ];
 
+function scrollToMarketPulse(e?: { preventDefault?: () => void }) {
+  e?.preventDefault?.();
+  document.getElementById('market-pulse')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 /** How many viewport-heights of wheel delta equal a full 0→1 tour. */
 const SCROLL_PAGES = 3.2;
 
@@ -143,6 +149,14 @@ function ChapterLayer({
           >
             Browse cards
           </Link>
+          <button
+            type="button"
+            onClick={scrollToMarketPulse}
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-foil/35 bg-foil/10 px-4 py-2.5 text-sm font-semibold text-foil transition-colors hover:bg-foil/20"
+          >
+            Top movers
+            <ArrowDown className="h-4 w-4" />
+          </button>
         </div>
       </div>
     </motion.div>
@@ -210,7 +224,7 @@ function ScrollWorldCopy({
           TCG<span className="text-accent">Tracker</span>
         </p>
         <p className="mt-1 max-w-[16rem] text-xs text-ink-secondary sm:text-sm">
-          Scroll to tour · tap below to open any feature.
+          Scroll to tour · tap Top movers for daily swings.
         </p>
       </div>
 
@@ -247,13 +261,23 @@ function StaticFallback() {
         <p className="mx-auto mt-5 max-w-md text-ink-secondary">
           Live prices, holdings, pack rips and forecasts — pick a feature below to start.
         </p>
-        <Link
-          to="/browse"
-          className="mt-8 inline-flex h-11 cursor-pointer items-center gap-2 rounded-full bg-accent px-6 text-base font-semibold text-primary-foreground shadow-glow-accent transition-all duration-200 hover:bg-accent-hover"
-        >
-          Start browsing
-          <ArrowUpRight className="h-4 w-4" />
-        </Link>
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+          <Link
+            to="/browse"
+            className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-full bg-accent px-6 text-base font-semibold text-primary-foreground shadow-glow-accent transition-all duration-200 hover:bg-accent-hover"
+          >
+            Start browsing
+            <ArrowUpRight className="h-4 w-4" />
+          </Link>
+          <button
+            type="button"
+            onClick={scrollToMarketPulse}
+            className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-foil/35 bg-foil/10 px-6 text-base font-semibold text-foil transition-colors hover:bg-foil/20"
+          >
+            Top movers
+            <ArrowDown className="h-4 w-4" />
+          </button>
+        </div>
       </div>
       <CommandStrip activeKey="prices" />
     </div>
@@ -283,20 +307,9 @@ export function ScrollWorldSection() {
   }, []);
 
   useEffect(() => {
-    const html = document.documentElement;
-    const body = document.body;
-    const prevHtml = html.style.overflow;
-    const prevBody = body.style.overflow;
-    html.style.overflow = 'hidden';
-    body.style.overflow = 'hidden';
-    return () => {
-      html.style.overflow = prevHtml;
-      body.style.overflow = prevBody;
-    };
-  }, []);
-
-  useEffect(() => {
     if (reduced) return;
+
+    const pageAtTourTop = () => window.scrollY < 8;
 
     const bump = (deltaPx: number) => {
       const page = window.innerHeight * SCROLL_PAGES || 1;
@@ -304,6 +317,9 @@ export function ScrollWorldSection() {
     };
 
     const onWheel = (e: WheelEvent) => {
+      // Once the user has scrolled to Market Pulse, never hijack the wheel.
+      if (!pageAtTourTop()) return;
+
       const target = e.target as HTMLElement | null;
       if (target?.closest?.('a, button, input, textarea, select, [role="dialog"]')) return;
       e.preventDefault();
@@ -315,6 +331,7 @@ export function ScrollWorldSection() {
     };
 
     const onTouchMove = (e: TouchEvent) => {
+      if (!pageAtTourTop()) return;
       if (touchY.current == null) return;
       const y = e.touches[0]?.clientY;
       if (y == null) return;
@@ -332,7 +349,11 @@ export function ScrollWorldSection() {
     const onKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ') {
+      if (!pageAtTourTop()) return;
+      if (e.key === 'ArrowDown' || e.key === 'PageDown') {
+        e.preventDefault();
+        document.getElementById('market-pulse')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else if (e.key === ' ') {
         e.preventDefault();
         bump(window.innerHeight * 0.35);
       } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
