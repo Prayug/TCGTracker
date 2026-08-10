@@ -1,4 +1,4 @@
-import { PokemonCard, SortOption } from '../types/pokemon';
+import { SortOption } from '../types/pokemon';
 import { OnePieceSortOption } from '../types/onepiece';
 import { AnyCard, getCardPrice, isPokemonCard } from './cardPrice';
 
@@ -6,6 +6,18 @@ const ONE_PIECE_RARITY_ORDER = ['C', 'UC', 'R', 'SR', 'SEC', 'L', 'SP', 'P', 'AA
 const POKEMON_RARITY_ORDER = ['Common', 'Uncommon', 'Rare', 'Rare Holo', 'Rare Ultra', 'Rare Secret'];
 
 export type GameSortOption = SortOption | OnePieceSortOption;
+
+/** Prefer releaseDate; for OP (no releaseDate) fall back to set id lexical order (OP01 < OP02). */
+function setSortKey(card: AnyCard): number {
+  if ('releaseDate' in card.set && card.set.releaseDate) {
+    return new Date(card.set.releaseDate).getTime();
+  }
+  // Encode set id as a comparable number when possible (OP-05 / OP05 / ST01).
+  const id = card.set.id || '';
+  const match = id.match(/(\d+)/);
+  if (match) return Number(match[1]);
+  return id.localeCompare('') === 0 ? 0 : id.charCodeAt(0);
+}
 
 export const sortCards = (
   cards: AnyCard[],
@@ -35,15 +47,15 @@ export const sortCards = (
 
     case 'date-new':
       return sorted.sort((a, b) => {
-        const aDate = 'releaseDate' in a.set ? new Date(a.set.releaseDate || 0).getTime() : 0;
-        const bDate = 'releaseDate' in b.set ? new Date(b.set.releaseDate || 0).getTime() : 0;
+        const aDate = setSortKey(a);
+        const bDate = setSortKey(b);
         return bDate - aDate;
       });
 
     case 'date-old':
       return sorted.sort((a, b) => {
-        const aDate = 'releaseDate' in a.set ? new Date(a.set.releaseDate || 0).getTime() : 0;
-        const bDate = 'releaseDate' in b.set ? new Date(b.set.releaseDate || 0).getTime() : 0;
+        const aDate = setSortKey(a);
+        const bDate = setSortKey(b);
         return aDate - bDate;
       });
 
@@ -123,6 +135,8 @@ const ONE_PIECE_SORT_OPTIONS: { value: OnePieceSortOption; label: string }[] = [
   { value: 'name-desc', label: 'Name (Z-A)' },
   { value: 'set-asc', label: 'Set (A-Z)' },
   { value: 'set-desc', label: 'Set (Z-A)' },
+  { value: 'date-new', label: 'Newest Set' },
+  { value: 'date-old', label: 'Oldest Set' },
   { value: 'rarity', label: 'Rarity (Rare First)' },
 ];
 

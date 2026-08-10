@@ -37,7 +37,12 @@ export function PageShell({
       <motion.div
         initial={plain || reduced ? false : { opacity: 0, scale: 0.94, filter: 'blur(10px)' }}
         animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-        transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+        transition={{
+          duration: 0.55,
+          ease: [0.16, 1, 0.3, 1],
+          // Blur cannot go negative — the bezier overshoots, so tween it separately.
+          filter: { duration: 0.45, ease: 'easeOut' },
+        }}
         style={{ transformOrigin: '50% 8%' }}
         className={cn(
           'mx-auto w-full',

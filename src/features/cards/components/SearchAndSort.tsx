@@ -112,12 +112,14 @@ export const SearchFilters: React.FC<SearchAndSortProps> = ({
             <option value="price-low">Sort: Price Low</option>
             <option value="name-asc">Sort: Name A-Z</option>
             <option value="name-desc">Sort: Name Z-A</option>
-            {!isOnePiece && (
+            {isOnePiece && (
               <>
-                <option value="date-new">Sort: Newest Set</option>
-                <option value="date-old">Sort: Oldest Set</option>
+                <option value="set-asc">Sort: Set A-Z</option>
+                <option value="set-desc">Sort: Set Z-A</option>
               </>
             )}
+            <option value="date-new">Sort: Newest Set</option>
+            <option value="date-old">Sort: Oldest Set</option>
             <option value="rarity">Sort: Rarity</option>
           </select>
           {!isOnePiece && (

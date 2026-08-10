@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, TrendingUp } from 'lucide-react';
 import { PokemonCard } from '../../types/pokemon';
 import { PriceHistoryApi, TopMoverEntry } from '../../services/priceHistoryApi';
 import { formatCurrency, proxyImageUrl } from '../../utils/cardDisplay';
+import { useCardModal } from '../../contexts/CardModalContext';
 
 interface MoverDisplay {
   productName: string;
@@ -15,7 +16,7 @@ interface MoverDisplay {
 }
 
 interface TopMoversProps {
-  onCardClick: (card: PokemonCard) => void;
+  onCardClick?: (card: PokemonCard) => void;
 }
 
 type Period = '1d' | '7d' | '30d';
@@ -133,6 +134,7 @@ const toDisplay = (e: TopMoverEntry): MoverDisplay => ({
 const hasArt = (e: TopMoverEntry) => Boolean(e.imageSmall || e.imageLarge);
 
 export const TopMovers: React.FC<TopMoversProps> = ({ onCardClick }) => {
+  const { openCard } = useCardModal();
   const [period, setPeriod] = useState<Period>('7d');
   const [allEntries, setAllEntries] = useState<TopMoverEntry[]>(() => {
     const cached = PriceHistoryApi.peekTopMovers(PERIOD_DAYS['7d'], 50);
@@ -221,8 +223,10 @@ export const TopMovers: React.FC<TopMoversProps> = ({ onCardClick }) => {
   );
 
   const handleCardClick = useCallback((entry: TopMoverEntry) => {
-    onCardClick(toPokemonCard(entry));
-  }, [onCardClick]);
+    const card = toPokemonCard(entry);
+    if (onCardClick) onCardClick(card);
+    else openCard(card);
+  }, [onCardClick, openCard]);
 
   if (loading) {
     return (

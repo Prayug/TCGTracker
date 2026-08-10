@@ -329,6 +329,10 @@ export function CardModalProvider({ children }: { children: ReactNode }) {
         setOpCard(next);
         setPokemonCard(null);
       }
+      // Treat the provided card as already loaded so the modal opens even when
+      // a follow-up getCardById upgrade fails (common for tcgcsv-* ids).
+      loadedRef.current = next.id;
+      fetchingRef.current = next.id;
       setSearchParams(
         (prev) => {
           const params = new URLSearchParams(prev);
@@ -352,6 +356,8 @@ export function CardModalProvider({ children }: { children: ReactNode }) {
     );
     setPokemonCard(null);
     setOpCard(null);
+    loadedRef.current = null;
+    fetchingRef.current = null;
   }, [setSearchParams]);
 
   const value = useMemo(() => ({ openCard }), [openCard]);
@@ -360,10 +366,10 @@ export function CardModalProvider({ children }: { children: ReactNode }) {
     <CardModalContext.Provider value={value}>
       {children}
       {isPokemon && (
-        <InvestmentModal card={pokemonCard} isOpen={Boolean(cardId && pokemonCard)} onClose={closeCard} />
+        <InvestmentModal card={pokemonCard} isOpen={Boolean(pokemonCard)} onClose={closeCard} />
       )}
       {isOnePiece && (
-        <OnePieceCardModal card={opCard} isOpen={Boolean(cardId && opCard)} onClose={closeCard} />
+        <OnePieceCardModal card={opCard} isOpen={Boolean(opCard)} onClose={closeCard} />
       )}
     </CardModalContext.Provider>
   );

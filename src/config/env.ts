@@ -8,11 +8,19 @@ const envSchema = z.object({
   VITE_ENABLE_AUTH: z
     .string()
     .optional()
-    .transform((v) => v === 'true' || v === '1' || true),
+    .transform((v) => {
+      // Default on when unset; allow explicit false via 'false' / '0'
+      if (v == null || v === '') return true;
+      return v === 'true' || v === '1';
+    }),
   VITE_ENABLE_ANALYTICS: z
     .string()
     .optional()
-    .transform((v) => v === 'true' || v === '1'),
+    .transform((v) => {
+      // Opt-in: default off when unset
+      if (v == null || v === '') return false;
+      return v === 'true' || v === '1';
+    }),
   VITE_SENTRY_DSN: z.string().optional(),
   VITE_SENTRY_ENVIRONMENT: z.string().default('development'),
   VITE_GA_TRACKING_ID: z.string().optional(),

@@ -19,6 +19,10 @@ export interface PokemonCard {
   /** Finish/variant key for price history lookups (e.g. reverseHolofoil) */
   preferredVariant?: string;
   marketPrice?: number;
+  /** Verified PSA 10 market from graded_prices (pack shop slabs) */
+  psa10Price?: number;
+  /** Pack-shop era bucket (modern / sm_xy / bw_dp / vintage) */
+  eraBand?: 'modern' | 'sm_xy' | 'bw_dp' | 'vintage';
   tcgplayer?: {
     url?: string;
     updatedAt?: string;
@@ -58,16 +62,16 @@ export interface CardInvestmentData {
 
 export interface PSAData {
   population: {
-    grade10: number;
-    grade9: number;
-    grade8: number;
-    grade7: number;
-    total: number;
+    grade10: number | null;
+    grade9: number | null;
+    grade8: number | null;
+    grade7: number | null;
+    total: number | null;
   };
   prices: {
-    grade10: number;
-    grade9: number;
-    grade8: number;
+    grade10: number | null;
+    grade9: number | null;
+    grade8: number | null;
     raw: number;
   };
   popReport: {
@@ -76,6 +80,8 @@ export interface PSAData {
     totalSubmissions: number;
   };
   returnRate: number; // Percentage of cards that grade 9+
+  fetchedAt?: string | null;
+  stale?: boolean;
 }
 
 export interface PricePoint {
@@ -201,12 +207,20 @@ export interface ValueRange {
   label: string;
 }
 
+export type PackPullKind = 'raw' | 'slab';
+
 export interface PackPull {
   pack: Pack;
   cards: PokemonCard[];
   totalValue: number;
   profit: number; // value - pack price
   openedAt: string;
+  /** raw card vs PSA 10 slab at the rolled dollar bracket */
+  pullKind?: PackPullKind;
+  grader?: string;
+  grade?: string;
+  /** Raw market when pullKind is slab (context only) */
+  rawPrice?: number;
 }
 
 // Rarity weights for pack opening simulation

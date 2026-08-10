@@ -232,7 +232,7 @@ export const SetIndex: React.FC<SetIndexProps> = ({ onSelectSet }) => {
               <div className="stagger-children grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {group.sets.map((set) => (
                   <SetCard
-                    key={set.id}
+                    key={`${set.id}::${set.name}`}
                     set={set}
                     onSelect={() => onSelectSet(set.id)}
                     onTogglePin={(e) => handleTogglePin(e, set.id)}
@@ -248,7 +248,7 @@ export const SetIndex: React.FC<SetIndexProps> = ({ onSelectSet }) => {
         <div className="stagger-children grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((set) => (
             <SetCard
-              key={set.id}
+              key={`${set.id}::${set.name}`}
               set={set}
               onSelect={() => onSelectSet(set.id)}
               onTogglePin={(e) => handleTogglePin(e, set.id)}

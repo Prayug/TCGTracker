@@ -4,8 +4,8 @@ import type { Binder, BinderPlan, ConstraintOptions } from '../types';
 const API = () => env.apiUrl;
 
 function getAuthHeaders(): Record<string, string> {
-  const token = localStorage.getItem('tcgtracker_token');
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  // Session is HttpOnly cookie (`tcg_token`); credentials: 'include' is enough.
+  return {};
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
