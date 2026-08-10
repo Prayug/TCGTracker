@@ -7,17 +7,22 @@ The Flask backend is now **fully operational** and running on **http://localhost
 ### What's Working:
 - ✅ Flask server starts successfully
 - ✅ Health check endpoint (`/health`)
+- ✅ Reference status endpoint (`/api/reference-status`)
 - ✅ CORS enabled for React frontend  
 - ✅ Image upload handling
 - ✅ Base64 image processing
 - ✅ Lazy initialization of card recognizer
+- ✅ Frontend shows a clear empty state when the reference DB is missing (no opaque failure)
 
 ### Test It:
 ```bash
 # Health check
 curl http://localhost:5001/health
 
-# Expected response:
+# Reference DB readiness
+curl http://localhost:5001/api/reference-status
+
+# Expected health response:
 # {"message":"Card Scanner API is running","status":"ok"}
 ```
 
@@ -28,7 +33,9 @@ The card recognition feature requires a pre-built reference database of Pokemon 
 ### What Happens:
 1. Server starts fine ✅
 2. Health checks work ✅
-3. When you try to scan a card, you'll get an error explaining the missing database
+3. `/api/reference-status` reports `ready: false` ✅
+4. The React scanner UI shows **"Reference database not ready"** with build instructions (graceful empty state) instead of a cryptic scan failure ✅
+5. If you scan anyway before the UI check, the API returns a clear "reference database not built" error that the frontend maps to the same empty state
 
 ### Why This Happened:
 The PyPI `pokemon-card-recognizer` package was supposed to include pre-built references, but had packaging issues. We installed from local source which doesn't include the pre-built data.
@@ -39,7 +46,7 @@ The PyPI `pokemon-card-recognizer` package was supposed to include pre-built ref
 Continue with the current setup! The backend works and you can:
 - Develop the frontend UI
 - Test API integration
-- Mock scan results in the frontend
+- See the graceful empty state when the reference DB is absent
 - Build the reference database later when needed
 
 ### Option 2: Build Reference Database (For Production)
@@ -57,8 +64,7 @@ The `pokemon-card-recognizer` maintainers may fix the PyPI package in the future
 1. ✅ Backend is running - keep it running!
 2. Start your React frontend: `npm run dev`
 3. Update `.env` with `VITE_CARD_SCANNER_API_URL=http://localhost:5001`
-4. Test the Card Scanner UI
-5. Mock or handle the "no reference database" error gracefully in the frontend
+4. Open Card Scanner — with a missing DB you should see the empty state, not a broken scan flow
 
 ### Later (When Ready for Real Scanning):
 1. Get API key from https://pokemontcg.io/
@@ -83,8 +89,12 @@ cd /Users/prayugsigdel/Coding/pokemon-card-recognizer
 pip install -e .
 ```
 
-### Card Scanning Fails
-**Expected**: This is normal! See "Missing Reference Database" section above.
+### Card Scanning Fails / Reference Empty State
+**Expected** when the reference DB is missing. Confirm with:
+```bash
+curl http://localhost:5001/api/reference-status
+```
+If `ready` is false, build the DB or keep developing against the empty-state UI.
 
 ## 📊 Server Status
 
@@ -98,6 +108,7 @@ pip install -e .
 
 The backend is **working perfectly** for its current state! The only limitation is the missing card reference database, which is:
 - Not critical for frontend development
+- Surfaced clearly in the scanner UI
 - Can be added later when needed
 - Expected behavior given the installation issues
 

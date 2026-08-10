@@ -1,13 +1,22 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Camera, Upload, X, AlertCircle, CheckCircle, RefreshCw, Scan,
-  ChevronRight
+  ChevronRight, Smartphone, Database,
 } from 'lucide-react';
-import { scanCardFromFile, scanCardFromBase64, checkBackendHealth, ScanResult } from '../../../services/cardScannerApi';
+import {
+  scanCardFromFile,
+  scanCardFromBase64,
+  checkBackendHealth,
+  checkReferenceStatus,
+  isReferenceDbError,
+  ScanResult,
+} from '../../../services/cardScannerApi';
 import { ScanResultActions } from './ScanResultActions';
 import { markOnboardingStep } from '../../../components/common/OnboardingChecklist';
+import { PhoneCaptureQr } from '../../capture/components/PhoneCaptureQr';
+import { compressImageDataUrl } from '../../../utils/imageCompress';
 
-type Mode = 'idle' | 'upload' | 'camera';
+type Mode = 'idle' | 'upload' | 'camera' | 'phone';
 
 function ConfidenceBadge({ value }: { value: number }) {
   const pct = Math.round(value * 100);
@@ -89,6 +98,8 @@ export function CardScanner() {
   const [error, setError] = useState<string | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [backendStatus, setBackendStatus] = useState<boolean | null>(null);
+  const [referenceReady, setReferenceReady] = useState<boolean | null>(null);
+  const [referenceError, setReferenceError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -101,6 +112,22 @@ export function CardScanner() {
   useEffect(() => {
     checkBackendHealth().then(setBackendStatus);
   }, []);
+
+  useEffect(() => {
+    if (backendStatus !== true) {
+      setReferenceReady(null);
+      return;
+    }
+    let cancelled = false;
+    checkReferenceStatus().then((status) => {
+      if (cancelled) return;
+      setReferenceReady(Boolean(status.ready));
+      setReferenceError(status.ready ? null : (status.error ?? 'Reference database not built'));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [backendStatus]);
 
   useEffect(() => {
     if (backendStatus !== false) return;
@@ -157,12 +184,52 @@ export function CardScanner() {
     }
   };
 
-  const handleModeSelect = async (m: 'upload' | 'camera') => {
+  const handleModeSelect = async (m: 'upload' | 'camera' | 'phone') => {
     setScanResult(null);
     setError(null);
     setMode(m);
     if (m === 'camera') await startCamera();
   };
+
+  const applyScanFailure = useCallback((message: string) => {
+    if (isReferenceDbError(message)) {
+      setReferenceReady(false);
+      setReferenceError(message);
+      setError(null);
+      return;
+    }
+    setError(message);
+  }, []);
+
+  const processBase64 = useCallback(async (base64: string) => {
+    setIsScanning(true);
+    setScanResult(null);
+    setError(null);
+    try {
+      // Re-encode so phone relay payloads are valid JPEGs (avoids Pillow
+      // "broken data stream when reading image file" on truncated frames).
+      const normalized = await compressImageDataUrl(base64, { maxSide: 1600, quality: 0.88 });
+      setPreviewUrl(normalized);
+      const result = await scanCardFromBase64(normalized);
+      setScanResult(result);
+      if (result.success) markOnboardingStep('scan');
+      if (!result.success) {
+        applyScanFailure(result.message ?? result.error ?? 'Failed to identify card');
+      }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Scan failed. Please try again.';
+      if (isReferenceDbError(message)) {
+        setReferenceReady(false);
+        setReferenceError(message);
+      } else if (/broken data stream|decode|corrupt|empty/i.test(message)) {
+        setError('Photo was incomplete or corrupted. Retake with Phone camera and try again.');
+      } else {
+        setError(message);
+      }
+    } finally {
+      setIsScanning(false);
+    }
+  }, [applyScanFailure]);
 
   const processFile = useCallback(async (file: File) => {
     if (!file.type.startsWith('image/')) {
@@ -179,13 +246,21 @@ export function CardScanner() {
       const result = await scanCardFromFile(file);
       setScanResult(result);
       if (result.success) markOnboardingStep('scan');
-      if (!result.success) setError(result.message ?? result.error ?? 'Failed to identify card');
+      if (!result.success) {
+        applyScanFailure(result.message ?? result.error ?? 'Failed to identify card');
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Scan failed. Please try again.');
+      const message = e instanceof Error ? e.message : 'Scan failed. Please try again.';
+      if (isReferenceDbError(message)) {
+        setReferenceReady(false);
+        setReferenceError(message);
+      } else {
+        setError(message);
+      }
     } finally {
       setIsScanning(false);
     }
-  }, []);
+  }, [applyScanFailure]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -216,9 +291,23 @@ export function CardScanner() {
       const result = await scanCardFromBase64(base64);
       setScanResult(result);
       if (result.success) markOnboardingStep('scan');
-      if (!result.success) setError(result.message ?? result.error ?? 'No card detected');
+      if (!result.success) {
+        const msg = result.message ?? result.error ?? 'No card detected';
+        if (isReferenceDbError(msg)) {
+          setReferenceReady(false);
+          setReferenceError(msg);
+        } else {
+          setError(msg);
+        }
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Scan failed');
+      const message = e instanceof Error ? e.message : 'Scan failed';
+      if (isReferenceDbError(message)) {
+        setReferenceReady(false);
+        setReferenceError(message);
+      } else {
+        setError(message);
+      }
     } finally {
       setIsScanning(false);
     }
@@ -226,6 +315,8 @@ export function CardScanner() {
 
   const recheckBackend = () => {
     setBackendStatus(null);
+    setReferenceReady(null);
+    setReferenceError(null);
     checkBackendHealth().then(setBackendStatus);
   };
 
@@ -271,11 +362,49 @@ export function CardScanner() {
     );
   }
 
-  if (backendStatus === null) {
+  if (backendStatus === null || (backendStatus === true && referenceReady === null)) {
     return (
       <div className="mx-auto flex max-w-2xl items-center justify-center py-20">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-border-default border-t-accent" />
         <span className="ml-3 text-sm text-ink-muted">Connecting to scanner…</span>
+      </div>
+    );
+  }
+
+  if (referenceReady === false) {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <div className="rounded-xl border border-border-default bg-surface-raised p-8 text-center shadow-sm">
+          <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-2xl border border-amber-500/25 bg-amber-500/10">
+            <Database className="h-10 w-10 text-amber-300/80" aria-hidden />
+          </div>
+          <h2 className="text-xl font-semibold text-ink-primary">Reference database not ready</h2>
+          <p className="mx-auto mt-2 max-w-md text-sm text-ink-muted">
+            The scanner backend is online, but the Pokémon card reference database is missing or empty.
+            Recognition won&apos;t work until you build it locally — this is expected in local/dev setups.
+          </p>
+          {referenceError && (
+            <p className="mx-auto mt-3 max-w-md rounded-lg border border-border-subtle bg-surface-inset px-3 py-2 text-left text-xs text-ink-secondary">
+              {referenceError}
+            </p>
+          )}
+
+          <div className="mt-6 rounded-lg border border-border-subtle bg-black/40 p-4 text-left font-mono text-xs">
+            <p className="mb-2 text-ink-muted"># Optional — build reference DB (30–60 min, needs pokemontcg.io API key)</p>
+            <p className="text-emerald-400">cd card-scanner-backend</p>
+            <p className="text-emerald-400">python build_reference.py</p>
+            <p className="mt-2 text-ink-muted"># See SETUP_REFERENCE.md and CURRENT_STATUS.md for details</p>
+          </div>
+
+          <p className="mx-auto mt-4 max-w-md text-xs text-ink-muted">
+            You can still develop the scanner UI without the reference DB. Real identification starts after the build.
+          </p>
+
+          <button type="button" onClick={recheckBackend} className="btn-primary mt-6">
+            <RefreshCw className="h-4 w-4" />
+            Recheck reference status
+          </button>
+        </div>
       </div>
     );
   }
@@ -294,13 +423,14 @@ export function CardScanner() {
           </span>
         </div>
         <p className="text-sm text-ink-secondary">
-          Identify any Pokémon card by uploading a photo or using your camera.
+          Identify any Pokémon card by uploading a photo, using this device&apos;s camera, or
+          scanning a QR code to shoot from your phone.
         </p>
       </div>
 
       {/* Mode selection */}
       {mode === 'idle' && (
-        <div className="grid animate-fade-in gap-4 sm:grid-cols-2">
+        <div className="grid animate-fade-in gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <button
             onClick={() => handleModeSelect('camera')}
             className="group cursor-pointer rounded-2xl border border-border-default bg-gradient-chrome p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-glow-accent"
@@ -317,8 +447,25 @@ export function CardScanner() {
           </button>
 
           <button
+            onClick={() => handleModeSelect('phone')}
+            className="group cursor-pointer rounded-2xl border border-border-default bg-surface-raised p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-glow-accent"
+          >
+            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-accent/30 bg-accent/10 transition-colors group-hover:bg-accent-hover/20">
+              <Smartphone className="h-5 w-5 text-accent" />
+            </div>
+            <h3 className="mb-1 font-semibold text-ink-primary">Phone camera</h3>
+            <p className="text-sm text-ink-muted">
+              Scan a QR code and take a steadier photo with your phone.
+            </p>
+            <div className="mt-3 flex items-center gap-1 text-xs font-medium text-accent">
+              <span>Show QR code</span>
+              <ChevronRight className="h-3.5 w-3.5" />
+            </div>
+          </button>
+
+          <button
             onClick={() => handleModeSelect('upload')}
-            className="group rounded-xl border border-border-default bg-surface-raised p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-border-strong"
+            className="group rounded-xl border border-border-default bg-surface-raised p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-border-strong sm:col-span-2 lg:col-span-1"
           >
             <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-accent/30 bg-accent/10 transition-colors group-hover:bg-accent-hover/20">
               <Upload className="h-5 w-5 text-accent" />
@@ -330,6 +477,43 @@ export function CardScanner() {
               <ChevronRight className="h-3.5 w-3.5" />
             </div>
           </button>
+        </div>
+      )}
+
+      {mode === 'phone' && (
+        <div className="animate-fade-in space-y-4">
+          {!scanResult && !isScanning && (
+            <PhoneCaptureQr
+              mode="scan"
+              onCancel={reset}
+              onImages={(front) => {
+                void processBase64(front);
+              }}
+            />
+          )}
+          {isScanning && (
+            <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-border-default bg-surface-raised py-10">
+              {previewUrl && (
+                <img
+                  src={previewUrl}
+                  alt="Captured card"
+                  className="mb-2 max-h-40 rounded-lg object-contain"
+                />
+              )}
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-border-default border-t-emerald-400" />
+              <p className="text-sm text-ink-muted">Analyzing card from phone…</p>
+            </div>
+          )}
+          {error && <ErrorBanner message={error} />}
+          {scanResult?.success && (
+            <>
+              <ScanResultSheet result={scanResult} />
+              <button type="button" onClick={reset} className="btn-secondary w-full justify-center">
+                <Scan className="h-4 w-4" />
+                Scan another card
+              </button>
+            </>
+          )}
         </div>
       )}
 

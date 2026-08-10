@@ -433,13 +433,25 @@ def scan_card():
             if not file.filename:
                 return jsonify({"success": False, "error": "No file selected"}), 400
             img = Image.open(file.stream)
+            img.load()
 
         # ── Accept JSON base64 ────────────────────────────────────────────────
         elif request.is_json and request.json and "image" in request.json:
             raw = request.json["image"]
             if "base64," in raw:
                 raw = raw.split("base64,", 1)[1]
-            img = Image.open(BytesIO(base64.b64decode(raw)))
+            try:
+                img = Image.open(BytesIO(base64.b64decode(raw, validate=False)))
+                img.load()  # force full decode; truncated JPEGs fail here
+            except Exception as decode_err:
+                return jsonify({
+                    "success": False,
+                    "error": (
+                        "Could not read image (broken or incomplete photo). "
+                        "Retake with Phone camera and try again."
+                    ),
+                    "detail": str(decode_err),
+                }), 400
 
         else:
             return jsonify({"success": False, "error": "No image provided"}), 400
@@ -520,7 +532,7 @@ def available_sets():
             from pokemon_card_recognizer.reference.core.build import ReferenceBuild
 
         sets = ReferenceBuild.supported_card_sets()
-        return jsonify({"success": True, "sets": sets})
+        return jsonify({"success": True, "sets": list(sets)})
     except Exception as exc:
         return jsonify({"success": False, "error": str(exc)}), 500
 

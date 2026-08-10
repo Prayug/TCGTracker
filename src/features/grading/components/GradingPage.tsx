@@ -8,9 +8,10 @@ import {
   getGradingHistory,
   gradeCard,
 } from '../../../services/gradingService';
-import { vaultService } from '../../../services/vaultService';
 import { GradingResult, gradeToVaultCondition } from '../../../types/grading';
-import { PokemonCard } from '../../../types/pokemon';
+import { CardCondition, PokemonCard } from '../../../types/pokemon';
+import { AddToVaultModal } from '../../vault/components/AddToVaultModal';
+import { CardSearchPickerModal } from './CardSearchPickerModal';
 import { GradingCapture } from './GradingCapture';
 import { GradingHistory } from './GradingHistory';
 import { GradingResultView } from './GradingResultView';
@@ -25,6 +26,11 @@ export const GradingPage: React.FC = () => {
   const [result, setResult] = useState<GradingResult | null>(null);
   const [history, setHistory] = useState<GradingResult[]>([]);
   const [captureKey, setCaptureKey] = useState(0);
+
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pendingGrading, setPendingGrading] = useState<GradingResult | null>(null);
+  const [vaultCard, setVaultCard] = useState<PokemonCard | null>(null);
+  const [vaultOpen, setVaultOpen] = useState(false);
 
   const refreshHistory = useCallback(async () => {
     const h = await getGradingHistory();
@@ -59,33 +65,40 @@ export const GradingPage: React.FC = () => {
   };
 
   const handleAddToVault = (grading: GradingResult) => {
-    // Open card picker via browse modal if available; otherwise create a stub vault entry prompt
-    const stub: PokemonCard = {
-      id: grading.cardId || grading.id,
-      name: grading.cardName || 'Graded Card',
-      number: '',
-      images: {
-        small: grading.imageUrl || '',
-        large: grading.imageUrl || '',
-      },
-      set: { id: '', name: 'Unknown Set', releaseDate: '', total: 0 },
-      marketPrice: grading.estimatedGradedValue,
-    };
+    setPendingGrading(grading);
+    setVaultCard(null);
+    setVaultOpen(false);
+    setPickerOpen(true);
+  };
 
-    const condition = (grading.suggestedCondition ||
-      gradeToVaultCondition(grading.grade)) as import('../../../types/pokemon').CardCondition;
+  const handleCardPicked = (card: PokemonCard) => {
+    setVaultCard(card);
+    setPickerOpen(false);
+    setVaultOpen(true);
+  };
 
-    const price = grading.estimatedGradedValue || 0;
-    const entry = vaultService.addToVault(stub, price, 1, condition, `PSA-style Grade ${grading.grade} ${grading.gradeLabel}`, game);
-    vaultService.updateVaultCard(entry.id, { gradingResult: grading }, game);
-    showToast('Added graded card to vault', 'success');
+  const closeVaultFlow = () => {
+    setVaultOpen(false);
+    setVaultCard(null);
+    setPendingGrading(null);
   };
 
   const handleGradeAnother = () => {
     setResult(null);
     setError(null);
     setCaptureKey((k) => k + 1);
+    closeVaultFlow();
+    setPickerOpen(false);
   };
+
+  const vaultCondition: CardCondition | undefined = pendingGrading
+    ? ((pendingGrading.suggestedCondition ||
+        gradeToVaultCondition(pendingGrading.grade)) as CardCondition)
+    : undefined;
+
+  const vaultNotes = pendingGrading
+    ? `PSA-style Grade ${pendingGrading.grade} ${pendingGrading.gradeLabel}`
+    : undefined;
 
   return (
     <div className="relative mx-auto max-w-5xl">
@@ -121,7 +134,8 @@ export const GradingPage: React.FC = () => {
             <div>
               <p className="font-medium">Grading service not reachable on port 5001.</p>
               <p className="mt-1 text-amber-200/80">
-                Start the Python backend: <code className="font-mono text-xs">cd card-scanner-backend && python app.py</code>
+                Start the Python backend:{' '}
+                <code className="font-mono text-xs">cd card-scanner-backend && python app.py</code>
               </p>
               <button
                 type="button"
@@ -160,9 +174,7 @@ export const GradingPage: React.FC = () => {
                 <p className="text-sm font-medium text-ink-primary">
                   Analyzing centering, corners, edges & surface…
                 </p>
-                <p className="text-xs text-ink-muted">
-                  This takes a few seconds
-                </p>
+                <p className="text-xs text-ink-muted">This takes a few seconds</p>
               </div>
             </div>
           )}
@@ -195,6 +207,28 @@ export const GradingPage: React.FC = () => {
           />
         </aside>
       </div>
+
+      <CardSearchPickerModal
+        isOpen={pickerOpen}
+        onClose={() => {
+          setPickerOpen(false);
+          if (!vaultOpen) setPendingGrading(null);
+        }}
+        initialQuery={pendingGrading?.cardName}
+        onSelect={handleCardPicked}
+      />
+
+      <AddToVaultModal
+        card={vaultCard}
+        isOpen={vaultOpen}
+        onClose={closeVaultFlow}
+        onSuccess={closeVaultFlow}
+        game={game}
+        initialCondition={vaultCondition}
+        initialNotes={vaultNotes}
+        initialPurchasePrice={pendingGrading?.estimatedGradedValue}
+        gradingResult={pendingGrading ?? undefined}
+      />
     </div>
   );
 };
