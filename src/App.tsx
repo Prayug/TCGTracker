@@ -9,8 +9,11 @@ import { BottomTabBar } from './components/layout/BottomTabBar';
 import { PageShell } from './components/layout/PageShell';
 import { CommandPalette } from './components/common/CommandPalette';
 import { OnboardingChecklist } from './components/common/OnboardingChecklist';
+import { SignInModal } from './components/auth/SignInModal';
 import { CardModalProvider } from './contexts/CardModalContext';
 import { GameProvider } from './contexts/GameContext';
+import { useAuth } from './hooks/useAuth';
+import { env } from './config/env';
 import { BrowsePage } from './pages/BrowsePage';
 import { LandingPage } from './pages/LandingPage';
 import { LoadingSpinner } from './components/common/LoadingSpinner';
@@ -31,11 +34,19 @@ const VaultView = lazy(() =>
 const PackShop = lazy(() =>
   import('./features/packs/components/PackShop').then((m) => ({ default: m.PackShop }))
 );
+const OpenPacksPage = lazy(() =>
+  import('./features/open/components/OpenPacksPage').then((m) => ({ default: m.OpenPacksPage }))
+);
 const CardScanner = lazy(() =>
   import('./features/scanner/components/CardScanner').then((m) => ({ default: m.CardScanner }))
 );
 const GradingPage = lazy(() =>
   import('./features/grading/components/GradingPage').then((m) => ({ default: m.GradingPage }))
+);
+const PhoneCapturePage = lazy(() =>
+  import('./features/capture/components/PhoneCapturePage').then((m) => ({
+    default: m.PhoneCapturePage,
+  }))
 );
 const SetIndex = lazy(() =>
   import('./features/sets/components/SetIndex').then((m) => ({ default: m.SetIndex }))
@@ -48,6 +59,12 @@ const WishlistView = lazy(() =>
 );
 const BindersIndex = lazy(() =>
   import('./features/binders/components/BindersIndex').then((m) => ({ default: m.BindersIndex }))
+);
+const SettingsPage = lazy(() =>
+  import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage }))
+);
+const VerifyEmailPage = lazy(() =>
+  import('./pages/VerifyEmailPage').then((m) => ({ default: m.VerifyEmailPage }))
 );
 
 function RouteFallback() {
@@ -166,6 +183,14 @@ function AppRoutes() {
                 }
               />
               <Route
+                path="/open"
+                element={
+                  <ShellPage wide>
+                    <OpenPacksPage />
+                  </ShellPage>
+                }
+              />
+              <Route
                 path="/scanner"
                 element={
                   <ShellPage>
@@ -181,6 +206,9 @@ function AppRoutes() {
                   </ShellPage>
                 }
               />
+              <Route path="/capture/:sessionId" element={<PhoneCapturePage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/verify-email" element={<VerifyEmailPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </ErrorBoundary>
@@ -193,6 +221,17 @@ function AppRoutes() {
 function AppShell() {
   const location = useLocation();
   const isHome = location.pathname === '/';
+  const isPhoneCapture = location.pathname.startsWith('/capture/');
+
+  if (isPhoneCapture) {
+    return (
+      <div className="min-h-screen min-w-0 bg-surface-base text-ink-primary">
+        <main id="main-content" className="relative min-w-0">
+          <AppRoutes />
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen min-w-0 bg-surface-base text-ink-primary">
@@ -230,11 +269,26 @@ function AppShell() {
 }
 
 function App() {
+  const {
+    authModalOpen,
+    authModalMode,
+    closeAuthModal,
+    setAuthModalMode,
+  } = useAuth();
+
   return (
     <MotionConfig reducedMotion="user">
       <GameProvider>
         <CardModalProvider>
           <AppShell />
+          {env.enableAuth && (
+            <SignInModal
+              isOpen={authModalOpen}
+              mode={authModalMode}
+              onModeChange={setAuthModalMode}
+              onClose={closeAuthModal}
+            />
+          )}
         </CardModalProvider>
       </GameProvider>
     </MotionConfig>

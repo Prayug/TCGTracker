@@ -4,6 +4,7 @@ import {
   Album,
   Award,
   BookOpen,
+  Boxes,
   Camera,
   Heart,
   Home,
@@ -11,6 +12,7 @@ import {
   LayoutGrid,
   LineChart,
   Package,
+  Settings,
   Swords,
   TrendingUp,
 } from 'lucide-react';
@@ -45,9 +47,11 @@ const NAV_GROUPS: {
   {
     label: 'Tools',
     items: [
-      { to: '/packs', label: 'Packs', icon: Package },
+      { to: '/open', label: 'Open Packs', icon: Boxes },
+      { to: '/packs', label: 'Pack Shop', icon: Package },
       { to: '/scanner', label: 'Scan', icon: Camera },
       { to: '/grading', label: 'Grade', icon: Award },
+      { to: '/settings', label: 'Settings', icon: Settings },
     ],
   },
 ];

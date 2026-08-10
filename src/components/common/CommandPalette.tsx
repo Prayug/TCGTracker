@@ -12,12 +12,17 @@ import {
   Layers,
   LineChart,
   Loader2,
+  LogIn,
   Package,
   Search,
+  Settings,
 } from 'lucide-react';
 import { pokemonApi } from '../../services/pokemonApi';
 import { PokemonCard } from '../../types/pokemon';
 import { useCardModal } from '../../contexts/CardModalContext';
+import { useGame } from '../../contexts/GameContext';
+import { useAuth } from '../../hooks/useAuth';
+import { env } from '../../config/env';
 import { browseSearchPath } from '../../utils/routes';
 
 const OPEN_EVENT = 'tcg:open-command-palette';
@@ -34,18 +39,47 @@ interface NavCommand {
   shortcut?: string;
 }
 
-const NAV_COMMANDS: NavCommand[] = [
-  { label: 'Home', to: '/', keywords: 'home start dashboard', icon: LayoutGrid, shortcut: 'G H' },
-  { label: 'Browse cards', to: '/browse', keywords: 'browse cards marketplace', icon: LayoutGrid, shortcut: 'G B' },
-  { label: 'Price tracker', to: '/prices', keywords: 'prices tracking watchlist alerts', icon: LineChart, shortcut: 'G P' },
-  { label: 'My vault', to: '/vault', keywords: 'vault collection portfolio', icon: BookOpen, shortcut: 'G V' },
-  { label: 'Wishlist', to: '/wishlist', keywords: 'wishlist want list buy targets', icon: Heart, shortcut: 'G W' },
-  { label: 'Sets', to: '/sets', keywords: 'sets eras binder completion', icon: Layers, shortcut: 'G S' },
-  { label: 'Binder planner', to: '/binders', keywords: 'binders plan planner page 3x3 organize collection', icon: Album },
-  { label: 'Open packs', to: '/packs', keywords: 'packs booster rip simulator', icon: Package },
-  { label: 'Scan a card', to: '/scanner', keywords: 'scanner camera identify photo', icon: Camera },
-  { label: 'AI grade a card', to: '/grading', keywords: 'grade grading tag centering corners condition', icon: Award },
-];
+function getNavCommands(isOnePiece: boolean): NavCommand[] {
+  return [
+    { label: 'Home', to: '/', keywords: 'home start dashboard', icon: LayoutGrid, shortcut: 'G H' },
+    { label: 'Browse cards', to: '/browse', keywords: 'browse cards marketplace', icon: LayoutGrid, shortcut: 'G B' },
+    { label: 'Price tracker', to: '/prices', keywords: 'prices tracking watchlist alerts', icon: LineChart, shortcut: 'G P' },
+    { label: 'My vault', to: '/vault', keywords: 'vault collection portfolio', icon: BookOpen, shortcut: 'G V' },
+    { label: 'Wishlist', to: '/wishlist', keywords: 'wishlist want list buy targets', icon: Heart, shortcut: 'G W' },
+    { label: 'Sets', to: '/sets', keywords: 'sets eras binder completion', icon: Layers, shortcut: 'G S' },
+    { label: 'Binder planner', to: '/binders', keywords: 'binders plan planner page 3x3 organize collection', icon: Album },
+    isOnePiece
+      ? {
+          label: 'Open packs',
+          to: '/open',
+          keywords: 'packs booster rip simulator open one piece /open',
+          icon: Package,
+        }
+      : {
+          label: 'Open packs',
+          to: '/packs',
+          keywords: 'packs booster rip simulator open /packs',
+          icon: Package,
+        },
+    // Always surface the other pack experience so both routes stay discoverable.
+    isOnePiece
+      ? {
+          label: 'Tiered pack shop',
+          to: '/packs',
+          keywords: 'packs tiered shop booster /packs',
+          icon: Package,
+        }
+      : {
+          label: 'One Piece pack simulator',
+          to: '/open',
+          keywords: 'packs open one piece /open simulator',
+          icon: Package,
+        },
+    { label: 'Scan a card', to: '/scanner', keywords: 'scanner camera identify photo', icon: Camera },
+    { label: 'AI grade a card', to: '/grading', keywords: 'grade grading tag centering corners condition', icon: Award },
+    { label: 'Settings', to: '/settings', keywords: 'settings account profile sign in login', icon: Settings },
+  ];
+}
 
 const GO_TARGETS: Record<string, string> = {
   h: '/',
@@ -99,6 +133,8 @@ interface PaletteItem {
 export const CommandPalette: React.FC = () => {
   const navigate = useNavigate();
   const { openCard } = useCardModal();
+  const { isOnePiece } = useGame();
+  const { user, openAuthModal } = useAuth();
   const [open, setOpen] = useState(false);
   const [helpMode, setHelpMode] = useState(false);
   const [query, setQuery] = useState('');
@@ -202,22 +238,51 @@ export const CommandPalette: React.FC = () => {
     return () => window.clearTimeout(id);
   }, [query, open]);
 
+  const navCommands = useMemo(() => getNavCommands(isOnePiece), [isOnePiece]);
+
   const items: PaletteItem[] = useMemo(() => {
     const trimmed = query.trim();
     const lower = trimmed.toLowerCase();
 
-    const navItems: PaletteItem[] = NAV_COMMANDS.filter(
-      (cmd) => !lower || cmd.label.toLowerCase().includes(lower) || cmd.keywords.includes(lower)
-    ).map((cmd) => ({
-      id: `nav-${cmd.to}`,
-      label: cmd.label,
-      icon: <cmd.icon className="h-4 w-4 text-ink-muted" aria-hidden="true" />,
-      shortcut: cmd.shortcut,
-      run: () => {
-        navigate(cmd.to);
-        close();
-      },
-    }));
+    const authMatch =
+      !lower ||
+      ['sign', 'login', 'account', 'register', 'auth'].some(
+        (k) => lower.includes(k) || k.includes(lower)
+      );
+
+    const authItems: PaletteItem[] =
+      env.enableAuth && !user && authMatch
+        ? [
+            {
+              id: 'auth-signin',
+              label: 'Sign in',
+              sublabel: 'Sync vault, watchlists, and alerts',
+              icon: <LogIn className="h-4 w-4 text-accent" aria-hidden="true" />,
+              run: () => {
+                openAuthModal('login');
+                close();
+              },
+            },
+          ]
+        : [];
+
+    const navItems: PaletteItem[] = [
+      ...authItems,
+      ...navCommands
+        .filter(
+          (cmd) => !lower || cmd.label.toLowerCase().includes(lower) || cmd.keywords.includes(lower)
+        )
+        .map((cmd) => ({
+          id: `nav-${cmd.to}-${cmd.label}`,
+          label: cmd.label,
+          icon: <cmd.icon className="h-4 w-4 text-ink-muted" aria-hidden="true" />,
+          shortcut: cmd.shortcut,
+          run: () => {
+            navigate(cmd.to);
+            close();
+          },
+        })),
+    ];
 
     if (!trimmed) {
       const recents: PaletteItem[] = getRecentSearches().map((q) => ({
@@ -266,7 +331,7 @@ export const CommandPalette: React.FC = () => {
     });
 
     return [searchRow, ...cardItems, ...navItems];
-  }, [query, cardResults, navigate, close, openCard]);
+  }, [query, cardResults, navigate, close, openCard, navCommands, user, openAuthModal]);
 
   useEffect(() => {
     setActiveIndex(0);

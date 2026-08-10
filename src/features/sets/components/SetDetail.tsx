@@ -129,10 +129,8 @@ export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
     const wish = setWishlistService.getWishlistForSet(setId);
     setWishlistIds(wish);
     try {
-      const [cardsRes, summaryRes] = await Promise.all([
-        setTrackerService.getSetCards(setId, wish),
-        setTrackerService.getSetSummary(setId, wish),
-      ]);
+      const cardsRes = await setTrackerService.getSetCards(setId, wish);
+      const summaryRes = await setTrackerService.getSetSummary(setId, wish);
       setSetMeta(cardsRes.set);
       setCards(cardsRes.cards);
       setSummary(summaryRes.summary);
@@ -264,6 +262,16 @@ export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
           </div>
         </section>
 
+        <section className="rounded-xl border border-border-default bg-surface-raised p-4 shadow-sm">
+          <div className="mb-2 flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-accent" />
+            <h2 className="text-sm font-semibold text-white">Set value over time</h2>
+          </div>
+          <p className="py-6 text-center text-sm text-ink-muted">
+            Value history coming soon for One Piece sets. Live set totals above use current market prices.
+          </p>
+        </section>
+
         <OnePieceSetBinderGrid cards={opCards} onCardClick={handleOPCardClick} />
       </div>
     );
@@ -331,7 +339,11 @@ export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
             icon={Layers}
             label="Master set value"
             value={formatCurrency(summary.masterSetValue)}
-            helper="Sum of all cards at market"
+            helper={
+              (summary.reverseHoloCount ?? 0) > 0
+                ? `Checklist ${formatCurrency(summary.checklistValue ?? 0)} + ${summary.reverseHoloCount} reverse holos`
+                : 'Sum of all cards at market'
+            }
           />
           <TrackerStatCard
             icon={DollarSign}
@@ -389,14 +401,17 @@ export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
             <div className={historyLoading ? 'opacity-60 transition-opacity' : undefined}>
               <PriceChart
                 priceHistory={priceHistory}
-                title="Master set value (catalog cards)"
+                title="Master set value (checklist + reverse holos)"
                 variant="dark"
               />
             </div>
             {summary && (
               <p className="mt-2 text-center text-xs text-ink-muted">
-                Chart uses the same {summary.totalCards}-card checklist as master set value — one
-                market price per card, not per variant listing.
+                Chart matches master set value: {summary.totalCards}-card checklist
+                {(summary.reverseHoloCount ?? 0) > 0
+                  ? ` plus ${summary.reverseHoloCount} reverse-holo finishes`
+                  : ''}
+                .
               </p>
             )}
           </>
