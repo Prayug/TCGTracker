@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
+  Album,
   Award,
   BookOpen,
+  Boxes,
   Camera,
   Heart,
   Home,
@@ -11,6 +13,7 @@ import {
   LineChart,
   MoreHorizontal,
   Package,
+  Settings,
   Swords,
   TrendingUp,
 } from 'lucide-react';
@@ -27,6 +30,7 @@ const SECONDARY_TABS: { to: string; label: string; icon: React.ElementType }[] =
 ];
 
 const MORE_ITEMS: { to: string; label: string; icon: React.ElementType }[] = [
+  { to: '/open', label: 'Open Packs', icon: Boxes },
   { to: '/sets', label: 'Sets', icon: Layers },
   { to: '/wishlist', label: 'Wishlist', icon: Heart },
   { to: '/packs', label: 'Packs', icon: Package },
@@ -35,6 +39,7 @@ const MORE_ITEMS: { to: string; label: string; icon: React.ElementType }[] = [
   { to: '/market-insights', label: 'Insights', icon: TrendingUp },
   { to: '/binders', label: 'Binders', icon: BookOpen },
   { to: '/scanner', label: 'Scanner', icon: Camera },
+  { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
 const GAME_OPTIONS: { value: GameType; label: string; icon: React.ElementType }[] = [

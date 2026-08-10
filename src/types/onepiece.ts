@@ -41,6 +41,8 @@ export type OnePieceSortOption =
   | 'name-desc'
   | 'set-asc'
   | 'set-desc'
+  | 'date-new'
+  | 'date-old'
   | 'rarity';
 
 export type OnePieceFilterOption = 'all';

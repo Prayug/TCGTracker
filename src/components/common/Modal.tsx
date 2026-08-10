@@ -30,7 +30,7 @@ const sizeClasses: Record<NonNullable<ModalProps['size']>, string> = {
   medium: 'w-full max-w-[min(32rem,calc(100vw-1.5rem))]',
   large: 'w-full max-w-[min(42rem,calc(100vw-2rem))]',
   detail: 'w-full max-w-[min(48rem,calc(100vw-2rem))]',
-  pack: 'w-[min(64rem,calc(100vw-1.5rem))] h-[min(52rem,calc(100dvh-1.5rem))] sm:h-[min(56rem,calc(100dvh-2rem))]',
+  pack: 'w-[min(60rem,calc(100vw-1.5rem))] h-[min(46rem,calc(100dvh-1rem))] sm:h-[min(50rem,calc(100dvh-2rem))]',
 };
 
 const VARIANT_PANEL: Record<ModalVariant, Variants> = {
@@ -92,8 +92,7 @@ export const Modal: React.FC<ModalProps> = ({
   const isPack = size === 'pack' || variant === 'stage';
   const reducedMotion = usePrefersReducedMotion();
   const isMobile = useIsMobileViewport();
-  const showScene =
-    !reducedMotion && (variant === 'inspect' || variant === 'reveal') && isOpen;
+  const showScene = !reducedMotion && (variant === 'inspect' || variant === 'reveal') && isOpen;
   const showFoil =
     !reducedMotion && !isMobile && (variant === 'dive' || variant === 'reveal') && isOpen;
 
@@ -132,12 +131,11 @@ export const Modal: React.FC<ModalProps> = ({
     [onClose]
   );
 
-  const maxHeight =
-    isPack
-      ? undefined
-      : size === 'detail'
-        ? 'max-h-[min(calc(100dvh-1.5rem),52rem)]'
-        : 'max-h-[min(calc(100dvh-1rem),40rem)]';
+  const maxHeight = isPack
+    ? undefined
+    : size === 'detail'
+      ? 'max-h-[min(calc(100dvh-1.5rem),52rem)]'
+      : 'max-h-[min(calc(100dvh-1rem),40rem)]';
 
   const borderAccent =
     variant === 'confirm'
@@ -179,7 +177,14 @@ export const Modal: React.FC<ModalProps> = ({
               transition={
                 reducedMotion
                   ? { duration: 0.15 }
-                  : { type: 'spring', stiffness: 420, damping: 34 }
+                  : {
+                      type: 'spring',
+                      stiffness: 420,
+                      damping: 34,
+                      // Blur cannot go negative — spring overshoot would
+                      // produce invalid keyframes like blur(-0.1px).
+                      filter: { type: 'tween', duration: 0.3, ease: 'easeOut' },
+                    }
               }
               style={{ transformStyle: 'preserve-3d' }}
               className={cn(
@@ -197,10 +202,12 @@ export const Modal: React.FC<ModalProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="absolute right-3 top-3 z-20 cursor-pointer rounded-lg border border-border-default bg-surface-overlay/95 p-2 text-ink-secondary shadow-sm backdrop-blur transition-colors hover:bg-surface-hover hover:text-ink-primary"
+                  className={`absolute right-3 top-3 z-20 cursor-pointer rounded-lg border border-border-default bg-surface-overlay/95 text-ink-secondary shadow-sm backdrop-blur transition-colors hover:bg-surface-hover hover:text-ink-primary ${
+                    isPack ? 'p-1.5' : 'p-2'
+                  }`}
                   aria-label="Close modal"
                 >
-                  <X className="h-5 w-5" aria-hidden="true" />
+                  <X className={isPack ? 'h-4 w-4' : 'h-5 w-5'} aria-hidden="true" />
                 </button>
               )}
 
@@ -221,7 +228,7 @@ export const Modal: React.FC<ModalProps> = ({
                 className={cn(
                   'custom-scrollbar min-h-0 flex-1 overflow-x-hidden px-4 pt-12 sm:px-8 sm:pt-14',
                   isPack
-                    ? 'flex flex-col overflow-y-hidden'
+                    ? 'flex flex-col overflow-y-auto overscroll-contain pt-8 sm:pt-10'
                     : 'overflow-y-auto overscroll-contain pb-4 sm:pb-5',
                   showScene && 'pt-4 sm:pt-5'
                 )}

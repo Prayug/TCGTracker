@@ -1,5 +1,10 @@
 import { authService } from './authService';
-import { alertServiceFrontend, PriceAlert as ServerAlert } from './alertService';
+import {
+  alertServiceFrontend,
+  PriceAlert as ServerAlert,
+  ServerAlertType,
+  CreateAlertOptions,
+} from './alertService';
 import { priceTrackingService, PriceAlert as LocalAlert } from './priceTrackingService';
 
 export type UnifiedAlertCondition = 'above' | 'below';
@@ -10,6 +15,9 @@ export interface UnifiedAlert {
   cardName: string;
   targetPrice: number;
   condition: UnifiedAlertCondition;
+  alertType?: ServerAlertType;
+  thresholdPct?: number | null;
+  baselinePrice?: number | null;
   isActive: boolean;
   createdAt: string;
   triggeredAt?: string;
@@ -36,6 +44,9 @@ function mapServer(alert: ServerAlert): UnifiedAlert {
     cardName: alert.card_name,
     targetPrice: alert.target_price,
     condition: alert.condition,
+    alertType: alert.alert_type ?? 'price_threshold',
+    thresholdPct: alert.threshold_pct,
+    baselinePrice: alert.baseline_price,
     isActive: alert.is_active,
     createdAt: alert.created_at,
     triggeredAt: alert.triggered_at,
@@ -50,6 +61,7 @@ function mapLocal(alert: LocalAlert): UnifiedAlert {
     cardName: alert.cardName,
     targetPrice: alert.targetPrice,
     condition: alert.alertType,
+    alertType: 'price_threshold',
     isActive: alert.isActive,
     createdAt: alert.createdAt,
     source: 'local',
@@ -91,11 +103,18 @@ class UnifiedAlertService {
     cardId: string,
     cardName: string,
     targetPrice: number,
-    condition: UnifiedAlertCondition
+    condition: UnifiedAlertCondition,
+    options?: CreateAlertOptions
   ): Promise<UnifiedAlert> {
     if (this.isServerMode()) {
       try {
-        const alert = await alertServiceFrontend.createAlert(cardId, cardName, targetPrice, condition);
+        const alert = await alertServiceFrontend.createAlert(
+          cardId,
+          cardName,
+          targetPrice,
+          condition,
+          options
+        );
         return mapServer(alert);
       } catch (err) {
         console.warn('Server alert create failed, using local:', err);
@@ -113,6 +132,9 @@ class UnifiedAlertService {
           cardName,
           targetPrice,
           condition,
+          alertType: options?.alertType ?? 'price_threshold',
+          thresholdPct: options?.thresholdPct,
+          baselinePrice: options?.baselinePrice,
           isActive: true,
           createdAt: new Date().toISOString(),
           source: 'local',
@@ -171,6 +193,8 @@ class UnifiedAlertService {
 
     for (const alert of alerts) {
       if (!alert.isActive) continue;
+      // Local digest only evaluates price_threshold style alerts.
+      if (alert.alertType && alert.alertType !== 'price_threshold') continue;
       const current = priceByCardId[alert.cardId];
       if (current == null || current <= 0) continue;
 
