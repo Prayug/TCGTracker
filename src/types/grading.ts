@@ -143,6 +143,30 @@ export function gradeBadgeColor(grade: number): string {
   return 'bg-red-500/15 text-red-300 border-red-500/40';
 }
 
+/** Hex color of the grade band (used by grade medals, chips, and glows). */
+export function gradeHex(grade: number): string {
+  if (grade >= 10) return '#fbbf24';
+  if (grade >= 9) return '#34d399';
+  if (grade >= 8) return '#38bdf8';
+  if (grade >= 7) return '#60a5fa';
+  if (grade >= 6) return '#818cf8';
+  if (grade >= 5) return '#facc15';
+  if (grade >= 3) return '#fb923c';
+  return '#f87171';
+}
+
+/** Tailwind text-color class for the grade band. */
+export function gradeTextClass(grade: number): string {
+  if (grade >= 10) return 'text-amber-300';
+  if (grade >= 9) return 'text-emerald-300';
+  if (grade >= 8) return 'text-sky-300';
+  if (grade >= 7) return 'text-blue-300';
+  if (grade >= 6) return 'text-indigo-300';
+  if (grade >= 5) return 'text-yellow-300';
+  if (grade >= 3) return 'text-orange-300';
+  return 'text-red-300';
+}
+
 /**
  * Normalize legacy TAG-style scores (0–250) to PSA-style (1–10).
  * Call this when rendering gauge values from stored history.

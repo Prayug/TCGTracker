@@ -1,7 +1,23 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, ChevronRight, Eye, AlertTriangle } from 'lucide-react';
-import { GradingResult, SideGrading, CategoryDetails, CropImage, CornerDetail } from '../../../types/grading';
+import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronRight,
+  CircleDot,
+  Crosshair,
+  Diamond,
+  Eye,
+  Square,
+  type LucideIcon,
+} from 'lucide-react';
+import {
+  GradingResult,
+  SideGrading,
+  CategoryDetails,
+  CropImage,
+  CornerDetail,
+} from '../../../types/grading';
 import { ZoomModal } from './ZoomModal';
 
 interface GradingReportProps {
@@ -10,32 +26,32 @@ interface GradingReportProps {
 
 const CATEGORY_META: Record<
   string,
-  { label: string; icon: string; color: string; borderColor: string; headerBg: string }
+  { label: string; icon: LucideIcon; color: string; borderColor: string; headerBg: string }
 > = {
   centering: {
     label: 'Centering',
-    icon: '⊞',
+    icon: Crosshair,
     color: 'text-sky-300',
     borderColor: 'border-sky-500/30',
     headerBg: 'bg-sky-500/10',
   },
   corners: {
     label: 'Corners',
-    icon: '◇',
+    icon: Diamond,
     color: 'text-emerald-300',
     borderColor: 'border-emerald-500/30',
     headerBg: 'bg-emerald-500/10',
   },
   edges: {
     label: 'Edges',
-    icon: '▭',
+    icon: Square,
     color: 'text-amber-300',
     borderColor: 'border-amber-500/30',
     headerBg: 'bg-amber-500/10',
   },
   surface: {
     label: 'Surface',
-    icon: '◎',
+    icon: CircleDot,
     color: 'text-rose-300',
     borderColor: 'border-rose-500/30',
     headerBg: 'bg-rose-500/10',
@@ -57,25 +73,42 @@ function CornerDetailTable({ corners }: { corners: CategoryDetails }) {
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-border-subtle bg-surface-inset/40">
-              <th className="px-2 py-1.5 text-left font-medium text-ink-muted">Corner</th>
-              <th className="px-2 py-1.5 text-right font-medium text-ink-muted">Fray</th>
-              <th className="px-2 py-1.5 text-right font-medium text-ink-muted">Fill</th>
-              <th className="px-2 py-1.5 text-right font-medium text-ink-muted">Angle</th>
+              <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider text-ink-muted">
+                Corner
+              </th>
+              <th className="px-3 py-2 text-right font-semibold uppercase tracking-wider text-ink-muted">
+                Fray
+              </th>
+              <th className="px-3 py-2 text-right font-semibold uppercase tracking-wider text-ink-muted">
+                Fill
+              </th>
+              <th className="px-3 py-2 text-right font-semibold uppercase tracking-wider text-ink-muted">
+                Angle
+              </th>
             </tr>
           </thead>
           <tbody>
             {cornerDetails.map((c) => (
-              <tr key={c.name} className="border-b border-border-subtle/50 last:border-0">
-                <td className="px-2 py-1.5 font-medium text-ink-secondary capitalize">
+              <tr
+                key={c.name}
+                className="border-b border-border-subtle/50 transition-colors last:border-0 hover:bg-surface-inset/30"
+              >
+                <td className="px-3 py-2 font-medium capitalize text-ink-secondary">
                   {c.name.replace(/-/g, ' ')}
                 </td>
-                <td className={`px-2 py-1.5 text-right font-mono tabular-nums ${c.fray >= 9.5 ? 'text-emerald-300' : c.fray >= 8.0 ? 'text-sky-300' : c.fray >= 6.0 ? 'text-amber-300' : 'text-red-300'}`}>
+                <td
+                  className={`px-3 py-2 text-right font-mono tabular-nums ${c.fray >= 9.5 ? 'text-emerald-300' : c.fray >= 8.0 ? 'text-sky-300' : c.fray >= 6.0 ? 'text-amber-300' : 'text-red-300'}`}
+                >
                   {c.fray}
                 </td>
-                <td className={`px-2 py-1.5 text-right font-mono tabular-nums ${c.fill >= 9.5 ? 'text-emerald-300' : c.fill >= 8.0 ? 'text-sky-300' : c.fill >= 6.0 ? 'text-amber-300' : 'text-red-300'}`}>
+                <td
+                  className={`px-3 py-2 text-right font-mono tabular-nums ${c.fill >= 9.5 ? 'text-emerald-300' : c.fill >= 8.0 ? 'text-sky-300' : c.fill >= 6.0 ? 'text-amber-300' : 'text-red-300'}`}
+                >
                   {c.fill}
                 </td>
-                <td className={`px-2 py-1.5 text-right font-mono tabular-nums ${c.angle >= 9.5 ? 'text-emerald-300' : c.angle >= 8.0 ? 'text-sky-300' : c.angle >= 6.0 ? 'text-amber-300' : 'text-red-300'}`}>
+                <td
+                  className={`px-3 py-2 text-right font-mono tabular-nums ${c.angle >= 9.5 ? 'text-emerald-300' : c.angle >= 8.0 ? 'text-sky-300' : c.angle >= 6.0 ? 'text-amber-300' : 'text-red-300'}`}
+                >
                   {c.angle}
                 </td>
               </tr>
@@ -103,32 +136,39 @@ function CategorySection({
   const [expanded, setExpanded] = useState(true);
   const config = CATEGORY_META[category] || CATEGORY_META.surface;
   const crops = data.crops || [];
+  const Icon = config.icon;
 
   return (
     <div className={`overflow-hidden rounded-lg border ${config.borderColor}`}>
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className={`flex w-full items-center justify-between px-3 py-2.5 text-left transition-colors hover:brightness-110 ${config.headerBg}`}
+        aria-expanded={expanded}
+        className={`flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left transition-colors hover:brightness-110 ${config.headerBg}`}
       >
-        <div className="flex items-center gap-2">
-          <span className={`text-sm ${config.color}`}>{config.icon}</span>
-          <span className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className={`shrink-0 ${config.color}`}>
+            <Icon className="h-4 w-4" />
+          </span>
+          <span className="truncate text-xs font-semibold uppercase tracking-wider text-ink-secondary">
             {side} {config.label}
           </span>
-          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${config.color} bg-surface-overlay`}>
+          <span
+            className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border-subtle bg-surface-overlay px-2 py-0.5 font-mono text-[10px] font-semibold tabular-nums ${config.color}`}
+          >
+            <span className="h-1 w-1 rounded-full bg-current" aria-hidden />
             {data.score}/10
           </span>
           {data.defects.length > 0 && (
-            <span className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-medium text-amber-300">
+            <span className="shrink-0 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-medium text-amber-300">
               {data.defects.length} issue{data.defects.length !== 1 ? 's' : ''}
             </span>
           )}
         </div>
         {expanded ? (
-          <ChevronDown className="h-3.5 w-3.5 text-ink-muted" />
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-ink-muted" />
         ) : (
-          <ChevronRight className="h-3.5 w-3.5 text-ink-muted" />
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-ink-muted" />
         )}
       </button>
 
@@ -142,13 +182,16 @@ function CategorySection({
             className="overflow-hidden"
           >
             <div className="border-t border-border-subtle px-3 py-3">
-              <p className="mb-2 text-xs text-ink-muted">{data.details}</p>
+              <p className="mb-3 text-xs leading-relaxed text-ink-muted">{data.details}</p>
 
               {data.defects.length > 0 && (
-                <div className="mb-3 space-y-1">
+                <div className="mb-3 space-y-1.5">
                   {data.defects.map((d, i) => (
-                    <div key={i} className="flex items-start gap-1.5 text-xs text-ink-secondary">
-                      <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-amber-400/70" />
+                    <div
+                      key={i}
+                      className="flex items-start gap-2 rounded-md bg-amber-500/[0.07] px-2.5 py-1.5 text-xs leading-snug text-amber-200/90"
+                    >
+                      <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-amber-400/80" />
                       {d}
                     </div>
                   ))}
@@ -201,21 +244,21 @@ function CategorySection({
 
 function SideSection({
   label,
-  icon,
   side,
   data,
   onZoom,
 }: {
   label: string;
-  icon: string;
   side: 'front' | 'back';
   data: SideGrading;
   onZoom: (src: string, label: string) => void;
 }) {
   return (
     <div>
-      <div className="mb-3 flex items-center gap-2">
-        <span className="text-lg">{icon}</span>
+      <div className="mb-3 flex items-center gap-2.5">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-foil/30 bg-foil-muted font-display text-xs font-bold text-foil">
+          {side === 'front' ? 'F' : 'B'}
+        </span>
         <h3 className="text-sm font-bold uppercase tracking-wider text-ink-primary">{label}</h3>
         <div className="flex-1 border-t border-border-subtle" />
       </div>
@@ -265,13 +308,19 @@ export const GradingReport: React.FC<GradingReportProps> = ({ result }) => {
     <div className="space-y-4">
       {/* Front/Back tabs */}
       {hasBack && (
-        <div className="flex gap-1 rounded-lg border border-border-subtle bg-surface-inset/40 p-1">
+        <div
+          role="tablist"
+          aria-label="Card side"
+          className="flex gap-1 rounded-xl border border-border-subtle bg-surface-inset/40 p-1"
+        >
           <button
             type="button"
+            role="tab"
+            aria-selected={activeTab === 'front'}
             onClick={() => setActiveTab('front')}
-            className={`flex-1 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+            className={`flex-1 cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
               activeTab === 'front'
-                ? 'bg-surface-overlay text-ink-primary shadow-sm'
+                ? 'bg-surface-overlay text-ink-primary shadow-sm ring-1 ring-border-subtle'
                 : 'text-ink-muted hover:text-ink-secondary'
             }`}
           >
@@ -279,10 +328,12 @@ export const GradingReport: React.FC<GradingReportProps> = ({ result }) => {
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={activeTab === 'back'}
             onClick={() => setActiveTab('back')}
-            className={`flex-1 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+            className={`flex-1 cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
               activeTab === 'back'
-                ? 'bg-surface-overlay text-ink-primary shadow-sm'
+                ? 'bg-surface-overlay text-ink-primary shadow-sm ring-1 ring-border-subtle'
                 : 'text-ink-muted hover:text-ink-secondary'
             }`}
           >
@@ -293,22 +344,10 @@ export const GradingReport: React.FC<GradingReportProps> = ({ result }) => {
 
       {/* Active side */}
       {activeTab === 'front' && frontData && (
-        <SideSection
-          label="Front"
-          icon="F"
-          side="front"
-          data={frontData}
-          onZoom={handleZoom}
-        />
+        <SideSection label="Front" side="front" data={frontData} onZoom={handleZoom} />
       )}
       {activeTab === 'back' && backData && (
-        <SideSection
-          label="Back"
-          icon="B"
-          side="back"
-          data={backData}
-          onZoom={handleZoom}
-        />
+        <SideSection label="Back" side="back" data={backData} onZoom={handleZoom} />
       )}
 
       {/* Zoom modal */}
