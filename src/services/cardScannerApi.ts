@@ -1,12 +1,11 @@
 import axios from 'axios';
-import { env } from '../config/env';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
-const API_BASE_URL = env.apiUrl
-  ? `${env.apiUrl.replace(/\/+$/, '')}/api/scanner`
-  : import.meta.env.VITE_CARD_SCANNER_API_URL || 'http://localhost:5001';
+const API_BASE_URL = (
+  import.meta.env.VITE_CARD_SCANNER_API_URL || 'http://localhost:5001'
+).replace(/\/+$/, '');
 
 const scannerAxios = axios.create({
   withCredentials: false,
@@ -121,4 +120,39 @@ export async function checkBackendHealth(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+export interface ReferenceStatus {
+  success: boolean;
+  ready: boolean;
+  error?: string;
+  path?: string;
+  set_files?: number;
+}
+
+export async function checkReferenceStatus(): Promise<ReferenceStatus> {
+  try {
+    const response = await scannerAxios.get<ReferenceStatus>(
+      `${API_BASE_URL}/api/reference-status`,
+      { timeout: 5000 }
+    );
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.data) {
+      return error.response.data as ReferenceStatus;
+    }
+    return {
+      success: false,
+      ready: false,
+      error: 'Could not reach reference-status endpoint',
+    };
+  }
+}
+
+/** True when the error message indicates a missing / empty reference DB. */
+export function isReferenceDbError(message: string | undefined | null): boolean {
+  if (!message) return false;
+  return /reference (database|build|db)|not built|reference directory|build_reference/i.test(
+    message
+  );
 }

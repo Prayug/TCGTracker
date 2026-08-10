@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Camera, Upload, ChevronRight, RefreshCw, RotateCcw, Check } from 'lucide-react';
+import { Camera, Upload, ChevronRight, RefreshCw, RotateCcw, Check, Smartphone } from 'lucide-react';
+import { PhoneCaptureQr } from '../../capture/components/PhoneCaptureQr';
+import { compressImageDataUrl } from '../../../utils/imageCompress';
 
-type Mode = 'idle' | 'upload' | 'camera';
+type Mode = 'idle' | 'upload' | 'camera' | 'phone';
 type Step = 'front' | 'back';
 
 interface GradingCaptureProps {
@@ -120,10 +122,55 @@ export const GradingCapture: React.FC<GradingCaptureProps> = ({
     }
   };
 
-  const handleModeSelect = async (m: 'upload' | 'camera') => {
+  const handleModeSelect = async (m: 'upload' | 'camera' | 'phone') => {
     setError(null);
     setMode(m);
     if (m === 'camera') await startCamera();
+  };
+
+  const acceptPhoneImages = async (front: string, back?: string) => {
+    setChecking(true);
+    setError(null);
+    try {
+      const frontNorm = await compressImageDataUrl(front, { maxSide: 2000, quality: 0.9 });
+      const backNorm = back
+        ? await compressImageDataUrl(back, { maxSide: 2000, quality: 0.9 })
+        : undefined;
+
+      const frontQuality = await assessClientQuality(frontNorm);
+      if (frontQuality) {
+        setError(frontQuality);
+        setMode('idle');
+        return;
+      }
+      if (backNorm) {
+        const backQuality = await assessClientQuality(backNorm);
+        if (backQuality) {
+          setError(backQuality);
+          setMode('idle');
+          return;
+        }
+      }
+      setFrontPreview(frontNorm);
+      setFrontImage(frontNorm);
+      if (backNorm) {
+        setBackPreview(backNorm);
+        setBackImage(backNorm);
+        setStep('back');
+      } else {
+        setStep('front');
+      }
+      setMode('idle');
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : 'Phone photo could not be read. Retake and try again.'
+      );
+      setMode('idle');
+    } finally {
+      setChecking(false);
+    }
   };
 
   const acceptImage = async (fileOrData: File | string) => {
@@ -187,6 +234,51 @@ export const GradingCapture: React.FC<GradingCaptureProps> = ({
     }
   };
 
+  if (mode === 'phone') {
+    const capturingBackOnly = step === 'back' && Boolean(frontImage);
+    return (
+      <div className="card-glass-scene space-y-3">
+        {error && (
+          <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+            {error}
+          </div>
+        )}
+        <PhoneCaptureQr
+          mode={capturingBackOnly ? 'scan' : 'grade'}
+          sideHint={capturingBackOnly ? 'back' : undefined}
+          disabled={disabled || isProcessing || checking}
+          onCancel={() => {
+            setMode('idle');
+            setError(null);
+          }}
+          onImages={(front, back) => {
+            if (capturingBackOnly) {
+              // Single-image session: treat the photo as the card back.
+              void (async () => {
+                try {
+                  const normalized = await compressImageDataUrl(front, {
+                    maxSide: 2000,
+                    quality: 0.9,
+                  });
+                  await acceptImage(normalized);
+                } catch (e) {
+                  setError(
+                    e instanceof Error
+                      ? e.message
+                      : 'Phone photo could not be read. Retake and try again.'
+                  );
+                  setMode('idle');
+                }
+              })();
+              return;
+            }
+            void acceptPhoneImages(front, back);
+          }}
+        />
+      </div>
+    );
+  }
+
   // Idle mode — show front/back status + capture buttons
   if (mode === 'idle' && !frontPreview) {
     return (
@@ -201,7 +293,7 @@ export const GradingCapture: React.FC<GradingCaptureProps> = ({
           Place the card flat on a solid contrasting background. Fill the frame, avoid glare,
           and keep the camera parallel to the card.
         </p>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <button
             type="button"
             disabled={disabled}
@@ -224,8 +316,27 @@ export const GradingCapture: React.FC<GradingCaptureProps> = ({
           <button
             type="button"
             disabled={disabled}
-            onClick={() => handleModeSelect('upload')}
+            onClick={() => handleModeSelect('phone')}
             className="group rounded-xl border border-border-default bg-surface-raised p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-border-strong hover:shadow-elevated disabled:opacity-50"
+          >
+            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-accent/30 bg-accent/10">
+              <Smartphone className="h-5 w-5 text-accent" />
+            </div>
+            <h3 className="mb-1 font-semibold text-ink-primary">Phone camera</h3>
+            <p className="text-sm text-ink-muted">
+              Scan a QR code and capture a steadier front/back photo on your phone.
+            </p>
+            <div className="mt-3 flex items-center gap-1 text-xs font-medium text-accent">
+              <span>Show QR code</span>
+              <ChevronRight className="h-3.5 w-3.5" />
+            </div>
+          </button>
+
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => handleModeSelect('upload')}
+            className="group rounded-xl border border-border-default bg-surface-raised p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-border-strong hover:shadow-elevated disabled:opacity-50 sm:col-span-2 lg:col-span-1"
           >
             <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-accent/30 bg-accent/10">
               <Upload className="h-5 w-5 text-accent" />
@@ -309,7 +420,7 @@ export const GradingCapture: React.FC<GradingCaptureProps> = ({
               Front captured — now photograph the back for a combined grade
             </div>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <button
               type="button"
               disabled={disabled}
@@ -326,8 +437,21 @@ export const GradingCapture: React.FC<GradingCaptureProps> = ({
             <button
               type="button"
               disabled={disabled}
-              onClick={() => handleModeSelect('upload')}
+              onClick={() => handleModeSelect('phone')}
               className="group rounded-xl border border-border-default bg-surface-raised p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-border-strong hover:shadow-elevated disabled:opacity-50"
+            >
+              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-accent/30 bg-accent/10">
+                <Smartphone className="h-5 w-5 text-accent" />
+              </div>
+              <h3 className="mb-1 font-semibold text-ink-primary">Phone (back)</h3>
+              <p className="text-sm text-ink-muted">Scan a QR and capture the back on your phone.</p>
+            </button>
+
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => handleModeSelect('upload')}
+              className="group rounded-xl border border-border-default bg-surface-raised p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-border-strong hover:shadow-elevated disabled:opacity-50 sm:col-span-2 lg:col-span-1"
             >
               <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-accent/30 bg-accent/10">
                 <Upload className="h-5 w-5 text-accent" />
