@@ -38,14 +38,18 @@ Supports **Pokemon** and **One Piece** via an in-app game switcher.
 - **Browse** — search by name/set/rarity with undervalued, population, and return filters
 - **Vault** — log purchases, track portfolio value and P/L
 - **Sets** — generation-grouped set tracker with completion rings
+- **Binders** — page-style collection views for organizing owned cards
+- **Wishlist** — save cards and sets you want next
 
 ### Market
-- **Price tracker** — watchlist, 7-day movers, and price alerts
-- **Market insights** — AI predictions (7d → 1yr), recovery/momentum/overheat categories, backtests, and Groq-powered explanations
+- **Price tracker** — personal watchlists, 7-day movers, and price alerts
+- **Market insights** — AI predictions (7d → 1yr), recovery/momentum/overheat categories, return calibration, backtests, and Groq-powered explanations
 
 ### Tools
 - **Pack shop** — tiered simulated rips with boosted mode and cinematic 3D open (React Three Fiber)
 - **Card scanner** — camera / upload recognition via a Python OCR backend
+- **Phone capture** — QR-linked mobile capture sessions for scanner and grading workflows
+- **Grading** — photo-based condition estimates with sub-scores and history
 
 ### Product polish
 - Dark / light themes · command palette (`Ctrl/Cmd+K`) · responsive layout · JWT auth
