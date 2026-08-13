@@ -1,5 +1,19 @@
 # Dependencies
 node_modules/
+
+# Empty / generated / local-only
+/api
+venv/
+.venv/
+**/__pycache__/
+*.pyc
+*.db
+*.db-*
+server.log
+coverage/
+
+# Shared package build
+packages/shared/dist/
 /.pnp
 .pnp.js
 

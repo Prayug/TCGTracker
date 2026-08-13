@@ -7,8 +7,11 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@tcgtracker/shared": ["./packages/shared/src/index.ts"]
     },
+    "composite": true,
+    "declaration": true,
 
     /* Bundler mode */
     "moduleResolution": "bundler",
@@ -25,5 +28,7 @@
     "noFallthroughCasesInSwitch": true
   },
 
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test"],
+  "references": [{ "path": "./packages/shared" }]
 }

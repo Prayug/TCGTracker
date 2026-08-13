@@ -12,6 +12,9 @@ module.exports = {
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
   moduleFileExtensions: ['ts', 'js', 'json'],
+  moduleNameMapper: {
+    '^@tcgtracker/shared$': '<rootDir>/../packages/shared/src/index.ts',
+  },
   verbose: true,
 };
 
