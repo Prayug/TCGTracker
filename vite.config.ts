@@ -36,6 +36,8 @@ export default defineConfig(({ mode }) => {
     },
   },
   server: {
+    // Expose on LAN so phone QR capture can open http://<your-ip>:5173/capture/...
+    host: true,
     proxy: {
       '/api/psa': {
         target: 'https://www.psacard.com',
@@ -78,6 +80,7 @@ export default defineConfig(({ mode }) => {
       '/api/binders': backendProxy,
       '/api/market-insights': backendProxy,
       '/api/grading': backendProxy,
+      '/api/capture-sessions': backendProxy,
       '/api/update': backendProxy,
       '/api/cloud-backup': backendProxy,
       '/api/sync-catalog': backendProxy,
@@ -110,7 +113,9 @@ export default defineConfig(({ mode }) => {
         headers: {
           'Accept': 'application/json'
         }
-      }
+      },
+      // Catch-all for Node backend routes (must stay after external /api/* proxies above).
+      '/api': backendProxy,
     }
   },
   test: {
