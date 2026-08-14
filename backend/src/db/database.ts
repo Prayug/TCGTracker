@@ -23,32 +23,34 @@ let dbInitPromise: Promise<void> | null = null;
 const runDb = (database: sqlite3.Database, sql: string, params: unknown[] = []): Promise<void> =>
   new Promise((resolve, reject) => {
     database.run(sql, params, (err) => {
-      if (err) reject(err);
-      else resolve();
+      if (err) {
+        const wrapped = new Error(`${err.message} (${sql.slice(0, 120)})`);
+        (wrapped as NodeJS.ErrnoException).code = (err as NodeJS.ErrnoException).code;
+        reject(wrapped);
+      } else resolve();
     });
   });
 
 export const getDb = () => {
   if (!db) {
-    db = new sqlite3.Database(DB_SOURCE, (err) => {
-      if (err) {
-        logger.error('Failed to open database', { error: err.message });
-        throw err;
-      }
-    });
+    db = new sqlite3.Database(DB_SOURCE);
+    db.configure('busyTimeout', 30000);
   }
   return db;
 };
 
-export const initializeDatabase = (): Promise<void> => {
-  if (dbInitPromise) return dbInitPromise;
+const isSqliteBusy = (err: unknown): boolean => {
+  const code = (err as NodeJS.ErrnoException)?.code;
+  const message = err instanceof Error ? err.message : String(err);
+  return code === 'SQLITE_BUSY' || message.includes('SQLITE_BUSY') || message.includes('database is locked');
+};
 
-  dbInitPromise = (async () => {
+const initializeDatabaseBody = async (): Promise<void> => {
     const database = getDb();
 
+    await runDb(database, 'PRAGMA busy_timeout = 30000');
     await runDb(database, 'PRAGMA journal_mode = WAL');
     await runDb(database, 'PRAGMA foreign_keys = ON');
-    await runDb(database, 'PRAGMA busy_timeout = 5000');
 
     const tables = [
       `CREATE TABLE IF NOT EXISTS card_mappings (
@@ -63,6 +65,8 @@ export const initializeDatabase = (): Promise<void> => {
         variantKey TEXT DEFAULT 'normal',
         tcgplayerProductId TEXT,
         uniqueIdentifier TEXT NOT NULL UNIQUE,
+        language TEXT NOT NULL DEFAULT 'en',
+        matchName TEXT,
         createdAt TEXT DEFAULT (datetime('now')),
         updatedAt TEXT DEFAULT (datetime('now'))
       )`,
@@ -130,6 +134,9 @@ export const initializeDatabase = (): Promise<void> => {
         imageLarge TEXT,
         tcgplayerProductId TEXT,
         tcgplayerPrices TEXT,
+        language TEXT NOT NULL DEFAULT 'en',
+        matchName TEXT,
+        dexId INTEGER,
         syncedAt TEXT DEFAULT (datetime('now'))
       )`,
       `CREATE TABLE IF NOT EXISTS population_cache (
@@ -212,6 +219,7 @@ export const initializeDatabase = (): Promise<void> => {
       `CREATE TABLE IF NOT EXISTS graded_prices (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         cardId TEXT NOT NULL,
+        variantKey TEXT NOT NULL DEFAULT 'normal',
         cardName TEXT,
         setId TEXT,
         setName TEXT,
@@ -220,20 +228,22 @@ export const initializeDatabase = (): Promise<void> => {
         price REAL,
         soldListings INTEGER DEFAULT 0,
         fetchedAt TEXT DEFAULT (datetime('now')),
-        UNIQUE(cardId, grader, grade)
+        UNIQUE(cardId, variantKey, grader, grade)
       )`,
       `CREATE TABLE IF NOT EXISTS graded_price_history (
         cardId TEXT NOT NULL,
+        variantKey TEXT NOT NULL DEFAULT 'normal',
         date TEXT NOT NULL,
         grader TEXT NOT NULL,
         grade TEXT NOT NULL,
         price REAL,
         soldListings INTEGER DEFAULT 0,
+        listedCount INTEGER,
         productId TEXT,
         verified INTEGER DEFAULT 0,
         sourceUrl TEXT,
         source TEXT NOT NULL DEFAULT 'pricecharting',
-        PRIMARY KEY (cardId, date, grader, grade)
+        PRIMARY KEY (cardId, variantKey, date, grader, grade)
       )`,
       `CREATE TABLE IF NOT EXISTS external_market_signals (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -380,6 +390,28 @@ export const initializeDatabase = (): Promise<void> => {
       await runDb(database, indexSql);
     }
 
+    // variantKey is added by migration 36 on existing DBs. CREATE TABLE IF NOT EXISTS
+    // does not alter old tables, so these indexes must wait until the column exists.
+    const tableHasColumn = (table: string, column: string): Promise<boolean> =>
+      new Promise((resolve, reject) => {
+        database.all(`PRAGMA table_info(${table})`, [], (err, rows: Array<{ name: string }>) => {
+          if (err) reject(err);
+          else resolve((rows || []).some((r) => r.name === column));
+        });
+      });
+    if (await tableHasColumn('graded_prices', 'variantKey')) {
+      await runDb(
+        database,
+        'CREATE INDEX IF NOT EXISTS idx_graded_prices_card_variant ON graded_prices(cardId, variantKey)'
+      );
+    }
+    if (await tableHasColumn('graded_price_history', 'variantKey')) {
+      await runDb(
+        database,
+        'CREATE INDEX IF NOT EXISTS idx_graded_price_history_variant_lookup ON graded_price_history(cardId, variantKey, grader, grade, date)'
+      );
+    }
+
     logger.info('All database tables and indexes ready.');
     logger.info(`Using database at ${DB_SOURCE}`);
 
@@ -400,6 +432,30 @@ export const initializeDatabase = (): Promise<void> => {
         }
       });
     }, 30 * 60 * 1000);
+};
+
+export const initializeDatabase = (): Promise<void> => {
+  if (dbInitPromise) return dbInitPromise;
+
+  dbInitPromise = (async () => {
+    const maxAttempts = 8;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        await initializeDatabaseBody();
+        return;
+      } catch (err) {
+        if (!isSqliteBusy(err) || attempt === maxAttempts) {
+          dbInitPromise = null;
+          throw err;
+        }
+        logger.warn('Database locked during startup — retrying', {
+          attempt,
+          maxAttempts,
+          error: (err as Error).message,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
+      }
+    }
   })();
 
   return dbInitPromise;

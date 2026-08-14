@@ -46,24 +46,45 @@ export interface GradingResultDTO {
     crops?: Array<{ label: string; image: string; location?: { x: number; y: number; width: number; height: number } }>;
   };
   corners: {
-    score: number;
+    score: number | null;
     details: string;
     defects: string[];
     crops?: Array<{ label: string; image: string; location?: { x: number; y: number; width: number; height: number } }>;
     deviations?: Record<string, unknown>;
+    withheld?: boolean;
+    withheldReason?: string;
+    confidence?: number;
+    confidenceBand?: 'low' | 'moderate' | 'high';
+    detections?: Array<Record<string, unknown>>;
+    scoreLow?: number;
+    scoreHigh?: number;
   };
   edges: {
-    score: number;
+    score: number | null;
     details: string;
     defects: string[];
     crops?: Array<{ label: string; image: string; location?: { x: number; y: number; width: number; height: number } }>;
     deviations?: Record<string, unknown>;
+    withheld?: boolean;
+    withheldReason?: string;
+    confidence?: number;
+    confidenceBand?: 'low' | 'moderate' | 'high';
+    detections?: Array<Record<string, unknown>>;
+    scoreLow?: number;
+    scoreHigh?: number;
   };
   surface: {
-    score: number;
+    score: number | null;
     details: string;
     defects: string[];
     crops?: Array<{ label: string; image: string; location?: { x: number; y: number; width: number; height: number } }>;
+    withheld?: boolean;
+    withheldReason?: string;
+    confidence?: number;
+    confidenceBand?: 'low' | 'moderate' | 'high';
+    detections?: Array<Record<string, unknown>>;
+    scoreLow?: number;
+    scoreHigh?: number;
   };
   totalScore: number;
   grade: number;
@@ -91,6 +112,19 @@ export interface GradingResultDTO {
   quality?: Record<string, unknown>;
   extraction?: Record<string, unknown>;
   provider?: Record<string, unknown>;
+  surfaceRefused?: boolean;
+  surfaceRetakeRecommended?: boolean;
+  psaRange?: { low: number; high: number };
+  psaDistribution?: Array<{ grade: number; pct: number }>;
+  modelGrade?: number;
+  finishType?: string;
+  scanMode?: 'quick' | 'precision';
+  tcgScore?: {
+    overall: number;
+    categories: Record<string, number | null>;
+  };
+  multiFrame?: Record<string, unknown>;
+  frameCount?: number;
 }
 
 function parseJson<T>(raw: string | null | undefined, fallback: T): T {
@@ -163,10 +197,17 @@ export function rowToGradingResult(row: GradingResultRow): GradingResultDTO {
       deviations: frontEdges?.deviations as Record<string, unknown>,
     },
     surface: {
-      score: (frontSurface?.score as number) ?? row.surface_score,
+      score: (frontSurface?.score as number | null) ?? row.surface_score,
       details: (frontSurface?.details as string) || row.surface_details || '',
       defects: (frontSurface?.defects as string[]) || defects.surface || [],
       crops: frontSurface?.crops as GradingResultDTO['surface']['crops'],
+      withheld: Boolean(frontSurface?.withheld),
+      withheldReason: frontSurface?.withheldReason as string | undefined,
+      confidence: frontSurface?.confidence as number | undefined,
+      confidenceBand: frontSurface?.confidenceBand as GradingResultDTO['surface']['confidenceBand'],
+      detections: frontSurface?.detections as GradingResultDTO['surface']['detections'],
+      scoreLow: frontSurface?.scoreLow as number | undefined,
+      scoreHigh: frontSurface?.scoreHigh as number | undefined,
     },
     totalScore: row.total_score,
     grade: row.grade,
@@ -179,6 +220,25 @@ export function rowToGradingResult(row: GradingResultRow): GradingResultDTO {
     defectRegions,
     front: front ?? undefined,
     back: back ?? undefined,
+    confidence: typeof fullResult?.confidence === 'number' ? fullResult.confidence : undefined,
+    retakeRecommended: Boolean(fullResult?.retakeRecommended),
+    quality: (fullResult?.quality as Record<string, unknown> | undefined) ?? undefined,
+    extraction: (fullResult?.extraction as Record<string, unknown> | undefined) ?? undefined,
+    provider: (fullResult?.provider as Record<string, unknown> | undefined) ?? undefined,
+    limitations: typeof fullResult?.limitations === 'string' ? fullResult.limitations : undefined,
+    surfaceRefused: Boolean(fullResult?.surfaceRefused),
+    surfaceRetakeRecommended: Boolean(fullResult?.surfaceRetakeRecommended),
+    psaRange: fullResult?.psaRange as GradingResultDTO['psaRange'],
+    psaDistribution: fullResult?.psaDistribution as GradingResultDTO['psaDistribution'],
+    modelGrade: typeof fullResult?.modelGrade === 'number' ? fullResult.modelGrade : undefined,
+    finishType: typeof fullResult?.finishType === 'string' ? fullResult.finishType : undefined,
+    scanMode:
+      fullResult?.scanMode === 'precision' || fullResult?.scanMode === 'quick'
+        ? fullResult.scanMode
+        : undefined,
+    tcgScore: (fullResult?.tcgScore as GradingResultDTO['tcgScore']) ?? undefined,
+    multiFrame: (fullResult?.multiFrame as GradingResultDTO['multiFrame']) ?? undefined,
+    frameCount: typeof fullResult?.frameCount === 'number' ? fullResult.frameCount : undefined,
   };
 }
 

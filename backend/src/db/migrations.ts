@@ -1484,7 +1484,947 @@ export const migrations: Migration[] = [
       await run('DROP TABLE IF EXISTS population_history');
     },
   },
+  {
+    id: 30,
+    name: 'clear_unnumbered_subset_slab_mismatches',
+    up: async (db: Database) => {
+      const run = (sql: string): Promise<void> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, (err) => (err ? reject(err) : resolve()));
+        });
+
+      // Unnumbered TCGCSV SKUs (Hidden Fates Charizard GX) were matching the
+      // first PriceCharting hit — usually the Shiny Vault / full-art sibling.
+      await run(`CREATE TEMP TABLE IF NOT EXISTS _bad_slab_ids (cardId TEXT PRIMARY KEY)`);
+      await run(`
+        INSERT OR IGNORE INTO _bad_slab_ids (cardId)
+        SELECT DISTINCT gp.cardId
+        FROM graded_prices gp
+        JOIN card_mappings cm ON cm.cardId = gp.cardId
+        WHERE IFNULL(cm.cardNumber, '') = ''
+          AND LOWER(IFNULL(cm.setName, '')) NOT LIKE '%shiny vault%'
+          AND LOWER(IFNULL(cm.setName, '')) NOT LIKE '%trainer gallery%'
+          AND LOWER(IFNULL(cm.setName, '')) NOT LIKE '%galarian gallery%'
+          AND gp.productId IS NOT NULL
+          AND gp.productId IN (
+            SELECT gp2.productId
+            FROM graded_prices gp2
+            JOIN card_mappings cm2 ON cm2.cardId = gp2.cardId
+            WHERE gp2.productId IS NOT NULL
+              AND LOWER(IFNULL(cm2.cardNumber, '')) GLOB '[a-z]*'
+          )
+      `);
+      await run(`DELETE FROM graded_prices WHERE cardId IN (SELECT cardId FROM _bad_slab_ids)`);
+      await run(`DELETE FROM graded_price_history WHERE cardId IN (SELECT cardId FROM _bad_slab_ids)`);
+      await run(`DELETE FROM population_cache WHERE cardId IN (SELECT cardId FROM _bad_slab_ids)`);
+      await run(
+        `UPDATE graded_refresh_queue SET lastRefreshedAt = NULL WHERE cardId IN (SELECT cardId FROM _bad_slab_ids)`
+      );
+      await run(`DROP TABLE IF EXISTS _bad_slab_ids`);
+
+      logger.info('Migration 30: cleared unnumbered main-set SKUs mapped to subset/full-art slab products');
+    },
+    down: async () => {
+      // Data repair — nothing to roll back.
+    },
+  },
+  {
+    id: 31,
+    name: 'slab_prediction_tables',
+    up: async (db: Database) => {
+      const run = (sql: string): Promise<void> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, (err) => (err ? reject(err) : resolve()));
+        });
+
+      await run(`
+        CREATE TABLE IF NOT EXISTS slab_prediction_runs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          created_at TEXT DEFAULT (datetime('now')),
+          model_version TEXT NOT NULL DEFAULT '4.0.0-slab',
+          notes TEXT
+        )
+      `);
+      await run(`
+        CREATE TABLE IF NOT EXISTS slab_predictions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          run_id INTEGER NOT NULL,
+          card_id TEXT NOT NULL,
+          prediction_date TEXT NOT NULL,
+          current_price REAL,
+          predicted_7d_low REAL,
+          predicted_7d_mid REAL,
+          predicted_7d_high REAL,
+          predicted_30d_low REAL,
+          predicted_30d_mid REAL,
+          predicted_30d_high REAL,
+          predicted_90d_low REAL,
+          predicted_90d_mid REAL,
+          predicted_90d_high REAL,
+          predicted_180d_low REAL,
+          predicted_180d_mid REAL,
+          predicted_180d_high REAL,
+          predicted_365d_low REAL,
+          predicted_365d_mid REAL,
+          predicted_365d_high REAL,
+          expected_7d_return REAL,
+          expected_30d_return REAL,
+          expected_90d_return REAL,
+          expected_180d_return REAL,
+          expected_365d_return REAL,
+          confidence_score INTEGER DEFAULT 0,
+          risk_score INTEGER DEFAULT 0,
+          category TEXT,
+          suggested_action TEXT,
+          explanation TEXT,
+          risk_factors TEXT,
+          external_signals_json TEXT,
+          model_version TEXT DEFAULT '4.0.0-slab',
+          unique_identifier TEXT,
+          variant_key TEXT,
+          signal_score REAL,
+          grader TEXT NOT NULL DEFAULT 'psa',
+          grade TEXT NOT NULL DEFAULT '10',
+          UNIQUE(run_id, card_id, grader, grade),
+          FOREIGN KEY (run_id) REFERENCES slab_prediction_runs(id) ON DELETE CASCADE
+        )
+      `);
+      await run(`
+        CREATE TABLE IF NOT EXISTS slab_prediction_results (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          prediction_id INTEGER NOT NULL UNIQUE,
+          actual_7d_price REAL,
+          actual_30d_price REAL,
+          actual_90d_price REAL,
+          actual_180d_price REAL,
+          actual_365d_price REAL,
+          actual_7d_return REAL,
+          actual_30d_return REAL,
+          actual_90d_return REAL,
+          actual_180d_return REAL,
+          actual_365d_return REAL,
+          error_7d REAL,
+          error_30d REAL,
+          error_90d REAL,
+          error_180d REAL,
+          error_365d REAL,
+          direction_correct_7d INTEGER DEFAULT 0,
+          direction_correct_30d INTEGER DEFAULT 0,
+          direction_correct_90d INTEGER DEFAULT 0,
+          direction_correct_180d INTEGER DEFAULT 0,
+          direction_correct_365d INTEGER DEFAULT 0,
+          status TEXT DEFAULT 'pending',
+          FOREIGN KEY (prediction_id) REFERENCES slab_predictions(id) ON DELETE CASCADE
+        )
+      `);
+      await run(`
+        CREATE TABLE IF NOT EXISTS slab_backtest_runs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          backtest_date TEXT NOT NULL,
+          window_days INTEGER DEFAULT 90,
+          cards_tested INTEGER DEFAULT 0,
+          directional_accuracy REAL,
+          mape REAL,
+          top10_avg_return REAL,
+          market_avg_return REAL,
+          strong_buy_false_positive_rate REAL,
+          avoid_avg_return REAL,
+          category_performance TEXT,
+          sharpe_ratio REAL,
+          max_drawdown REAL,
+          win_rate REAL,
+          profit_factor REAL,
+          market_median_return REAL,
+          market_return_std_dev REAL,
+          rank_ic REAL,
+          mean_bias REAL,
+          baseline_avg_return REAL,
+          hit_rate REAL,
+          created_at TEXT DEFAULT (datetime('now'))
+        )
+      `);
+      await run('CREATE INDEX IF NOT EXISTS idx_slab_predictions_run ON slab_predictions(run_id)');
+      await run('CREATE INDEX IF NOT EXISTS idx_slab_predictions_card ON slab_predictions(card_id)');
+      await run('CREATE INDEX IF NOT EXISTS idx_slab_predictions_cat ON slab_predictions(run_id, category)');
+    },
+    down: async (db: Database) => {
+      const run = (sql: string): Promise<void> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, (err) => (err ? reject(err) : resolve()));
+        });
+      await run('DROP TABLE IF EXISTS slab_prediction_results');
+      await run('DROP TABLE IF EXISTS slab_predictions');
+      await run('DROP TABLE IF EXISTS slab_prediction_runs');
+      await run('DROP TABLE IF EXISTS slab_backtest_runs');
+    },
+  },
+  {
+    id: 32,
+    name: 'graded_prices_last_sold_and_listed',
+    up: async (db: Database) => {
+      const run = (sql: string): Promise<void> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, (err) => (err ? reject(err) : resolve()));
+        });
+      const columnExists = (table: string, column: string): Promise<boolean> =>
+        new Promise((resolve, reject) => {
+          db.all(`PRAGMA table_info(${table})`, [], (err, rows: Array<{ name: string }>) => {
+            if (err) return reject(err);
+            resolve((rows || []).some((r) => r.name === column));
+          });
+        });
+
+      const columns: Array<[string, string]> = [
+        ['lastSoldDate', 'TEXT'],
+        ['lastSoldPrice', 'REAL'],
+        ['listedLow', 'REAL'],
+        ['listedAvg', 'REAL'],
+        ['listedCount', 'INTEGER'],
+        ['listedFetchedAt', 'TEXT'],
+      ];
+      for (const [name, type] of columns) {
+        if (!(await columnExists('graded_prices', name))) {
+          await run(`ALTER TABLE graded_prices ADD COLUMN ${name} ${type}`);
+        }
+      }
+      logger.info('Migration 32: last-sold and listed-ask columns on graded_prices');
+    },
+    down: async () => {
+      logger.info('Skipping migration 32 rollback (SQLite limitation)');
+    },
+  },
+  {
+    id: 33,
+    name: 'graded_price_history_listed_count',
+    up: async (db: Database) => {
+      const run = (sql: string): Promise<void> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, (err) => (err ? reject(err) : resolve()));
+        });
+      const columnExists = (table: string, column: string): Promise<boolean> =>
+        new Promise((resolve, reject) => {
+          db.all(`PRAGMA table_info(${table})`, [], (err, rows: Array<{ name: string }>) => {
+            if (err) return reject(err);
+            resolve((rows || []).some((r) => r.name === column));
+          });
+        });
+
+      if (!(await columnExists('graded_price_history', 'listedCount'))) {
+        await run('ALTER TABLE graded_price_history ADD COLUMN listedCount INTEGER');
+      }
+
+      // Seed from graded_prices, but only onto the history row for the date the
+      // listing count was actually observed (listedFetchedAt) — never smeared
+      // across dates it wasn't measured on.
+      await run(`UPDATE graded_price_history
+        SET listedCount = (
+          SELECT gp.listedCount FROM graded_prices gp
+          WHERE gp.cardId = graded_price_history.cardId
+            AND gp.grader = graded_price_history.grader
+            AND gp.grade = graded_price_history.grade
+            AND gp.listedCount IS NOT NULL
+            AND date(gp.listedFetchedAt) = graded_price_history.date
+        )
+        WHERE listedCount IS NULL`);
+
+      logger.info('Migration 33: listedCount history on graded_price_history');
+    },
+    down: async () => {
+      logger.info('Skipping migration 33 rollback (SQLite limitation)');
+    },
+  },
+  {
+    id: 34,
+    name: 'graded_price_history_grader_grade_date_index',
+    up: async (db: Database) => {
+      const run = (sql: string): Promise<void> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, (err) => (err ? reject(err) : resolve()));
+        });
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_gph_grader_grade_date ON graded_price_history(grader, grade, date)'
+      );
+      logger.info('Migration 34: graded_price_history (grader, grade, date) index');
+    },
+    down: async (db: Database) => {
+      await new Promise<void>((resolve, reject) => {
+        db.run('DROP INDEX IF EXISTS idx_gph_grader_grade_date', (err) =>
+          err ? reject(err) : resolve()
+        );
+      });
+    },
+  },
+  {
+    id: 35,
+    name: 'add_language_and_match_name',
+    up: async (db: Database) => {
+      const run = (sql: string, params: unknown[] = []): Promise<void> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, params, (err) => (err ? reject(err) : resolve()));
+        });
+      const columnExists = (table: string, column: string): Promise<boolean> =>
+        new Promise((resolve, reject) => {
+          db.all(`PRAGMA table_info(${table})`, [], (err, rows: Array<{ name: string }>) => {
+            if (err) return reject(err);
+            resolve((rows || []).some((r) => r.name === column));
+          });
+        });
+
+      for (const [table, col, type] of [
+        ['catalog_cards', 'language', "TEXT NOT NULL DEFAULT 'en'"],
+        ['catalog_cards', 'matchName', 'TEXT'],
+        ['catalog_cards', 'dexId', 'INTEGER'],
+        ['card_mappings', 'language', "TEXT NOT NULL DEFAULT 'en'"],
+        ['card_mappings', 'matchName', 'TEXT'],
+      ] as const) {
+        if (!(await columnExists(table, col))) {
+          await run(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`);
+        }
+      }
+
+      await run(`UPDATE catalog_cards SET language = 'en' WHERE language IS NULL OR language = ''`);
+      await run(`UPDATE card_mappings SET language = 'en' WHERE language IS NULL OR language = ''`);
+      await run(`UPDATE catalog_cards SET matchName = cardName WHERE matchName IS NULL`);
+      await run(`UPDATE card_mappings SET matchName = cardName WHERE matchName IS NULL`);
+
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_catalog_cards_language ON catalog_cards(language)'
+      );
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_catalog_cards_match_name ON catalog_cards(matchName)'
+      );
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_card_mappings_language ON card_mappings(language)'
+      );
+
+      // Rebuild pc_set_mappings with language as part of the primary key.
+      await run(`CREATE TABLE IF NOT EXISTS pc_set_mappings_v2 (
+        ourSetName TEXT NOT NULL,
+        language TEXT NOT NULL DEFAULT 'en',
+        consoleName TEXT NOT NULL,
+        learnedAt INTEGER NOT NULL,
+        PRIMARY KEY (ourSetName, language)
+      )`);
+      await run(`INSERT OR IGNORE INTO pc_set_mappings_v2 (ourSetName, language, consoleName, learnedAt)
+        SELECT ourSetName, 'en', consoleName, learnedAt FROM pc_set_mappings`);
+      await run('DROP TABLE IF EXISTS pc_set_mappings');
+      await run('ALTER TABLE pc_set_mappings_v2 RENAME TO pc_set_mappings');
+
+      // Seed high-value Japanese set → PriceCharting console mappings.
+      const jaSeeds: Array<[string, string]> = [
+        ['ポケモンカード151', 'Pokemon Japanese Scarlet & Violet 151'],
+        ['スカーレットex', 'Pokemon Japanese Scarlet ex'],
+        ['バイオレットex', 'Pokemon Japanese Violet ex'],
+        ['トリプレットビート', 'Pokemon Japanese Triplet Beat'],
+        ['スノーハザード', 'Pokemon Japanese Snow Hazard'],
+        ['クレイバースト', 'Pokemon Japanese Clay Burst'],
+        ['レイジングサーフ', 'Pokemon Japanese Raging Surf'],
+        ['古代の咆哮', 'Pokemon Japanese Ancient Roar'],
+        ['未来の一閃', 'Pokemon Japanese Future Flash'],
+        ['ワイルドフォース', 'Pokemon Japanese Wild Force'],
+        ['サイバージャッジ', 'Pokemon Japanese Cyber Judge'],
+        ['ステラミラクル', 'Pokemon Japanese Stellar Miracle'],
+        ['超電ブレイカー', 'Pokemon Japanese Paradise Dragona'],
+        ['テラスタルフェスex', 'Pokemon Japanese Terastal Festival ex'],
+        ['VSTARユニバース', 'Pokemon Japanese VSTAR Universe'],
+        ['シャイニートレジャーex', 'Pokemon Japanese Shiny Treasure ex'],
+        ['黒炎の支配者', 'Pokemon Japanese Ruler of the Black Flame'],
+        ['変幻の仮面', 'Pokemon Japanese Mask of Change'],
+        ['ナイトワンダラー', 'Pokemon Japanese Night Wanderer'],
+        ['バトルパートナーズ', 'Pokemon Japanese Battle Partners'],
+      ];
+      for (const [ourSetName, consoleName] of jaSeeds) {
+        await run(
+          `INSERT INTO pc_set_mappings (ourSetName, language, consoleName, learnedAt)
+           VALUES (?, 'ja', ?, ?)
+           ON CONFLICT(ourSetName, language) DO UPDATE SET consoleName = excluded.consoleName`,
+          [ourSetName, consoleName, Date.now()]
+        );
+      }
+
+      logger.info('Migration 35: language + matchName columns; JP pc_set_mappings seeds');
+    },
+    down: async () => {
+      logger.info('Skipping migration 35 rollback (SQLite limitation)');
+    },
+  },
+  {
+    id: 36,
+    name: 'graded_prices_variant_key',
+    up: async (db: Database) => {
+      const run = (sql: string, params: unknown[] = []): Promise<void> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, params, (err) => (err ? reject(err) : resolve()));
+        });
+      const columnExists = (table: string, column: string): Promise<boolean> =>
+        new Promise((resolve, reject) => {
+          db.all(`PRAGMA table_info(${table})`, [], (err, rows: Array<{ name: string }>) => {
+            if (err) return reject(err);
+            resolve((rows || []).some((r) => r.name === column));
+          });
+        });
+
+      const finishSql = (urlCol: string) => `CASE
+        WHEN lower(IFNULL(${urlCol}, '')) LIKE '%reverse-holo%'
+         AND (lower(IFNULL(${urlCol}, '')) LIKE '%1st-edition%'
+           OR lower(IFNULL(${urlCol}, '')) LIKE '%first-edition%')
+          THEN '1steditionholofoil'
+        WHEN lower(IFNULL(${urlCol}, '')) LIKE '%reverse-holo%' THEN 'reverseholofoil'
+        WHEN lower(IFNULL(${urlCol}, '')) LIKE '%1st-edition%'
+          OR lower(IFNULL(${urlCol}, '')) LIKE '%first-edition%' THEN '1stedition'
+        ELSE 'normal'
+      END`;
+
+      const pricesHasVariant = await columnExists('graded_prices', 'variantKey');
+      if (!pricesHasVariant) {
+        await run(`CREATE TABLE graded_prices_v36 (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          cardId TEXT NOT NULL,
+          variantKey TEXT NOT NULL DEFAULT 'normal',
+          cardName TEXT,
+          setId TEXT,
+          setName TEXT,
+          grader TEXT NOT NULL,
+          grade TEXT NOT NULL,
+          price REAL,
+          soldListings INTEGER DEFAULT 0,
+          fetchedAt TEXT DEFAULT (datetime('now')),
+          productId TEXT,
+          matchScore REAL,
+          verified INTEGER DEFAULT 0,
+          sourceUrl TEXT,
+          lastSoldDate TEXT,
+          lastSoldPrice REAL,
+          listedLow REAL,
+          listedAvg REAL,
+          listedCount INTEGER,
+          listedFetchedAt TEXT,
+          UNIQUE(cardId, variantKey, grader, grade)
+        )`);
+        await run(
+          `INSERT OR IGNORE INTO graded_prices_v36 (
+            cardId, variantKey, cardName, setId, setName, grader, grade, price, soldListings,
+            fetchedAt, productId, matchScore, verified, sourceUrl, lastSoldDate, lastSoldPrice,
+            listedLow, listedAvg, listedCount, listedFetchedAt
+          )
+          SELECT
+            cardId, ${finishSql('sourceUrl')}, cardName, setId, setName, grader, grade, price,
+            soldListings, fetchedAt, productId, matchScore, verified, sourceUrl, lastSoldDate,
+            lastSoldPrice, listedLow, listedAvg, listedCount, listedFetchedAt
+          FROM graded_prices
+          ORDER BY fetchedAt DESC`
+        );
+        await run('DROP TABLE graded_prices');
+        await run('ALTER TABLE graded_prices_v36 RENAME TO graded_prices');
+        await run('CREATE INDEX IF NOT EXISTS idx_graded_prices_card ON graded_prices(cardId)');
+        await run(
+          'CREATE INDEX IF NOT EXISTS idx_graded_prices_card_variant ON graded_prices(cardId, variantKey)'
+        );
+        await run(
+          'CREATE INDEX IF NOT EXISTS idx_graded_prices_grader ON graded_prices(grader, grade)'
+        );
+        await run(
+          'CREATE INDEX IF NOT EXISTS idx_graded_prices_verified ON graded_prices(verified)'
+        );
+      }
+
+      const historyHasVariant = await columnExists('graded_price_history', 'variantKey');
+      if (!historyHasVariant) {
+        await run(`CREATE TABLE graded_price_history_v36 (
+          cardId TEXT NOT NULL,
+          variantKey TEXT NOT NULL DEFAULT 'normal',
+          date TEXT NOT NULL,
+          grader TEXT NOT NULL,
+          grade TEXT NOT NULL,
+          price REAL,
+          soldListings INTEGER DEFAULT 0,
+          listedCount INTEGER,
+          productId TEXT,
+          verified INTEGER DEFAULT 0,
+          sourceUrl TEXT,
+          source TEXT NOT NULL DEFAULT 'pricecharting',
+          PRIMARY KEY (cardId, variantKey, date, grader, grade)
+        )`);
+        await run(
+          `INSERT OR IGNORE INTO graded_price_history_v36 (
+            cardId, variantKey, date, grader, grade, price, soldListings, listedCount,
+            productId, verified, sourceUrl, source
+          )
+          SELECT
+            cardId, ${finishSql('sourceUrl')}, date, grader, grade, price, soldListings,
+            listedCount, productId, verified, sourceUrl, source
+          FROM graded_price_history
+          ORDER BY verified DESC, date DESC`
+        );
+        await run('DROP TABLE graded_price_history');
+        await run('ALTER TABLE graded_price_history_v36 RENAME TO graded_price_history');
+        await run(
+          'CREATE INDEX IF NOT EXISTS idx_graded_price_history_card_date ON graded_price_history(cardId, date)'
+        );
+        await run(
+          'CREATE INDEX IF NOT EXISTS idx_graded_price_history_lookup ON graded_price_history(cardId, variantKey, grader, grade, date)'
+        );
+        await run(
+          'CREATE INDEX IF NOT EXISTS idx_gph_grader_grade_date ON graded_price_history(grader, grade, date)'
+        );
+      }
+
+      const queueHasVariant = await columnExists('graded_refresh_queue', 'variantKey');
+      const queueExists = await new Promise<boolean>((resolve, reject) => {
+        db.get(
+          `SELECT name FROM sqlite_master WHERE type='table' AND name=?`,
+          ['graded_refresh_queue'],
+          (err, row) => (err ? reject(err) : resolve(!!row))
+        );
+      });
+      if (queueExists && !queueHasVariant) {
+        await run(`CREATE TABLE graded_refresh_queue_v36 (
+          cardId TEXT NOT NULL,
+          variantKey TEXT NOT NULL DEFAULT 'normal',
+          cardName TEXT NOT NULL,
+          setId TEXT,
+          setName TEXT,
+          cardNumber TEXT,
+          lastRequestedAt INTEGER NOT NULL,
+          lastRefreshedAt INTEGER,
+          PRIMARY KEY (cardId, variantKey)
+        )`);
+        await run(
+          `INSERT OR IGNORE INTO graded_refresh_queue_v36 (
+            cardId, variantKey, cardName, setId, setName, cardNumber, lastRequestedAt, lastRefreshedAt
+          )
+          SELECT cardId, 'normal', cardName, setId, setName, cardNumber, lastRequestedAt, lastRefreshedAt
+          FROM graded_refresh_queue`
+        );
+        await run('DROP TABLE graded_refresh_queue');
+        await run('ALTER TABLE graded_refresh_queue_v36 RENAME TO graded_refresh_queue');
+      }
+
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_graded_prices_card_variant ON graded_prices(cardId, variantKey)'
+      );
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_graded_price_history_variant_lookup ON graded_price_history(cardId, variantKey, grader, grade, date)'
+      );
+
+      logger.info('Migration 36: graded prices/history/queue keyed by variant (finish)');
+    },
+    down: async () => {
+      logger.info('Skipping migration 36 rollback (SQLite limitation)');
+    },
+  },
+  {
+    id: 37,
+    name: 'repair_subset_productid_collisions',
+    up: async (db: Database) => {
+      const all = <T>(sql: string, params: unknown[] = []): Promise<T[]> =>
+        new Promise((resolve, reject) => {
+          db.all(sql, params, (err, rows) => (err ? reject(err) : resolve((rows || []) as T[])));
+        });
+      const run = (sql: string, params: unknown[] = []): Promise<void> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, params, (err) => (err ? reject(err) : resolve()));
+        });
+
+      const {
+        setLooksLikeSubsetPrint,
+        numberLooksSecretRare,
+      } = await import('../utils/setPrintFamily');
+      const {
+        productIdConflictsWithPrintFamily,
+        resolveProductIdFromOwners,
+      } = await import('../utils/productIdGuard');
+
+      type MappingRow = {
+        cardId: string;
+        cardName: string;
+        setName: string | null;
+        cardNumber: string | null;
+        productId: number | null;
+        uniqueIdentifier: string | null;
+        tcgplayerProductId: string | null;
+      };
+
+      const mappings = await all<MappingRow>(
+        `SELECT cardId, cardName, setName, cardNumber, productId, uniqueIdentifier, tcgplayerProductId
+         FROM card_mappings`
+      );
+
+      const ownersByProductId = new Map<number, Array<{ cardId: string; setName: string | null; cardNumber: string | null }>>();
+      const tcgcsvCandidates: Array<{
+        cardId: string;
+        cardName: string;
+        setName: string | null;
+        cardNumber: string | null;
+        productId: number;
+      }> = [];
+
+      for (const m of mappings) {
+        if (m.productId != null && m.productId > 0) {
+          const list = ownersByProductId.get(m.productId) || [];
+          list.push({ cardId: m.cardId, setName: m.setName, cardNumber: m.cardNumber });
+          ownersByProductId.set(m.productId, list);
+        }
+        if (m.cardId.startsWith('tcgcsv-') && m.productId != null && m.productId > 0) {
+          tcgcsvCandidates.push({
+            cardId: m.cardId,
+            cardName: m.cardName,
+            setName: m.setName,
+            cardNumber: m.cardNumber,
+            productId: m.productId,
+          });
+        }
+      }
+
+      let mappingsFixed = 0;
+      let catalogFixed = 0;
+      let historyDeleted = 0;
+
+      for (const m of mappings) {
+        const isSubset =
+          setLooksLikeSubsetPrint(m.setName) || numberLooksSecretRare(m.cardNumber);
+        if (!isSubset) continue;
+
+        const owners = m.productId != null ? ownersByProductId.get(m.productId) || [] : [];
+        const conflicts =
+          m.productId != null &&
+          productIdConflictsWithPrintFamily(m.productId, m.setName, owners);
+
+        const resolved = resolveProductIdFromOwners(
+          m.cardName,
+          m.setName,
+          m.cardNumber,
+          tcgcsvCandidates
+        );
+
+        const needsRemap = resolved != null && resolved !== m.productId;
+        const needsPidBackfill =
+          resolved != null && resolved === m.productId && !m.tcgplayerProductId;
+        const needsHistoryCleanup =
+          Boolean(m.uniqueIdentifier) &&
+          m.productId != null &&
+          (conflicts || needsRemap);
+
+        if (!needsRemap && !needsPidBackfill && !needsHistoryCleanup) continue;
+
+        if (needsRemap || needsPidBackfill) {
+          const nextProductId = resolved!;
+          await run(
+            `UPDATE card_mappings
+             SET productId = ?, tcgplayerProductId = ?, updatedAt = datetime('now')
+             WHERE cardId = ? AND COALESCE(uniqueIdentifier, '') = COALESCE(?, '')`,
+            [nextProductId, String(nextProductId), m.cardId, m.uniqueIdentifier]
+          );
+          mappingsFixed += 1;
+
+          if (!m.cardId.startsWith('tcgcsv-')) {
+            await run(
+              `UPDATE catalog_cards
+               SET tcgplayerProductId = ?
+               WHERE cardId = ?`,
+              [String(nextProductId), m.cardId]
+            );
+            catalogFixed += 1;
+          }
+        }
+
+        if (needsHistoryCleanup && m.uniqueIdentifier && m.productId != null) {
+          const oldProductId = m.productId;
+          // After remap, also delete rows that still use the wrong SKU.
+          const del = await new Promise<number>((resolve, reject) => {
+            db.run(
+              `DELETE FROM price_history
+               WHERE uniqueIdentifier = ?
+                 AND source IN ('tcgdex', 'tcgdex_ja')
+                 AND productId = ?`,
+              [m.uniqueIdentifier, oldProductId],
+              function onDone(err) {
+                if (err) reject(err);
+                else resolve(this.changes ?? 0);
+              }
+            );
+          });
+          historyDeleted += del;
+        }
+      }
+
+      // Also delete orphaned tcgdex rows on subset UIDs whose productId is owned only by main-set
+      const subsetUids = mappings.filter(
+        (m) =>
+          m.uniqueIdentifier &&
+          (setLooksLikeSubsetPrint(m.setName) || numberLooksSecretRare(m.cardNumber))
+      );
+      for (const m of subsetUids) {
+        if (!m.uniqueIdentifier) continue;
+        const badRows = await all<{ productId: number; c: number }>(
+          `SELECT productId, COUNT(*) AS c FROM price_history
+           WHERE uniqueIdentifier = ? AND source IN ('tcgdex', 'tcgdex_ja')
+           GROUP BY productId`,
+          [m.uniqueIdentifier]
+        );
+        for (const bad of badRows) {
+          const owners = ownersByProductId.get(bad.productId) || [];
+          if (productIdConflictsWithPrintFamily(bad.productId, m.setName, owners)) {
+            const del = await new Promise<number>((resolve, reject) => {
+              db.run(
+                `DELETE FROM price_history
+                 WHERE uniqueIdentifier = ?
+                   AND source IN ('tcgdex', 'tcgdex_ja')
+                   AND productId = ?`,
+                [m.uniqueIdentifier, bad.productId],
+                function onDone(err) {
+                  if (err) reject(err);
+                  else resolve(this.changes ?? 0);
+                }
+              );
+            });
+            historyDeleted += del;
+          }
+        }
+      }
+
+      logger.info('Migration 37: repaired subset productId collisions', {
+        mappingsFixed,
+        catalogFixed,
+        historyDeleted,
+      });
+    },
+    down: async () => {
+      logger.info('Skipping migration 37 rollback (SQLite limitation)');
+    },
+  },
+  {
+    id: 38,
+    name: 'repair_letter_prefix_unique_identifiers',
+    up: async (db: Database) => {
+      const all = <T>(sql: string, params: unknown[] = []): Promise<T[]> =>
+        new Promise((resolve, reject) => {
+          db.all(sql, params, (err, rows) => (err ? reject(err) : resolve((rows || []) as T[])));
+        });
+      const run = (sql: string, params: unknown[] = []): Promise<number> =>
+        new Promise((resolve, reject) => {
+          db.run(sql, params, function onDone(err) {
+            if (err) reject(err);
+            else resolve(this.changes ?? 0);
+          });
+        });
+
+      const { generateUniqueIdentifier } = await import('../services/cardIdentifier');
+      const { numberLooksSecretRare } = await import('../utils/setPrintFamily');
+
+      type MappingRow = {
+        cardId: string;
+        cardName: string;
+        setId: string;
+        cardNumber: string | null;
+        variantKey: string | null;
+        uniqueIdentifier: string | null;
+        language: string | null;
+        matchName: string | null;
+      };
+
+      const mappings = await all<MappingRow>(
+        `SELECT cardId, cardName, setId, cardNumber, variantKey, uniqueIdentifier, language, matchName
+         FROM card_mappings
+         WHERE uniqueIdentifier IS NOT NULL AND cardNumber IS NOT NULL`
+      );
+
+      let mappingsFixed = 0;
+      let historyMoved = 0;
+      let historyDropped = 0;
+
+      for (const m of mappings) {
+        if (!numberLooksSecretRare(m.cardNumber) || !m.uniqueIdentifier) continue;
+
+        const correctUid = generateUniqueIdentifier(
+          m.setId,
+          m.cardNumber || undefined,
+          m.cardName,
+          m.variantKey || 'normal',
+          {
+            language: (m.language || 'en') as 'en' | 'ja',
+            matchName: m.matchName || undefined,
+          }
+        );
+        if (correctUid === m.uniqueIdentifier) continue;
+
+        // Only rewrite when the old UID looks like a stripped letter-prefix
+        // (e.g. swsh9tg|16|… instead of swsh9tg|tg16|…).
+        const oldParts = m.uniqueIdentifier.split('|');
+        const newParts = correctUid.split('|');
+        if (oldParts.length < 4 || newParts.length < 4) continue;
+        const oldNumIdx = oldParts[0] === 'ja' ? 2 : 1;
+        const newNumIdx = newParts[0] === 'ja' ? 2 : 1;
+        const oldNum = oldParts[oldNumIdx] || '';
+        const newNum = newParts[newNumIdx] || '';
+        if (!newNum || oldNum === newNum) continue;
+        if (!oldNum || !newNum.endsWith(oldNum) || !/^[a-z]+/.test(newNum)) continue;
+
+        const oldUid = m.uniqueIdentifier;
+
+        // Move history that would not collide; drop duplicate date/source rows.
+        const moved = await run(
+          `UPDATE price_history
+           SET uniqueIdentifier = ?
+           WHERE uniqueIdentifier = ?
+             AND NOT EXISTS (
+               SELECT 1 FROM price_history ph2
+               WHERE ph2.uniqueIdentifier = ?
+                 AND ph2.date = price_history.date
+                 AND ph2.source = price_history.source
+             )`,
+          [correctUid, oldUid, correctUid]
+        );
+        historyMoved += moved;
+        historyDropped += await run(`DELETE FROM price_history WHERE uniqueIdentifier = ?`, [oldUid]);
+
+        await run(
+          `UPDATE card_mappings
+           SET uniqueIdentifier = ?, updatedAt = datetime('now')
+           WHERE cardId = ? AND COALESCE(uniqueIdentifier, '') = ?`,
+          [correctUid, m.cardId, oldUid]
+        );
+        mappingsFixed += 1;
+      }
+
+      logger.info('Migration 38: repaired letter-prefix uniqueIdentifiers', {
+        mappingsFixed,
+        historyMoved,
+        historyDropped,
+      });
+    },
+    down: async () => {
+      logger.info('Skipping migration 38 rollback (SQLite limitation)');
+    },
+  },
+  {
+    id: 39,
+    name: 'create_grading_feedback_table',
+    up: async (db: Database) => {
+      return new Promise((resolve, reject) => {
+        db.run(
+          `CREATE TABLE IF NOT EXISTS grading_feedback (
+            id TEXT PRIMARY KEY,
+            user_id TEXT,
+            grading_id TEXT,
+            card_id TEXT,
+            card_name TEXT,
+            finish_type TEXT,
+            predicted_defect TEXT NOT NULL,
+            predicted_category TEXT,
+            model_confidence REAL,
+            user_verdict TEXT NOT NULL,
+            user_reason TEXT,
+            location TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+          )`,
+          (err) => {
+            if (err) reject(err);
+            else {
+              db.run(
+                'CREATE INDEX IF NOT EXISTS idx_grading_feedback_card ON grading_feedback(card_id)',
+                (e2) => (e2 ? reject(e2) : resolve())
+              );
+            }
+          }
+        );
+      });
+    },
+    down: async (db: Database) => {
+      return new Promise((resolve, reject) => {
+        db.run('DROP TABLE IF EXISTS grading_feedback', (err) => (err ? reject(err) : resolve()));
+      });
+    },
+  },
+  {
+    id: 40,
+    name: 'create_trades_table',
+    up: async (db: Database) => {
+      return new Promise((resolve, reject) => {
+        db.run(
+          `CREATE TABLE IF NOT EXISTS trades (
+            id TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            share_token TEXT UNIQUE NOT NULL,
+            title TEXT,
+            game TEXT NOT NULL,
+            payload_json TEXT NOT NULL,
+            give_total REAL NOT NULL DEFAULT 0,
+            get_total REAL NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+          )`,
+          (err) => {
+            if (err) reject(err);
+            else {
+              db.run(
+                'CREATE INDEX IF NOT EXISTS idx_trades_user ON trades(user_id, updated_at DESC)',
+                (e2) => {
+                  if (e2) reject(e2);
+                  else {
+                    db.run(
+                      'CREATE INDEX IF NOT EXISTS idx_trades_share ON trades(share_token)',
+                      (e3) => (e3 ? reject(e3) : resolve())
+                    );
+                  }
+                }
+              );
+            }
+          }
+        );
+      });
+    },
+    down: async (db: Database) => {
+      return new Promise((resolve, reject) => {
+        db.run('DROP TABLE IF EXISTS trades', (err) => (err ? reject(err) : resolve()));
+      });
+    },
+  },
+  {
+    id: 41,
+    name: 'create_saved_ebay_deals_table',
+    up: async (db: Database) => {
+      return new Promise((resolve, reject) => {
+        db.run(
+          `CREATE TABLE IF NOT EXISTS saved_ebay_deals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            game TEXT NOT NULL,
+            ebay_listing_id TEXT NOT NULL,
+            card_id TEXT NOT NULL,
+            unique_identifier TEXT NOT NULL,
+            listing_url TEXT NOT NULL,
+            listing_price REAL NOT NULL,
+            shipping_price REAL NOT NULL DEFAULT 0,
+            market_price_snapshot REAL NOT NULL,
+            discount_percent_snapshot REAL NOT NULL,
+            match_confidence REAL NOT NULL,
+            listing_end_time TEXT,
+            status TEXT NOT NULL DEFAULT 'active',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(user_id, ebay_listing_id)
+          )`,
+          (err) => {
+            if (err) reject(err);
+            else {
+              db.run(
+                'CREATE INDEX IF NOT EXISTS idx_saved_ebay_deals_user ON saved_ebay_deals(user_id, status, updated_at DESC)',
+                (e2) => (e2 ? reject(e2) : resolve())
+              );
+            }
+          }
+        );
+      });
+    },
+    down: async (db: Database) => {
+      return new Promise((resolve, reject) => {
+        db.run('DROP TABLE IF EXISTS saved_ebay_deals', (err) => (err ? reject(err) : resolve()));
+      });
+    },
+  },
 ];
+
 
 // Run pending migrations
 export const runMigrations = async (db: Database): Promise<void> => {
