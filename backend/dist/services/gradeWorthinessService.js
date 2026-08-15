@@ -7,6 +7,8 @@ exports.parseGradeWorthinessSort = parseGradeWorthinessSort;
 exports.getGradeWorthinessLeaderboard = getGradeWorthinessLeaderboard;
 const database_1 = require("../db/database");
 const setEra_1 = require("../utils/setEra");
+const setPrintFamily_1 = require("../utils/setPrintFamily");
+const slabMarketMark_1 = require("./slabMarketMark");
 const MIN_RAW_PRICE = 5;
 const MIN_PSA_TOTAL = 25;
 const MIN_PREMIUM_PCT = 15;
@@ -79,6 +81,9 @@ function whyLine(row) {
     bits.push(`+$${row.netProfit.toFixed(0)} after $${row.gradingFee.toFixed(0)} ${row.gradingTier}`);
     bits.push(`${row.netRoiPct.toFixed(0)}% net ROI`);
     bits.push(`${row.gemRatePct.toFixed(1)}% gem rate (${row.psa10Pop.toLocaleString()} PSA 10s)`);
+    if (row.staleSold) {
+        bits.push('last sale is stale');
+    }
     return bits.join(' · ');
 }
 /**
@@ -127,7 +132,7 @@ function ageHoursFromFetchedAt(fetchedAt) {
     return Math.max(0, Math.round((Date.now() - ms) / 3600000));
 }
 async function getGradeWorthinessLeaderboard(options) {
-    var _a, _b, _c, _d, _e, _f;
+    var _a, _b, _c, _d, _e, _f, _g, _h;
     const limit = Math.min(Math.max((_a = options === null || options === void 0 ? void 0 : options.limit) !== null && _a !== void 0 ? _a : 40, 1), 200);
     const cardIds = (_c = (_b = options === null || options === void 0 ? void 0 : options.cardIds) === null || _b === void 0 ? void 0 : _b.filter(Boolean)) !== null && _c !== void 0 ? _c : [];
     const eras = [...new Set(((_d = options === null || options === void 0 ? void 0 : options.eras) !== null && _d !== void 0 ? _d : []).map((e) => e.trim()).filter(Boolean))];
@@ -143,8 +148,8 @@ async function getGradeWorthinessLeaderboard(options) {
     const rows = await all(`SELECT
        gp.cardId,
        COALESCE(gp.cardName, cc.cardName) AS cardName,
-       COALESCE(gp.setId, cc.setId) AS setId,
-       COALESCE(gp.setName, cc.setName) AS setName,
+       COALESCE(gp.setId, cc.setId, cmap.setId) AS setId,
+       COALESCE(gp.setName, cc.setName, cmap.setName) AS setName,
        COALESCE(
          NULLIF(cc.imageSmall, ''),
          (
@@ -155,13 +160,20 @@ async function getGradeWorthinessLeaderboard(options) {
            LIMIT 1
          )
        ) AS imageSmall,
+       COALESCE(NULLIF(cc.cardNumber, ''), NULLIF(cmap.cardNumber, '')) AS cardNumber,
+       gp.productId,
        gp.price AS psa10Price,
        COALESCE(gp.soldListings, 0) AS soldListings,
+       gp.lastSoldDate,
+       gp.lastSoldPrice,
+       gp.listedLow,
+       gp.listedAvg,
+       COALESCE(gp.listedCount, 0) AS listedCount,
        (
          SELECT c.price FROM canonical_price_history c
          INNER JOIN card_mappings cm ON cm.uniqueIdentifier = c.uniqueIdentifier
          WHERE cm.cardId = gp.cardId
-         ORDER BY c.date DESC LIMIT 1
+         ORDER BY c.date DESC, c.price DESC LIMIT 1
        ) AS rawPrice,
        (
          SELECT CAST(json_extract(pc.payload, '$.companies.psa.grade10') AS REAL)
@@ -185,6 +197,14 @@ async function getGradeWorthinessLeaderboard(options) {
        gp.fetchedAt
      FROM graded_prices gp
      LEFT JOIN catalog_cards cc ON cc.cardId = gp.cardId
+     LEFT JOIN (
+       SELECT cardId,
+              MIN(setId) AS setId,
+              MIN(setName) AS setName,
+              MAX(NULLIF(cardNumber, '')) AS cardNumber
+       FROM card_mappings
+       GROUP BY cardId
+     ) cmap ON cmap.cardId = gp.cardId
      WHERE gp.grader = 'psa'
        AND gp.grade = '10'
        AND gp.price IS NOT NULL
@@ -194,7 +214,16 @@ async function getGradeWorthinessLeaderboard(options) {
     const scored = [];
     for (const r of rows) {
         const rawPrice = r.rawPrice != null ? Number(r.rawPrice) : NaN;
-        const psa10Price = Number(r.psa10Price);
+        const soldGuide = Number(r.psa10Price);
+        const blended = (0, slabMarketMark_1.blendSlabMarketMark)({
+            soldGuide,
+            lastSoldDate: r.lastSoldDate,
+            lastSoldPrice: r.lastSoldPrice != null ? Number(r.lastSoldPrice) : null,
+            listedLow: r.listedLow != null ? Number(r.listedLow) : null,
+            listedAvg: r.listedAvg != null ? Number(r.listedAvg) : null,
+            listedCount: Number(r.listedCount) || 0,
+        });
+        const psa10Price = soldGuide;
         const psa10Pop = r.psa10Pop != null ? Number(r.psa10Pop) : NaN;
         const psaTotal = r.psaTotal != null ? Number(r.psaTotal) : NaN;
         if (!(rawPrice >= MIN_RAW_PRICE))
@@ -234,8 +263,20 @@ async function getGradeWorthinessLeaderboard(options) {
             setName,
             era,
             imageSmall: r.imageSmall || null,
+            cardNumber: r.cardNumber || null,
+            productId: r.productId || null,
             rawPrice,
             psa10Price,
+            soldGuide,
+            marketMark: blended.mark,
+            marketMarkReason: blended.reason,
+            lastSoldDate: r.lastSoldDate || null,
+            lastSoldPrice: r.lastSoldPrice != null ? Number(r.lastSoldPrice) : null,
+            lastSoldAgeDays: blended.lastSoldAgeDays,
+            listedLow: r.listedLow != null ? Number(r.listedLow) : null,
+            listedAvg: r.listedAvg != null ? Number(r.listedAvg) : null,
+            listedCount: Number(r.listedCount) || 0,
+            staleSold: blended.staleSold,
             premium,
             premiumPct,
             multiple,
@@ -260,6 +301,7 @@ async function getGradeWorthinessLeaderboard(options) {
                 gradingTier,
                 gemRatePct,
                 psa10Pop,
+                staleSold: blended.staleSold,
             }),
             verified: Number(r.verified) === 1,
             stale: ageHours != null ? ageHours >= GRADED_STALE_HOURS : false,
@@ -267,9 +309,29 @@ async function getGradeWorthinessLeaderboard(options) {
             fetchedAt: r.fetchedAt || null,
         });
     }
+    // Drop TCGCSV duplicates of a catalog card that already owns the same PC product.
+    const byProduct = new Map();
+    const unique = [];
+    for (const row of scored) {
+        const pid = row.productId;
+        if (!pid) {
+            unique.push(row);
+            continue;
+        }
+        const group = (_g = byProduct.get(pid)) !== null && _g !== void 0 ? _g : [];
+        group.push(row);
+        byProduct.set(pid, group);
+    }
+    for (const group of byProduct.values()) {
+        if (group.length === 1) {
+            unique.push(group[0]);
+            continue;
+        }
+        unique.push((_h = group.find((g) => !g.cardId.startsWith('tcgcsv-'))) !== null && _h !== void 0 ? _h : group[0]);
+    }
     // Facets from the unfiltered pool so chips stay stable while filtering.
-    const facets = buildFacets(scored);
-    let filtered = scored;
+    const facets = buildFacets(unique);
+    let filtered = unique;
     if (eras.length > 0) {
         const eraSet = new Set(eras);
         filtered = filtered.filter((r) => eraSet.has(r.era));
@@ -357,21 +419,7 @@ const normalizeSetKey = (value) => {
     return key;
 };
 exports.normalizeSetKey = normalizeSetKey;
-const setsLooselyMatch = (a, b) => {
-    if (!a || !b)
-        return false;
-    if (a === b)
-        return true;
-    if (a.includes(b) || b.includes(a))
-        return true;
-    const tokens = (s) => s.split(' ').filter((t) => t.length > 2 && !['the', 'and'].includes(t));
-    const ta = new Set(tokens(a));
-    const tb = tokens(b);
-    if (tb.length === 0)
-        return false;
-    const overlap = tb.filter((t) => ta.has(t)).length;
-    return overlap >= Math.min(2, tb.length);
-};
+const setsLooselyMatch = (a, b) => (0, setPrintFamily_1.setsSharePrintFamily)(a, b);
 /** Map TCGCSV-style set labels (e.g. "SM - Hidden Fates") onto era ids. */
 function resolveEra(setId, setName) {
     const name = (setName || '').toLowerCase().trim();
@@ -476,9 +524,10 @@ async function fillMissingImages(rows) {
         if (!nameKey)
             return;
         const setKey = (0, exports.normalizeSetKey)(row.setName);
+        const numberKey = (row.cardNumber || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
         // Normalize hyphens in SQL too — catalog uses "Charizard-GX", TCGCSV "Charizard GX".
         const likePrefix = `${nameKey.replace(/[%_]/g, '')}%`;
-        const candidates = await all(`SELECT imageSmall, cardName, setName FROM catalog_cards
+        const candidates = await all(`SELECT imageSmall, cardName, setName, cardNumber FROM catalog_cards
          WHERE IFNULL(imageSmall, '') != ''
            AND replace(replace(lower(cardName), '-', ' '), '  ', ' ') LIKE ?
          LIMIT 60`, [likePrefix]);
@@ -486,13 +535,16 @@ async function fillMissingImages(rows) {
         const pool = exactName.length > 0 ? exactName : candidates;
         if (pool.length === 0)
             return;
+        const numberMatched = numberKey.length > 0
+            ? pool.find((c) => (c.cardNumber || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase() === numberKey)
+            : undefined;
         const setMatched = setKey
             ? pool.find((c) => setsLooselyMatch((0, exports.normalizeSetKey)(c.setName), setKey))
             : undefined;
-        // Prefer set match; only fall back when we have a unique exact name hit.
-        const hit = setMatched ||
-            (exactName.length === 1 ? exactName[0] : undefined) ||
-            (!setKey ? pool[0] : undefined);
+        // Prefer number, then set family; never pick Shiny Vault art for the main set.
+        const hit = numberMatched ||
+            setMatched ||
+            (exactName.length === 1 ? exactName[0] : undefined);
         if (hit === null || hit === void 0 ? void 0 : hit.imageSmall) {
             row.imageSmall = hit.imageSmall;
         }

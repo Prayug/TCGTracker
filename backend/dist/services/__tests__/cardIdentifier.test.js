@@ -1,29 +1,96 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const vitest_1 = require("vitest");
 const cardIdentifier_1 = require("../cardIdentifier");
-(0, vitest_1.describe)('generateUniqueIdentifier', () => {
-    (0, vitest_1.it)('normalizes set ID by removing special characters and lowercasing', () => {
+describe('generateUniqueIdentifier', () => {
+    it('normalizes set ID by removing special characters and lowercasing', () => {
         const id = (0, cardIdentifier_1.generateUniqueIdentifier)('SWORD & SHIELD', '1', 'Pikachu', 'normal');
-        (0, vitest_1.expect)(id).toContain('sword');
-        (0, vitest_1.expect)(id).not.toContain('&');
+        expect(id).toContain('sword');
+        expect(id).not.toContain('&');
     });
-    (0, vitest_1.it)('includes variant key in the identifier', () => {
+    it('includes variant key in the identifier', () => {
         const normal = (0, cardIdentifier_1.generateUniqueIdentifier)('set1', '1', 'Pikachu', 'normal');
         const holo = (0, cardIdentifier_1.generateUniqueIdentifier)('set1', '1', 'Pikachu', 'holofoil');
-        (0, vitest_1.expect)(normal).not.toBe(holo);
+        expect(normal).not.toBe(holo);
     });
-    (0, vitest_1.it)('produces consistent output for same inputs', () => {
+    it('produces consistent output for same inputs', () => {
         const a = (0, cardIdentifier_1.generateUniqueIdentifier)('base1', '4', 'Charizard', 'holofoil');
         const b = (0, cardIdentifier_1.generateUniqueIdentifier)('base1', '4', 'Charizard', 'holofoil');
-        (0, vitest_1.expect)(a).toBe(b);
+        expect(a).toBe(b);
     });
-    (0, vitest_1.it)('handles missing card number', () => {
+    it('handles missing card number', () => {
         const id = (0, cardIdentifier_1.generateUniqueIdentifier)('swsh1', undefined, 'Energy', 'normal');
-        (0, vitest_1.expect)(id).toMatch(/swsh1\|\|energy\|normal/);
+        expect(id).toMatch(/swsh1\|\|energy\|normal/);
     });
-    (0, vitest_1.it)('defaults variant to normal when empty', () => {
+    it('defaults variant to normal when empty', () => {
         const id = (0, cardIdentifier_1.generateUniqueIdentifier)('set1', '1', 'Card', '');
-        (0, vitest_1.expect)(id).toContain('normal');
+        expect(id).toContain('normal');
+    });
+    it('uses matchName for Japanese cards and prefixes ja|', () => {
+        const id = (0, cardIdentifier_1.generateUniqueIdentifier)('sv2a', '201', 'リザードンex', 'normal', {
+            language: 'ja',
+            matchName: 'Charizard EX',
+        });
+        expect(id).toBe('ja|sv2a|201|charizardex|normal');
+    });
+    it('does not strip EN identity when language is en', () => {
+        const id = (0, cardIdentifier_1.generateUniqueIdentifier)('sv3pt5', '199', 'Charizard ex', 'normal', {
+            language: 'en',
+        });
+        expect(id).toBe('sv3pt5|199|charizardex|normal');
+        expect(id.startsWith('ja|')).toBe(false);
+    });
+});
+describe('siblingIdentifierPrefix', () => {
+    it('drops the finish segment so Cardmarket UIDs share a series', () => {
+        expect((0, cardIdentifier_1.siblingIdentifierPrefix)('g1|rc30|gardevoirex|holofoil')).toBe('g1|rc30|gardevoirex|');
+        expect((0, cardIdentifier_1.siblingIdentifierPrefix)('ja|sv2a|201|charizardex|normal')).toBe('ja|sv2a|201|charizardex|');
+    });
+});
+describe('siblingIdentifiersForLookup', () => {
+    it('lists exact finish UIDs without a LIKE scan', () => {
+        const ids = (0, cardIdentifier_1.siblingIdentifiersForLookup)('g1|rc30|gardevoirex|holofoil');
+        expect(ids).toContain('g1|rc30|gardevoirex|holofoil');
+        expect(ids).toContain('g1|rc30|gardevoirex|normal');
+        expect(ids.every((id) => !id.includes('cardmarket'))).toBe(true);
+    });
+});
+describe('selectPriceHistoryForVariant', () => {
+    const rows = [
+        { date: '2026-03-01', subTypeName: 'Reverse Holofoil', marketPrice: 341, price: 341 },
+        { date: '2026-03-15', subTypeName: 'Reverse Holofoil', marketPrice: 448, price: 448 },
+        { date: '2026-05-27', subTypeName: 'Holofoil', marketPrice: 556.25, price: 556.25 },
+        { date: '2026-07-09', subTypeName: 'Holofoil', marketPrice: 465, price: 465 },
+    ];
+    it('keeps only holofoil rows when holofoil is preferred', () => {
+        const selected = (0, cardIdentifier_1.selectPriceHistoryForVariant)(rows, 'holofoil');
+        expect(selected).toHaveLength(2);
+        expect(selected.every((r) => r.subTypeName === 'Holofoil')).toBe(true);
+    });
+    it('treats cardmarket-holo as holofoil', () => {
+        const mixed = [
+            ...rows,
+            { date: '2026-08-22', subTypeName: 'cardmarket-holo', marketPrice: 99.7, price: 99.7 },
+        ];
+        const selected = (0, cardIdentifier_1.selectPriceHistoryForVariant)(mixed, 'holofoil');
+        expect(selected.map((r) => r.date)).toContain('2026-08-22');
+    });
+    it('does not fall back to reverse when holofoil history is sparse', () => {
+        const sparse = [
+            { date: '2026-03-01', subTypeName: 'Reverse Holofoil', marketPrice: 341, price: 341 },
+            { date: '2026-08-01', subTypeName: 'Holofoil', marketPrice: 465, price: 465 },
+        ];
+        const selected = (0, cardIdentifier_1.selectPriceHistoryForVariant)(sparse, 'holofoil');
+        expect(selected).toHaveLength(1);
+        expect(selected[0].marketPrice).toBe(465);
+    });
+    it('prefers tcgdex over catalog fallback on the same date', () => {
+        const tied = [
+            { date: '2026-09-08', subTypeName: 'reverseHolofoil', marketPrice: 24.11, price: 24.11, source: 'catalog_fallback' },
+            { date: '2026-09-08', subTypeName: 'reverseholofoil', marketPrice: 38.9, price: 38.9, source: 'tcgdex' },
+        ];
+        const selected = (0, cardIdentifier_1.selectPriceHistoryForVariant)(tied, 'reverseHolofoil');
+        expect(selected).toHaveLength(1);
+        expect(selected[0].source).toBe('tcgdex');
+        expect(selected[0].price).toBe(38.9);
     });
 });

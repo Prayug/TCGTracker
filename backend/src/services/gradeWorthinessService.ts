@@ -1,5 +1,7 @@
 import { getDb } from '../db/database';
 import { classifySetEra, ERA_GROUPS, getEraLabel } from '../utils/setEra';
+import { setsSharePrintFamily } from '../utils/setPrintFamily';
+import { blendSlabMarketMark } from './slabMarketMark';
 
 /**
  * Grade-worthiness = after-fee PSA 10 net ROI × gem ease.
@@ -23,8 +25,21 @@ export interface GradeWorthinessRow {
   setName: string | null;
   era: string;
   imageSmall: string | null;
+  cardNumber: string | null;
+  productId?: string | null;
   rawPrice: number;
   psa10Price: number;
+  /** Sold-guide PSA 10 from PriceCharting (comps). */
+  soldGuide: number;
+  marketMark: number;
+  marketMarkReason: string;
+  lastSoldDate: string | null;
+  lastSoldPrice: number | null;
+  lastSoldAgeDays: number | null;
+  listedLow: number | null;
+  listedAvg: number | null;
+  listedCount: number;
+  staleSold: boolean;
   premium: number;
   premiumPct: number;
   multiple: number;
@@ -183,6 +198,7 @@ function whyLine(row: {
   gradingTier: string;
   gemRatePct: number;
   psa10Pop: number;
+  staleSold?: boolean;
 }): string {
   const bits: string[] = [];
   bits.push(
@@ -190,6 +206,9 @@ function whyLine(row: {
   );
   bits.push(`${row.netRoiPct.toFixed(0)}% net ROI`);
   bits.push(`${row.gemRatePct.toFixed(1)}% gem rate (${row.psa10Pop.toLocaleString()} PSA 10s)`);
+  if (row.staleSold) {
+    bits.push('last sale is stale');
+  }
   return bits.join(' · ');
 }
 
@@ -199,8 +218,15 @@ interface RawCandidate {
   setId: string | null;
   setName: string | null;
   imageSmall: string | null;
+  cardNumber: string | null;
+  productId: string | null;
   psa10Price: number;
   soldListings: number | null;
+  lastSoldDate: string | null;
+  lastSoldPrice: number | null;
+  listedLow: number | null;
+  listedAvg: number | null;
+  listedCount: number | null;
   rawPrice: number | null;
   psa10Pop: number | null;
   psa9Pop: number | null;
@@ -284,8 +310,8 @@ export async function getGradeWorthinessLeaderboard(options?: {
     `SELECT
        gp.cardId,
        COALESCE(gp.cardName, cc.cardName) AS cardName,
-       COALESCE(gp.setId, cc.setId) AS setId,
-       COALESCE(gp.setName, cc.setName) AS setName,
+       COALESCE(gp.setId, cc.setId, cmap.setId) AS setId,
+       COALESCE(gp.setName, cc.setName, cmap.setName) AS setName,
        COALESCE(
          NULLIF(cc.imageSmall, ''),
          (
@@ -296,13 +322,20 @@ export async function getGradeWorthinessLeaderboard(options?: {
            LIMIT 1
          )
        ) AS imageSmall,
+       COALESCE(NULLIF(cc.cardNumber, ''), NULLIF(cmap.cardNumber, '')) AS cardNumber,
+       gp.productId,
        gp.price AS psa10Price,
        COALESCE(gp.soldListings, 0) AS soldListings,
+       gp.lastSoldDate,
+       gp.lastSoldPrice,
+       gp.listedLow,
+       gp.listedAvg,
+       COALESCE(gp.listedCount, 0) AS listedCount,
        (
          SELECT c.price FROM canonical_price_history c
          INNER JOIN card_mappings cm ON cm.uniqueIdentifier = c.uniqueIdentifier
          WHERE cm.cardId = gp.cardId
-         ORDER BY c.date DESC LIMIT 1
+         ORDER BY c.date DESC, c.price DESC LIMIT 1
        ) AS rawPrice,
        (
          SELECT CAST(json_extract(pc.payload, '$.companies.psa.grade10') AS REAL)
@@ -326,6 +359,14 @@ export async function getGradeWorthinessLeaderboard(options?: {
        gp.fetchedAt
      FROM graded_prices gp
      LEFT JOIN catalog_cards cc ON cc.cardId = gp.cardId
+     LEFT JOIN (
+       SELECT cardId,
+              MIN(setId) AS setId,
+              MIN(setName) AS setName,
+              MAX(NULLIF(cardNumber, '')) AS cardNumber
+       FROM card_mappings
+       GROUP BY cardId
+     ) cmap ON cmap.cardId = gp.cardId
      WHERE gp.grader = 'psa'
        AND gp.grade = '10'
        AND gp.price IS NOT NULL
@@ -338,7 +379,16 @@ export async function getGradeWorthinessLeaderboard(options?: {
   const scored: GradeWorthinessRow[] = [];
   for (const r of rows) {
     const rawPrice = r.rawPrice != null ? Number(r.rawPrice) : NaN;
-    const psa10Price = Number(r.psa10Price);
+    const soldGuide = Number(r.psa10Price);
+    const blended = blendSlabMarketMark({
+      soldGuide,
+      lastSoldDate: r.lastSoldDate,
+      lastSoldPrice: r.lastSoldPrice != null ? Number(r.lastSoldPrice) : null,
+      listedLow: r.listedLow != null ? Number(r.listedLow) : null,
+      listedAvg: r.listedAvg != null ? Number(r.listedAvg) : null,
+      listedCount: Number(r.listedCount) || 0,
+    });
+    const psa10Price = soldGuide;
     const psa10Pop = r.psa10Pop != null ? Number(r.psa10Pop) : NaN;
     const psaTotal = r.psaTotal != null ? Number(r.psaTotal) : NaN;
 
@@ -381,8 +431,20 @@ export async function getGradeWorthinessLeaderboard(options?: {
       setName,
       era,
       imageSmall: r.imageSmall || null,
+      cardNumber: r.cardNumber || null,
+      productId: r.productId || null,
       rawPrice,
       psa10Price,
+      soldGuide,
+      marketMark: blended.mark,
+      marketMarkReason: blended.reason,
+      lastSoldDate: r.lastSoldDate || null,
+      lastSoldPrice: r.lastSoldPrice != null ? Number(r.lastSoldPrice) : null,
+      lastSoldAgeDays: blended.lastSoldAgeDays,
+      listedLow: r.listedLow != null ? Number(r.listedLow) : null,
+      listedAvg: r.listedAvg != null ? Number(r.listedAvg) : null,
+      listedCount: Number(r.listedCount) || 0,
+      staleSold: blended.staleSold,
       premium,
       premiumPct,
       multiple,
@@ -407,6 +469,7 @@ export async function getGradeWorthinessLeaderboard(options?: {
         gradingTier,
         gemRatePct,
         psa10Pop,
+        staleSold: blended.staleSold,
       }),
       verified: Number(r.verified) === 1,
       stale: ageHours != null ? ageHours >= GRADED_STALE_HOURS : false,
@@ -415,10 +478,31 @@ export async function getGradeWorthinessLeaderboard(options?: {
     });
   }
 
-  // Facets from the unfiltered pool so chips stay stable while filtering.
-  const facets = buildFacets(scored);
+  // Drop TCGCSV duplicates of a catalog card that already owns the same PC product.
+  const byProduct = new Map<string, GradeWorthinessRow[]>();
+  const unique: GradeWorthinessRow[] = [];
+  for (const row of scored) {
+    const pid = row.productId;
+    if (!pid) {
+      unique.push(row);
+      continue;
+    }
+    const group = byProduct.get(pid) ?? [];
+    group.push(row);
+    byProduct.set(pid, group);
+  }
+  for (const group of byProduct.values()) {
+    if (group.length === 1) {
+      unique.push(group[0]);
+      continue;
+    }
+    unique.push(group.find((g) => !g.cardId.startsWith('tcgcsv-')) ?? group[0]);
+  }
 
-  let filtered = scored;
+  // Facets from the unfiltered pool so chips stay stable while filtering.
+  const facets = buildFacets(unique);
+
+  let filtered = unique;
   if (eras.length > 0) {
     const eraSet = new Set(eras);
     filtered = filtered.filter((r) => eraSet.has(r.era));
@@ -518,18 +602,7 @@ export const normalizeSetKey = (value: string | null | undefined): string => {
   return key;
 };
 
-const setsLooselyMatch = (a: string, b: string): boolean => {
-  if (!a || !b) return false;
-  if (a === b) return true;
-  if (a.includes(b) || b.includes(a)) return true;
-  const tokens = (s: string) =>
-    s.split(' ').filter((t) => t.length > 2 && !['the', 'and'].includes(t));
-  const ta = new Set(tokens(a));
-  const tb = tokens(b);
-  if (tb.length === 0) return false;
-  const overlap = tb.filter((t) => ta.has(t)).length;
-  return overlap >= Math.min(2, tb.length);
-};
+const setsLooselyMatch = (a: string, b: string): boolean => setsSharePrintFamily(a, b);
 
 /** Map TCGCSV-style set labels (e.g. "SM - Hidden Fates") onto era ids. */
 function resolveEra(setId: string | null, setName: string | null): string {
@@ -637,6 +710,7 @@ async function fillMissingImages(rows: GradeWorthinessRow[]): Promise<void> {
       const nameKey = normalizeName(row.cardName);
       if (!nameKey) return;
       const setKey = normalizeSetKey(row.setName);
+      const numberKey = (row.cardNumber || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
 
       // Normalize hyphens in SQL too — catalog uses "Charizard-GX", TCGCSV "Charizard GX".
       const likePrefix = `${nameKey.replace(/[%_]/g, '')}%`;
@@ -644,8 +718,9 @@ async function fillMissingImages(rows: GradeWorthinessRow[]): Promise<void> {
         imageSmall: string;
         cardName: string;
         setName: string | null;
+        cardNumber: string | null;
       }>(
-        `SELECT imageSmall, cardName, setName FROM catalog_cards
+        `SELECT imageSmall, cardName, setName, cardNumber FROM catalog_cards
          WHERE IFNULL(imageSmall, '') != ''
            AND replace(replace(lower(cardName), '-', ' '), '  ', ' ') LIKE ?
          LIMIT 60`,
@@ -656,15 +731,22 @@ async function fillMissingImages(rows: GradeWorthinessRow[]): Promise<void> {
       const pool = exactName.length > 0 ? exactName : candidates;
       if (pool.length === 0) return;
 
+      const numberMatched =
+        numberKey.length > 0
+          ? pool.find(
+              (c) => (c.cardNumber || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase() === numberKey
+            )
+          : undefined;
+
       const setMatched = setKey
         ? pool.find((c) => setsLooselyMatch(normalizeSetKey(c.setName), setKey))
         : undefined;
 
-      // Prefer set match; only fall back when we have a unique exact name hit.
+      // Prefer number, then set family; never pick Shiny Vault art for the main set.
       const hit =
+        numberMatched ||
         setMatched ||
-        (exactName.length === 1 ? exactName[0] : undefined) ||
-        (!setKey ? pool[0] : undefined);
+        (exactName.length === 1 ? exactName[0] : undefined);
 
       if (hit?.imageSmall) {
         row.imageSmall = hit.imageSmall;

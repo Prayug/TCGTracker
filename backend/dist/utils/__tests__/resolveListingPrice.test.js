@@ -42,6 +42,15 @@ describe('resolveHistoryPointPrice', () => {
             highPrice: 9000,
         })).toBeCloseTo((6165.99 + 9000) / 2);
     });
+    it('keeps market when low/high are a tight ask wall above it', () => {
+        // Legendary Collection Charizard reverse: market sat at $2100 while low/high
+        // stuck at ~$4500 — that plateau was sanitizer noise, not a real print move.
+        expect((0, resolveListingPrice_1.resolveHistoryPointPrice)({
+            marketPrice: 2100,
+            lowPrice: 4500,
+            highPrice: 4500,
+        })).toBe(2100);
+    });
 });
 describe('extractBestListingPrice', () => {
     it('prefers 1st edition when that listing resolves higher', () => {

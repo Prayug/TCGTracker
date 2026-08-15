@@ -2,7 +2,6 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const zod_1 = require("zod");
-const undici_1 = require("undici");
 const database_1 = require("../db/database");
 const auth_1 = require("../middleware/auth");
 const validation_1 = require("../middleware/validation");
@@ -11,6 +10,17 @@ const logger_1 = require("../utils/logger");
 const gradingSchema_1 = require("../db/gradingSchema");
 const crypto_1 = require("crypto");
 const SCANNER_URL = (process.env.CARD_SCANNER_URL || 'http://localhost:5001').replace(/\/+$/, '');
+async function scannerFetch(path, init = {}) {
+    const { timeoutMs = 30000, ...rest } = init;
+    const response = await fetch(`${SCANNER_URL}${path}`, {
+        ...rest,
+        signal: AbortSignal.timeout(timeoutMs),
+    });
+    return {
+        statusCode: response.status,
+        json: async () => (await response.json()),
+    };
+}
 const analyzeSchema = zod_1.z.object({
     body: zod_1.z.object({
         image: zod_1.z.string().min(1),
@@ -19,7 +29,14 @@ const analyzeSchema = zod_1.z.object({
         cardName: zod_1.z.string().optional(),
         game: zod_1.z.enum(['pokemon', 'onepiece']).optional(),
         rawPrice: zod_1.z.number().optional(),
-        imageUrl: zod_1.z.string().optional(),
+        extraFrames: zod_1.z
+            .array(zod_1.z.object({
+            role: zod_1.z.string(),
+            image: zod_1.z.string().min(1),
+        }))
+            .max(8)
+            .optional(),
+        scanMode: zod_1.z.enum(['quick', 'precision']).optional(),
     }),
 });
 function ensureTable() {
@@ -38,30 +55,37 @@ function ensureTable() {
 }
 async function forwardToPython(body) {
     // Primary path: specialist CV/ML pipeline (not Ollama)
-    const res = await (0, undici_1.request)(`${SCANNER_URL}/api/grade-card`, {
+    const res = await scannerFetch('/api/grade-card', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-        headersTimeout: 90000,
-        bodyTimeout: 90000,
+        timeoutMs: 90000,
     });
-    const data = (await res.body.json());
+    const data = await res.json();
     return { ...data, statusCode: res.statusCode };
 }
 /** Ensure nested category objects even if upstream returns a partial payload. */
 function normalizeCategory(cat, fallbackScore = 0) {
-    var _a, _b;
-    if (cat && typeof cat === 'object' && 'score' in cat) {
+    var _a, _b, _c;
+    if (cat && typeof cat === 'object') {
         const c = cat;
+        const withheld = Boolean(c.withheld) || c.score == null;
         return {
-            score: Number((_a = c.score) !== null && _a !== void 0 ? _a : fallbackScore),
-            details: String((_b = c.details) !== null && _b !== void 0 ? _b : ''),
+            score: withheld ? (_a = c.score) !== null && _a !== void 0 ? _a : null : Number((_b = c.score) !== null && _b !== void 0 ? _b : fallbackScore),
+            details: String((_c = c.details) !== null && _c !== void 0 ? _c : ''),
             deviations: c.deviations || {
                 leftRight: 0,
                 topBottom: 0,
             },
             defects: Array.isArray(c.defects) ? c.defects : [],
             crops: c.crops,
+            withheld: Boolean(c.withheld),
+            withheldReason: c.withheldReason ? String(c.withheldReason) : undefined,
+            confidence: typeof c.confidence === 'number' ? c.confidence : undefined,
+            confidenceBand: c.confidenceBand,
+            detections: Array.isArray(c.detections) ? c.detections : undefined,
+            scoreLow: typeof c.scoreLow === 'number' ? c.scoreLow : undefined,
+            scoreHigh: typeof c.scoreHigh === 'number' ? c.scoreHigh : undefined,
         };
     }
     if (typeof cat === 'number') {
@@ -143,12 +167,11 @@ function persistResult(grading, userId, imageUrl, backImageUrl, fullResult) {
 const router = (0, express_1.Router)();
 router.get('/health', async (_req, res) => {
     try {
-        const upstream = await (0, undici_1.request)(`${SCANNER_URL}/health`, {
+        const upstream = await scannerFetch('/health', {
             method: 'GET',
-            headersTimeout: 4000,
-            bodyTimeout: 4000,
+            timeoutMs: 4000,
         });
-        const data = (await upstream.body.json());
+        const data = await upstream.json();
         const okStatus = upstream.statusCode >= 200 && upstream.statusCode < 300 && (data === null || data === void 0 ? void 0 : data.status) === 'ok';
         if (!okStatus) {
             return (0, apiResponse_1.fail)(res, (data === null || data === void 0 ? void 0 : data.message) || 'Scanner unhealthy', 502);
@@ -168,7 +191,7 @@ router.post('/analyze', auth_1.optionalAuth, (0, validation_1.validate)(analyzeS
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q;
     try {
         await ensureTable();
-        const { image, backImage, cardId, cardName, game, rawPrice, imageUrl } = req.body;
+        const { image, backImage, cardId, cardName, game, rawPrice, imageUrl, extraFrames, scanMode } = req.body;
         const python = await forwardToPython({
             image,
             backImage,
@@ -176,6 +199,8 @@ router.post('/analyze', auth_1.optionalAuth, (0, validation_1.validate)(analyzeS
             cardName,
             game,
             rawPrice,
+            extraFrames,
+            scanMode,
         });
         if (!python.success || !python.grading) {
             const status = python.statusCode === 422 ? 422 : python.statusCode && python.statusCode >= 400
@@ -196,6 +221,19 @@ router.post('/analyze', auth_1.optionalAuth, (0, validation_1.validate)(analyzeS
                 extraction: python.grading.extraction,
                 provider: python.grading.provider,
                 retakeRecommended: python.grading.retakeRecommended,
+                quality: python.grading.quality,
+                backQuality: python.grading.backQuality,
+                surfaceRefused: python.grading.surfaceRefused,
+                surfaceRetakeRecommended: python.grading.surfaceRetakeRecommended,
+                psaRange: python.grading.psaRange,
+                psaDistribution: python.grading.psaDistribution,
+                modelGrade: python.grading.modelGrade,
+                finishType: python.grading.finishType,
+                limitations: python.grading.limitations,
+                scanMode: python.grading.scanMode,
+                tcgScore: python.grading.tcgScore,
+                multiFrame: python.grading.multiFrame,
+                frameCount: python.grading.frameCount,
             }
             : undefined;
         const front = python.grading.front;
@@ -203,10 +241,7 @@ router.post('/analyze', auth_1.optionalAuth, (0, validation_1.validate)(analyzeS
         const corners = normalizeCategory((_e = python.grading.corners) !== null && _e !== void 0 ? _e : front === null || front === void 0 ? void 0 : front.corners);
         const edges = normalizeCategory((_f = python.grading.edges) !== null && _f !== void 0 ? _f : front === null || front === void 0 ? void 0 : front.edges);
         const surface = normalizeCategory((_g = python.grading.surface) !== null && _g !== void 0 ? _g : front === null || front === void 0 ? void 0 : front.surface);
-        if (centering.score == null ||
-            corners.score == null ||
-            edges.score == null ||
-            surface.score == null) {
+        if (centering.score == null && corners.score == null && edges.score == null && !surface.withheld) {
             return (0, apiResponse_1.fail)(res, 'Grading response missing category scores', 502);
         }
         const stored = await persistResult({
@@ -238,7 +273,20 @@ router.post('/analyze', auth_1.optionalAuth, (0, validation_1.validate)(analyzeS
                 provider: python.grading.provider,
                 retakeRecommended: python.grading.retakeRecommended,
                 quality: python.grading.quality,
+                backQuality: python.grading.backQuality,
                 limitations: python.grading.limitations,
+                surfaceRefused: python.grading.surfaceRefused,
+                surfaceRetakeRecommended: python.grading.surfaceRetakeRecommended,
+                psaRange: python.grading.psaRange,
+                psaDistribution: python.grading.psaDistribution,
+                modelGrade: python.grading.modelGrade,
+                finishType: python.grading.finishType,
+                scanMode: python.grading.scanMode,
+                tcgScore: python.grading.tcgScore,
+                multiFrame: python.grading.multiFrame,
+                frameCount: python.grading.frameCount,
+                front: python.grading.front,
+                back: python.grading.back,
             },
         });
     }
@@ -324,6 +372,79 @@ router.get('/stats', auth_1.authenticate, async (req, res) => {
     }
     catch (error) {
         (0, apiResponse_1.fail)(res, (error === null || error === void 0 ? void 0 : error.message) || 'Failed to load grading stats');
+    }
+});
+const feedbackSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        gradingId: zod_1.z.string().optional(),
+        cardId: zod_1.z.string().optional(),
+        cardName: zod_1.z.string().optional(),
+        finishType: zod_1.z.string().optional(),
+        predictedDefect: zod_1.z.string().min(1),
+        predictedCategory: zod_1.z.string().optional(),
+        modelConfidence: zod_1.z.number().min(0).max(1).optional(),
+        verdict: zod_1.z.enum(['looks-right', 'not-damage']),
+        reason: zod_1.z.enum(['print', 'foil', 'glare', 'shadow', 'other']).optional(),
+        location: zod_1.z
+            .object({
+            x: zod_1.z.number(),
+            y: zod_1.z.number(),
+            width: zod_1.z.number(),
+            height: zod_1.z.number(),
+        })
+            .optional(),
+    }),
+});
+router.post('/feedback', auth_1.optionalAuth, (0, validation_1.validate)(feedbackSchema), async (req, res) => {
+    try {
+        const db = (0, database_1.getDb)();
+        await new Promise((resolve, reject) => {
+            db.run(`CREATE TABLE IF NOT EXISTS grading_feedback (
+            id TEXT PRIMARY KEY,
+            user_id TEXT,
+            grading_id TEXT,
+            card_id TEXT,
+            card_name TEXT,
+            finish_type TEXT,
+            predicted_defect TEXT NOT NULL,
+            predicted_category TEXT,
+            model_confidence REAL,
+            user_verdict TEXT NOT NULL,
+            user_reason TEXT,
+            location TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+          )`, (err) => (err ? reject(err) : resolve()));
+        });
+        const id = `fb-${(0, crypto_1.randomUUID)().replace(/-/g, '').slice(0, 12)}`;
+        const body = req.body;
+        const userId = req.user ? String(req.user.id) : null;
+        await new Promise((resolve, reject) => {
+            var _a;
+            db.run(`INSERT INTO grading_feedback (
+            id, user_id, grading_id, card_id, card_name, finish_type,
+            predicted_defect, predicted_category, model_confidence,
+            user_verdict, user_reason, location
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+                id,
+                userId,
+                body.gradingId || null,
+                body.cardId || null,
+                body.cardName || null,
+                body.finishType || null,
+                body.predictedDefect,
+                body.predictedCategory || null,
+                (_a = body.modelConfidence) !== null && _a !== void 0 ? _a : null,
+                body.verdict,
+                body.reason || null,
+                body.location ? JSON.stringify(body.location) : null,
+            ], (err) => (err ? reject(err) : resolve()));
+        });
+        // Training labels stay on the model estimate. This row is evidence, not a new official grade.
+        (0, apiResponse_1.ok)(res, { id, stored: true, officialGradeUnchanged: true });
+    }
+    catch (error) {
+        logger_1.logger.error('Grading feedback failed', { error: error === null || error === void 0 ? void 0 : error.message });
+        (0, apiResponse_1.fail)(res, (error === null || error === void 0 ? void 0 : error.message) || 'Failed to store feedback', 500);
     }
 });
 exports.default = router;

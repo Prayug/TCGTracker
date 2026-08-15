@@ -1,3 +1,17 @@
+import { numberLooksSecretRare, setLooksLikeSubsetPrint } from '../utils/setPrintFamily';
+import {
+  detectOpPrintFamily,
+  expectedOpPrintFamily,
+  opFamilyAllowsSetMismatch,
+  opFamilySearchTerms,
+  opFamilySlug,
+  opPrintFamiliesMatch,
+  opSearchSetName,
+  opSetNamesMatch,
+  stripOpNameDecorators,
+  stripOpPeriodsForSlug,
+} from './onePiecePriceCharting';
+
 const REQUEST_TIMEOUT_MS = 20000;
 const REQUEST_DELAY_MS = 1500;
 
@@ -29,10 +43,47 @@ export const decodeHtmlEntities = (value?: string): string =>
 export const normalize = (value?: string): string =>
   decodeHtmlEntities(value).toLowerCase().replace(/[^a-z0-9]/g, '');
 
+/**
+ * Collector numbers for equality checks: "034"→"34", "212/203"→"212", "gg44" stays.
+ * Do NOT use raw substring includes() against normalized titles — "34" matches inside "114".
+ */
+export const normalizeCardNumber = (cardNumber?: string): string => {
+  if (!cardNumber) return '';
+  let s = decodeHtmlEntities(cardNumber).toLowerCase().trim();
+  if (s.includes('/')) s = s.split('/')[0].trim();
+  s = s.replace(/^#/, '').trim();
+  const hyphenated = s.replace(/\s+/g, '');
+  // One Piece codes: OP01-003, ST01-001, P-001. Keep the prefix so "003" ≠ OP01-003.
+  if (/^[a-z]+\d*-\d+[a-z]*$/i.test(hyphenated)) {
+    return hyphenated.replace(/[^a-z0-9]/g, '');
+  }
+  s = hyphenated.replace(/[^a-z0-9]/g, '');
+  if (/^\d+$/.test(s)) return String(parseInt(s, 10));
+  return s;
+};
+
+/** Collector numbers explicitly marked in a PC title (#34) or URL slug (...-34). */
+export const extractCardNumbers = (text?: string): string[] => {
+  if (!text) return [];
+  const t = decodeHtmlEntities(text).toLowerCase();
+  const found = new Set<string>();
+  const add = (raw: string) => {
+    const n = normalizeCardNumber(raw);
+    if (n) found.add(n);
+  };
+  // Hyphenated TCG codes first so #OP01-003 is not truncated to OP01.
+  for (const m of t.matchAll(/#\s*([a-z]+\d*-\d+[a-z]*)/g)) add(m[1]);
+  for (const m of t.matchAll(/-([a-z]+\d+-\d+[a-z]*)(?:\?|#|$|\/)/g)) add(m[1]);
+  for (const m of t.matchAll(/\b([a-z]+\d+-\d+[a-z]*)\b/g)) add(m[1]);
+  for (const m of t.matchAll(/#\s*([a-z]*\d+[a-z]*)/g)) add(m[1]);
+  for (const m of t.matchAll(/-([a-z]*\d+[a-z]*)(?:\?|#|$|\/)/g)) add(m[1]);
+  return [...found];
+};
+
 const cleanSetName = (value?: string): string =>
   decodeHtmlEntities(value)
     .toLowerCase()
-    .replace(/[^a-z0-9&]/g, ' ');
+    .replace(/[^a-z0-9&']/g, ' ');
 
 /**
  * Company-graded condition labels present on PriceCharting product pages.
@@ -64,7 +115,114 @@ export interface ProductMatchInput {
   cardName: string;
   setName?: string;
   cardNumber?: string;
+  /** TCGPlayer finish key (reverseHolofoil, 1stEdition, holofoil, …) or OP print family. */
+  variant?: string;
+  /** OPTCG image id (OP01-003_p1) — used to detect One Piece print family. */
+  cardImageId?: string;
+  game?: 'pokemon' | 'onepiece';
+  /**
+   * When true, accept an untagged/standard PC product for a reverse or 1st-edition
+   * request. Only set after confirming PriceCharting has no dedicated finish SKU
+   * (e.g. Southern Islands listed solely as reverseHolofoil on TCGPlayer).
+   */
+  allowStandardFinishAlias?: boolean;
 }
+
+/**
+ * PriceCharting files reverse / 1st-edition prints as separate products
+ * (`…-reverse-holo-47`, title `[Reverse Holo]`). Untagged pages are the
+ * unlimited / standard print. Matching name+set+number without finish is
+ * how reverse history gets overwritten by the cheap base card.
+ */
+export type PcFinishFamily = 'standard' | 'reverse' | '1stedition' | '1steditionreverse';
+
+const hasReverseFinish = (hay: string): boolean => /reverse[\s\-]*holo/.test(hay);
+const hasFirstEditionFinish = (hay: string): boolean =>
+  /1st[\s\-]*edition/.test(hay) || /first[\s\-]*edition/.test(hay);
+
+export const detectPcFinishFamily = (
+  title?: string | null,
+  url?: string | null
+): PcFinishFamily => {
+  const hay = `${title || ''} ${url || ''}`.toLowerCase();
+  const reverse = hasReverseFinish(hay);
+  const firstEd = hasFirstEditionFinish(hay);
+  if (reverse && firstEd) return '1steditionreverse';
+  if (reverse) return 'reverse';
+  if (firstEd) return '1stedition';
+  return 'standard';
+};
+
+export const expectedPcFinishFamily = (variant?: string | null): PcFinishFamily => {
+  const v = (variant || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const reverse = v.includes('reverse');
+  const firstEd = v.includes('1stedition') || v.includes('firstedition');
+  if (reverse && firstEd) return '1steditionreverse';
+  if (reverse) return 'reverse';
+  if (firstEd) return '1stedition';
+  return 'standard';
+};
+
+export const pcFinishSlug = (family: PcFinishFamily): string => {
+  switch (family) {
+    case 'reverse':
+      return 'reverse-holo';
+    case '1stedition':
+      return '1st-edition';
+    case '1steditionreverse':
+      return '1st-edition-reverse-holo';
+    default:
+      return '';
+  }
+};
+
+export const pcFinishSearchTerms = (variant?: string | null): string => {
+  const family = expectedPcFinishFamily(variant);
+  switch (family) {
+    case 'reverse':
+      return 'reverse holo';
+    case '1stedition':
+      return '1st edition';
+    case '1steditionreverse':
+      return '1st edition reverse holo';
+    default:
+      return '';
+  }
+};
+
+/** Map a PriceCharting product back onto our variantKey vocabulary. */
+export const inferVariantKeyFromPc = (
+  title?: string | null,
+  url?: string | null
+): string => {
+  switch (detectPcFinishFamily(title, url)) {
+    case 'reverse':
+      return 'reverseholofoil';
+    case '1steditionreverse':
+      return '1steditionholofoil';
+    case '1stedition':
+      return '1stedition';
+    default:
+      return 'normal';
+  }
+};
+
+export const finishesMatch = (
+  expected: PcFinishFamily,
+  detected: PcFinishFamily,
+  options?: { allowStandardAlias?: boolean }
+): boolean => {
+  if (expected === detected) return true;
+  // Alias only untagged PC pages onto reverse/1st requests — never the reverse.
+  if (
+    options?.allowStandardAlias &&
+    expected !== 'standard' &&
+    detected === 'standard'
+  ) {
+    return true;
+  }
+  return false;
+};
 
 export interface ProductMatch {
   productId: string;
@@ -79,6 +237,8 @@ export interface ParsedSlabPrice {
   grade: string;
   price: number | null;
   soldListings: number;
+  lastSoldDate: string | null;
+  lastSoldPrice: number | null;
 }
 
 export interface PriceChartingPageData {
@@ -201,7 +361,13 @@ const setNamesMatch = (candidateSet: string, inputSet: string): boolean => {
   return hits >= Math.min(2, iTokens.length);
 };
 
-const titleIncludesName = (candidateTitle: string, cardName: string): boolean => {
+/** True when the listing title names the same set (skipped if no setName given). */
+export const titleIncludesSet = (candidateTitle: string, setName?: string): boolean => {
+  if (!setName) return true;
+  return setNamesMatch(candidateTitle, setName);
+};
+
+export const titleIncludesName = (candidateTitle: string, cardName: string): boolean => {
   const t = normalize(candidateTitle);
   const name = normalize(cardName);
   if (!name) return true;
@@ -210,10 +376,29 @@ const titleIncludesName = (candidateTitle: string, cardName: string): boolean =>
   return tokens.length > 0 && tokens.every((tok) => t.includes(tok));
 };
 
-const titleIncludesNumber = (candidateTitle: string, cardNumber?: string): boolean => {
+/**
+ * True when the candidate title/URL refers to the same collector number.
+ * Prefer explicit #N / slug-N markers; never treat "34" as a hit inside "114".
+ */
+export const titleIncludesNumber = (
+  candidateTitle: string,
+  cardNumber?: string,
+  candidateUrl?: string
+): boolean => {
   if (!cardNumber) return true;
-  const num = normalize(cardNumber);
-  return num.length > 0 && normalize(candidateTitle).includes(num);
+  const want = normalizeCardNumber(cardNumber);
+  if (!want) return true;
+
+  const marked = [
+    ...extractCardNumbers(candidateTitle),
+    ...extractCardNumbers(candidateUrl),
+  ];
+  if (marked.length > 0) return marked.includes(want);
+
+  // Fallback on lightly tokenized text (keep separators) with digit boundaries.
+  const hay = `${candidateTitle} ${candidateUrl || ''}`.toLowerCase();
+  const escaped = want.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?:^|[^0-9a-z])${escaped}(?:[^0-9a-z]|$)`).test(hay);
 };
 
 export const scoreCandidate = (
@@ -221,17 +406,127 @@ export const scoreCandidate = (
   input: ProductMatchInput
 ): number => {
   let score = 0;
-  if (titleIncludesName(candidate.title, input.cardName)) score += 60;
-  if (input.setName && setNamesMatch(candidate.setName, input.setName)) score += 30;
+  const nameForMatch =
+    input.game === 'onepiece' ? stripOpNameDecorators(input.cardName) || input.cardName : input.cardName;
+  if (titleIncludesName(candidate.title, nameForMatch)) score += 60;
+  const setsMatch =
+    input.game === 'onepiece'
+      ? opSetNamesMatch(candidate.setName, input.setName || '')
+      : Boolean(input.setName && setNamesMatch(candidate.setName, input.setName));
+  if (input.setName && setsMatch) score += 30;
   else if (input.setName && isPromoSet(input.setName) && isPromoSet(candidate.setName)) score += 20;
-  if (titleIncludesNumber(candidate.title, input.cardNumber)) score += 20;
+  // Only award number points when we actually have a collector number to check.
+  // Missing numbers used to +20 every row, so search order picked SV49 over #9.
+  if (input.cardNumber && titleIncludesNumber(candidate.title, input.cardNumber, candidate.url)) {
+    score += 20;
+  }
+  if (input.game === 'onepiece') {
+    const want = expectedOpPrintFamily(input);
+    const got = detectOpPrintFamily(candidate.title, candidate.url);
+    if (opPrintFamiliesMatch(want, got)) score += 25;
+  } else {
+    const wantFinish = expectedPcFinishFamily(input.variant);
+    const gotFinish = detectPcFinishFamily(candidate.title, candidate.url);
+    if (
+      finishesMatch(wantFinish, gotFinish, {
+        allowStandardAlias: Boolean(input.allowStandardFinishAlias),
+      })
+    ) {
+      score += 25;
+    }
+  }
   return score;
 };
 
+const SEALED_SKU_RE = /\b(tin|collection|etb|elite trainer|booster|box|blister|bundle|case)\b/i;
+
+export const looksLikeSealedSku = (title?: string, url?: string): boolean =>
+  SEALED_SKU_RE.test(`${title || ''} ${url || ''}`);
+
+/** Collector number marked in the title (#SV49) or trailing URL slug (-sv49 / -9). */
+export const primaryCollectorNumber = (candidate: SearchCandidate): string => {
+  const fromTitle = extractCardNumbers(candidate.title);
+  if (fromTitle.length > 0) return fromTitle[0];
+  const fromUrl = extractCardNumbers(candidate.url);
+  if (fromUrl.length > 0) return fromUrl[fromUrl.length - 1];
+  return '';
+};
+
+/**
+ * When the card number is unknown, drop the wrong print family:
+ * main-set Hidden Fates Charizard GX must not match #SV49, and Shiny Vault
+ * must not match #9. If several numeric printings remain (regular vs full art
+ * in the same set), refuse to guess.
+ */
+export const selectBestProductMatch = (
+  rows: SearchCandidate[],
+  input: ProductMatchInput
+): { row: SearchCandidate; score: number } | null => {
+  let pool = rows
+    .map((row) => ({ row, score: scoreCandidate(row, input) }))
+    .filter(({ row, score }) => isAcceptableMatch(row, input) && score >= 50);
+
+  if (pool.length === 0) return null;
+
+  const inputLooksSealed = SEALED_SKU_RE.test(input.cardName || '');
+  if (!inputLooksSealed) {
+    const singles = pool.filter(({ row }) => !looksLikeSealedSku(row.title, row.url));
+    if (singles.length > 0) pool = singles;
+  }
+
+  if (!input.cardNumber) {
+    const wantSecret = setLooksLikeSubsetPrint(input.setName);
+    const family = pool.filter(({ row }) => {
+      const n = primaryCollectorNumber(row);
+      if (!n) return true;
+      return numberLooksSecretRare(n) === wantSecret;
+    });
+    const hadNumbered = pool.some(({ row }) => Boolean(primaryCollectorNumber(row)));
+    if (family.length > 0) pool = family;
+    else if (hadNumbered) return null;
+
+    const numbered = pool.filter(({ row }) => Boolean(primaryCollectorNumber(row)));
+    if (numbered.length > 0) pool = numbered;
+
+    const nums = new Set(
+      pool.map(({ row }) => primaryCollectorNumber(row)).filter(Boolean)
+    );
+    if (nums.size > 1) return null;
+  }
+
+  pool.sort((a, b) => b.score - a.score);
+  return pool[0] ?? null;
+};
+
 export const isAcceptableMatch = (candidate: SearchCandidate, input: ProductMatchInput): boolean => {
+  const nameForMatch =
+    input.game === 'onepiece' ? stripOpNameDecorators(input.cardName) || input.cardName : input.cardName;
+  const hasNumber = titleIncludesNumber(candidate.title, input.cardNumber, candidate.url);
+  const hasName = titleIncludesName(candidate.title, nameForMatch);
+  const candidateIsOp = /one\s*piece/i.test(candidate.setName);
+  if (input.game === 'onepiece') {
+    if (!candidateIsOp) return false;
+    const family = expectedOpPrintFamily(input);
+    const hasFamily = opPrintFamiliesMatch(
+      family,
+      detectOpPrintFamily(candidate.title, candidate.url)
+    );
+    if (!hasFamily) return false;
+    const hasSet = opSetNamesMatch(candidate.setName, input.setName || '');
+    // OPTCG files anniversary reprints under Promotion Cards; PriceCharting
+    // often keeps them on the original deck console. Number + family is enough.
+    const setOk =
+      hasSet || Boolean(input.cardNumber && hasNumber && opFamilyAllowsSetMismatch(family));
+    if (input.cardNumber) return hasName && hasNumber && setOk;
+    return setOk && hasName;
+  }
   const hasSet = setNamesMatch(candidate.setName, input.setName || '');
-  const hasNumber = titleIncludesNumber(candidate.title, input.cardNumber);
-  const hasName = titleIncludesName(candidate.title, input.cardName);
+  if (candidateIsOp) return false;
+  const hasFinish = finishesMatch(
+    expectedPcFinishFamily(input.variant),
+    detectPcFinishFamily(candidate.title, candidate.url),
+    { allowStandardAlias: Boolean(input.allowStandardFinishAlias) }
+  );
   // PriceCharting collapses era promo lines (XY/SM/SWSH Black Star Promos) into
   // the generic "Pokemon Promo" console. When the card number matches (XY143,
   // SM166, …) that is enough to disambiguate — requiring the set name too
@@ -241,6 +536,7 @@ export const isAcceptableMatch = (candidate: SearchCandidate, input: ProductMatc
     hasNumber &&
     isPromoSet(input.setName) &&
     isPromoSet(candidate.setName);
+  if (!hasFinish) return false;
   if (input.cardNumber) {
     return hasName && hasNumber && (hasSet || promoBridge);
   }
@@ -257,10 +553,23 @@ export const searchBestProduct = async (
   input: ProductMatchInput,
   delayMs: number = REQUEST_DELAY_MS
 ): Promise<ProductMatch | null> => {
-  const query = [input.cardName, input.cardNumber, input.setName]
-    .filter(Boolean)
-    .join(' ')
-    .trim();
+  const opFamily = input.game === 'onepiece' ? expectedOpPrintFamily(input) : null;
+  const query =
+    input.game === 'onepiece'
+      ? [
+          stripOpNameDecorators(input.cardName) || input.cardName,
+          input.cardNumber,
+          'One Piece',
+          opSearchSetName(input.setName, opFamily!),
+          opFamilySearchTerms(opFamily!),
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .trim()
+      : [input.cardName, input.cardNumber, input.setName, pcFinishSearchTerms(input.variant)]
+          .filter(Boolean)
+          .join(' ')
+          .trim();
   const searchUrl = `https://www.pricecharting.com/search-products?exclude-variants=false&q=${encodeURIComponent(
     query
   )}&region-name=all&type=prices&go=Go`;
@@ -279,14 +588,14 @@ export const searchBestProduct = async (
       ? decodeHtmlEntities(setMatch[1]).replace(/\s+/g, ' ').trim()
       : '';
     const candidate: SearchCandidate = { productId: pop.productId || '', url: searchUrl, title, setName };
-    const score = scoreCandidate(candidate, input);
-    if (pop.productId && isAcceptableMatch(candidate, input) && score >= 50) {
+    const best = pop.productId ? selectBestProductMatch([candidate], input) : null;
+    if (best) {
       return {
-        productId: pop.productId,
+        productId: best.row.productId,
         url: searchUrl,
         title,
         setName,
-        matchScore: score,
+        matchScore: best.score,
       };
     }
     return null;
@@ -295,12 +604,7 @@ export const searchBestProduct = async (
   const rows = parseSearchRows(searchHtml);
   if (rows.length === 0) return null;
 
-  const ranked = rows
-    .map((row) => ({ row, score: scoreCandidate(row, input) }))
-    .filter(({ row, score }) => isAcceptableMatch(row, input) && score >= 50)
-    .sort((a, b) => b.score - a.score);
-
-  const best = ranked[0];
+  const best = selectBestProductMatch(rows, input);
   if (!best) return null;
 
   return {
@@ -400,10 +704,88 @@ export const parseFullPrices = (html: string): ParsedSlabPrice[] => {
       grade: entry.grade,
       price: rawPrice,
       soldListings: soldCounts.get(normLabel(entry.label)) ?? 0,
+      lastSoldDate: null,
+      lastSoldPrice: null,
     });
   }
 
+  const lastSold = parseLastSoldByGrade(html);
+  for (const p of gradedPrices) {
+    const sold = lastSold.get(`${p.grader}::${p.grade}`);
+    if (!sold) continue;
+    p.lastSoldDate = sold.date;
+    p.lastSoldPrice = sold.price;
+  }
+
   return gradedPrices;
+};
+
+export interface CompletedSale {
+  date: string;
+  price: number;
+  title: string;
+}
+
+const parseSaleRows = (tableHtml: string): CompletedSale[] => {
+  const sales: CompletedSale[] = [];
+  const rowRegex =
+    /<tr[^>]*id="ebay-\d+"[\s\S]*?<td class="date">\s*([^<]+?)\s*<\/td>[\s\S]*?<td class="title">[\s\S]*?>([\s\S]*?)<\/a>[\s\S]*?<span class="js-price"[^>]*>\s*([^<]+?)\s*<\/span>/gi;
+  let row: RegExpExecArray | null;
+  while ((row = rowRegex.exec(tableHtml)) !== null) {
+    const date = row[1].trim();
+    const title = decodeHtmlEntities(row[2].replace(/<[^>]+>/g, ''))
+      .replace(/\s+/g, ' ')
+      .trim();
+    const price = parsePrice(row[3]);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || price == null) continue;
+    sales.push({ date, price, title });
+  }
+  return sales;
+};
+
+/**
+ * Latest completed sale per company grade from the Sold Listings tables.
+ * PriceCharting already fetched this HTML for the sold guide — no extra request.
+ */
+export const parseLastSoldByGrade = (html: string): Map<string, CompletedSale> => {
+  const latest = new Map<string, CompletedSale>();
+  const classToGrade = new Map<string, { grader: string; grade: string }>();
+  const soldSelect = html.match(/<select id="completed-auctions-condition"[\s\S]*?<\/select>/);
+  if (soldSelect) {
+    const optionRegex = /<option value="([^"]+)"[^>]*>\s*([^<]*?)\((\d+)\)\s*<\/option>/g;
+    let option: RegExpExecArray | null;
+    while ((option = optionRegex.exec(soldSelect[0])) !== null) {
+      const className = option[1].trim();
+      const label = option[2].replace(/\s+/g, ' ').trim();
+      const company = COMPANY_LABELS.find((e) => normLabel(e.label) === normLabel(label));
+      if (company) classToGrade.set(className, { grader: company.grader, grade: company.grade });
+    }
+  }
+  if (classToGrade.size === 0) {
+    classToGrade.set('completed-auctions-manual-only', { grader: 'psa', grade: '10' });
+  }
+
+  for (const [className, grade] of classToGrade) {
+    const marker = `class="${className}">`;
+    let from = 0;
+    let tableHtml = '';
+    while (from < html.length) {
+      const i = html.indexOf(marker, from);
+      if (i < 0) break;
+      const chunk = html.slice(i, i + 120000);
+      if (chunk.includes('<table') && /id="ebay-\d+"/.test(chunk)) {
+        tableHtml = chunk;
+        break;
+      }
+      from = i + marker.length;
+    }
+    if (!tableHtml) continue;
+    const sales = parseSaleRows(tableHtml);
+    if (sales.length === 0) continue;
+    const newest = sales.reduce((a, b) => (a.date >= b.date ? a : b));
+    latest.set(`${grade.grader}::${grade.grade}`, newest);
+  }
+  return latest;
 };
 
 /**
@@ -437,16 +819,17 @@ export const fetchProductPageData = async (
 };
 
 /**
- * PriceCharting URL slug: lowercase, spaces -> dashes, keep `&`, strip the rest.
+ * PriceCharting URL slug: lowercase, spaces -> dashes, keep `&` and `'`.
  * Tag Team cards use the ampersand form (`magikarp-&-wailord-gx-161`); rewriting
- * `&` to `and` lands on a non-product page with no slab prices.
+ * `&` to `and` lands on a non-product page with no slab prices. Apostrophes are
+ * kept so `Rocket's Wobbuffet` hits `rocket's-wobbuffet-reverse-holo-47`.
  */
 export const slugify = (value?: string): string =>
   decodeHtmlEntities(value)
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
-    .replace(/[^a-z0-9&]+/g, '-')
+    .replace(/[^a-z0-9&']+/g, '-')
     .replace(/^-+|-+$/g, '');
 
 /** Console slug, e.g. "Pokemon Scarlet & Violet 151" -> "pokemon-scarlet-&-violet-151". */
@@ -464,11 +847,27 @@ export const cardSlug = (cardName: string): string => slugify(cardName);
 export const buildDirectProductUrl = (
   consoleName: string,
   cardName: string,
-  cardNumber?: string
-): string =>
-  `https://www.pricecharting.com/game/${consoleSlug(consoleName)}/${cardSlug(cardName)}${
-    cardNumber ? `-${cardNumber}` : ''
-  }`;
+  cardNumber?: string,
+  variant?: string,
+  options?: { game?: 'pokemon' | 'onepiece' }
+): string => {
+  if (options?.game === 'onepiece') {
+    const family = expectedOpPrintFamily({ cardName, variant });
+    const finish = opFamilySlug(family);
+    const finishPart = finish ? `-${finish}` : '';
+    const numberPart = cardNumber ? `-${cardNumber.toLowerCase()}` : '';
+    const slugName = stripOpPeriodsForSlug(stripOpNameDecorators(cardName) || cardName);
+    return `https://www.pricecharting.com/game/${consoleSlug(consoleName)}/${cardSlug(
+      slugName
+    )}${finishPart}${numberPart}`;
+  }
+  const finish = pcFinishSlug(expectedPcFinishFamily(variant));
+  const finishPart = finish ? `-${finish}` : '';
+  const numberPart = cardNumber ? `-${cardNumber}` : '';
+  return `https://www.pricecharting.com/game/${consoleSlug(consoleName)}/${cardSlug(
+    cardName
+  )}${finishPart}${numberPart}`;
+};
 
 /** True when the fetched HTML is a real product page (not a 404/redirect/list). */
 export const isProductPageHtml = (html: string): boolean =>
@@ -478,13 +877,17 @@ export const isProductPageHtml = (html: string): boolean =>
  * Verifies a parsed product page actually IS the card we asked for. Used for
  * direct-URL hits, which are never trusted without this check.
  */
-export const verifyProductPage = (page: PriceChartingPageData, input: ProductMatchInput): boolean => {
+export const verifyProductPage = (
+  page: PriceChartingPageData,
+  input: ProductMatchInput,
+  pageUrl?: string
+): boolean => {
   if (!page.productId || !page.title || !page.setName) return false;
   const candidate: SearchCandidate = {
     productId: page.productId,
-    url: '',
+    url: pageUrl || '',
     title: page.title,
     setName: page.setName,
   };
-  return isAcceptableMatch(candidate, input) && scoreCandidate(candidate, input) >= 50;
+  return selectBestProductMatch([candidate], input) != null;
 };

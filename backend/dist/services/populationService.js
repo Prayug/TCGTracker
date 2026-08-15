@@ -38,6 +38,7 @@ const database_1 = require("../db/database");
 const logger_1 = require("../utils/logger");
 const priceChartingClient_1 = require("./priceChartingClient");
 const priceChartingResolver_1 = require("./priceChartingResolver");
+const onePieceCatalogId_1 = require("./onePieceCatalogId");
 const CACHE_TTL_MS = 1000 * 60 * 60 * 12; // 12 hours
 const REQUEST_TIMEOUT_MS = 12000;
 const BECKETT_SPORT_POKEMON = '477173';
@@ -240,11 +241,18 @@ const buildGraderResult = (grader, pop, extra) => {
  * is required before a population is accepted — no more total=1 garbage.
  */
 const fetchPriceChartingPopulations = async (input) => {
+    const parsedOp = input.cardId ? (0, onePieceCatalogId_1.parseOnePieceCatalogId)(input.cardId) : null;
+    const game = input.game || (input.cardId && (0, onePieceCatalogId_1.isOnePieceCatalogId)(input.cardId) ? 'onepiece' : 'pokemon');
     const resolved = await (0, priceChartingResolver_1.resolveProduct)({
         cardName: input.cardName,
+        matchName: input.matchName,
         setId: input.setId,
         setName: input.setName,
         cardNumber: input.cardNumber,
+        language: input.language,
+        variant: input.variant,
+        game,
+        cardImageId: input.cardImageId || (parsedOp === null || parsedOp === void 0 ? void 0 : parsedOp.cardImageId),
     }, 1500);
     if (!resolved) {
         throw new Error('pricecharting_no_match');
@@ -276,6 +284,18 @@ const resolveGrader = async (grader, input, pcScrape) => {
             return buildGraderResult(grader, null, {
                 message: 'No population result found',
             });
+        }
+        if (input.game === 'onepiece' || (input.cardId && (0, onePieceCatalogId_1.isOnePieceCatalogId)(input.cardId))) {
+            return {
+                grader,
+                total: null,
+                grade10: null,
+                grade9: null,
+                pop: null,
+                status: 'unavailable',
+                source: 'none',
+                message: 'Beckett population is Pokemon-only',
+            };
         }
         const beckettTotal = await fetchBeckettPopulation(input);
         return {

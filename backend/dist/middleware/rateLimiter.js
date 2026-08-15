@@ -10,6 +10,16 @@ function isCaptureSessionsPath(req) {
     const url = req.originalUrl || req.url || '';
     return url.includes('/api/capture-sessions');
 }
+function isEbayNotificationPath(req) {
+    const url = req.originalUrl || req.url || '';
+    return url.includes('/api/ebay/marketplace-account-deletion');
+}
+function isDealsReadPath(req) {
+    if (req.method !== 'GET')
+        return false;
+    const url = req.originalUrl || req.url || '';
+    return url.includes('/api/deals');
+}
 // General API rate limiter
 exports.apiLimiter = (0, express_rate_limit_1.default)({
     windowMs: env_1.env.rateLimit.windowMs,
@@ -18,8 +28,9 @@ exports.apiLimiter = (0, express_rate_limit_1.default)({
     standardHeaders: true,
     legacyHeaders: false,
     // Phone QR capture polls every couple seconds from desktop + phone; don't
-    // burn the global budget on that relay traffic.
-    skip: isCaptureSessionsPath,
+    // burn the global budget on that relay traffic. Deal reads poll while a
+    // marketplace crawl is running and must not share the 100/15min bucket.
+    skip: (req) => isCaptureSessionsPath(req) || isEbayNotificationPath(req) || isDealsReadPath(req),
 });
 /** Generous limiter for phone↔desktop capture relay (poll + image upload). */
 exports.captureSessionLimiter = (0, express_rate_limit_1.default)({

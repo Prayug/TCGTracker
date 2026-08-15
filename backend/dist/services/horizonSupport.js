@@ -8,6 +8,8 @@ exports.isHorizonExperimental = isHorizonExperimental;
 exports.windowToHorizonDays = windowToHorizonDays;
 exports.applyHorizonHonesty = applyHorizonHonesty;
 exports.invalidateHorizonSupportCache = invalidateHorizonSupportCache;
+exports.getGradedPriceHistorySpanDays = getGradedPriceHistorySpanDays;
+exports.getGradedHorizonSupportStatus = getGradedHorizonSupportStatus;
 const database_1 = require("../db/database");
 /** Need ≥ horizon days of span (with a small buffer) before claiming the horizon. */
 exports.HORIZON_HISTORY_REQUIREMENTS = {
@@ -96,4 +98,56 @@ function applyHorizonHonesty(prediction, status) {
 function invalidateHorizonSupportCache() {
     cachedStatus = null;
     cachedAt = 0;
+    cachedGradedStatus = null;
+    cachedGradedAt = 0;
+}
+let cachedGradedStatus = null;
+let cachedGradedAt = 0;
+async function getGradedPriceHistorySpanDays() {
+    var _a, _b, _c;
+    const db = (0, database_1.getDb)();
+    const row = await new Promise((resolve, reject) => {
+        db.get(`SELECT MIN(date) AS minDate, MAX(date) AS maxDate,
+                CAST(julianday(MAX(date)) - julianday(MIN(date)) AS INTEGER) AS days
+         FROM graded_price_history
+         WHERE LOWER(grader) = 'psa' AND grade = '10' AND price > 0`, [], (err, r) => (err ? reject(err) : resolve(r)));
+    });
+    return {
+        days: (_a = row === null || row === void 0 ? void 0 : row.days) !== null && _a !== void 0 ? _a : 0,
+        minDate: (_b = row === null || row === void 0 ? void 0 : row.minDate) !== null && _b !== void 0 ? _b : null,
+        maxDate: (_c = row === null || row === void 0 ? void 0 : row.maxDate) !== null && _c !== void 0 ? _c : null,
+    };
+}
+/** Horizon honesty for PSA 10 slab series (typically much shorter than raw history). */
+async function getGradedHorizonSupportStatus(force = false) {
+    if (!force && cachedGradedStatus && Date.now() - cachedGradedAt < CACHE_TTL_MS) {
+        return cachedGradedStatus;
+    }
+    const span = await getGradedPriceHistorySpanDays();
+    const supported = [];
+    const experimental = [];
+    const unsupported = [];
+    for (const h of ALL_HORIZONS) {
+        const need = exports.HORIZON_HISTORY_REQUIREMENTS[h];
+        if (span.days >= need) {
+            supported.push(h);
+        }
+        else if (span.days >= Math.floor(need * 0.55)) {
+            experimental.push(h);
+        }
+        else {
+            unsupported.push(h);
+        }
+    }
+    cachedGradedStatus = {
+        historyDays: span.days,
+        historyMinDate: span.minDate,
+        historyMaxDate: span.maxDate,
+        supported,
+        experimental,
+        unsupported,
+        requirements: { ...exports.HORIZON_HISTORY_REQUIREMENTS },
+    };
+    cachedGradedAt = Date.now();
+    return cachedGradedStatus;
 }

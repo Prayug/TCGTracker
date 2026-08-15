@@ -134,4 +134,68 @@ export function applyHorizonHonesty<T extends {
 export function invalidateHorizonSupportCache(): void {
   cachedStatus = null;
   cachedAt = 0;
+  cachedGradedStatus = null;
+  cachedGradedAt = 0;
+}
+
+let cachedGradedStatus: HorizonSupportStatus | null = null;
+let cachedGradedAt = 0;
+
+export async function getGradedPriceHistorySpanDays(): Promise<{
+  days: number;
+  minDate: string | null;
+  maxDate: string | null;
+}> {
+  const db = getDb();
+  const row: { minDate: string | null; maxDate: string | null; days: number | null } | undefined =
+    await new Promise((resolve, reject) => {
+      db.get(
+        `SELECT MIN(date) AS minDate, MAX(date) AS maxDate,
+                CAST(julianday(MAX(date)) - julianday(MIN(date)) AS INTEGER) AS days
+         FROM graded_price_history
+         WHERE LOWER(grader) = 'psa' AND grade = '10' AND price > 0`,
+        [],
+        (err, r) => (err ? reject(err) : resolve(r as any))
+      );
+    });
+  return {
+    days: row?.days ?? 0,
+    minDate: row?.minDate ?? null,
+    maxDate: row?.maxDate ?? null,
+  };
+}
+
+/** Horizon honesty for PSA 10 slab series (typically much shorter than raw history). */
+export async function getGradedHorizonSupportStatus(force = false): Promise<HorizonSupportStatus> {
+  if (!force && cachedGradedStatus && Date.now() - cachedGradedAt < CACHE_TTL_MS) {
+    return cachedGradedStatus;
+  }
+
+  const span = await getGradedPriceHistorySpanDays();
+  const supported: HorizonDays[] = [];
+  const experimental: HorizonDays[] = [];
+  const unsupported: HorizonDays[] = [];
+
+  for (const h of ALL_HORIZONS) {
+    const need = HORIZON_HISTORY_REQUIREMENTS[h];
+    if (span.days >= need) {
+      supported.push(h);
+    } else if (span.days >= Math.floor(need * 0.55)) {
+      experimental.push(h);
+    } else {
+      unsupported.push(h);
+    }
+  }
+
+  cachedGradedStatus = {
+    historyDays: span.days,
+    historyMinDate: span.minDate,
+    historyMaxDate: span.maxDate,
+    supported,
+    experimental,
+    unsupported,
+    requirements: { ...HORIZON_HISTORY_REQUIREMENTS },
+  };
+  cachedGradedAt = Date.now();
+  return cachedGradedStatus;
 }

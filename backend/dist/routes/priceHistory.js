@@ -1,9 +1,43 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const database_1 = require("../db/database");
 const logger_1 = require("../utils/logger");
 const cardIdentifier_1 = require("../services/cardIdentifier");
+const dataFetcher_1 = require("../services/dataFetcher");
 const onePiecePriceHistoryService_1 = require("../services/onePiecePriceHistoryService");
 const topMoversQuality_1 = require("../services/topMoversQuality");
 const router = (0, express_1.Router)();
@@ -24,6 +58,7 @@ const sendTopMovers = (res, cacheKey, payload, cacheStatus = 'MISS') => {
 };
 // Get price history for a specific card using card details
 router.get('/card', (req, res) => {
+    (0, dataFetcher_1.maybeRecoverStalePrices)();
     const { cardName, setId, cardNumber, variant = 'normal' } = req.query;
     if (!cardName || !setId) {
         res.status(400).json({
@@ -85,21 +120,26 @@ router.get('/match', (req, res) => {
     (0, cardIdentifier_1.findCardByDetails)(safeCardName, safeSetId, safeCardNumber, undefined, safeVariant, safeProductId)
         .then(mapping => {
         if (mapping) {
-            // Found in our mappings, fetch history for exact product first.
-            const historyPromise = mapping.productId
-                ? (0, cardIdentifier_1.getCardPriceHistoryForProduct)(mapping.productId, safeVariant)
-                : (0, cardIdentifier_1.getCardPriceHistory)(mapping.uniqueIdentifier);
-            return historyPromise
-                .then((priceHistory) => ({
-                matchedProduct: {
-                    productId: mapping.productId,
-                    productName: mapping.cardName,
-                    groupName: mapping.setName,
-                    uniqueIdentifier: mapping.uniqueIdentifier,
-                    variant: mapping.variantKey || safeVariant,
-                },
-                priceHistory
-            }));
+            // Prefer UID-scoped history so shared productIds cannot bleed across prints.
+            return (0, cardIdentifier_1.getCardPriceHistory)(mapping.uniqueIdentifier).then(async (byUid) => {
+                let priceHistory = byUid;
+                if (priceHistory.length === 0 && mapping.productId) {
+                    priceHistory = await (0, cardIdentifier_1.getCardPriceHistoryForProduct)(mapping.productId, safeVariant, {
+                        setName: mapping.setName,
+                        uniqueIdentifier: mapping.uniqueIdentifier,
+                    });
+                }
+                return {
+                    matchedProduct: {
+                        productId: mapping.productId,
+                        productName: mapping.cardName,
+                        groupName: mapping.setName,
+                        uniqueIdentifier: mapping.uniqueIdentifier,
+                        variant: mapping.variantKey || safeVariant,
+                    },
+                    priceHistory,
+                };
+            });
         }
         return fallbackMatch(safeCardName, safeSetName, safeCardNumber, db);
     })
@@ -128,20 +168,23 @@ router.get('/history', async (req, res) => {
         const safeCardId = cardId ? String(cardId) : undefined;
         const exactCard = await (0, cardIdentifier_1.findExactCardByDetails)({
             cardId: safeCardId,
-            productId: productId ? String(productId) : undefined,
+            // Never pass productId into exact identity lookup — stale main-set SKUs
+            // previously excluded Trainer Gallery rows and fell through to #68 history.
             cardName: safeCardName,
             setId: safeSetId,
             cardNumber: safeCardNumber || undefined,
             variantKey: safeVariant,
         });
         if (exactCard) {
-            let priceHistory = [];
-            if (exactCard.productId) {
-                priceHistory = await (0, cardIdentifier_1.getCardPriceHistoryForProduct)(exactCard.productId, safeVariant);
-            }
-            const byIdentifier = await (0, cardIdentifier_1.getCardPriceHistory)(exactCard.uniqueIdentifier);
-            if (byIdentifier.length > priceHistory.length) {
-                priceHistory = byIdentifier;
+            // Prefer uniqueIdentifier history first. Looking up by productId alone
+            // stitches main-set series onto Trainer Gallery cards when TCGdex remaps
+            // them onto the wrong shared TCGPlayer SKU.
+            let priceHistory = await (0, cardIdentifier_1.getCardPriceHistory)(exactCard.uniqueIdentifier);
+            if (priceHistory.length === 0 && exactCard.productId) {
+                priceHistory = await (0, cardIdentifier_1.getCardPriceHistoryForProduct)(exactCard.productId, safeVariant, {
+                    setName: exactCard.setName,
+                    uniqueIdentifier: exactCard.uniqueIdentifier,
+                });
             }
             return res.json({
                 priceHistory,
@@ -150,15 +193,16 @@ router.get('/history', async (req, res) => {
                 variant: exactCard.variantKey || safeVariant,
             });
         }
-        const card = await (0, cardIdentifier_1.findCardByDetails)(safeCardName, safeSetId, safeCardNumber, rarity ? String(rarity) : undefined, safeVariant, productId ? String(productId) : undefined);
+        const card = await (0, cardIdentifier_1.findCardByDetails)(safeCardName, safeSetId, safeCardNumber, rarity ? String(rarity) : undefined, safeVariant, 
+        // productId is a soft hint inside findCardByDetails (rejected on number mismatch).
+        productId ? String(productId) : undefined);
         if (card) {
-            let priceHistory = [];
-            if (card.productId) {
-                priceHistory = await (0, cardIdentifier_1.getCardPriceHistoryForProduct)(card.productId, safeVariant);
-            }
-            const byIdentifier = await (0, cardIdentifier_1.getCardPriceHistory)(card.uniqueIdentifier);
-            if (byIdentifier.length > priceHistory.length) {
-                priceHistory = byIdentifier;
+            let priceHistory = await (0, cardIdentifier_1.getCardPriceHistory)(card.uniqueIdentifier);
+            if (priceHistory.length === 0 && card.productId) {
+                priceHistory = await (0, cardIdentifier_1.getCardPriceHistoryForProduct)(card.productId, safeVariant, {
+                    setName: card.setName,
+                    uniqueIdentifier: card.uniqueIdentifier,
+                });
             }
             if (priceHistory.length === 0) {
                 return res.status(404).json({
@@ -464,9 +508,9 @@ router.get('/top-movers', (req, res) => {
              FROM price_history
              WHERE uniqueIdentifier IN (${placeholders})
                AND source IN (${sources})
-               AND date >= ?
+               AND date >= date(?, '-7 days')
                AND date <= ?
-               AND price >= ?`, [...uids, earliestPrev, latestDate, minPrice], (pathErr, pathRows) => {
+               AND price >= ?`, [...uids, latestDate, latestDate, minPrice], (pathErr, pathRows) => {
                     if (pathErr) {
                         res.status(500).json({ error: pathErr.message });
                         return;
@@ -487,6 +531,8 @@ router.get('/top-movers', (req, res) => {
                         if (points.length < minPoints && c.baselineSource !== c.source) {
                             points = series.get(`${c.uniqueIdentifier}||${c.baselineSource}`) || points;
                         }
+                        if ((0, topMoversQuality_1.isIsolatedEndpointSpike)(points))
+                            return false;
                         // Restrict to [prevDate, latestDate]
                         const windowed = points.filter((p) => p.date >= c.prevDate && p.date <= latestDate);
                         return (0, topMoversQuality_1.isGradualMove)(windowed, gradualOpts);
@@ -512,6 +558,23 @@ router.get('/top-movers', (req, res) => {
             });
         });
     });
+});
+// PSA 10 slab movers (graded_price_history) — must stay before /:productId
+router.get('/top-slab-movers', async (req, res) => {
+    const requestedDays = parseInt(req.query.days, 10) || 7;
+    const requestedLimit = parseInt(req.query.limit, 10) || 20;
+    const days = clampNumber(requestedDays, 1, 365);
+    const limit = Math.min(Math.max(requestedLimit, 1), 50);
+    try {
+        const { getSlabTopMovers } = await Promise.resolve().then(() => __importStar(require('../services/slabTopMovers')));
+        const payload = await getSlabTopMovers(days, limit);
+        res.setHeader('Cache-Control', `public, max-age=${Math.floor(10 * 60)}`);
+        res.json(payload);
+    }
+    catch (error) {
+        logger_1.logger.error('Slab top movers query failed', { error: error.message });
+        res.status(500).json({ error: error.message });
+    }
 });
 // Get price history for a specific product
 router.get('/:productId', (req, res) => {

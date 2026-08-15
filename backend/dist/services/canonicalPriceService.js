@@ -109,6 +109,7 @@ async function getLatestCanonicalPriceByCardId(cardId) {
      INNER JOIN card_mappings cm ON cm.uniqueIdentifier = c.uniqueIdentifier
      WHERE cm.cardId = ?
      ORDER BY c.date DESC,
+              c.price DESC,
               CASE c.source ${topMoversQuality_1.SOURCE_PRIORITY.map((s, i) => `WHEN '${s}' THEN ${i}`).join(' ')} ELSE ${topMoversQuality_1.SOURCE_PRIORITY.length} END
      LIMIT 1`, [cardId]);
     return row !== null && row !== void 0 ? row : null;

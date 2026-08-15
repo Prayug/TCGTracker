@@ -6,7 +6,9 @@ const logger_1 = require("../utils/logger");
 const priceChartingResolver_1 = require("./priceChartingResolver");
 const populationService_1 = require("./populationService");
 const gradedPriceService_1 = require("./gradedPriceService");
-const REFRESH_TTL_MS = 1000 * 60 * 60 * 12;
+const onePieceCatalogId_1 = require("./onePieceCatalogId");
+/** Once per calendar-ish day — shorter TTLs re-scrape the head and starve the long tail. */
+const REFRESH_TTL_MS = 1000 * 60 * 60 * 24;
 /** Sets that are actually TCGPlayer product categories — never price on PriceCharting. */
 const EXCLUDED_SET_NAMES = [
     'World Championship Decks',
@@ -70,17 +72,19 @@ const run = (sql, params = []) => new Promise((resolve, reject) => {
 const recordGradedRequest = async (entry) => {
     if (!entry.cardId || !entry.cardName)
         return;
+    const variantKey = (entry.variant || 'normal').toLowerCase().replace(/[^a-z0-9]/g, '') || 'normal';
     try {
-        await run(`INSERT INTO graded_refresh_queue (cardId, cardName, setId, setName, cardNumber, lastRequestedAt)
-       VALUES (?, ?, ?, ?, ?, ?)
-       ON CONFLICT(cardId) DO UPDATE SET
+        await run(`INSERT INTO graded_refresh_queue (cardId, variantKey, cardName, setId, setName, cardNumber, lastRequestedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(cardId, variantKey) DO UPDATE SET
          lastRequestedAt = excluded.lastRequestedAt,
          cardName = excluded.cardName,
          setId = COALESCE(excluded.setId, graded_refresh_queue.setId),
          setName = COALESCE(excluded.setName, graded_refresh_queue.setName),
          cardNumber = COALESCE(excluded.cardNumber, graded_refresh_queue.cardNumber)`, [
             entry.cardId,
-            entry.cardName,
+            variantKey,
+            entry.matchName || entry.cardName,
             entry.setId || null,
             entry.setName || null,
             entry.cardNumber || null,
@@ -98,15 +102,17 @@ exports.recordGradedRequest = recordGradedRequest;
  * full-catalog sweep idempotent across nightly runs.
  */
 const markQueueEntryRefreshed = async (entry) => {
-    await run(`INSERT INTO graded_refresh_queue (cardId, cardName, setId, setName, cardNumber, lastRequestedAt, lastRefreshedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(cardId) DO UPDATE SET
+    const variantKey = (entry.variantKey || 'normal').toLowerCase().replace(/[^a-z0-9]/g, '') || 'normal';
+    await run(`INSERT INTO graded_refresh_queue (cardId, variantKey, cardName, setId, setName, cardNumber, lastRequestedAt, lastRefreshedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(cardId, variantKey) DO UPDATE SET
        lastRefreshedAt = excluded.lastRefreshedAt,
        cardName = excluded.cardName,
        setId = COALESCE(excluded.setId, graded_refresh_queue.setId),
        setName = COALESCE(excluded.setName, graded_refresh_queue.setName),
        cardNumber = COALESCE(excluded.cardNumber, graded_refresh_queue.cardNumber)`, [
         entry.cardId,
+        variantKey,
         entry.cardName,
         entry.setId || null,
         entry.setName || null,
@@ -115,28 +121,53 @@ const markQueueEntryRefreshed = async (entry) => {
         Date.now(),
     ]);
 };
-const toInput = (entry) => ({
-    cardName: entry.cardName,
-    setId: entry.setId || undefined,
-    setName: entry.setName || undefined,
-    cardNumber: entry.cardNumber || undefined,
-});
+const toInput = (entry) => {
+    const parsedOp = (0, onePieceCatalogId_1.parseOnePieceCatalogId)(entry.cardId);
+    const game = (0, onePieceCatalogId_1.isOnePieceCatalogId)(entry.cardId) ? 'onepiece' : 'pokemon';
+    return {
+        cardName: entry.matchName || entry.cardName,
+        setId: entry.setId || (parsedOp === null || parsedOp === void 0 ? void 0 : parsedOp.setId) || undefined,
+        setName: entry.setName || undefined,
+        cardNumber: entry.cardNumber || undefined,
+        language: entry.language || 'en',
+        matchName: entry.matchName || undefined,
+        variant: entry.variantKey || 'normal',
+        game,
+        cardImageId: parsedOp === null || parsedOp === void 0 ? void 0 : parsedOp.cardImageId,
+    };
+};
 /**
  * One card: resolve product, persist slab prices + population from a single
  * product page fetch. Never throws — failures are reported in the result.
  */
-const processCard = async (entry, result, delayMs) => {
+const processCard = async (entry, result, delayMs, fetchListings = false) => {
     const input = toInput(entry);
     try {
         const resolved = await (0, priceChartingResolver_1.resolveProduct)(input, delayMs);
         if (!resolved) {
             result.notFound += 1;
             result.cards.push({ cardId: entry.cardId, cardName: entry.cardName, status: 'not-found' });
-            await markQueueEntryRefreshed(entry);
+            // Don't burn the full TTL on misses — retry on the next nightly window.
+            await markQueueEntryRefreshed({
+                ...entry,
+                lastRefreshedAt: Date.now() - (REFRESH_TTL_MS - 1000 * 60 * 60 * 6),
+            });
+            return;
+        }
+        if (!resolved.pageData.gradedPrices.length) {
+            result.notFound += 1;
+            result.cards.push({ cardId: entry.cardId, cardName: entry.cardName, status: 'empty-prices' });
+            await markQueueEntryRefreshed({
+                ...entry,
+                lastRefreshedAt: Date.now() - (REFRESH_TTL_MS - 1000 * 60 * 60 * 6),
+            });
             return;
         }
         await Promise.all([
-            (0, gradedPriceService_1.saveGradedScrape)(entry.cardId, input, resolved.match, resolved.pageData),
+            (0, gradedPriceService_1.saveGradedScrape)(entry.cardId, input, resolved.match, resolved.pageData, {
+                fetchListings,
+                variantKey: entry.variantKey || 'normal',
+            }),
             (0, populationService_1.savePopulationScrape)(entry.cardId, input, resolved.match, resolved.pageData),
         ]);
         result.saved += 1;
@@ -159,6 +190,36 @@ const processCard = async (entry, result, delayMs) => {
         });
     }
 };
+const CARD_REFRESH_BUDGET_MS = 45000;
+const processCardWithBudget = async (entry, result, delayMs, fetchListings = false) => {
+    let timeoutId;
+    try {
+        await Promise.race([
+            processCard(entry, result, delayMs, fetchListings),
+            new Promise((_, reject) => {
+                timeoutId = setTimeout(() => reject(new Error('card refresh timeout')), CARD_REFRESH_BUDGET_MS);
+            }),
+        ]);
+    }
+    catch (error) {
+        if (error.message === 'card refresh timeout') {
+            result.failed += 1;
+            result.cards.push({
+                cardId: entry.cardId,
+                cardName: entry.cardName,
+                status: 'failed: card refresh timeout',
+            });
+            logger_1.logger.warn('Graded refresh timed out for card', {
+                cardId: entry.cardId,
+                cardName: entry.cardName,
+            });
+        }
+    }
+    finally {
+        if (timeoutId)
+            clearTimeout(timeoutId);
+    }
+};
 const newResult = () => ({
     attempted: 0,
     saved: 0,
@@ -175,18 +236,36 @@ const newResult = () => ({
  * retries on the next run.
  */
 const runGradedRefresh = async (limit = 100) => {
-    const due = await queryAll(`SELECT cardId, cardName, setId, setName, cardNumber, lastRequestedAt, lastRefreshedAt
-     FROM graded_refresh_queue
-     WHERE lastRefreshedAt IS NULL OR lastRefreshedAt < ?
-     ORDER BY lastRequestedAt DESC
+    const due = await queryAll(`SELECT q.cardId,
+            COALESCE(q.variantKey, cm.variantKey, 'normal') AS variantKey,
+            COALESCE(cm.matchName, q.cardName) AS cardName,
+            COALESCE(q.setId, cm.setId) AS setId,
+            COALESCE(q.setName, cm.setName) AS setName,
+            COALESCE(q.cardNumber, cm.cardNumber) AS cardNumber,
+            q.lastRequestedAt, q.lastRefreshedAt,
+            COALESCE(cm.language, 'en') AS language,
+            cm.matchName AS matchName
+     FROM graded_refresh_queue q
+     LEFT JOIN card_mappings cm
+       ON cm.cardId = q.cardId
+      AND REPLACE(LOWER(COALESCE(cm.variantKey, 'normal')), ' ', '')
+        = REPLACE(LOWER(COALESCE(q.variantKey, 'normal')), ' ', '')
+     WHERE q.lastRefreshedAt IS NULL OR q.lastRefreshedAt < ?
+     GROUP BY q.cardId, q.variantKey
+     ORDER BY q.lastRequestedAt DESC
      LIMIT ?`, [Date.now() - REFRESH_TTL_MS, limit]);
     // Seed the queue with the most valuable recently-traded cards so the nightly
     // rebuild covers the cards users actually care about even before anyone
     // opens a card detail view.
     if (due.length < limit) {
         const seed = await queryAll(`SELECT
-         cm.cardId, cm.cardName, cm.setId, cm.setName, cm.cardNumber,
-         0 AS lastRequestedAt, NULL AS lastRefreshedAt
+         cm.cardId,
+         COALESCE(cm.variantKey, 'normal') AS variantKey,
+         COALESCE(cm.matchName, cm.cardName) AS cardName,
+         cm.setId, cm.setName, cm.cardNumber,
+         0 AS lastRequestedAt, NULL AS lastRefreshedAt,
+         COALESCE(cm.language, 'en') AS language,
+         cm.matchName AS matchName
        FROM (
          SELECT uniqueIdentifier, MAX(date) AS latestDate, MAX(price) AS price
          FROM canonical_price_history
@@ -197,18 +276,20 @@ const runGradedRefresh = async (limit = 100) => {
          LIMIT ?
        ) top
        JOIN card_mappings cm ON cm.uniqueIdentifier = top.uniqueIdentifier
-       LEFT JOIN graded_refresh_queue q ON q.cardId = cm.cardId
+       LEFT JOIN graded_refresh_queue q
+         ON q.cardId = cm.cardId
+        AND q.variantKey = COALESCE(cm.variantKey, 'normal')
        WHERE q.cardId IS NULL
        LIMIT ?`, [Math.max(limit * 3, 300), Math.max(limit - due.length, 0)]);
         for (const s of seed) {
-            await run(`INSERT OR IGNORE INTO graded_refresh_queue (cardId, cardName, setId, setName, cardNumber, lastRequestedAt, lastRefreshedAt)
-         VALUES (?, ?, ?, ?, ?, 0, NULL)`, [s.cardId, s.cardName, s.setId, s.setName, s.cardNumber]);
+            await run(`INSERT OR IGNORE INTO graded_refresh_queue (cardId, variantKey, cardName, setId, setName, cardNumber, lastRequestedAt, lastRefreshedAt)
+         VALUES (?, ?, ?, ?, ?, ?, 0, NULL)`, [s.cardId, s.variantKey || 'normal', s.cardName, s.setId, s.setName, s.cardNumber]);
         }
     }
     const result = newResult();
     result.attempted = due.length;
     for (const entry of due) {
-        await processCard(entry, result, 1500);
+        await processCardWithBudget(entry, result, 1500, true);
     }
     return result;
 };
@@ -224,44 +305,30 @@ exports.runGradedRefresh = runGradedRefresh;
  *   directly (1 request/card) instead of search + page (2 requests/card).
  */
 const runAllCardsRefresh = async (options = {}) => {
-    const { limit = 0, maxDurationMs = 0, delayMs = 1000 } = options;
+    // ~750ms/card ≈ 4.8k cards/hour; a long nightly window can cover most of the catalog.
+    const { limit = 0, maxDurationMs = 0, delayMs = 750 } = options;
     const start = Date.now();
     const { clause, params } = buildExclusionSql();
-    const rows = await queryAll(`SELECT cm.cardId, cm.cardName, cm.setId, cm.setName, cm.cardNumber,
-            cm.variantKey, q.lastRequestedAt, q.lastRefreshedAt
+    const rows = await queryAll(`SELECT cm.cardId,
+            COALESCE(cm.variantKey, 'normal') AS variantKey,
+            COALESCE(cm.matchName, cm.cardName) AS cardName,
+            cm.setId, cm.setName, cm.cardNumber,
+            q.lastRequestedAt, q.lastRefreshedAt,
+            COALESCE(cm.language, 'en') AS language,
+            cm.matchName AS matchName
      FROM card_mappings cm
-     LEFT JOIN graded_refresh_queue q ON q.cardId = cm.cardId
+     LEFT JOIN graded_refresh_queue q
+       ON q.cardId = cm.cardId
+      AND q.variantKey = COALESCE(cm.variantKey, 'normal')
      WHERE ${clause}
        AND (q.lastRefreshedAt IS NULL OR q.lastRefreshedAt < ?)
-     ORDER BY (q.lastRequestedAt IS NOT NULL) DESC, q.lastRequestedAt DESC, cm.cardId
-     LIMIT ?`, [...params, Date.now() - REFRESH_TTL_MS, limit > 0 ? limit * 4 : 10000000]);
-    // Prefer the premium printing when a card has multiple variant mappings.
-    const variantRank = (variantKey) => {
-        const key = (variantKey || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (key.includes('1steditionholofoil'))
-            return 100;
-        if (key.includes('1stedition'))
-            return 90;
-        if (key === 'holofoil')
-            return 80;
-        if (key.includes('unlimitedholofoil'))
-            return 70;
-        if (key.includes('reverse'))
-            return 60;
-        if (key === 'normal' || key === 'unlimited')
-            return 40;
-        return 10;
-    };
-    const best = new Map();
-    for (const row of rows) {
-        if (!row.cardId || !row.cardName)
-            continue;
-        const existing = best.get(row.cardId);
-        if (!existing || variantRank(row.variantKey) > variantRank(existing.variantKey)) {
-            best.set(row.cardId, row);
-        }
-    }
-    const cards = [...best.values()];
+     ORDER BY
+       (q.lastRefreshedAt IS NULL) DESC,
+       (q.lastRequestedAt IS NOT NULL) DESC,
+       q.lastRequestedAt DESC,
+       cm.cardId
+     LIMIT ?`, [...params, Date.now() - REFRESH_TTL_MS, limit > 0 ? limit : 10000000]);
+    const cards = rows.filter((row) => row.cardId && row.cardName);
     const result = newResult();
     result.attempted = cards.length;
     let processed = 0;
@@ -270,7 +337,7 @@ const runAllCardsRefresh = async (options = {}) => {
             result.skipped = cards.length - processed;
             break;
         }
-        await processCard(entry, result, delayMs);
+        await processCardWithBudget(entry, result, delayMs);
         processed += 1;
         if (options.logEvery && processed % options.logEvery === 0) {
             logger_1.logger.info('Graded refresh sweep progress', {

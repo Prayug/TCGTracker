@@ -45,8 +45,6 @@ const aiExplanationService_1 = require("../services/aiExplanationService");
 const returnCalibration_1 = require("../services/returnCalibration");
 const horizonSupport_1 = require("../services/horizonSupport");
 const dataQualityService_1 = require("../services/dataQualityService");
-const auth_1 = require("../middleware/auth");
-const admin_1 = require("../middleware/admin");
 const router = (0, express_1.Router)();
 const asyncHandler = (fn) => (req, res) => {
     fn(req, res).catch((err) => {
@@ -126,7 +124,7 @@ router.get('/data-quality', asyncHandler(async (_req, res) => {
         failed: summary.failed,
     });
 }));
-router.post('/data-quality/run', auth_1.authenticate, admin_1.requireAdmin, asyncHandler(async (_req, res) => {
+router.post('/data-quality/run', asyncHandler(async (_req, res) => {
     const summary = await (0, dataQualityService_1.runDataQualityChecks)();
     res.json({ data: summary });
 }));
@@ -355,7 +353,7 @@ router.get('/card/:cardId', asyncHandler(async (req, res) => {
         } : null,
     });
 }));
-router.post('/run-predictions', auth_1.authenticate, admin_1.requireAdmin, asyncHandler(async (_req, res) => {
+router.post('/run-predictions', asyncHandler(async (_req, res) => {
     logger_1.logger.info('Manual prediction run requested');
     const result = await (0, predictionEngine_1.runPredictions)();
     // Best-effort: resolve any matured forward-test windows after a new run.
@@ -375,7 +373,7 @@ router.post('/run-predictions', auth_1.authenticate, admin_1.requireAdmin, async
         message: `Prediction run complete: ${result.succeeded} predictions generated, ${result.failed} skipped`,
     });
 }));
-router.post('/backtest', auth_1.authenticate, admin_1.requireAdmin, asyncHandler(async (req, res) => {
+router.post('/backtest', asyncHandler(async (req, res) => {
     const { backtestDate, windowDays = 90, cardIds } = req.body;
     if (!backtestDate) {
         return res.status(400).json({ error: 'backtestDate is required (YYYY-MM-DD)' });
@@ -403,7 +401,7 @@ router.get('/calibration/status', asyncHandler(async (_req, res) => {
     const models = await (0, returnCalibration_1.getCalibrationModels)();
     res.json({ data: (0, returnCalibration_1.getCalibrationStatus)(models) });
 }));
-router.post('/calibration/rebuild', auth_1.authenticate, admin_1.requireAdmin, asyncHandler(async (_req, res) => {
+router.post('/calibration/rebuild', asyncHandler(async (_req, res) => {
     logger_1.logger.info('Manual calibration rebuild requested');
     await (0, returnCalibration_1.collectForwardTestSamples)();
     const models = await (0, returnCalibration_1.rebuildAllCalibrationModels)();
@@ -412,7 +410,7 @@ router.post('/calibration/rebuild', auth_1.authenticate, admin_1.requireAdmin, a
         data: (0, returnCalibration_1.getCalibrationStatus)(models),
     });
 }));
-router.post('/calibration/harvest', auth_1.authenticate, admin_1.requireAdmin, asyncHandler(async (_req, res) => {
+router.post('/calibration/harvest', asyncHandler(async (_req, res) => {
     // Harvest long-horizon samples from historical backtests. Cutoffs are chosen
     // so the forward window has matured against real price history.
     const { harvestBacktestSamples } = await Promise.resolve().then(() => __importStar(require('../services/returnCalibration')));
@@ -439,7 +437,7 @@ router.get('/forward-test', asyncHandler(async (_req, res) => {
     const status = await (0, forwardTestTracker_1.getForwardTestStatus)();
     res.json(status);
 }));
-router.post('/forward-test/update', auth_1.authenticate, admin_1.requireAdmin, asyncHandler(async (_req, res) => {
+router.post('/forward-test/update', asyncHandler(async (_req, res) => {
     const result = await (0, forwardTestTracker_1.updateActualResults)();
     try {
         await (0, returnCalibration_1.collectForwardTestSamples)();
@@ -455,7 +453,7 @@ router.get('/external-signals/:cardId', asyncHandler(async (req, res) => {
     const signals = await (0, externalSignalService_1.getExternalSignalsForCard)(cardId);
     res.json({ data: signals });
 }));
-router.post('/run-scrape', auth_1.authenticate, admin_1.requireAdmin, asyncHandler(async (_req, res) => {
+router.post('/run-scrape', asyncHandler(async (_req, res) => {
     logger_1.logger.info('Manual signal scrape requested');
     const result = await (0, scraperRunner_1.runSignalScrape)();
     res.status(202).json({

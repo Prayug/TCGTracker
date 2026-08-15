@@ -18,7 +18,7 @@ function parseJson(raw, fallback) {
     }
 }
 function rowToGradingResult(row) {
-    var _a, _b, _c, _d, _e, _f;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
     const defects = parseJson(row.defects, {});
     const deviations = parseJson(row.deviations, { leftRight: 0, topBottom: 0 });
     const defectRegions = parseJson(row.defect_regions, undefined);
@@ -63,6 +63,13 @@ function rowToGradingResult(row) {
             details: (frontSurface === null || frontSurface === void 0 ? void 0 : frontSurface.details) || row.surface_details || '',
             defects: (frontSurface === null || frontSurface === void 0 ? void 0 : frontSurface.defects) || defects.surface || [],
             crops: frontSurface === null || frontSurface === void 0 ? void 0 : frontSurface.crops,
+            withheld: Boolean(frontSurface === null || frontSurface === void 0 ? void 0 : frontSurface.withheld),
+            withheldReason: frontSurface === null || frontSurface === void 0 ? void 0 : frontSurface.withheldReason,
+            confidence: frontSurface === null || frontSurface === void 0 ? void 0 : frontSurface.confidence,
+            confidenceBand: frontSurface === null || frontSurface === void 0 ? void 0 : frontSurface.confidenceBand,
+            detections: frontSurface === null || frontSurface === void 0 ? void 0 : frontSurface.detections,
+            scoreLow: frontSurface === null || frontSurface === void 0 ? void 0 : frontSurface.scoreLow,
+            scoreHigh: frontSurface === null || frontSurface === void 0 ? void 0 : frontSurface.scoreHigh,
         },
         totalScore: row.total_score,
         grade: row.grade,
@@ -75,6 +82,24 @@ function rowToGradingResult(row) {
         defectRegions,
         front: front !== null && front !== void 0 ? front : undefined,
         back: back !== null && back !== void 0 ? back : undefined,
+        confidence: typeof (fullResult === null || fullResult === void 0 ? void 0 : fullResult.confidence) === 'number' ? fullResult.confidence : undefined,
+        retakeRecommended: Boolean(fullResult === null || fullResult === void 0 ? void 0 : fullResult.retakeRecommended),
+        quality: (_g = fullResult === null || fullResult === void 0 ? void 0 : fullResult.quality) !== null && _g !== void 0 ? _g : undefined,
+        extraction: (_h = fullResult === null || fullResult === void 0 ? void 0 : fullResult.extraction) !== null && _h !== void 0 ? _h : undefined,
+        provider: (_j = fullResult === null || fullResult === void 0 ? void 0 : fullResult.provider) !== null && _j !== void 0 ? _j : undefined,
+        limitations: typeof (fullResult === null || fullResult === void 0 ? void 0 : fullResult.limitations) === 'string' ? fullResult.limitations : undefined,
+        surfaceRefused: Boolean(fullResult === null || fullResult === void 0 ? void 0 : fullResult.surfaceRefused),
+        surfaceRetakeRecommended: Boolean(fullResult === null || fullResult === void 0 ? void 0 : fullResult.surfaceRetakeRecommended),
+        psaRange: fullResult === null || fullResult === void 0 ? void 0 : fullResult.psaRange,
+        psaDistribution: fullResult === null || fullResult === void 0 ? void 0 : fullResult.psaDistribution,
+        modelGrade: typeof (fullResult === null || fullResult === void 0 ? void 0 : fullResult.modelGrade) === 'number' ? fullResult.modelGrade : undefined,
+        finishType: typeof (fullResult === null || fullResult === void 0 ? void 0 : fullResult.finishType) === 'string' ? fullResult.finishType : undefined,
+        scanMode: (fullResult === null || fullResult === void 0 ? void 0 : fullResult.scanMode) === 'precision' || (fullResult === null || fullResult === void 0 ? void 0 : fullResult.scanMode) === 'quick'
+            ? fullResult.scanMode
+            : undefined,
+        tcgScore: (_k = fullResult === null || fullResult === void 0 ? void 0 : fullResult.tcgScore) !== null && _k !== void 0 ? _k : undefined,
+        multiFrame: (_l = fullResult === null || fullResult === void 0 ? void 0 : fullResult.multiFrame) !== null && _l !== void 0 ? _l : undefined,
+        frameCount: typeof (fullResult === null || fullResult === void 0 ? void 0 : fullResult.frameCount) === 'number' ? fullResult.frameCount : undefined,
     };
 }
 exports.CREATE_GRADING_RESULTS_SQL = `
