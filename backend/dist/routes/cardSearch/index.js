@@ -1,0 +1,20 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const imageRoutes_1 = __importDefault(require("./imageRoutes"));
+const searchRoutes_1 = __importDefault(require("./searchRoutes"));
+const catalogRoutes_1 = __importDefault(require("./catalogRoutes"));
+const poolRoutes_1 = __importDefault(require("./poolRoutes"));
+const populationRoutes_1 = __importDefault(require("./populationRoutes"));
+const gradedRoutes_1 = __importDefault(require("./gradedRoutes"));
+const router = (0, express_1.Router)();
+router.use(imageRoutes_1.default);
+router.use(searchRoutes_1.default);
+router.use(catalogRoutes_1.default);
+router.use(poolRoutes_1.default);
+router.use(populationRoutes_1.default);
+router.use(gradedRoutes_1.default);
+exports.default = router;

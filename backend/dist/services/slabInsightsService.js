@@ -105,14 +105,14 @@ async function getSubmitVsBuyLeaderboard(options) {
          SELECT c.price FROM canonical_price_history c
          INNER JOIN card_mappings m ON m.uniqueIdentifier = c.uniqueIdentifier
          WHERE m.cardId = gp.cardId
-         ORDER BY c.date DESC LIMIT 1
+         ORDER BY c.date DESC, c.price DESC LIMIT 1
        ) AS rawPrice,
        CAST(json_extract(pc.payload, '$.companies.psa.grade10') AS REAL) AS psa10Pop,
        CAST(json_extract(pc.payload, '$.companies.psa.grade9') AS REAL) AS psa9Pop,
        CAST(json_extract(pc.payload, '$.companies.psa.total') AS REAL) AS psaTotal,
        (
          SELECT COUNT(DISTINCT gph.date) FROM graded_price_history gph
-         WHERE gph.cardId = gp.cardId AND UPPER(gph.grader) = 'PSA' AND gph.grade = '10'
+         WHERE gph.cardId = gp.cardId AND COALESCE(gph.variantKey, 'normal') = COALESCE(gp.variantKey, 'normal') AND UPPER(gph.grader) = 'PSA' AND gph.grade = '10'
        ) AS historyPoints
      FROM graded_prices gp
      LEFT JOIN card_mappings cm ON cm.cardId = gp.cardId
@@ -264,7 +264,7 @@ async function getSetSlabHeatmap(options) {
      LEFT JOIN population_cache pc ON pc.cardId = gp.cardId
      LEFT JOIN graded_price_history gprev ON gprev.rowid = (
        SELECT gph.rowid FROM graded_price_history gph
-       WHERE gph.cardId = gp.cardId AND UPPER(gph.grader) = 'PSA' AND gph.grade = '10'
+       WHERE gph.cardId = gp.cardId AND COALESCE(gph.variantKey, 'normal') = COALESCE(gp.variantKey, 'normal') AND UPPER(gph.grader) = 'PSA' AND gph.grade = '10'
          AND gph.date <= date('now', '-30 days') AND gph.price > 0
        ORDER BY gph.date DESC LIMIT 1
      )
@@ -389,6 +389,7 @@ async function getPopRegimeRadar(options) {
        (
          SELECT gph.price FROM graded_price_history gph
          WHERE gph.cardId = ph.cardId AND UPPER(gph.grader) = 'PSA' AND gph.grade = '10'
+           AND COALESCE(gph.variantKey, 'normal') = COALESCE(gp.variantKey, 'normal')
            AND gph.date <= date('now', ?)
          ORDER BY gph.date DESC LIMIT 1
        ) AS gradedPrev,
@@ -396,13 +397,13 @@ async function getPopRegimeRadar(options) {
          SELECT c.price FROM canonical_price_history c
          INNER JOIN card_mappings cm ON cm.uniqueIdentifier = c.uniqueIdentifier
          WHERE cm.cardId = ph.cardId
-         ORDER BY c.date DESC LIMIT 1
+         ORDER BY c.date DESC, c.price DESC LIMIT 1
        ) AS rawNow,
        (
          SELECT c.price FROM canonical_price_history c
          INNER JOIN card_mappings cm ON cm.uniqueIdentifier = c.uniqueIdentifier
          WHERE cm.cardId = ph.cardId AND c.date <= date('now', ?)
-         ORDER BY c.date DESC LIMIT 1
+         ORDER BY c.date DESC, c.price DESC LIMIT 1
        ) AS rawPrev
      FROM population_history ph
      LEFT JOIN graded_prices gp
@@ -493,7 +494,7 @@ async function getGradeLadderLeaderboard(options) {
          SELECT c.price FROM canonical_price_history c
          INNER JOIN card_mappings m ON m.uniqueIdentifier = c.uniqueIdentifier
          WHERE m.cardId = gp.cardId
-         ORDER BY c.date DESC LIMIT 1
+         ORDER BY c.date DESC, c.price DESC LIMIT 1
        ) AS rawPrice,
        (
          SELECT g.price FROM graded_prices g
@@ -651,7 +652,7 @@ async function getCrackRegradeScanner(limit = 12) {
        psa.matchScore,
        (
          SELECT COUNT(DISTINCT gph.date) FROM graded_price_history gph
-         WHERE gph.cardId = psa.cardId AND UPPER(gph.grader) = 'PSA' AND gph.grade = '10'
+         WHERE gph.cardId = psa.cardId AND COALESCE(gph.variantKey, 'normal') = COALESCE(psa.variantKey, 'normal') AND UPPER(gph.grader) = 'PSA' AND gph.grade = '10'
        ) AS historyPoints,
        (SELECT g.price FROM graded_prices g WHERE g.cardId = psa.cardId AND UPPER(g.grader) = 'CGC' AND g.grade = '10' AND g.price > 0 LIMIT 1) AS cgc10,
        (SELECT g.price FROM graded_prices g WHERE g.cardId = psa.cardId AND UPPER(g.grader) = 'CGC' AND lower(g.grade) LIKE '%pristine%' AND g.price > 0 LIMIT 1) AS cgcPristine,
@@ -796,7 +797,7 @@ async function getSlabMarksForLots(lots) {
         const raw = await get(`SELECT c.price AS price FROM canonical_price_history c
        INNER JOIN card_mappings m ON m.uniqueIdentifier = c.uniqueIdentifier
        WHERE m.cardId = ?
-       ORDER BY c.date DESC LIMIT 1`, [lot.cardId]);
+       ORDER BY c.date DESC, c.price DESC LIMIT 1`, [lot.cardId]);
         const hist = await get(`SELECT COUNT(DISTINCT date) AS n FROM graded_price_history
        WHERE cardId = ? AND UPPER(grader) = UPPER(?) AND lower(grade) = lower(?)`, [lot.cardId, lot.grader, lot.grade]);
         const ageHours = ageHoursFromFetchedAt(row === null || row === void 0 ? void 0 : row.fetchedAt);

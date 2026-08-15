@@ -21,6 +21,7 @@ const sqlite3_1 = __importDefault(require("sqlite3"));
         await new Promise((resolve, reject) => {
             db.exec(`CREATE TABLE graded_price_history (
           cardId TEXT NOT NULL,
+          variantKey TEXT NOT NULL DEFAULT 'normal',
           date TEXT NOT NULL,
           grader TEXT NOT NULL,
           grade TEXT NOT NULL,
@@ -30,7 +31,7 @@ const sqlite3_1 = __importDefault(require("sqlite3"));
           verified INTEGER DEFAULT 0,
           sourceUrl TEXT,
           source TEXT NOT NULL DEFAULT 'pricecharting',
-          PRIMARY KEY (cardId, date, grader, grade)
+          PRIMARY KEY (cardId, variantKey, date, grader, grade)
         )`, (err) => (err ? reject(err) : resolve()));
         });
     });
@@ -43,7 +44,7 @@ const sqlite3_1 = __importDefault(require("sqlite3"));
             /* ignore */
         }
     });
-    (0, vitest_1.it)('upserts one row per card/day/grader/grade', async () => {
+    (0, vitest_1.it)('upserts one row per card/variant/day/grader/grade', async () => {
         const run = (sql, params = []) => new Promise((resolve, reject) => {
             db.run(sql, params, (err) => (err ? reject(err) : resolve()));
         });
@@ -52,19 +53,26 @@ const sqlite3_1 = __importDefault(require("sqlite3"));
         });
         const upsert = `
       INSERT INTO graded_price_history
-        (cardId, date, grader, grade, price, soldListings, productId, verified, sourceUrl, source)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pricecharting')
-      ON CONFLICT(cardId, date, grader, grade) DO UPDATE SET
+        (cardId, variantKey, date, grader, grade, price, soldListings, productId, verified, sourceUrl, source)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pricecharting')
+      ON CONFLICT(cardId, variantKey, date, grader, grade) DO UPDATE SET
         price = excluded.price,
         soldListings = excluded.soldListings
     `;
-        await run(upsert, ['card-1', '2026-08-10', 'psa', '10', 100, 5, 'pc1', 1, 'https://x']);
-        await run(upsert, ['card-1', '2026-08-10', 'psa', '10', 110, 6, 'pc1', 1, 'https://x']);
-        await run(upsert, ['card-1', '2026-08-11', 'psa', '10', 120, 7, 'pc1', 1, 'https://x']);
-        const rows = await all(`SELECT date, price FROM graded_price_history WHERE cardId = ? AND grader = 'psa' AND grade = '10' ORDER BY date`, ['card-1']);
-        (0, vitest_1.expect)(rows).toEqual([
+        await run(upsert, ['card-1', 'reverseholofoil', '2026-08-10', 'psa', '10', 100, 5, 'pc1', 1, 'https://x']);
+        await run(upsert, ['card-1', 'reverseholofoil', '2026-08-10', 'psa', '10', 110, 6, 'pc1', 1, 'https://x']);
+        await run(upsert, ['card-1', 'reverseholofoil', '2026-08-11', 'psa', '10', 120, 7, 'pc1', 1, 'https://x']);
+        await run(upsert, ['card-1', 'normal', '2026-08-10', 'psa', '10', 20, 2, 'pc2', 1, 'https://y']);
+        const reverse = await all(`SELECT date, price FROM graded_price_history
+       WHERE cardId = ? AND variantKey = 'reverseholofoil' AND grader = 'psa' AND grade = '10'
+       ORDER BY date`, ['card-1']);
+        const unlimited = await all(`SELECT date, price FROM graded_price_history
+       WHERE cardId = ? AND variantKey = 'normal' AND grader = 'psa' AND grade = '10'
+       ORDER BY date`, ['card-1']);
+        (0, vitest_1.expect)(reverse).toEqual([
             { date: '2026-08-10', price: 110 },
             { date: '2026-08-11', price: 120 },
         ]);
+        (0, vitest_1.expect)(unlimited).toEqual([{ date: '2026-08-10', price: 20 }]);
     });
 });

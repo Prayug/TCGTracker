@@ -8,6 +8,7 @@ exports.getCrossGraderArbs = getCrossGraderArbs;
 const database_1 = require("../db/database");
 const canonicalPriceService_1 = require("./canonicalPriceService");
 const liquidityScore_1 = require("./liquidityScore");
+const normalizeVariantKey_1 = require("../utils/normalizeVariantKey");
 const GRADED_STALE_HOURS = 12;
 function ageHoursFromFetchedAt(fetchedAt) {
     if (!fetchedAt)
@@ -78,13 +79,14 @@ const all = (sql, params = []) => new Promise((resolve, reject) => {
 /**
  * Graded vs raw market spreads for a card (PSA/CGC/BGS premiums).
  */
-async function getGradedSpreadsForCard(cardId) {
+async function getGradedSpreadsForCard(cardId, variant) {
     var _a, _b, _c, _d;
+    const variantKey = (0, normalizeVariantKey_1.normalizeVariantKey)(variant);
     const graded = await all(`SELECT cardId, cardName, setId, setName, grader, grade, price, soldListings, fetchedAt,
             COALESCE(verified, 0) AS verified
      FROM graded_prices
-     WHERE cardId = ? AND price IS NOT NULL AND price > 0
-     ORDER BY grader, CAST(grade AS REAL) DESC`, [cardId]);
+     WHERE cardId = ? AND variantKey = ? AND price IS NOT NULL AND price > 0
+     ORDER BY grader, CAST(grade AS REAL) DESC`, [cardId, variantKey]);
     const canonical = await (0, canonicalPriceService_1.getLatestCanonicalPriceByCardId)(cardId);
     const rawPrice = (_a = canonical === null || canonical === void 0 ? void 0 : canonical.price) !== null && _a !== void 0 ? _a : null;
     const spreads = graded.map((g) => {
@@ -136,13 +138,13 @@ async function getTopGradedPremiums(limit = 50, options) {
        gp.matchScore,
        (
          SELECT COUNT(DISTINCT gph.date) FROM graded_price_history gph
-         WHERE gph.cardId = gp.cardId AND UPPER(gph.grader) = 'PSA' AND gph.grade = '10'
+         WHERE gph.cardId = gp.cardId AND COALESCE(gph.variantKey, 'normal') = COALESCE(gp.variantKey, 'normal') AND UPPER(gph.grader) = 'PSA' AND gph.grade = '10'
        ) AS historyPoints,
        (
          SELECT c.price FROM canonical_price_history c
          INNER JOIN card_mappings cm ON cm.uniqueIdentifier = c.uniqueIdentifier
          WHERE cm.cardId = gp.cardId
-         ORDER BY c.date DESC LIMIT 1
+         ORDER BY c.date DESC, c.price DESC LIMIT 1
        ) AS rawPrice
      FROM graded_prices gp
      WHERE UPPER(gp.grader) = 'PSA' AND gp.grade = '10'
@@ -198,7 +200,7 @@ async function getPsa10SpreadsForCards(cardIds) {
          SELECT c.price FROM canonical_price_history c
          INNER JOIN card_mappings cm ON cm.uniqueIdentifier = c.uniqueIdentifier
          WHERE cm.cardId = gp.cardId
-         ORDER BY c.date DESC LIMIT 1
+         ORDER BY c.date DESC, c.price DESC LIMIT 1
        ) AS rawPrice
      FROM graded_prices gp
      WHERE UPPER(gp.grader) = 'PSA' AND gp.grade = '10'
@@ -247,12 +249,13 @@ async function getTopPremiumMovers(options) {
        gp.matchScore,
        (
          SELECT COUNT(DISTINCT gph.date) FROM graded_price_history gph
-         WHERE gph.cardId = gp.cardId AND UPPER(gph.grader) = 'PSA' AND gph.grade = '10'
+         WHERE gph.cardId = gp.cardId AND COALESCE(gph.variantKey, 'normal') = COALESCE(gp.variantKey, 'normal') AND UPPER(gph.grader) = 'PSA' AND gph.grade = '10'
        ) AS historyPoints,
        (
          SELECT gph.price
          FROM graded_price_history gph
          WHERE gph.cardId = gp.cardId
+           AND COALESCE(gph.variantKey, 'normal') = COALESCE(gp.variantKey, 'normal')
            AND UPPER(gph.grader) = 'PSA'
            AND gph.grade = '10'
            AND gph.price IS NOT NULL AND gph.price > 0
@@ -264,14 +267,14 @@ async function getTopPremiumMovers(options) {
          SELECT c.price FROM canonical_price_history c
          INNER JOIN card_mappings cm ON cm.uniqueIdentifier = c.uniqueIdentifier
          WHERE cm.cardId = gp.cardId
-         ORDER BY c.date DESC LIMIT 1
+         ORDER BY c.date DESC, c.price DESC LIMIT 1
        ) AS rawNow,
        (
          SELECT c.price FROM canonical_price_history c
          INNER JOIN card_mappings cm ON cm.uniqueIdentifier = c.uniqueIdentifier
          WHERE cm.cardId = gp.cardId
            AND c.date <= date('now', ?)
-         ORDER BY c.date DESC LIMIT 1
+         ORDER BY c.date DESC, c.price DESC LIMIT 1
        ) AS rawPrev
      FROM graded_prices gp
      WHERE UPPER(gp.grader) = 'PSA' AND gp.grade = '10'
@@ -339,7 +342,7 @@ async function getCrossGraderArbs(limit = 12) {
        psa.matchScore,
        (
          SELECT COUNT(DISTINCT gph.date) FROM graded_price_history gph
-         WHERE gph.cardId = psa.cardId AND UPPER(gph.grader) = 'PSA' AND gph.grade = '10'
+         WHERE gph.cardId = psa.cardId AND COALESCE(gph.variantKey, 'normal') = COALESCE(psa.variantKey, 'normal') AND UPPER(gph.grader) = 'PSA' AND gph.grade = '10'
        ) AS historyPoints,
        (
          SELECT g.price FROM graded_prices g

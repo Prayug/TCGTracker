@@ -65,10 +65,13 @@ async function matchSignalToCard(signal) {
  * Deduplicates signals by (source_url, card_id) to avoid storing duplicates.
  */
 function deduplicateSignals(signals) {
+    var _a, _b;
     const seen = new Set();
     const unique = [];
     for (const signal of signals) {
-        const key = `${signal.sourceUrl}|${signal.cardId || 'global'}`;
+        const key = signal.sourceType === 'set_release'
+            ? `${signal.sourceType}|${((_b = (_a = signal.setName) !== null && _a !== void 0 ? _a : signal.title) !== null && _b !== void 0 ? _b : '').toLowerCase()}`
+            : `${signal.sourceUrl}|${signal.cardId || 'global'}`;
         if (!seen.has(key)) {
             seen.add(key);
             unique.push(signal);
@@ -104,8 +107,10 @@ async function runSignalScrape() {
             errors.push(msg);
         }
     }
-    // Match signals to card IDs
+    // Match card-level signals only — set releases are set-wide events.
     for (const signal of allSignals) {
+        if (signal.sourceType === 'set_release')
+            continue;
         const match = await matchSignalToCard(signal);
         if (match) {
             signal.cardId = match.cardId;
@@ -119,8 +124,8 @@ async function runSignalScrape() {
     const db = (0, database_1.getDb)();
     let stored = 0;
     const insertStmt = `INSERT INTO external_market_signals
-    (card_id, source_url, source_type, title, summary, sentiment_score, relevance_score, risk_type, expires_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    (card_id, source_url, source_type, title, summary, sentiment_score, relevance_score, risk_type, expires_at, set_name, card_name)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
     for (const signal of uniqueSignals) {
         try {
             await new Promise((resolve, reject) => {
@@ -134,6 +139,8 @@ async function runSignalScrape() {
                     Math.round(signal.relevance * 100),
                     signal.riskType || null,
                     signal.expiresAt || null,
+                    signal.setName || null,
+                    signal.cardName || null,
                 ], function (err) {
                     if (err)
                         reject(err);

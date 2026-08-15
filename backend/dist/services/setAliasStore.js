@@ -28,10 +28,14 @@ async function syncSetIdAliases() {
      FROM card_mappings
      WHERE setId IS NOT NULL AND TRIM(setId) <> ''`);
     let upserted = 0;
+    const unmatched = [];
     for (const { setId, setName } of distinctSets) {
         const catalogSetId = await setCodeService_1.setCodeService.normalizeSetIdForImageUrl(setId, setName);
-        if (!catalogSetId)
+        if (!catalogSetId) {
+            unmatched.push(setId);
+            await dbRun(`DELETE FROM set_id_aliases WHERE sourceSetId = ?`, [setId]);
             continue;
+        }
         await dbRun(`INSERT INTO set_id_aliases (sourceSetId, sourceSetName, catalogSetId, updatedAt)
        VALUES (?, ?, ?, datetime('now'))
        ON CONFLICT(sourceSetId) DO UPDATE SET
@@ -41,6 +45,12 @@ async function syncSetIdAliases() {
         upserted += 1;
     }
     logger_1.logger.info(`Synced ${upserted} set ID aliases`);
+    if (unmatched.length > 0) {
+        logger_1.logger.info('Set IDs with no Pokemon catalog mapping (sealed/promo-only; images skipped)', {
+            count: unmatched.length,
+            sample: unmatched.slice(0, 12),
+        });
+    }
     return upserted;
 }
 async function getCatalogSetIdsForSource(sourceSetId, setName) {

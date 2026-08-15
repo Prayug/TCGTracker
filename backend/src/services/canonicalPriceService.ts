@@ -163,6 +163,7 @@ export async function getLatestCanonicalPriceByCardId(
      INNER JOIN card_mappings cm ON cm.uniqueIdentifier = c.uniqueIdentifier
      WHERE cm.cardId = ?
      ORDER BY c.date DESC,
+              c.price DESC,
               CASE c.source ${SOURCE_PRIORITY.map((s, i) => `WHEN '${s}' THEN ${i}`).join(' ')} ELSE ${SOURCE_PRIORITY.length} END
      LIMIT 1`,
     [cardId]

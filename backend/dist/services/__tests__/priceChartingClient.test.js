@@ -61,7 +61,7 @@ describe('strict product matching', () => {
     const decoy173 = { productId: '5809554', url: 'y', title: 'Pikachu #173', setName: 'Pokemon Scarlet & Violet 151' };
     it('accepts the correct card: name + set + number all match', () => {
         const score = (0, priceChartingClient_1.scoreCandidate)(pikachu, { cardName: 'Pikachu ex', setName: 'Ascended Heroes', cardNumber: '276' });
-        expect(score).toBe(110);
+        expect(score).toBe(135);
         expect((0, priceChartingClient_1.isAcceptableMatch)(pikachu, { cardName: 'Pikachu ex', setName: 'Ascended Heroes', cardNumber: '276' })).toBe(true);
     });
     it('rejects a card whose number does not match', () => {
@@ -76,6 +76,35 @@ describe('strict product matching', () => {
     it('requires set + name when no card number is known', () => {
         expect((0, priceChartingClient_1.isAcceptableMatch)(decoy173, { cardName: 'Pikachu', setName: 'Scarlet & Violet 151' })).toBe(true);
         expect((0, priceChartingClient_1.isAcceptableMatch)(decoy173, { cardName: 'Pikachu', setName: 'Surging Sparks' })).toBe(false);
+    });
+    it('rejects substring number collisions (base #34 vs full art #114)', () => {
+        const fullArt = {
+            productId: '958307',
+            url: 'https://www.pricecharting.com/game/pokemon-phantom-forces/gengar-ex-114',
+            title: 'Gengar EX #114',
+            setName: 'Pokemon Phantom Forces',
+        };
+        const base = {
+            productId: '958226',
+            url: 'https://www.pricecharting.com/game/pokemon-phantom-forces/gengar-ex-34',
+            title: 'Gengar EX #34',
+            setName: 'Pokemon Phantom Forces',
+        };
+        expect((0, priceChartingClient_1.isAcceptableMatch)(fullArt, {
+            cardName: 'Gengar-EX',
+            setName: 'Phantom Forces',
+            cardNumber: '34',
+        })).toBe(false);
+        expect((0, priceChartingClient_1.isAcceptableMatch)(base, {
+            cardName: 'Gengar-EX',
+            setName: 'Phantom Forces',
+            cardNumber: '34',
+        })).toBe(true);
+        expect((0, priceChartingClient_1.isAcceptableMatch)(fullArt, {
+            cardName: 'Gengar-EX',
+            setName: 'Phantom Forces',
+            cardNumber: '114',
+        })).toBe(true);
     });
     it('accepts promo cards matched to PriceCharting\'s generic Pokemon Promo console', () => {
         const promo = {
@@ -94,6 +123,66 @@ describe('strict product matching', () => {
             setName: 'XY Black Star Promos',
             cardNumber: 'XY144',
         })).toBe(false);
+    });
+});
+describe('print-family matching when collector number is missing', () => {
+    const regularGx = {
+        productId: '964029',
+        url: 'https://www.pricecharting.com/game/pokemon-hidden-fates/charizard-gx-9',
+        title: 'Charizard GX #9',
+        setName: 'Pokemon Hidden Fates',
+    };
+    const shinyGx = {
+        productId: '964133',
+        url: 'https://www.pricecharting.com/game/pokemon-hidden-fates/charizard-gx-sv49',
+        title: 'Charizard GX #SV49',
+        setName: 'Pokemon Hidden Fates',
+    };
+    const tin = {
+        productId: '2253083',
+        url: 'https://www.pricecharting.com/game/pokemon-hidden-fates/charizard-gx-hidden-fates-tin',
+        title: 'Charizard GX Hidden Fates Tin',
+        setName: 'Pokemon Hidden Fates',
+    };
+    it('maps unnumbered Hidden Fates GX to #9, not Shiny Vault SV49', () => {
+        const best = (0, priceChartingClient_1.selectBestProductMatch)([shinyGx, regularGx, tin], {
+            cardName: 'Charizard GX',
+            setName: 'Hidden Fates',
+        });
+        expect(best === null || best === void 0 ? void 0 : best.row.productId).toBe('964029');
+    });
+    it('maps unnumbered Shiny Vault GX to SV49, not #9', () => {
+        const best = (0, priceChartingClient_1.selectBestProductMatch)([shinyGx, regularGx, tin], {
+            cardName: 'Charizard GX',
+            setName: 'Hidden Fates: Shiny Vault',
+        });
+        expect(best === null || best === void 0 ? void 0 : best.row.productId).toBe('964133');
+    });
+    it('does not award a number bonus when the collector number is unknown', () => {
+        expect((0, priceChartingClient_1.scoreCandidate)(regularGx, { cardName: 'Charizard GX', setName: 'Hidden Fates' })).toBe(115);
+        expect((0, priceChartingClient_1.scoreCandidate)(regularGx, {
+            cardName: 'Charizard GX',
+            setName: 'Hidden Fates',
+            cardNumber: '9',
+        })).toBe(135);
+    });
+    it('refuses to guess when several numeric printings share a set', () => {
+        const base = {
+            productId: '1',
+            url: 'https://www.pricecharting.com/game/pokemon-cosmic-eclipse/charizard-gx-20',
+            title: 'Charizard GX #20',
+            setName: 'Pokemon Cosmic Eclipse',
+        };
+        const fullArt = {
+            productId: '2',
+            url: 'https://www.pricecharting.com/game/pokemon-cosmic-eclipse/charizard-gx-212',
+            title: 'Charizard GX #212',
+            setName: 'Pokemon Cosmic Eclipse',
+        };
+        expect((0, priceChartingClient_1.selectBestProductMatch)([fullArt, base], {
+            cardName: 'Charizard GX',
+            setName: 'Cosmic Eclipse',
+        })).toBeNull();
     });
 });
 describe('parsePopData', () => {
@@ -143,8 +232,14 @@ describe('parseFullPrices', () => {
             '<select id="completed-auctions-condition"><option>PSA 10 (0)</option></select>' +
             '</body></html>');
         expect(dash).toEqual([
-            { grader: 'psa', grade: '10', price: null, soldListings: 0 },
+            { grader: 'psa', grade: '10', price: null, soldListings: 0, lastSoldDate: null, lastSoldPrice: null },
         ]);
+    });
+    it('attaches the most recent PSA 10 completed sale date and price', () => {
+        const prices = (0, priceChartingClient_1.parseFullPrices)(productHtml);
+        const psa10 = prices.find((p) => p.grader === 'psa' && p.grade === '10');
+        expect(psa10.lastSoldDate).toBe('2026-08-18');
+        expect(psa10.lastSoldPrice).toBe(2410);
     });
 });
 describe('PriceCharting slugs keep ampersands', () => {
@@ -158,6 +253,11 @@ describe('PriceCharting slugs keep ampersands', () => {
     });
     it('builds the PriceCharting product URL Tag Team pages actually use', () => {
         expect((0, priceChartingClient_1.buildDirectProductUrl)('Pokemon Team Up', 'Magikarp & Wailord-GX', '161')).toBe('https://www.pricecharting.com/game/pokemon-team-up/magikarp-&-wailord-gx-161');
+    });
+    it('keeps apostrophes and inserts reverse-holo before the collector number', () => {
+        expect((0, priceChartingClient_1.cardSlug)("Rocket's Wobbuffet")).toBe("rocket's-wobbuffet");
+        expect((0, priceChartingClient_1.buildDirectProductUrl)('Pokemon Team Rocket Returns', "Rocket's Wobbuffet", '47', 'reverseHolofoil')).toBe("https://www.pricecharting.com/game/pokemon-team-rocket-returns/rocket's-wobbuffet-reverse-holo-47");
+        expect((0, priceChartingClient_1.buildDirectProductUrl)('Pokemon Team Rocket Returns', "Rocket's Wobbuffet", '47', 'normal')).toBe("https://www.pricecharting.com/game/pokemon-team-rocket-returns/rocket's-wobbuffet-47");
     });
 });
 describe('HTML entity decoding for match verification', () => {
@@ -180,5 +280,71 @@ describe('HTML entity decoding for match verification', () => {
             setName: 'Team Up',
             cardNumber: '161',
         })).toBe(true);
+    });
+});
+describe('titleIncludesSet', () => {
+    it('requires set tokens in the listing title', () => {
+        expect((0, priceChartingClient_1.titleIncludesSet)('Charizard Base Set 2 #4 PSA 10', 'Base Set 2')).toBe(true);
+        expect((0, priceChartingClient_1.titleIncludesSet)('Charizard ex 199/165 SV 151 SIR PSA 10', 'Obsidian Flames')).toBe(false);
+        expect((0, priceChartingClient_1.titleIncludesSet)('2008 Stormfront Holo Charizard #103 PSA 10', 'Stormfront')).toBe(true);
+    });
+});
+describe('PriceCharting finish matching', () => {
+    const unlimited = {
+        productId: '886381',
+        url: "https://www.pricecharting.com/game/pokemon-team-rocket-returns/rocket's-wobbuffet-47",
+        title: "Rocket's Wobbuffet #47",
+        setName: 'Pokemon Team Rocket Returns',
+    };
+    const reverse = {
+        productId: '886492',
+        url: "https://www.pricecharting.com/game/pokemon-team-rocket-returns/rocket's-wobbuffet-reverse-holo-47",
+        title: "Rocket's Wobbuffet [Reverse Holo] #47",
+        setName: 'Pokemon Team Rocket Returns',
+    };
+    const input = {
+        cardName: "Rocket's Wobbuffet",
+        setName: 'Team Rocket Returns',
+        cardNumber: '47',
+    };
+    it('detects reverse vs unlimited from title/url', () => {
+        expect((0, priceChartingClient_1.detectPcFinishFamily)(reverse.title, reverse.url)).toBe('reverse');
+        expect((0, priceChartingClient_1.detectPcFinishFamily)(unlimited.title, unlimited.url)).toBe('standard');
+        expect((0, priceChartingClient_1.expectedPcFinishFamily)('reverseHolofoil')).toBe('reverse');
+        expect((0, priceChartingClient_1.expectedPcFinishFamily)('normal')).toBe('standard');
+        expect((0, priceChartingClient_1.inferVariantKeyFromPc)(reverse.title, reverse.url)).toBe('reverseholofoil');
+    });
+    it('rejects the unlimited print when the selected finish is reverse holo', () => {
+        var _a;
+        expect((0, priceChartingClient_1.isAcceptableMatch)(unlimited, { ...input, variant: 'reverseHolofoil' })).toBe(false);
+        expect((0, priceChartingClient_1.isAcceptableMatch)(reverse, { ...input, variant: 'reverseHolofoil' })).toBe(true);
+        expect((_a = (0, priceChartingClient_1.selectBestProductMatch)([unlimited, reverse], { ...input, variant: 'reverseHolofoil' })) === null || _a === void 0 ? void 0 : _a.row.productId).toBe('886492');
+    });
+    it('rejects reverse holo when the selected finish is the base print', () => {
+        var _a;
+        expect((0, priceChartingClient_1.isAcceptableMatch)(reverse, { ...input, variant: 'normal' })).toBe(false);
+        expect((0, priceChartingClient_1.isAcceptableMatch)(unlimited, { ...input, variant: 'normal' })).toBe(true);
+        expect((_a = (0, priceChartingClient_1.selectBestProductMatch)([reverse, unlimited], { ...input, variant: 'normal' })) === null || _a === void 0 ? void 0 : _a.row.productId).toBe('886381');
+    });
+    it('does not fall back to the base print when reverse is requested but missing', () => {
+        expect((0, priceChartingClient_1.selectBestProductMatch)([unlimited], { ...input, variant: 'reverseHolofoil' })).toBeNull();
+    });
+    it('aliases onto the untagged product when allowStandardFinishAlias is set', () => {
+        var _a;
+        expect((0, priceChartingClient_1.isAcceptableMatch)(unlimited, {
+            ...input,
+            variant: 'reverseHolofoil',
+            allowStandardFinishAlias: true,
+        })).toBe(true);
+        expect((_a = (0, priceChartingClient_1.selectBestProductMatch)([unlimited], {
+            ...input,
+            variant: 'reverseHolofoil',
+            allowStandardFinishAlias: true,
+        })) === null || _a === void 0 ? void 0 : _a.row.productId).toBe('886381');
+    });
+    it('finishesMatch only aliases standard onto reverse when opted in', () => {
+        expect((0, priceChartingClient_1.finishesMatch)('reverse', 'standard')).toBe(false);
+        expect((0, priceChartingClient_1.finishesMatch)('reverse', 'standard', { allowStandardAlias: true })).toBe(true);
+        expect((0, priceChartingClient_1.finishesMatch)('standard', 'reverse', { allowStandardAlias: true })).toBe(false);
     });
 });

@@ -1057,7 +1057,7 @@ function computePriceRanges(currentPrice, expectedReturn, volatility, days, conf
     };
 }
 function determineCategory(scores, expected90dReturn, priceChanges, recoveryMetrics, strongBuyThreshold = 0.06) {
-    var _a;
+    var _a, _b;
     const sq = expected90dReturn;
     // Thresholds are calibrated to realistic (post-calibration) 90d return
     // magnitudes: the market median sits near ~2-4%, so meaningful signals are
@@ -1077,21 +1077,35 @@ function determineCategory(scores, expected90dReturn, priceChanges, recoveryMetr
         !(recoveryMetrics.recentDrop !== null && recoveryMetrics.recentDrop <= -15 && recoveryMetrics.hasStabilized)) {
         return 'downtrend';
     }
+    if (priceChanges.change90d == null &&
+        priceChanges.change7d !== null &&
+        priceChanges.change7d <= -8 &&
+        !(recoveryMetrics.hasStabilized)) {
+        return 'downtrend';
+    }
     // Priority 4: Recovery — recent significant drop with stabilization
     if (recoveryMetrics.recentDrop !== null && recoveryMetrics.recentDrop <= -15 && recoveryMetrics.hasStabilized && scores.liquidityScore >= 30) {
         return 'recovery';
     }
-    // Priority 5: Momentum — strong recent gains
+    // Priority 5: Momentum — strong recent gains (use 30d, else 7d when history is short)
     if (priceChanges.change30d !== null && priceChanges.change30d >= 8 && scores.liquidityScore >= 35) {
+        return 'momentum';
+    }
+    if (priceChanges.change30d == null &&
+        priceChanges.change7d !== null &&
+        priceChanges.change7d >= 5 &&
+        scores.liquidityScore >= 30) {
         return 'momentum';
     }
     // Priority 6: Watch dip — moderate expected return
     if (sq >= 0.03 && scores.riskScore < 75 && scores.liquidityScore >= 35) {
         return 'watch_dip';
     }
-    // Priority 7: Stagnant — low movement and low liquidity
-    const changeMagnitude = Math.abs((_a = priceChanges.change90d) !== null && _a !== void 0 ? _a : 0);
-    if (changeMagnitude < 3 && scores.liquidityScore < 50) {
+    // Priority 7: Stagnant — low movement on the longest observed window.
+    // Missing 90d change is NOT 0% — short series would all look stagnant.
+    const observedMove = (_b = (_a = priceChanges.change90d) !== null && _a !== void 0 ? _a : priceChanges.change30d) !== null && _b !== void 0 ? _b : priceChanges.change7d;
+    const changeMagnitude = Math.abs(observedMove !== null && observedMove !== void 0 ? observedMove : 0);
+    if (observedMove != null && changeMagnitude < 3 && scores.liquidityScore < 50) {
         return 'stagnant';
     }
     // Default: lean toward watch_dip if positive expected return, else stagnant
@@ -1347,23 +1361,27 @@ async function fetchAllCards(filter = exports.DEFAULT_CARD_QUALITY_FILTER) {
     ]);
     return [...pokemon, ...onePiece];
 }
-async function predictSingleCard(card, allCardReturns, filter = exports.DEFAULT_CARD_QUALITY_FILTER, calibrationModels) {
-    var _a, _b, _c, _d;
+async function predictSingleCard(card, allCardReturns, filter = exports.DEFAULT_CARD_QUALITY_FILTER, calibrationModels, options) {
+    var _a, _b, _c, _d, _e, _f, _g;
     try {
         const uid = card.uniqueIdentifier;
         if (!uid)
             return null;
-        const rawHistory = await fetchCardPriceHistory(uid);
+        const rawHistory = (_a = options === null || options === void 0 ? void 0 : options.priceHistory) !== null && _a !== void 0 ? _a : await fetchCardPriceHistory(uid);
         const liveQuoteCount = countLiveQuotes(rawHistory);
         const priceHistory = dedupePriceHistoryByDate(rawHistory);
-        const setReleaseDate = (_a = card.setReleaseDate) !== null && _a !== void 0 ? _a : await fetchSetReleaseDate(card.setId);
-        const minDataPoints = getAdaptiveMinDataPoints(setReleaseDate);
+        const setReleaseDate = (_b = card.setReleaseDate) !== null && _b !== void 0 ? _b : await fetchSetReleaseDate(card.setId);
+        const minDataPoints = (_c = options === null || options === void 0 ? void 0 : options.minDataPoints) !== null && _c !== void 0 ? _c : getAdaptiveMinDataPoints(setReleaseDate);
         if (priceHistory.length < minDataPoints)
             return null;
         const currentPrice = (0, marketAnalyzer_1.getLatestPrice)(priceHistory);
         if (!currentPrice || currentPrice <= 0)
             return null;
-        if (!isCardInvestmentWorthy(card, priceHistory, currentPrice, filter, setReleaseDate, liveQuoteCount)) {
+        if (options === null || options === void 0 ? void 0 : options.skipInvestmentFilter) {
+            if (currentPrice < filter.minPrice || currentPrice > filter.maxPrice)
+                return null;
+        }
+        else if (!isCardInvestmentWorthy(card, priceHistory, currentPrice, filter, setReleaseDate, liveQuoteCount)) {
             return null;
         }
         const movingAverages = (0, marketAnalyzer_1.computeMovingAverages)(priceHistory);
@@ -1373,12 +1391,15 @@ async function predictSingleCard(card, allCardReturns, filter = exports.DEFAULT_
         const recoveryMetrics = (0, marketAnalyzer_1.computeRecoveryMetrics)(priceHistory);
         const liquidityScore = computeLiquidityScore(priceHistory, currentPrice, volatility, setReleaseDate);
         const dataQualityScore = computeDataQualityScore(priceHistory);
-        const externalSignals = await (0, externalSignalService_1.searchExternalSignals)(card.cardName, card.setName);
+        const skipAux = Boolean(options === null || options === void 0 ? void 0 : options.skipAuxiliaryLookups);
+        const externalSignals = skipAux
+            ? []
+            : await (0, externalSignalService_1.searchExternalSignals)(card.cardName, card.setName);
         const externalSignalScore = computeExternalSignalScore(externalSignals);
         const competitiveMetaScore = computeCompetitiveMetaScore(externalSignals);
         const setLifecycleScore = computeSetLifecycleScore(setReleaseDate);
-        const avgGradingTotal = await fetchAvgGradingTotal(card.cardId);
-        const psa10Pop = await fetchPsa10Population(card.cardId);
+        const avgGradingTotal = skipAux ? 0 : await fetchAvgGradingTotal(card.cardId);
+        const psa10Pop = skipAux ? 0 : await fetchPsa10Population(card.cardId);
         const gradingScore = computeGradingScore(avgGradingTotal, psa10Pop, card.rarity);
         const gradingPremiumPotential = computeGradingPremiumPotential(gradingScore);
         const trendScore = computeTrendScore(priceChanges, movingAverages, currentPrice);
@@ -1400,7 +1421,7 @@ async function predictSingleCard(card, allCardReturns, filter = exports.DEFAULT_
         const models = calibrationModels !== null && calibrationModels !== void 0 ? calibrationModels : (await (0, returnCalibration_1.getCalibrationModels)());
         const seasonalityAdjustment = computeSeasonalityAdjustment(card.cardName, card.setName);
         const expectedReturns = computeExpectedReturns(scores, seasonalityAdjustment, models);
-        const horizonStatus = await (0, horizonSupport_1.getHorizonSupportStatus)();
+        const horizonStatus = (_d = options === null || options === void 0 ? void 0 : options.horizonSupport) !== null && _d !== void 0 ? _d : await (0, horizonSupport_1.getHorizonSupportStatus)();
         const honestReturn = (days, value) => horizonStatus.unsupported.includes(days) ? null : value;
         const historicalReturns30d = computeHistoricalReturns(priceHistory, 30);
         const historicalReturns90d = computeHistoricalReturns(priceHistory, 90);
@@ -1420,10 +1441,17 @@ async function predictSingleCard(card, allCardReturns, filter = exports.DEFAULT_
         });
         if (confidenceScore < filter.minConfidence)
             return null;
-        const category = determineCategory(scores, expectedReturns.expected90dReturn, priceChanges, recoveryMetrics, (0, returnCalibration_1.strongBuyThresholdForHorizon)(90, models));
-        const er7 = (_b = honestReturn(7, expectedReturns.expected7dReturn)) !== null && _b !== void 0 ? _b : expectedReturns.expected7dReturn;
-        const er30 = (_c = honestReturn(30, expectedReturns.expected30dReturn)) !== null && _c !== void 0 ? _c : expectedReturns.expected30dReturn;
-        const er90 = (_d = honestReturn(90, expectedReturns.expected90dReturn)) !== null && _d !== void 0 ? _d : expectedReturns.expected90dReturn;
+        const categoryReturn = (() => {
+            if (!horizonStatus.unsupported.includes(90))
+                return expectedReturns.expected90dReturn;
+            if (!horizonStatus.unsupported.includes(30))
+                return expectedReturns.expected30dReturn;
+            return expectedReturns.expected7dReturn;
+        })();
+        const category = determineCategory(scores, categoryReturn, priceChanges, recoveryMetrics, (0, returnCalibration_1.strongBuyThresholdForHorizon)(horizonStatus.unsupported.includes(90) ? (horizonStatus.unsupported.includes(30) ? 7 : 30) : 90, models));
+        const er7 = (_e = honestReturn(7, expectedReturns.expected7dReturn)) !== null && _e !== void 0 ? _e : expectedReturns.expected7dReturn;
+        const er30 = (_f = honestReturn(30, expectedReturns.expected30dReturn)) !== null && _f !== void 0 ? _f : expectedReturns.expected30dReturn;
+        const er90 = (_g = honestReturn(90, expectedReturns.expected90dReturn)) !== null && _g !== void 0 ? _g : expectedReturns.expected90dReturn;
         const er180 = honestReturn(180, expectedReturns.expected180dReturn);
         const er365 = honestReturn(365, expectedReturns.expected365dReturn);
         const predicted7d = computePriceRanges(currentPrice, er7, volatility.dailyVolatility, 7, confidenceScore, historicalReturns30d);
