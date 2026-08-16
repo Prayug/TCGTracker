@@ -8,3 +8,13 @@ export function buildOnePieceCatalogId(raw: Pick<OPTCGCardResponse, 'set_id' | '
 export function isOnePieceCatalogId(id: string): boolean {
   return id.includes('::');
 }
+
+export function parseOnePieceCatalogId(
+  id: string
+): { setId: string; cardImageId: string; cardName: string } | null {
+  if (!id.includes('::')) return null;
+  const [setId, cardImageId, ...rest] = id.split('::');
+  const cardName = rest.join('::');
+  if (!setId || !cardImageId) return null;
+  return { setId, cardImageId, cardName };
+}
