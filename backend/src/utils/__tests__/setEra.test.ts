@@ -1,4 +1,3 @@
-import { describe, expect, it } from 'vitest';
 import { classifySetEra } from '../setEra';
 
 describe('classifySetEra promo mapping', () => {
