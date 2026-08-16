@@ -1336,14 +1336,30 @@ export function determineCategory(
       !(recoveryMetrics.recentDrop !== null && recoveryMetrics.recentDrop <= -15 && recoveryMetrics.hasStabilized)) {
     return 'downtrend';
   }
+  if (
+    priceChanges.change90d == null &&
+    priceChanges.change7d !== null &&
+    priceChanges.change7d <= -8 &&
+    !(recoveryMetrics.hasStabilized)
+  ) {
+    return 'downtrend';
+  }
 
   // Priority 4: Recovery — recent significant drop with stabilization
   if (recoveryMetrics.recentDrop !== null && recoveryMetrics.recentDrop <= -15 && recoveryMetrics.hasStabilized && scores.liquidityScore >= 30) {
     return 'recovery';
   }
 
-  // Priority 5: Momentum — strong recent gains
+  // Priority 5: Momentum — strong recent gains (use 30d, else 7d when history is short)
   if (priceChanges.change30d !== null && priceChanges.change30d >= 8 && scores.liquidityScore >= 35) {
+    return 'momentum';
+  }
+  if (
+    priceChanges.change30d == null &&
+    priceChanges.change7d !== null &&
+    priceChanges.change7d >= 5 &&
+    scores.liquidityScore >= 30
+  ) {
     return 'momentum';
   }
 
@@ -1352,9 +1368,12 @@ export function determineCategory(
     return 'watch_dip';
   }
 
-  // Priority 7: Stagnant — low movement and low liquidity
-  const changeMagnitude = Math.abs(priceChanges.change90d ?? 0);
-  if (changeMagnitude < 3 && scores.liquidityScore < 50) {
+  // Priority 7: Stagnant — low movement on the longest observed window.
+  // Missing 90d change is NOT 0% — short series would all look stagnant.
+  const observedMove =
+    priceChanges.change90d ?? priceChanges.change30d ?? priceChanges.change7d;
+  const changeMagnitude = Math.abs(observedMove ?? 0);
+  if (observedMove != null && changeMagnitude < 3 && scores.liquidityScore < 50) {
     return 'stagnant';
   }
 
@@ -1659,6 +1678,17 @@ async function fetchAllCards(filter: CardQualityFilter = DEFAULT_CARD_QUALITY_FI
   return [...pokemon, ...onePiece];
 }
 
+export interface PredictSingleCardOptions {
+  /** Inject a series (e.g. PSA 10 graded history) instead of looking up raw `price_history`. */
+  priceHistory?: SourcedPricePoint[];
+  /** Skip rarity / tracking-quality gates used for raw-card scoring. */
+  skipInvestmentFilter?: boolean;
+  minDataPoints?: number;
+  horizonSupport?: HorizonSupportStatus;
+  /** Skip news / pop lookups — used for bulk slab runs. */
+  skipAuxiliaryLookups?: boolean;
+}
+
 export async function predictSingleCard(
   card: {
     cardId: string;
@@ -1673,24 +1703,27 @@ export async function predictSingleCard(
   },
   allCardReturns?: Array<{ name: string; rarity: string; avgReturn90d: number }>,
   filter: CardQualityFilter = DEFAULT_CARD_QUALITY_FILTER,
-  calibrationModels?: Record<number, CalibrationModel | null>
+  calibrationModels?: Record<number, CalibrationModel | null>,
+  options?: PredictSingleCardOptions
 ): Promise<CardPrediction | null> {
   try {
     const uid = card.uniqueIdentifier;
     if (!uid) return null;
 
-    const rawHistory = await fetchCardPriceHistory(uid);
+    const rawHistory = options?.priceHistory ?? await fetchCardPriceHistory(uid);
     const liveQuoteCount = countLiveQuotes(rawHistory);
     const priceHistory = dedupePriceHistoryByDate(rawHistory);
     const setReleaseDate = card.setReleaseDate ?? await fetchSetReleaseDate(card.setId);
-    const minDataPoints = getAdaptiveMinDataPoints(setReleaseDate);
+    const minDataPoints = options?.minDataPoints ?? getAdaptiveMinDataPoints(setReleaseDate);
 
     if (priceHistory.length < minDataPoints) return null;
 
     const currentPrice = getLatestPrice(priceHistory);
     if (!currentPrice || currentPrice <= 0) return null;
 
-    if (!isCardInvestmentWorthy(card, priceHistory, currentPrice, filter, setReleaseDate, liveQuoteCount)) {
+    if (options?.skipInvestmentFilter) {
+      if (currentPrice < filter.minPrice || currentPrice > filter.maxPrice) return null;
+    } else if (!isCardInvestmentWorthy(card, priceHistory, currentPrice, filter, setReleaseDate, liveQuoteCount)) {
       return null;
     }
 
@@ -1703,13 +1736,16 @@ export async function predictSingleCard(
     const liquidityScore = computeLiquidityScore(priceHistory, currentPrice, volatility, setReleaseDate);
     const dataQualityScore = computeDataQualityScore(priceHistory);
 
-    const externalSignals = await searchExternalSignals(card.cardName, card.setName);
+    const skipAux = Boolean(options?.skipAuxiliaryLookups);
+    const externalSignals = skipAux
+      ? []
+      : await searchExternalSignals(card.cardName, card.setName);
     const externalSignalScore = computeExternalSignalScore(externalSignals);
     const competitiveMetaScore = computeCompetitiveMetaScore(externalSignals);
     const setLifecycleScore = computeSetLifecycleScore(setReleaseDate);
 
-    const avgGradingTotal = await fetchAvgGradingTotal(card.cardId);
-    const psa10Pop = await fetchPsa10Population(card.cardId);
+    const avgGradingTotal = skipAux ? 0 : await fetchAvgGradingTotal(card.cardId);
+    const psa10Pop = skipAux ? 0 : await fetchPsa10Population(card.cardId);
     const gradingScore = computeGradingScore(avgGradingTotal, psa10Pop, card.rarity);
     const gradingPremiumPotential = computeGradingPremiumPotential(gradingScore);
 
@@ -1736,7 +1772,7 @@ export async function predictSingleCard(
 
     const seasonalityAdjustment = computeSeasonalityAdjustment(card.cardName, card.setName);
     const expectedReturns = computeExpectedReturns(scores, seasonalityAdjustment, models);
-    const horizonStatus = await getHorizonSupportStatus();
+    const horizonStatus = options?.horizonSupport ?? await getHorizonSupportStatus();
     const honestReturn = (days: HorizonDays, value: number): number | null =>
       horizonStatus.unsupported.includes(days) ? null : value;
 
@@ -1760,12 +1796,20 @@ export async function predictSingleCard(
 
     if (confidenceScore < filter.minConfidence) return null;
 
+    const categoryReturn = (() => {
+      if (!horizonStatus.unsupported.includes(90)) return expectedReturns.expected90dReturn;
+      if (!horizonStatus.unsupported.includes(30)) return expectedReturns.expected30dReturn;
+      return expectedReturns.expected7dReturn;
+    })();
     const category = determineCategory(
       scores,
-      expectedReturns.expected90dReturn,
+      categoryReturn,
       priceChanges,
       recoveryMetrics,
-      strongBuyThresholdForHorizon(90, models)
+      strongBuyThresholdForHorizon(
+        horizonStatus.unsupported.includes(90) ? (horizonStatus.unsupported.includes(30) ? 7 : 30) : 90,
+        models
+      )
     );
 
     const er7 = honestReturn(7, expectedReturns.expected7dReturn) ?? expectedReturns.expected7dReturn;
