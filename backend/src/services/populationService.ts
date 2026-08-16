@@ -2,6 +2,7 @@ import { getDb } from '../db/database';
 import { logger } from '../utils/logger';
 import { normalize } from './priceChartingClient';
 import { resolveProduct } from './priceChartingResolver';
+import { isOnePieceCatalogId, parseOnePieceCatalogId } from './onePieceCatalogId';
 
 const CACHE_TTL_MS = 1000 * 60 * 60 * 12; // 12 hours
 const REQUEST_TIMEOUT_MS = 12000;
@@ -16,6 +17,10 @@ interface PopulationLookupInput {
   setName?: string;
   cardNumber?: string;
   variant?: string;
+  language?: string;
+  matchName?: string;
+  game?: 'pokemon' | 'onepiece';
+  cardImageId?: string;
 }
 
 interface GraderPopulationResult {
@@ -276,12 +281,20 @@ interface PriceChartingScrape {
 const fetchPriceChartingPopulations = async (
   input: PopulationLookupInput
 ): Promise<PriceChartingScrape> => {
+  const parsedOp = input.cardId ? parseOnePieceCatalogId(input.cardId) : null;
+  const game =
+    input.game || (input.cardId && isOnePieceCatalogId(input.cardId) ? 'onepiece' : 'pokemon');
   const resolved = await resolveProduct(
     {
       cardName: input.cardName,
+      matchName: input.matchName,
       setId: input.setId,
       setName: input.setName,
       cardNumber: input.cardNumber,
+      language: input.language,
+      variant: input.variant,
+      game,
+      cardImageId: input.cardImageId || parsedOp?.cardImageId,
     },
     1500
   );
@@ -322,6 +335,19 @@ const resolveGrader = async (
       return buildGraderResult(grader, null, {
         message: 'No population result found',
       });
+    }
+
+    if (input.game === 'onepiece' || (input.cardId && isOnePieceCatalogId(input.cardId))) {
+      return {
+        grader,
+        total: null,
+        grade10: null,
+        grade9: null,
+        pop: null,
+        status: 'unavailable',
+        source: 'none',
+        message: 'Beckett population is Pokemon-only',
+      };
     }
 
     const beckettTotal = await fetchBeckettPopulation(input);

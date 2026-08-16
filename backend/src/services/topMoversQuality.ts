@@ -2,10 +2,24 @@
  * Quality helpers for /top-movers — keep gradual market moves, drop data cliffs.
  */
 
-export type MarketSource = 'tcgdex' | 'catalog_fallback' | 'tcgcsv' | string;
+export type MarketSource =
+  | 'tcgdex'
+  | 'tcgdex_ja'
+  | 'cardmarket'
+  | 'pricecharting_raw'
+  | 'catalog_fallback'
+  | 'tcgcsv'
+  | string;
 
 /** Prefer live TCGdex snapshots over catalog fallback / legacy tcgcsv. */
-export const SOURCE_PRIORITY: MarketSource[] = ['tcgdex', 'catalog_fallback', 'tcgcsv'];
+export const SOURCE_PRIORITY: MarketSource[] = [
+  'tcgdex',
+  'tcgdex_ja',
+  'cardmarket',
+  'pricecharting_raw',
+  'catalog_fallback',
+  'tcgcsv',
+];
 
 export interface PricePointLite {
   date: string;
@@ -68,6 +82,43 @@ export function cliffPctForPeriod(days: number): number {
 
 export function minPointsForPeriod(days: number): number {
   return days <= 1 ? 2 : 3;
+}
+
+/**
+ * True when the last print is a one-day spike off a flat baseline.
+ * 24h movers only have two endpoints, so a 61% TCGdex glitch looks "gradual"
+ * under cliffPct=75 even though the chart (stable catalog/prior tcgdex) is flat.
+ */
+export function isIsolatedEndpointSpike(
+  points: PricePointLite[],
+  options?: { lookback?: number; stablePct?: number; spikePct?: number }
+): boolean {
+  const lookback = options?.lookback ?? 6;
+  const stablePct = options?.stablePct ?? 20;
+  const spikePct = options?.spikePct ?? 40;
+
+  const byDate = new Map<string, number>();
+  for (const p of points) {
+    if (p.price > 0) byDate.set(p.date, p.price);
+  }
+  const sorted = [...byDate.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  if (sorted.length < 3) return false;
+
+  const last = sorted[sorted.length - 1][1];
+  const prev = sorted[sorted.length - 2][1];
+  if (prev <= 0) return false;
+  const endPct = (Math.abs(last - prev) / prev) * 100;
+  if (endPct < spikePct) return false;
+
+  const baseline = sorted.slice(Math.max(0, sorted.length - 1 - lookback), sorted.length - 1);
+  if (baseline.length < 2) return false;
+  for (let i = 1; i < baseline.length; i++) {
+    const from = baseline[i - 1][1];
+    const to = baseline[i][1];
+    if (from <= 0) return false;
+    if ((Math.abs(to - from) / from) * 100 > stablePct) return false;
+  }
+  return true;
 }
 
 /**

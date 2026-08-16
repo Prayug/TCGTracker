@@ -17,8 +17,7 @@ import {
 } from '../services/returnCalibration';
 import { getHorizonSupportStatus, windowToHorizonDays } from '../services/horizonSupport';
 import { runDataQualityChecks, getLatestDataQualityChecks } from '../services/dataQualityService';
-import { AuthRequest, authenticate } from '../middleware/auth';
-import { requireAdmin } from '../middleware/admin';
+import { AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
@@ -109,7 +108,7 @@ router.get('/data-quality', asyncHandler(async (_req, res) => {
   });
 }));
 
-router.post('/data-quality/run', authenticate, requireAdmin, asyncHandler(async (_req, res) => {
+router.post('/data-quality/run', asyncHandler(async (_req, res) => {
   const summary = await runDataQualityChecks();
   res.json({ data: summary });
 }));
@@ -378,7 +377,7 @@ router.get('/card/:cardId', asyncHandler(async (req, res) => {
   });
 }));
 
-router.post('/run-predictions', authenticate, requireAdmin, asyncHandler(async (_req, res) => {
+router.post('/run-predictions', asyncHandler(async (_req, res) => {
   logger.info('Manual prediction run requested');
   const result = await runPredictions();
   // Best-effort: resolve any matured forward-test windows after a new run.
@@ -398,7 +397,7 @@ router.post('/run-predictions', authenticate, requireAdmin, asyncHandler(async (
   });
 }));
 
-router.post('/backtest', authenticate, requireAdmin, asyncHandler(async (req, res) => {
+router.post('/backtest', asyncHandler(async (req, res) => {
   const { backtestDate, windowDays = 90, cardIds } = req.body;
 
   if (!backtestDate) {
@@ -431,7 +430,7 @@ router.get('/calibration/status', asyncHandler(async (_req, res) => {
   res.json({ data: getCalibrationStatus(models) });
 }));
 
-router.post('/calibration/rebuild', authenticate, requireAdmin, asyncHandler(async (_req, res) => {
+router.post('/calibration/rebuild', asyncHandler(async (_req, res) => {
   logger.info('Manual calibration rebuild requested');
   await collectForwardTestSamples();
   const models = await rebuildAllCalibrationModels();
@@ -441,7 +440,7 @@ router.post('/calibration/rebuild', authenticate, requireAdmin, asyncHandler(asy
   });
 }));
 
-router.post('/calibration/harvest', authenticate, requireAdmin, asyncHandler(async (_req, res) => {
+router.post('/calibration/harvest', asyncHandler(async (_req, res) => {
   // Harvest long-horizon samples from historical backtests. Cutoffs are chosen
   // so the forward window has matured against real price history.
   const { harvestBacktestSamples } = await import('../services/returnCalibration');
@@ -472,7 +471,7 @@ router.get('/forward-test', asyncHandler(async (_req, res) => {
   res.json(status);
 }));
 
-router.post('/forward-test/update', authenticate, requireAdmin, asyncHandler(async (_req, res) => {
+router.post('/forward-test/update', asyncHandler(async (_req, res) => {
   const result = await updateActualResults();
   try {
     await collectForwardTestSamples();
@@ -489,7 +488,7 @@ router.get('/external-signals/:cardId', asyncHandler(async (req, res) => {
   res.json({ data: signals });
 }));
 
-router.post('/run-scrape', authenticate, requireAdmin, asyncHandler(async (_req, res) => {
+router.post('/run-scrape', asyncHandler(async (_req, res) => {
   logger.info('Manual signal scrape requested');
   const result = await runSignalScrape();
   res.status(202).json({

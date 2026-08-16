@@ -8,10 +8,12 @@ import {
   getCardPriceHistory,
   getCardPriceHistoryForProduct,
 } from '../services/cardIdentifier';
+import { maybeRecoverStalePrices } from '../services/dataFetcher';
 import { getOnePiecePriceHistory } from '../services/onePiecePriceHistoryService';
 import {
   cliffPctForPeriod,
   isGradualMove,
+  isIsolatedEndpointSpike,
   maxEndpointChangePctForPeriod,
   minPointsForPeriod,
   pickPreferredSourceRow,
@@ -105,6 +107,7 @@ const sendTopMovers = (
 
 // Get price history for a specific card using card details
 router.get('/card', (req: Request, res: Response): void => {
+  maybeRecoverStalePrices();
   const { cardName, setId, cardNumber, variant = 'normal' } = req.query;
 
   if (!cardName || !setId) {
@@ -175,13 +178,20 @@ router.get('/match', (req: Request, res: Response): void => {
   findCardByDetails(safeCardName, safeSetId, safeCardNumber, undefined, safeVariant, safeProductId)
     .then(mapping => {
       if (mapping) {
-        // Found in our mappings, fetch history for exact product first.
-        const historyPromise = mapping.productId
-          ? getCardPriceHistoryForProduct(mapping.productId, safeVariant)
-          : getCardPriceHistory(mapping.uniqueIdentifier);
-
-        return historyPromise
-          .then((priceHistory) => ({
+        // Prefer UID-scoped history so shared productIds cannot bleed across prints.
+        return getCardPriceHistory(mapping.uniqueIdentifier).then(async (byUid) => {
+          let priceHistory = byUid;
+          if (priceHistory.length === 0 && mapping.productId) {
+            priceHistory = await getCardPriceHistoryForProduct(
+              mapping.productId,
+              safeVariant,
+              {
+                setName: mapping.setName,
+                uniqueIdentifier: mapping.uniqueIdentifier,
+              }
+            );
+          }
+          return {
             matchedProduct: {
               productId: mapping.productId,
               productName: mapping.cardName,
@@ -189,8 +199,9 @@ router.get('/match', (req: Request, res: Response): void => {
               uniqueIdentifier: mapping.uniqueIdentifier,
               variant: mapping.variantKey || safeVariant,
             },
-            priceHistory
-          }));
+            priceHistory,
+          };
+        });
       }
       return fallbackMatch(safeCardName, safeSetName, safeCardNumber, db);
     })
@@ -223,7 +234,8 @@ router.get('/history', async (req: Request, res: Response) => {
 
     const exactCard = await findExactCardByDetails({
       cardId: safeCardId,
-      productId: productId ? String(productId) : undefined,
+      // Never pass productId into exact identity lookup — stale main-set SKUs
+      // previously excluded Trainer Gallery rows and fell through to #68 history.
       cardName: safeCardName,
       setId: safeSetId,
       cardNumber: safeCardNumber || undefined,
@@ -231,13 +243,20 @@ router.get('/history', async (req: Request, res: Response) => {
     });
 
     if (exactCard) {
-      let priceHistory: Awaited<ReturnType<typeof getCardPriceHistory>> = [];
-      if (exactCard.productId) {
-        priceHistory = await getCardPriceHistoryForProduct(exactCard.productId, safeVariant);
-      }
-      const byIdentifier = await getCardPriceHistory(exactCard.uniqueIdentifier);
-      if (byIdentifier.length > priceHistory.length) {
-        priceHistory = byIdentifier;
+      // Prefer uniqueIdentifier history first. Looking up by productId alone
+      // stitches main-set series onto Trainer Gallery cards when TCGdex remaps
+      // them onto the wrong shared TCGPlayer SKU.
+      let priceHistory: Awaited<ReturnType<typeof getCardPriceHistory>> =
+        await getCardPriceHistory(exactCard.uniqueIdentifier);
+      if (priceHistory.length === 0 && exactCard.productId) {
+        priceHistory = await getCardPriceHistoryForProduct(
+          exactCard.productId,
+          safeVariant,
+          {
+            setName: exactCard.setName,
+            uniqueIdentifier: exactCard.uniqueIdentifier,
+          }
+        );
       }
 
       return res.json({
@@ -254,17 +273,18 @@ router.get('/history', async (req: Request, res: Response) => {
       safeCardNumber,
       rarity ? String(rarity) : undefined,
       safeVariant,
+      // productId is a soft hint inside findCardByDetails (rejected on number mismatch).
       productId ? String(productId) : undefined
     );
 
     if (card) {
-      let priceHistory: Awaited<ReturnType<typeof getCardPriceHistory>> = [];
-      if (card.productId) {
-        priceHistory = await getCardPriceHistoryForProduct(card.productId, safeVariant);
-      }
-      const byIdentifier = await getCardPriceHistory(card.uniqueIdentifier);
-      if (byIdentifier.length > priceHistory.length) {
-        priceHistory = byIdentifier;
+      let priceHistory: Awaited<ReturnType<typeof getCardPriceHistory>> =
+        await getCardPriceHistory(card.uniqueIdentifier);
+      if (priceHistory.length === 0 && card.productId) {
+        priceHistory = await getCardPriceHistoryForProduct(card.productId, safeVariant, {
+          setName: card.setName,
+          uniqueIdentifier: card.uniqueIdentifier,
+        });
       }
 
       if (priceHistory.length === 0) {
@@ -594,10 +614,10 @@ router.get('/top-movers', (req: Request, res: Response) => {
              FROM price_history
              WHERE uniqueIdentifier IN (${placeholders})
                AND source IN (${sources})
-               AND date >= ?
+               AND date >= date(?, '-7 days')
                AND date <= ?
                AND price >= ?`,
-            [...uids, earliestPrev, latestDate, minPrice],
+            [...uids, latestDate, latestDate, minPrice],
             (pathErr, pathRows: any[]) => {
               if (pathErr) { res.status(500).json({ error: pathErr.message }); return; }
 
@@ -618,6 +638,7 @@ router.get('/top-movers', (req: Request, res: Response) => {
                 if (points.length < minPoints && c.baselineSource !== c.source) {
                   points = series.get(`${c.uniqueIdentifier}||${c.baselineSource}`) || points;
                 }
+                if (isIsolatedEndpointSpike(points)) return false;
                 // Restrict to [prevDate, latestDate]
                 const windowed = points.filter(
                   (p) => p.date >= c.prevDate && p.date <= latestDate
@@ -655,6 +676,23 @@ router.get('/top-movers', (req: Request, res: Response) => {
       });
     }
   );
+});
+
+// PSA 10 slab movers (graded_price_history) — must stay before /:productId
+router.get('/top-slab-movers', async (req: Request, res: Response) => {
+  const requestedDays = parseInt(req.query.days as string, 10) || 7;
+  const requestedLimit = parseInt(req.query.limit as string, 10) || 20;
+  const days = clampNumber(requestedDays, 1, 365);
+  const limit = Math.min(Math.max(requestedLimit, 1), 50);
+  try {
+    const { getSlabTopMovers } = await import('../services/slabTopMovers');
+    const payload = await getSlabTopMovers(days, limit);
+    res.setHeader('Cache-Control', `public, max-age=${Math.floor(10 * 60)}`);
+    res.json(payload);
+  } catch (error) {
+    logger.error('Slab top movers query failed', { error: (error as Error).message });
+    res.status(500).json({ error: (error as Error).message });
+  }
 });
 
 // Get price history for a specific product
