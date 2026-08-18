@@ -48,7 +48,11 @@ cat > "$PLIST_PATH" <<EOF
     <string>production</string>
     <key>HOST</key>
     <string>0.0.0.0</string>
+    <key>NODE_PATH</key>
+    <string>${BACKEND_DIR}/node_modules</string>
   </dict>
+  <key>ProcessType</key>
+  <string>Interactive</string>
 </dict>
 </plist>
 EOF
