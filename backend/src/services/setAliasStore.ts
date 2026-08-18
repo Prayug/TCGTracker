@@ -29,9 +29,14 @@ export async function syncSetIdAliases(): Promise<number> {
   );
 
   let upserted = 0;
+  const unmatched: string[] = [];
   for (const { setId, setName } of distinctSets) {
     const catalogSetId = await setCodeService.normalizeSetIdForImageUrl(setId, setName);
-    if (!catalogSetId) continue;
+    if (!catalogSetId) {
+      unmatched.push(setId);
+      await dbRun(`DELETE FROM set_id_aliases WHERE sourceSetId = ?`, [setId]);
+      continue;
+    }
 
     await dbRun(
       `INSERT INTO set_id_aliases (sourceSetId, sourceSetName, catalogSetId, updatedAt)
@@ -46,6 +51,12 @@ export async function syncSetIdAliases(): Promise<number> {
   }
 
   logger.info(`Synced ${upserted} set ID aliases`);
+  if (unmatched.length > 0) {
+    logger.info('Set IDs with no Pokemon catalog mapping (sealed/promo-only; images skipped)', {
+      count: unmatched.length,
+      sample: unmatched.slice(0, 12),
+    });
+  }
   return upserted;
 }
 

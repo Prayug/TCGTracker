@@ -1,3 +1,5 @@
+export type CardLanguage = 'en' | 'ja';
+
 export interface CatalogCardSummary {
   cardId: string;
   cardName: string;
@@ -20,6 +22,12 @@ export interface CatalogCardSummary {
       market?: number;
     }
   >;
+  /** Card language; defaults to English when omitted. */
+  language?: CardLanguage;
+  /** ASCII name used for PriceCharting/eBay matching and uniqueIdentifier. */
+  matchName?: string;
+  /** National Dex number when known (JP matchName derivation). */
+  dexId?: number;
 }
 
 export interface CatalogSetSummary {

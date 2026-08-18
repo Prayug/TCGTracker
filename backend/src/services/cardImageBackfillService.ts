@@ -25,13 +25,46 @@ const dbGet = <T>(sql: string, params: unknown[] = []): Promise<T | undefined> =
     });
   });
 
-const dbAll = <T>(sql: string, params: unknown[] = []): Promise<T[]> =>
-  new Promise((resolve, reject) => {
-    getDb().all(sql, params, (err, rows) => {
-      if (err) reject(err);
-      else resolve((rows as T[]) || []);
-    });
-  });
+const collectorBase = (expr: string) => `
+  trim(CASE
+    WHEN instr(ifnull(${expr}, ''), '/') > 0
+      THEN substr(${expr}, 1, instr(${expr}, '/') - 1)
+    ELSE ifnull(${expr}, '')
+  END)
+`;
+
+const displayName = (expr: string) => `
+  trim(CASE
+    WHEN instr(${expr}, '(') > 0 THEN substr(${expr}, 1, instr(${expr}, '(') - 1)
+    ELSE ${expr}
+  END)
+`;
+
+/** Name + collector-number compatibility between card_mappings and catalog_cards cc. */
+const CARD_MATCH_SQL = `
+  (
+    lower(${displayName('cc.cardName')}) = lower(${displayName('card_mappings.cardName')})
+    OR (
+      nullif(trim(ifnull(card_mappings.matchName, '')), '') IS NOT NULL
+      AND lower(ifnull(cc.matchName, '')) = lower(card_mappings.matchName)
+    )
+    OR (
+      nullif(trim(ifnull(cc.matchName, '')), '') IS NOT NULL
+      AND lower(cc.matchName) = lower(${displayName('card_mappings.cardName')})
+    )
+  )
+  AND (
+    nullif(trim(ifnull(card_mappings.cardNumber, '')), '') IS NULL
+    OR lower(${collectorBase('cc.cardNumber')}) = lower(${collectorBase('card_mappings.cardNumber')})
+    OR (
+      ${collectorBase('cc.cardNumber')} NOT GLOB '*[A-Za-z]*'
+      AND ${collectorBase('card_mappings.cardNumber')} NOT GLOB '*[A-Za-z]*'
+      AND CAST(${collectorBase('cc.cardNumber')} AS INTEGER)
+        = CAST(${collectorBase('card_mappings.cardNumber')} AS INTEGER)
+      AND CAST(${collectorBase('cc.cardNumber')} AS INTEGER) > 0
+    )
+  )
+`;
 
 /** Bulk copy catalog images into card_mappings using persisted set_id_aliases. */
 async function bulkBackfillFromCatalog(): Promise<number> {
@@ -43,7 +76,7 @@ async function bulkBackfillFromCatalog(): Promise<number> {
         FROM catalog_cards cc
         INNER JOIN set_id_aliases sa ON sa.catalogSetId = cc.setId
         WHERE sa.sourceSetId = card_mappings.setId
-          AND cc.cardName = card_mappings.cardName
+          AND ${CARD_MATCH_SQL}
           AND cc.imageSmall IS NOT NULL
         ORDER BY cc.cardNumber
         LIMIT 1
@@ -53,7 +86,7 @@ async function bulkBackfillFromCatalog(): Promise<number> {
         FROM catalog_cards cc
         INNER JOIN set_id_aliases sa ON sa.catalogSetId = cc.setId
         WHERE sa.sourceSetId = card_mappings.setId
-          AND cc.cardName = card_mappings.cardName
+          AND ${CARD_MATCH_SQL}
           AND cc.imageLarge IS NOT NULL
         ORDER BY cc.cardNumber
         LIMIT 1
@@ -65,7 +98,7 @@ async function bulkBackfillFromCatalog(): Promise<number> {
           FROM catalog_cards cc
           INNER JOIN set_id_aliases sa ON sa.catalogSetId = cc.setId
           WHERE sa.sourceSetId = card_mappings.setId
-            AND cc.cardName = card_mappings.cardName
+            AND ${CARD_MATCH_SQL}
             AND cc.cardNumber IS NOT NULL
           ORDER BY cc.cardNumber
           LIMIT 1
@@ -85,7 +118,7 @@ async function bulkBackfillFromCatalog(): Promise<number> {
         FROM catalog_cards cc
         INNER JOIN set_id_aliases sa ON sa.catalogSetId = cc.setId
         WHERE sa.sourceSetId = card_mappings.setId
-          AND cc.cardName = card_mappings.cardName
+          AND ${CARD_MATCH_SQL}
           AND (cc.imageSmall IS NOT NULL OR cc.imageLarge IS NOT NULL)
       )
   `);
@@ -99,21 +132,21 @@ async function bulkBackfillDirectSetMatch(): Promise<number> {
       imageSmall = (
         SELECT cc.imageSmall FROM catalog_cards cc
         WHERE cc.setId = card_mappings.setId
-          AND cc.cardName = card_mappings.cardName
+          AND ${CARD_MATCH_SQL}
           AND cc.imageSmall IS NOT NULL
         LIMIT 1
       ),
       imageLarge = (
         SELECT cc.imageLarge FROM catalog_cards cc
         WHERE cc.setId = card_mappings.setId
-          AND cc.cardName = card_mappings.cardName
+          AND ${CARD_MATCH_SQL}
           AND cc.imageLarge IS NOT NULL
         LIMIT 1
       ),
       cardNumber = COALESCE(
         NULLIF(card_mappings.cardNumber, ''),
         (SELECT cc.cardNumber FROM catalog_cards cc
-         WHERE cc.setId = card_mappings.setId AND cc.cardName = card_mappings.cardName
+         WHERE cc.setId = card_mappings.setId AND ${CARD_MATCH_SQL}
          LIMIT 1)
       ),
       catalogSetId = card_mappings.setId,
@@ -123,19 +156,10 @@ async function bulkBackfillDirectSetMatch(): Promise<number> {
       AND EXISTS (
         SELECT 1 FROM catalog_cards cc
         WHERE cc.setId = card_mappings.setId
-          AND cc.cardName = card_mappings.cardName
+          AND ${CARD_MATCH_SQL}
           AND (cc.imageSmall IS NOT NULL OR cc.imageLarge IS NOT NULL)
       )
   `);
-}
-
-interface MissingImageRow {
-  id: number;
-  cardId: string;
-  cardName: string;
-  setId: string;
-  setName: string;
-  cardNumber: string | null;
 }
 
 async function countMissingImages(): Promise<number> {
@@ -156,7 +180,7 @@ export async function copyCatalogImagesToMapping(
   const direct = await dbGet<{ imageSmall: string; imageLarge: string; setId: string; cardNumber: string }>(
     `SELECT imageSmall, imageLarge, setId, cardNumber
      FROM catalog_cards
-     WHERE cardName = ? AND setId = ?
+     WHERE lower(cardName) = lower(?) AND setId = ?
        AND (imageSmall IS NOT NULL OR imageLarge IS NOT NULL)
      LIMIT 1`,
     [cardName, setId]

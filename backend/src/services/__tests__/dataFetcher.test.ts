@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import { normalizeVariantKey, deterministicProductId } from '../dataFetcher';
+import {
+  normalizeVariantKey,
+  deterministicProductId,
+  listPriceCatchUpDates,
+  shiftIsoDate,
+} from '../dataFetcher';
 
 describe('normalizeVariantKey', () => {
   it('lowercases and strips non-alphanumeric characters', () => {
@@ -41,5 +45,41 @@ describe('deterministicProductId', () => {
     const id = deterministicProductId('swsh1-1', 'normal');
     expect(id).toBeGreaterThan(0);
     expect(id).toBeLessThan(100000001);
+  });
+});
+
+describe('listPriceCatchUpDates', () => {
+  it('fills every gap in the lookback window, not just yesterday', () => {
+    const completed = new Set(['2026-09-04']);
+    const dates = listPriceCatchUpDates('2026-09-07', completed, {
+      easternHour: 4,
+      lookbackDays: 5,
+    });
+    expect(dates).toEqual(['2026-09-02', '2026-09-03', '2026-09-05', '2026-09-06', '2026-09-07']);
+  });
+
+  it('does not enqueue today before the 2:00 ET snapshot hour', () => {
+    const completed = new Set(['2026-09-06']);
+    const dates = listPriceCatchUpDates('2026-09-07', completed, {
+      easternHour: 1,
+      lookbackDays: 2,
+    });
+    expect(dates).toEqual(['2026-09-05']);
+  });
+
+  it('returns nothing when the window is fully complete', () => {
+    const completed = new Set(['2026-09-05', '2026-09-06', '2026-09-07']);
+    const dates = listPriceCatchUpDates('2026-09-07', completed, {
+      easternHour: 10,
+      lookbackDays: 2,
+    });
+    expect(dates).toEqual([]);
+  });
+});
+
+describe('shiftIsoDate', () => {
+  it('crosses month boundaries with UTC calendar math', () => {
+    expect(shiftIsoDate('2026-09-01', -1)).toBe('2026-08-31');
+    expect(shiftIsoDate('2026-08-31', 1)).toBe('2026-09-01');
   });
 });

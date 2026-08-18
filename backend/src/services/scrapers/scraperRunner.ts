@@ -83,7 +83,10 @@ function deduplicateSignals(signals: ScrapedSignal[]): ScrapedSignal[] {
   const unique: ScrapedSignal[] = [];
 
   for (const signal of signals) {
-    const key = `${signal.sourceUrl}|${signal.cardId || 'global'}`;
+    const key =
+      signal.sourceType === 'set_release'
+        ? `${signal.sourceType}|${(signal.setName ?? signal.title ?? '').toLowerCase()}`
+        : `${signal.sourceUrl}|${signal.cardId || 'global'}`;
     if (!seen.has(key)) {
       seen.add(key);
       unique.push(signal);
@@ -123,8 +126,9 @@ export async function runSignalScrape(): Promise<ScrapeResult> {
     }
   }
 
-  // Match signals to card IDs
+  // Match card-level signals only — set releases are set-wide events.
   for (const signal of allSignals) {
+    if (signal.sourceType === 'set_release') continue;
     const match = await matchSignalToCard(signal);
     if (match) {
       signal.cardId = match.cardId;
@@ -141,8 +145,8 @@ export async function runSignalScrape(): Promise<ScrapeResult> {
   let stored = 0;
 
   const insertStmt = `INSERT INTO external_market_signals
-    (card_id, source_url, source_type, title, summary, sentiment_score, relevance_score, risk_type, expires_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    (card_id, source_url, source_type, title, summary, sentiment_score, relevance_score, risk_type, expires_at, set_name, card_name)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
   for (const signal of uniqueSignals) {
     try {
@@ -157,6 +161,8 @@ export async function runSignalScrape(): Promise<ScrapeResult> {
           Math.round(signal.relevance * 100),
           signal.riskType || null,
           signal.expiresAt || null,
+          signal.setName || null,
+          signal.cardName || null,
         ], function (err) {
           if (err) reject(err);
           else resolve();
