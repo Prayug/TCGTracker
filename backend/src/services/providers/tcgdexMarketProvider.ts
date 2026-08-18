@@ -3,8 +3,6 @@ import { logger } from '../../utils/logger';
 import { normalizeVariantKey } from '../../utils/normalizeVariantKey';
 import { resolveListingPrice } from '../../utils/resolveListingPrice';
 
-const TCGDEX_BASE_URL = 'https://api.tcgdex.net/v2/en';
-
 interface TcgdexPriceEntry {
   productId?: number;
   marketPrice?: number | null;
@@ -24,20 +22,58 @@ interface TcgdexCardResponse {
   };
   pricing?: {
     tcgplayer?: Record<string, TcgdexPriceEntry & { unit?: string; updated?: string }>;
+    cardmarket?: {
+      unit?: string;
+      avg?: number | null;
+      low?: number | null;
+      trend?: number | null;
+      'avg-holo'?: number | null;
+      'low-holo'?: number | null;
+      'trend-holo'?: number | null;
+      idProduct?: number;
+    };
   };
 }
+
+/** Rough EUR→USD for Cardmarket snapshots when no TCGPlayer print exists. */
+const EUR_TO_USD = 1.08;
 
 export class TcgdexMarketProvider implements MarketPriceProvider {
   readonly timeoutMs = 8000;
   private fetchFailureCount = 0;
   private nextFailureLogAt = 5;
+  private consecutiveFailures = 0;
+  private circuitOpen = false;
+  private readonly circuitThreshold = 8;
+  private readonly baseUrl: string;
+  private readonly sourceTag: 'tcgdex' | 'tcgdex_ja' | 'cardmarket';
+
+  constructor(locale: 'en' | 'ja' = 'en') {
+    this.baseUrl = `https://api.tcgdex.net/v2/${locale}`;
+    this.sourceTag = locale === 'ja' ? 'tcgdex_ja' : 'tcgdex';
+  }
 
   get failureCount(): number {
     return this.fetchFailureCount;
   }
 
+  get isCircuitOpen(): boolean {
+    return this.circuitOpen;
+  }
+
+  resetCircuit(): void {
+    this.circuitOpen = false;
+    this.consecutiveFailures = 0;
+    this.fetchFailureCount = 0;
+    this.nextFailureLogAt = 5;
+  }
+
+  get localeSource(): string {
+    return this.sourceTag;
+  }
+
   private async fetchCard(cardId: string): Promise<TcgdexCardResponse | null> {
-    const url = `${TCGDEX_BASE_URL}/cards/${encodeURIComponent(cardId)}`;
+    const url = `${this.baseUrl}/cards/${encodeURIComponent(cardId)}`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
     const response = await fetch(url, {
@@ -60,22 +96,27 @@ export class TcgdexMarketProvider implements MarketPriceProvider {
     cardId: string,
     _cardName?: string,
     _setId?: string,
-    _setName?: string,
+    _setName?: string
   ): Promise<MarketPriceSnapshot | null> {
+    if (this.circuitOpen) {
+      return null;
+    }
+
     try {
       const card = await this.fetchCard(cardId);
       this.fetchFailureCount = 0;
+      this.consecutiveFailures = 0;
       this.nextFailureLogAt = 25;
-      if (!card?.pricing?.tcgplayer || !card.set) {
+      if (!card?.set) {
         return null;
       }
 
-      const points = Object.entries(card.pricing.tcgplayer)
-        .map(([rawVariantName, value]) => {
-          // Skip non-variant metadata keys (unit/updated live on the parent object,
-          // but defensive in case the payload shape drifts).
+      const points: MarketPriceSnapshot['points'] = [];
+
+      if (card.pricing?.tcgplayer) {
+        for (const [rawVariantName, value] of Object.entries(card.pricing.tcgplayer)) {
           if (!value || typeof value !== 'object' || Array.isArray(value)) {
-            return null;
+            continue;
           }
 
           const marketPrice = resolveListingPrice({
@@ -84,11 +125,9 @@ export class TcgdexMarketProvider implements MarketPriceProvider {
             low: value.lowPrice,
             high: value.highPrice,
           });
-          if (marketPrice <= 0) {
-            return null;
-          }
+          if (marketPrice <= 0) continue;
 
-          return {
+          points.push({
             variantKey: normalizeVariantKey(rawVariantName),
             rawVariantName,
             productId: value.productId ?? 0,
@@ -96,9 +135,48 @@ export class TcgdexMarketProvider implements MarketPriceProvider {
             lowPrice: value.lowPrice ?? undefined,
             highPrice: value.highPrice ?? undefined,
             volume: value.volume,
-          };
-        })
-        .filter((point): point is NonNullable<typeof point> => Boolean(point));
+          });
+        }
+      }
+
+      // Cardmarket fallback (common for Japanese prints) — convert EUR→USD.
+      if (points.length === 0 && card.pricing?.cardmarket) {
+        const cm = card.pricing.cardmarket;
+        const marketEur = resolveListingPrice({
+          market: cm.trend ?? cm.avg,
+          mid: cm.avg,
+          low: cm.low,
+        });
+        if (marketEur > 0) {
+          const marketPrice = Math.round(marketEur * EUR_TO_USD * 100) / 100;
+          points.push({
+            variantKey: 'normal',
+            rawVariantName: 'cardmarket',
+            productId: cm.idProduct ?? 0,
+            marketPrice,
+            lowPrice: cm.low != null ? Math.round(cm.low * EUR_TO_USD * 100) / 100 : undefined,
+            highPrice: undefined,
+          });
+        }
+        const holoEur = resolveListingPrice({
+          market: cm['trend-holo'] ?? cm['avg-holo'],
+          mid: cm['avg-holo'],
+          low: cm['low-holo'],
+        });
+        if (holoEur > 0) {
+          const marketPrice = Math.round(holoEur * EUR_TO_USD * 100) / 100;
+          points.push({
+            variantKey: 'holofoil',
+            rawVariantName: 'cardmarket-holo',
+            productId: cm.idProduct ?? 0,
+            marketPrice,
+            lowPrice:
+              cm['low-holo'] != null
+                ? Math.round(cm['low-holo'] * EUR_TO_USD * 100) / 100
+                : undefined,
+          });
+        }
+      }
 
       if (points.length === 0) {
         return null;
@@ -114,10 +192,20 @@ export class TcgdexMarketProvider implements MarketPriceProvider {
       };
     } catch (error) {
       this.fetchFailureCount += 1;
-      if (this.fetchFailureCount >= this.nextFailureLogAt) {
+      this.consecutiveFailures += 1;
+      if (this.consecutiveFailures >= this.circuitThreshold) {
+        this.circuitOpen = true;
+        logger.error('TCGdex circuit open — skipping remaining live fetches', {
+          failures: this.fetchFailureCount,
+          sampleCardId: cardId,
+          locale: this.baseUrl,
+          error: (error as Error).message,
+        });
+      } else if (this.fetchFailureCount >= this.nextFailureLogAt) {
         logger.error('TCGdex market fetch failing repeatedly', {
           failures: this.fetchFailureCount,
           sampleCardId: cardId,
+          locale: this.baseUrl,
           error: (error as Error).message,
         });
         this.nextFailureLogAt += 25;
@@ -127,4 +215,5 @@ export class TcgdexMarketProvider implements MarketPriceProvider {
   }
 }
 
-export const tcgdexMarketProvider = new TcgdexMarketProvider();
+export const tcgdexMarketProvider = new TcgdexMarketProvider('en');
+export const tcgdexJaMarketProvider = new TcgdexMarketProvider('ja');

@@ -1,6 +1,12 @@
 import { pokemonApiClient, PokemonApiSet } from './pokemonApiClient';
 import { logger } from '../utils/logger';
 import { getDb } from '../db/database';
+import {
+  foldSetToken,
+  foldSetTokenCompact,
+  resolveCatalogSetId,
+  resolvePokemonApiSetId,
+} from '../utils/resolvePokemonSetId';
 
 /**
  * Simple, dynamic set code service using Pokemon TCG API
@@ -9,6 +15,7 @@ import { getDb } from '../db/database';
 export class SetCodeService {
   private dynamicSetMap: Map<string, string> = new Map();
   private setById: Map<string, PokemonApiSet> = new Map();
+  private catalogSetIds: Set<string> = new Set();
   private initialized = false;
   private initializationPromise: Promise<void> | null = null;
   private lastRefresh = 0;
@@ -20,7 +27,10 @@ export class SetCodeService {
   async initialize(): Promise<void> {
     // Retry when we only have local name→id maps and no API set metadata (images/series).
     if (this.initialized && this.dynamicSetMap.size > 0 && this.setById.size > 0) {
-      logger.info('SetCodeService already initialized with ' + this.dynamicSetMap.size + ' mappings');
+      if (this.catalogSetIds.size === 0) {
+        await this.loadCatalogSetIds();
+      }
+      logger.debug('SetCodeService already initialized with ' + this.dynamicSetMap.size + ' mappings');
       return;
     }
 
@@ -57,6 +67,7 @@ export class SetCodeService {
         this.setById.set(set.id, set);
         this.addSetMappings(set);
       });
+      await this.loadCatalogSetIds();
 
       this.initialized = true;
       this.lastRefresh = Date.now();
@@ -103,21 +114,23 @@ export class SetCodeService {
     );
     if (exact) return exact;
 
-    const normalized = setName.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const mappedId = this.dynamicSetMap.get(normalized);
+    const mappedId =
+      this.dynamicSetMap.get(foldSetToken(setName)) ||
+      this.dynamicSetMap.get(foldSetTokenCompact(setName));
     if (mappedId) return this.setById.get(mappedId);
 
-    return [...this.setById.values()].find((set) => {
-      const setNorm = set.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-      return setNorm === normalized || setNorm.includes(normalized) || normalized.includes(setNorm);
-    });
+    const folded = foldSetToken(setName);
+    return [...this.setById.values()].find((set) => foldSetToken(set.name) === folded);
   }
 
   resolveApiSet(catalogId: string, setName?: string): PokemonApiSet | undefined {
-    return (
-      this.getSetById(catalogId) ||
-      (setName ? this.getSetByName(setName) : undefined)
-    );
+    const direct = this.getSetById(catalogId);
+    if (direct) return direct;
+
+    const apiId = resolvePokemonApiSetId(catalogId, setName, [...this.setById.values()]);
+    if (apiId) return this.getSetById(apiId);
+
+    return setName ? this.getSetByName(setName) : undefined;
   }
 
   private addSetMappings(set: PokemonApiSet): void {
@@ -126,11 +139,13 @@ export class SetCodeService {
       return;
     }
 
-    // Map by normalized set name (multiple variations)
-    const normalizedName = set.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const normalizedName = foldSetToken(set.name);
     this.dynamicSetMap.set(normalizedName, set.id);
+    const compactName = foldSetTokenCompact(set.name);
+    if (compactName !== normalizedName) {
+      this.dynamicSetMap.set(compactName, set.id);
+    }
 
-    // Also map without common words
     const nameWithoutCommon = normalizedName
       .replace(/^pokemon/, '')
       .replace(/pokemon$/, '')
@@ -207,7 +222,27 @@ export class SetCodeService {
 
     this.initialized = true;
     this.lastRefresh = Date.now();
+    await this.loadCatalogSetIds();
     return localSets.length;
+  }
+
+  private async loadCatalogSetIds(): Promise<void> {
+    const db = getDb();
+    const rows = await new Promise<Array<{ setId: string }>>((resolve, reject) => {
+      db.all(
+        `SELECT DISTINCT setId FROM catalog_cards WHERE setId IS NOT NULL AND TRIM(setId) <> ''`,
+        [],
+        (err, result: any[]) => {
+          if (err) reject(err);
+          else resolve((result || []) as Array<{ setId: string }>);
+        }
+      );
+    }).catch((err) => {
+      logger.debug('Could not load catalog set IDs', { error: (err as Error).message });
+      return [] as Array<{ setId: string }>;
+    });
+
+    this.catalogSetIds = new Set(rows.map((row) => row.setId));
   }
 
   /**
@@ -219,69 +254,36 @@ export class SetCodeService {
   }
 
   /**
-   * Normalize a set ID to the correct Pokemon TCG API set code
-   * Tries multiple strategies to find the correct mapping
+   * Normalize a set ID to a Pokemon TCG API set code, or a native catalog set id
+   * (Japanese TCGdex codes). Uses exact / suffix / era rules — not substrings.
    */
   async normalizeSetIdForImageUrl(setId: string, setName?: string): Promise<string | null> {
-    // Ensure service is initialized
     await this.initialize();
 
     if (!setId) {
-      logger.warn('normalizeSetIdForImageUrl called with empty setId');
+      logger.debug('normalizeSetIdForImageUrl called with empty setId');
       return null;
     }
 
-    if (this.dynamicSetMap.size === 0) {
-      logger.error('❌ dynamicSetMap is empty! Cannot normalize set IDs. Images will not load.');
+    if (this.setById.size === 0 && this.catalogSetIds.size === 0) {
+      logger.error('❌ No set metadata loaded. Cannot normalize set IDs.');
       return null;
     }
 
-    // Strategy 1: Try normalized setId directly
-    const normalizedId = setId.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const directMatch = this.dynamicSetMap.get(normalizedId);
-    if (directMatch) {
-      logger.debug(`✅ Direct match for ${setId} -> ${directMatch}`);
-      return directMatch;
+    const resolved = resolveCatalogSetId(
+      setId,
+      setName,
+      [...this.setById.values()],
+      this.catalogSetIds
+    );
+    if (resolved) {
+      logger.debug(`✅ Normalized ${setId} -> ${resolved}`);
+      return resolved;
     }
 
-    // Strategy 2: Try setName if provided
-    if (setName) {
-      const normalizedName = setName.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const nameMatch = this.dynamicSetMap.get(normalizedName);
-      if (nameMatch) {
-        logger.debug(`✅ Name match for ${setName} -> ${nameMatch}`);
-        return nameMatch;
-      }
-    }
-
-    // Strategy 3: Try partial matches - check if any key contains the setId or vice versa
-    for (const [key, apiSetId] of this.dynamicSetMap.entries()) {
-      if (key.length >= 3 && normalizedId.length >= 3) {
-        if (key.includes(normalizedId) || normalizedId.includes(key)) {
-          logger.debug(`✅ Partial match for ${setId} (${normalizedId} matches ${key}) -> ${apiSetId}`);
-          return apiSetId;
-        }
-      }
-    }
-
-    // Strategy 4: Try with common variations (remove common prefixes/suffixes)
-    const variations = [
-      normalizedId.replace(/^set/, '').replace(/set$/, ''),
-      normalizedId.replace(/^pokemon/, '').replace(/pokemon$/, ''),
-      normalizedId.replace(/^tcg/, '').replace(/tcg$/, ''),
-    ];
-    
-    for (const variation of variations) {
-      if (variation && variation !== normalizedId) {
-        const match = this.dynamicSetMap.get(variation);
-        if (match) {
-          logger.debug(`✅ Variation match for ${setId} -> ${match}`);
-          return match;
-        }
-      }
-    }
-
-    logger.warn(`❌ Could not normalize set ID: "${setId}"${setName ? ` (setName: "${setName}")` : ''}. Tried ${this.dynamicSetMap.size} mappings.`);
+    logger.debug(
+      `No catalog/API set mapping for "${setId}"${setName ? ` (${setName})` : ''}`
+    );
     return null;
   }
 
@@ -314,8 +316,10 @@ export class SetCodeService {
     }
 
     const normalizedSet = await this.normalizeSetIdForImageUrl(setId, setName || undefined);
-    if (!normalizedSet) {
-      logger.warn(`Could not normalize set ID for image URL: "${setId}"${setName ? ` (setName: "${setName}")` : ''}`);
+    if (!normalizedSet || !this.getSetById(normalizedSet)) {
+      logger.debug(
+        `Could not build pokemontcg.io URL for set "${setId}"${setName ? ` (${setName})` : ''}`
+      );
       return null;
     }
 

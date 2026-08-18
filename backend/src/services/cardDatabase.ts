@@ -30,9 +30,17 @@ export const looksLikeNonSingleCard = (cardName?: string | null): boolean => {
   return NON_SINGLE_CARD_PATTERN.test(cardName);
 };
 
-export const getCatalogCardsForQuery = async (query: string, setId?: string, limit: number = 250) => {
+export const getCatalogCardsForQuery = async (
+  query: string,
+  setId?: string,
+  limit: number = 250,
+  language: string = 'en'
+) => {
   const db = getDb();
   const trimmed = query.trim();
+  const lang = (language || 'en').toLowerCase();
+  const langClause =
+    lang === 'all' ? '' : `AND COALESCE(cc.language, 'en') = '${lang === 'ja' ? 'ja' : 'en'}'`;
 
   // Fast path: exact catalog id lookups (base1-4, bw6-90, …) skip the heavy price join.
   const looksLikeCardId = /^[a-z0-9][a-z0-9_-]{1,40}$/i.test(trimmed) && trimmed.includes('-');
@@ -43,6 +51,8 @@ export const getCatalogCardsForQuery = async (query: string, setId?: string, lim
            cc.cardId, cc.cardName, cc.setId, cc.setName, cc.setReleaseDate,
            cc.cardNumber, cc.rarity, cc.types, cc.artist,
            cc.imageSmall, cc.imageLarge, cc.tcgplayerProductId, cc.tcgplayerPrices,
+           COALESCE(cc.language, 'en') AS language,
+           COALESCE(cc.matchName, cc.cardName) AS matchName,
            NULL as latestPrice, NULL as latestLowPrice, NULL as latestHighPrice
          FROM catalog_cards cc
          WHERE cc.cardId = ?
@@ -55,11 +65,14 @@ export const getCatalogCardsForQuery = async (query: string, setId?: string, lim
       );
     });
     if (exact.length > 0) return exact;
+    // Exact id miss (tcgcsv-197651, etc.): do NOT fall through to LIKE '%id%'
+    // plus a full price_history scan — that locks SQLite and 500s /auth/me.
+    return [];
   }
 
   const likeQuery = `%${trimmed}%`;
   // Exact cardId first so getCardById("base1-4") / "bw6-90" resolves.
-  const params: any[] = [trimmed, likeQuery, likeQuery];
+  const params: any[] = [trimmed, likeQuery, likeQuery, likeQuery];
 
   let sql = `
     SELECT
@@ -76,47 +89,29 @@ export const getCatalogCardsForQuery = async (query: string, setId?: string, lim
       cc.imageLarge,
       cc.tcgplayerProductId,
       cc.tcgplayerPrices,
-      ph.latestPrice as latestPrice,
-      ph.latestLowPrice as latestLowPrice,
-      ph.latestHighPrice as latestHighPrice
+      COALESCE(cc.language, 'en') AS language,
+      COALESCE(cc.matchName, cc.cardName) AS matchName,
+      ph.marketPrice as latestPrice,
+      ph.lowPrice as latestLowPrice,
+      ph.highPrice as latestHighPrice
     FROM catalog_cards cc
-    LEFT JOIN (
-      SELECT
-        cm.cardId,
-        MAX(
-          CASE
-            WHEN ph.lowPrice IS NOT NULL AND ph.lowPrice > 0 AND ph.marketPrice < ph.lowPrice * 0.5
-              THEN CASE
-                WHEN ph.highPrice IS NOT NULL AND ph.highPrice > 0 AND ph.highPrice <= ph.lowPrice * 5
-                  THEN (ph.lowPrice + ph.highPrice) / 2.0
-                ELSE ph.lowPrice
-              END
-            ELSE ph.marketPrice
-          END
-        ) as latestPrice,
-        NULL as latestLowPrice,
-        NULL as latestHighPrice
-      FROM price_history ph
-      JOIN card_mappings cm ON cm.uniqueIdentifier = ph.uniqueIdentifier
-      WHERE ph.source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
-        AND ph.marketPrice IS NOT NULL
-        AND ph.marketPrice > 0
-        AND (cm.cardId, ph.date) IN (
-          SELECT cm2.cardId, MAX(ph2.date)
-          FROM price_history ph2
-          JOIN card_mappings cm2 ON cm2.uniqueIdentifier = ph2.uniqueIdentifier
-          WHERE ph2.source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
-            AND ph2.marketPrice IS NOT NULL
-            AND ph2.marketPrice > 0
-          GROUP BY cm2.cardId
-        )
-      GROUP BY cm.cardId
-    ) ph ON cc.cardId = ph.cardId
+    LEFT JOIN card_mappings cm ON cm.cardId = cc.cardId
+    LEFT JOIN price_history ph ON ph.uniqueIdentifier = cm.uniqueIdentifier
+      AND ph.rowid = (
+        SELECT ph2.rowid FROM price_history ph2
+        WHERE ph2.uniqueIdentifier = cm.uniqueIdentifier
+          AND ph2.source IN ('tcgcsv', 'tcgdex', 'catalog_fallback', 'tcgdex_ja', 'cardmarket', 'pricecharting_raw')
+          AND IFNULL(ph2.marketPrice, 0) > 0
+        ORDER BY ph2.date DESC
+        LIMIT 1
+      )
     WHERE (
       cc.cardId = ?
       OR cc.cardId LIKE ?
       OR cc.cardName LIKE ?
+      OR IFNULL(cc.matchName, '') LIKE ?
     )
+    ${langClause}
   `;
 
   if (setId) {
@@ -169,6 +164,8 @@ export const mapCatalogRowsToPokemonCards = (rows: any[]) => {
       number: row.cardNumber || '',
       rarity: row.rarity || undefined,
       artist: row.artist || undefined,
+      language: row.language || 'en',
+      matchName: row.matchName || row.cardName,
       images: {
         small: row.imageSmall || row.imageLarge || '',
         large: row.imageLarge || row.imageSmall || '',
@@ -200,12 +197,24 @@ export const mapCatalogRowsToPokemonCards = (rows: any[]) => {
   return Array.from(seen.values());
 };
 
-export const getLocalCardsForQuery = async (query: string, setId?: string, limit: number = 250) => {
+export const getLocalCardsForQuery = async (
+  query: string,
+  setId?: string,
+  limit: number = 250,
+  language: string = 'en'
+) => {
   const db = getDb();
   const trimmed = query.trim();
   const likeQuery = `%${trimmed}%`;
-  const params: any[] = [trimmed, likeQuery, likeQuery];
-  let whereClause = '(cm.cardId = ? OR cm.cardId LIKE ? OR cm.cardName LIKE ?)';
+  const params: any[] = [trimmed, likeQuery, likeQuery, likeQuery];
+  let whereClause =
+    '(cm.cardId = ? OR cm.cardId LIKE ? OR cm.cardName LIKE ? OR IFNULL(cm.matchName, \'\') LIKE ?)';
+
+  const lang = (language || 'en').toLowerCase();
+  if (lang !== 'all') {
+    whereClause += ` AND COALESCE(cm.language, 'en') = ?`;
+    params.push(lang === 'ja' ? 'ja' : 'en');
+  }
 
   if (setId) {
     whereClause += ' AND (cm.setId = ? OR cm.setName LIKE ?)';
@@ -224,6 +233,8 @@ export const getLocalCardsForQuery = async (query: string, setId?: string, limit
       cm.rarity,
       cm.tcgplayerProductId,
       cm.uniqueIdentifier,
+      COALESCE(cm.language, cc.language, 'en') AS language,
+      COALESCE(cm.matchName, cc.matchName, cm.cardName) AS matchName,
       ${
         imageColumns
           ? `COALESCE(NULLIF(cm.imageSmall, ''), cc.imageSmall) as imageSmall,
@@ -240,15 +251,13 @@ export const getLocalCardsForQuery = async (query: string, setId?: string, limit
       ph.date as priceDate,
       cc.tcgplayerPrices as catalogPrices
     FROM card_mappings cm
-    LEFT JOIN (
-      SELECT uniqueIdentifier, marketPrice, lowPrice, highPrice, date
-      FROM price_history
-      WHERE (uniqueIdentifier, date) IN (
-        SELECT uniqueIdentifier, MAX(date)
-        FROM price_history
-        GROUP BY uniqueIdentifier
+    LEFT JOIN price_history ph ON ph.uniqueIdentifier = cm.uniqueIdentifier
+      AND ph.rowid = (
+        SELECT ph2.rowid FROM price_history ph2
+        WHERE ph2.uniqueIdentifier = cm.uniqueIdentifier
+        ORDER BY ph2.date DESC
+        LIMIT 1
       )
-    ) ph ON cm.uniqueIdentifier = ph.uniqueIdentifier
     LEFT JOIN catalog_cards cc ON cc.cardId = cm.cardId
     WHERE ${whereClause}
     ORDER BY
@@ -358,13 +367,15 @@ export const mapLocalRowsToPokemonCards = async (rows: any[]) => {
         name: row.cardName,
         number: cardNumber || '',
         rarity: row.rarity,
+        language: row.language || 'en',
+        matchName: row.matchName || row.cardName,
         set: {
           id: row.setId,
           name: row.setName,
           releaseDate: '2020-01-01',
           total: 100,
         },
-        images,
+        images: images ?? { small: '', large: '' },
         imageSource,
         tcgplayer: catalogPrices
           ? {
