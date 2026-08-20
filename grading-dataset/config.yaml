@@ -1,0 +1,51 @@
+collection_enabled: true
+
+dataset_dir: dataset
+reports_dir: reports
+qa_dir: qa
+sqlite_path: dataset/pipeline.sqlite
+log_path: reports/collection.log
+
+quality:
+  min_shortest_side: 280
+  prefer_shortest_side: 1000
+  min_blur_score: 0.35
+  max_glare_fraction: 0.25
+  min_card_coverage: 0.20
+  min_crop_confidence: 0.50
+  reject_thumbnails_max_side: 320
+
+quota:
+  target_per_grade: 3000
+  pilot_per_grade: 100
+  max_identity_fraction_per_grade: 0.05
+
+rate_limit:
+  min_interval_seconds: 1.5
+  max_interval_seconds: 3.0
+  hub_interval_seconds: 0.25
+  max_backoff_seconds: 120.0
+
+splits:
+  train: 0.80
+  validation: 0.10
+  test: 0.10
+  seed: 42
+  ood_holdout_sets: []
+
+qa:
+  every_n_downloads: 500
+  sample_size: 20
+  source_error_rate_pause: 0.15
+
+allowed_licenses:
+  - cc-by-4.0
+  - cc-by-sa-4.0
+  - cc0-1.0
+  - odc-by
+  - cdla-permissive-2.0
+  - psa-written-research-license
+  - contributor-agreement
+  - huggingface-hub-public-dataset
+
+require_front_and_back_for_training: false
