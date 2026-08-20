@@ -46,3 +46,6 @@ ml/**/__pycache__/
 # OS
 .DS_Store
 Thumbs.db
+
+# Hard-negative feedback dumps
+data/hard_negatives.jsonl

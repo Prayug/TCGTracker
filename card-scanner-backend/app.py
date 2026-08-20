@@ -50,6 +50,7 @@ except ImportError:
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
+app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "temp_uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -626,7 +627,32 @@ def grade_card():
                 "rawPrice": request.form.get("rawPrice"),
             }
 
-        grading = grade_card_image(front_img, back_img)
+        extra_frames: list[tuple[str, Image.Image]] = []
+        scan_mode = "quick"
+        if request.is_json and request.json:
+            scan_mode = str(request.json.get("scanMode") or "quick")
+            raw_extra = request.json.get("extraFrames") or []
+            if isinstance(raw_extra, list):
+                for item in raw_extra[:8]:
+                    if not isinstance(item, dict):
+                        continue
+                    role = str(item.get("role") or "extra")
+                    raw = item.get("image")
+                    if not isinstance(raw, str) or not raw:
+                        continue
+                    if "base64," in raw:
+                        raw = raw.split("base64,", 1)[1]
+                    try:
+                        extra_frames.append((role, preprocess_for_grading(Image.open(BytesIO(base64.b64decode(raw))))))
+                    except Exception:
+                        continue
+
+        grading = grade_card_image(
+            front_img,
+            back_img,
+            extra_frames=extra_frames or None,
+            scan_mode=scan_mode,
+        )
 
         # Optional estimated graded value from raw price × grade multiplier
         estimated = None
@@ -691,6 +717,28 @@ def grade_card():
         _cleanup(image_path)
         _cleanup(back_image_path)
         return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/grading-feedback", methods=["POST"])
+def grading_feedback():
+    """Append a hard-negative / confirmation row. Does not change the model grade."""
+    payload = request.get_json(silent=True) or {}
+    if not payload.get("predictedDefect") and not payload.get("predicted_defect"):
+        return jsonify({"success": False, "error": "predictedDefect required"}), 400
+    import json
+    from datetime import datetime
+    from pathlib import Path
+
+    data_dir = Path(__file__).resolve().parent / "data"
+    data_dir.mkdir(exist_ok=True)
+    row = {
+        **payload,
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "officialGradeUnchanged": True,
+    }
+    with (data_dir / "hard_negatives.jsonl").open("a", encoding="utf-8") as f:
+        f.write(json.dumps(row, ensure_ascii=False) + "\n")
+    return jsonify({"success": True, "stored": True, "officialGradeUnchanged": True})
 
 
 # ── Legacy LLM grading (demoted — not used by Node primary path) ───────────────
