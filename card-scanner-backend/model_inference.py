@@ -289,7 +289,10 @@ def predict_axis(axis: str, card_bgr: np.ndarray) -> dict[str, Any]:
                     "defects": [],
                     "source": "onnx",
                 }
-            s, cf = _predict_score(sess, card_bgr)
+            h, w = card_bgr.shape[:2]
+            m = max(8, min(h, w) // 12)
+            inner = card_bgr[m : h - m, m : w - m]
+            s, cf = _predict_score(sess, inner if inner.size > 0 else card_bgr)
             return {"score": s, "confidence": cf, "defects": [], "source": "onnx"}
         except Exception as e:
             print(f"[model_inference] ONNX {axis} failed: {e}")

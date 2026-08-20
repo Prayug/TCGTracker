@@ -239,10 +239,14 @@ def analyze_centering_v2(
     lr_right = 100 - lr_left
     tb_top = int(round(tb_pct))
     tb_bottom = 100 - tb_top
+
+    from measurement import centering_mm
+    mm = centering_mm(borders, card_bgr)
+
     details = (
-        f"L/R {lr_left}/{lr_right}, T/B {tb_top}/{tb_bottom} "
-        f"(worst axis {int(round(worst_max))}/"
-        f"{100 - int(round(worst_max))})"
+        f"L/R {mm['leftRight']}, T/B {mm['topBottom']} "
+        f"({mm['leftMm']:.2f} / {mm['rightMm']:.2f} mm, "
+        f"{mm['topMm']:.2f} / {mm['bottomMm']:.2f} mm)"
     )
     if low_confidence:
         details += " [low confidence]"
@@ -255,6 +259,7 @@ def analyze_centering_v2(
             "leftRight": round(lr_max, 1),
             "topBottom": round(tb_max, 1),
             "borders": borders,
+            "mm": mm,
             "confidence": round(confidence, 3),
             "lowConfidence": low_confidence,
             "isBorderless": bool(info["isBorderless"]),

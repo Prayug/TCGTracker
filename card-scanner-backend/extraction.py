@@ -292,6 +292,28 @@ def _collect_quads(bgr: np.ndarray) -> list[tuple[np.ndarray, float, str]]:
     return candidates
 
 
+def normalize_canonical(card_bgr: np.ndarray) -> np.ndarray:
+    """
+    Gray-world white balance + gentle CLAHE so detectors share a lighting space.
+
+    Keep the correction mild so holofoil speculars are not invented or crushed.
+    Canonical size is ~1002×1400 (63:88 at H=1400), a higher-res 750×1050.
+    """
+    if card_bgr is None or card_bgr.size == 0:
+        return card_bgr
+    bgr = card_bgr.astype(np.float32)
+    means = bgr.reshape(-1, 3).mean(axis=0)
+    gray = float(np.mean(means))
+    scale = gray / np.maximum(means, 1.0)
+    scale = np.clip(scale, 0.88, 1.14)
+    balanced = np.clip(bgr * scale, 0, 255).astype(np.uint8)
+    lab = cv2.cvtColor(balanced, cv2.COLOR_BGR2LAB)
+    l_ch, a_ch, b_ch = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=1.35, tileGridSize=(8, 8))
+    l2 = clahe.apply(l_ch)
+    return cv2.cvtColor(cv2.merge([l2, a_ch, b_ch]), cv2.COLOR_LAB2BGR)
+
+
 def warp_card(bgr: np.ndarray, corners: np.ndarray, out_w: int = CANONICAL_W, out_h: int = CANONICAL_H) -> np.ndarray:
     dst = np.array(
         [[0, 0], [out_w - 1, 0], [out_w - 1, out_h - 1], [0, out_h - 1]],
@@ -373,7 +395,7 @@ def extract_card(
         # Soft inset fallback
         inset_x, inset_y = int(w * 0.06), int(h * 0.06)
         crop = bgr[inset_y : h - inset_y, inset_x : w - inset_x].copy()
-        card = cv2.resize(crop, (CANONICAL_W, CANONICAL_H), interpolation=cv2.INTER_AREA)
+        card = normalize_canonical(cv2.resize(crop, (CANONICAL_W, CANONICAL_H), interpolation=cv2.INTER_AREA))
         return ExtractionResult(
             found=False,
             card_bgr=card,
@@ -406,7 +428,7 @@ def extract_card(
             overlay_b64=_encode_overlay(bgr, corners),
         )
 
-    warped = warp_card(bgr, corners)
+    warped = normalize_canonical(warp_card(bgr, corners))
     overlay = _encode_overlay(bgr, corners)
 
     return ExtractionResult(
@@ -424,5 +446,6 @@ def extract_card(
             "card_w": CANONICAL_W,
             "card_h": CANONICAL_H,
             "warped": True,
+            "corners": corners.astype(float).tolist(),
         },
     )

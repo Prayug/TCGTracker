@@ -24,6 +24,14 @@ import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter
 
+from defect_grouping import (
+    Detection,
+    detection_from_frac,
+    detections_to_defect_strings,
+    merge_detections,
+)
+from grade_math import bottleneck_overall, category_range, confidence_band
+
 
 # ── Grade mapping (PSA-style 1–10 half-point scale) ───────────────────────────
 
@@ -66,7 +74,7 @@ def grade_to_condition(grade: float) -> str:
 
 # ── Structural damage (creases / folds / tears) ────────────────────────────────
 
-def _detect_structural_damage(card: np.ndarray) -> dict[str, Any]:
+def _detect_structural_damage(card: np.ndarray, glare_ratio: float = 0.0) -> dict[str, Any]:
     """
     Detect creases, folds, and tears via long ridge lines that cut across the card.
 
@@ -104,7 +112,13 @@ def _detect_structural_damage(card: np.ndarray) -> dict[str, Any]:
         thr = med + 2.8 * std
         return (resp > max(thr, 16.0)).astype(np.uint8) * 255
 
-    ridge = cv2.bitwise_or(_ridge_mask(blackhat), _ridge_mask(tophat))
+    black_mask = _ridge_mask(blackhat)
+    white_mask = _ridge_mask(tophat)
+    # Bright ridges (tophat) are often glare / holofoil, not creases.
+    if glare_ratio >= 0.06:
+        ridge = black_mask
+    else:
+        ridge = cv2.bitwise_or(black_mask, white_mask)
 
     # Prefer long continuous structures; kill speckles from print texture
     long_h = cv2.getStructuringElement(cv2.MORPH_RECT, (max(11, iw // 20), 1))
@@ -182,6 +196,17 @@ def _detect_structural_damage(card: np.ndarray) -> dict[str, Any]:
             + (0.25 if possible_tear else 0.0),
         )
 
+    crease_conf = 0.35
+    if crease_count:
+        crease_conf = min(
+            0.96,
+            0.45 + 0.18 * min(crease_count, 3) + 0.25 * min(max_len_frac / 0.7, 1.0),
+        )
+        if glare_ratio >= 0.08:
+            crease_conf *= 0.45
+        elif glare_ratio >= 0.05:
+            crease_conf *= 0.7
+
     full_mask = np.zeros((h, w), dtype=np.uint8)
     for x1, y1, x2, y2 in kept:
         cv2.line(full_mask, (x1 + m, y1 + m), (x2 + m, y2 + m), 255, 2)
@@ -189,9 +214,10 @@ def _detect_structural_damage(card: np.ndarray) -> dict[str, Any]:
     return {
         "severity": round(severity, 3),
         "crease_count": crease_count,
-        "major_crease": major_crease,
-        "possible_tear": possible_tear,
+        "major_crease": major_crease and crease_conf >= 0.7,
+        "possible_tear": possible_tear and crease_conf >= 0.75,
         "max_len_frac": round(max_len_frac, 3),
+        "confidence": round(float(crease_conf), 3),
         "line_mask": full_mask,
     }
 
@@ -230,18 +256,35 @@ def centering_ratio_to_subgrade(max_ratio_pct: int, is_front: bool = True) -> fl
 
 @dataclass
 class CategoryResult:
-    score: float
+    score: float | None
     details: str
     defects: list[str] = field(default_factory=list)
     deviations: dict[str, Any] | None = None
     crops: list[dict[str, Any]] = field(default_factory=list)
+    withheld: bool = False
+    withheld_reason: str | None = None
+    confidence: float = 0.6
+    confidence_band: str = "moderate"
+    detections: list[dict[str, Any]] = field(default_factory=list)
+    score_low: float | None = None
+    score_high: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
             "score": self.score,
             "details": self.details,
             "defects": self.defects,
+            "withheld": self.withheld,
+            "confidence": round(float(self.confidence), 3),
+            "confidenceBand": self.confidence_band,
+            "detections": self.detections,
         }
+        if self.withheld_reason:
+            d["withheldReason"] = self.withheld_reason
+        if self.score_low is not None:
+            d["scoreLow"] = self.score_low
+        if self.score_high is not None:
+            d["scoreHigh"] = self.score_high
         if self.deviations is not None:
             d["deviations"] = self.deviations
         if self.crops:
@@ -533,7 +576,9 @@ def generate_defect_highlight(card: np.ndarray, location: dict, category: str,
     return encode_crop(crop, max_dim=1400, quality=95)
 
 
-def severity_from_score(score: float, threshold_good: float = 9.0, threshold_ok: float = 7.0) -> str:
+def severity_from_score(score: float | None, threshold_good: float = 9.0, threshold_ok: float = 7.0) -> str:
+    if score is None:
+        return "minor"
     if score >= threshold_good:
         return "minor"
     if score >= threshold_ok:
@@ -941,6 +986,94 @@ def prepare_card_view(
     return bgr, card, False, {"mx": x, "my": y, "card_w": bw, "card_h": bh}
 
 
+def card_box_to_display(
+    box: dict[str, float] | None,
+    *,
+    card: np.ndarray,
+    display: np.ndarray,
+    meta: dict[str, Any] | None = None,
+) -> dict[str, float] | None:
+    """Map a 0–1 box in warped/cropped card space onto the original photo."""
+    if not box:
+        return box
+    try:
+        x, y = float(box["x"]), float(box["y"])
+        bw, bh = float(box["width"]), float(box["height"])
+    except (KeyError, TypeError, ValueError):
+        return box
+    ch, cw = card.shape[:2]
+    dh, dw = display.shape[:2]
+    if cw < 2 or ch < 2 or dw < 2 or dh < 2:
+        return box
+
+    pts_card = np.array(
+        [
+            [x * cw, y * ch],
+            [(x + bw) * cw, y * ch],
+            [(x + bw) * cw, (y + bh) * ch],
+            [x * cw, (y + bh) * ch],
+        ],
+        dtype=np.float32,
+    )
+
+    meta = meta or {}
+    corners_arr = None
+    raw_corners = meta.get("corners")
+    if raw_corners is not None:
+        try:
+            corners_arr = np.asarray(raw_corners, dtype=np.float32).reshape(4, 2)
+        except (TypeError, ValueError):
+            corners_arr = None
+
+    use_perspective = (
+        bool(meta.get("warped"))
+        and corners_arr is not None
+        and corners_arr.shape == (4, 2)
+        and (dh, dw) != (ch, cw)
+    )
+    if use_perspective:
+        src = np.array(
+            [[0, 0], [cw - 1, 0], [cw - 1, ch - 1], [0, ch - 1]],
+            dtype=np.float32,
+        )
+        transform = cv2.getPerspectiveTransform(src, corners_arr)
+        mapped = cv2.perspectiveTransform(pts_card.reshape(-1, 1, 2), transform).reshape(-1, 2)
+    else:
+        mx = float(meta.get("mx", 0) or 0)
+        my = float(meta.get("my", 0) or 0)
+        mapped = pts_card + np.array([mx, my], dtype=np.float32)
+
+    x1, y1 = float(mapped[:, 0].min()), float(mapped[:, 1].min())
+    x2, y2 = float(mapped[:, 0].max()), float(mapped[:, 1].max())
+    return {
+        "x": float(np.clip(x1 / dw, 0, 0.999)),
+        "y": float(np.clip(y1 / dh, 0, 0.999)),
+        "width": float(np.clip((x2 - x1) / dw, 0.01, 1.0)),
+        "height": float(np.clip((y2 - y1) / dh, 0.01, 1.0)),
+    }
+
+
+def _remap_category_locations(
+    cat: CategoryResult,
+    *,
+    card: np.ndarray,
+    display: np.ndarray,
+    meta: dict[str, Any] | None,
+) -> None:
+    for crop in cat.crops or []:
+        loc = crop.get("location")
+        if loc:
+            mapped = card_box_to_display(loc, card=card, display=display, meta=meta)
+            if mapped:
+                crop["location"] = mapped
+    for det in cat.detections or []:
+        loc = det.get("location")
+        if loc:
+            mapped = card_box_to_display(loc, card=card, display=display, meta=meta)
+            if mapped:
+                det["location"] = mapped
+
+
 def detect_card_perspective(
     bgr: np.ndarray,
     return_angle: bool = False,
@@ -1339,7 +1472,7 @@ def analyze_centering(
         crops.append({
             "label": "Left border",
             "image": encode_crop(viz[ly0:ly0 + lh, lx0:lx0 + lw]),
-            "location": {"x": lx0 / vw, "y": ly0 / vh, "width": lw / vw, "height": lh / vh},
+            "location": {"x": 0.0, "y": 0.0, "width": max(0.02, float(left) / w), "height": 1.0},
         })
 
         # Right border crop
@@ -1351,7 +1484,12 @@ def analyze_centering(
         crops.append({
             "label": "Right border",
             "image": encode_crop(viz[ry0:ry0 + rh, rx0:rx0 + rw]),
-            "location": {"x": rx0 / vw, "y": ry0 / vh, "width": rw / vw, "height": rh / vh},
+            "location": {
+                "x": max(0.0, 1.0 - max(0.02, float(right) / w)),
+                "y": 0.0,
+                "width": max(0.02, float(right) / w),
+                "height": 1.0,
+            },
         })
 
         # Top border crop
@@ -1362,7 +1500,7 @@ def analyze_centering(
         crops.append({
             "label": "Top border",
             "image": encode_crop(viz[ty0:ty0 + th, tx0:tx0 + tw]),
-            "location": {"x": tx0 / vw, "y": ty0 / vh, "width": tw / vw, "height": th / vh},
+            "location": {"x": 0.0, "y": 0.0, "width": 1.0, "height": max(0.02, float(top) / h)},
         })
 
         # Bottom border crop
@@ -1374,7 +1512,12 @@ def analyze_centering(
         crops.append({
             "label": "Bottom border",
             "image": encode_crop(viz[by0:by0 + bh, bx0:bx0 + bw]),
-            "location": {"x": bx0 / vw, "y": by0 / vh, "width": bw / vw, "height": bh / vh},
+            "location": {
+                "x": 0.0,
+                "y": max(0.0, 1.0 - max(0.02, float(bottom) / h)),
+                "width": 1.0,
+                "height": max(0.02, float(bottom) / h),
+            },
         })
 
         proof_image = generate_centering_proof(
@@ -1404,13 +1547,17 @@ def analyze_corners(
     card: np.ndarray,
     annotate: bool = True,
     display: np.ndarray | None = None,
-    meta: dict[str, int] | None = None,
+    meta: dict[str, Any] | None = None,
+    is_front: bool = True,
 ) -> CategoryResult:
     """Corner condition via wear, whitening, and chips — not sharpness alone."""
     gray = cv2.cvtColor(card, cv2.COLOR_BGR2GRAY)
     h, w = gray.shape
     # PSA-style: ~12-15% of card side for corner ROIs
     cw, ch = max(20, int(w * 0.14)), max(20, int(h * 0.14))
+    # Back: score only the physical tip so printed swirl is not "whitening".
+    white_cw = cw if is_front else max(16, int(w * 0.065))
+    white_ch = ch if is_front else max(16, int(h * 0.065))
 
     corner_positions = [
         ("top-left", 0, 0, cw, ch),
@@ -1420,6 +1567,7 @@ def analyze_corners(
     ]
 
     defects: list[str] = []
+    detections: list[Detection] = []
     corner_scores: list[float] = []
     corner_details: list[dict[str, Any]] = []
 
@@ -1443,37 +1591,75 @@ def analyze_corners(
         gradient_strength = min(float(mag.mean()) / 40.0, 1.0)
         local = 0.55 * sharpness + 0.45 * gradient_strength
 
-        white_frac, _ = _detect_whitening(roi_bgr)
+        wx = 0 if "left" in name else w - white_cw
+        wy = 0 if "top" in name else h - white_ch
+        white_roi = card[wy : wy + white_ch, wx : wx + white_cw]
+        white_frac, _ = _detect_whitening(white_roi, strict=not is_front)
+        loc = {
+            "x": wx / w,
+            "y": wy / h,
+            "width": white_cw / w,
+            "height": white_ch / h,
+        }
 
         # PSA-style: start at 10.0, deduct for defects
         cscore = 10.0
 
         # Soft / rounded corners (low gradient)
         if local < 0.35:
-            defects.append(f"Soft/rounded {name} corner")
-            cscore -= 2.0
+            detections.append(Detection(
+                label=f"Soft/rounded {name} corner",
+                kind="wear",
+                category="corners",
+                severity="moderate",
+                confidence=0.72,
+                location=loc,
+            ))
+            cscore -= 2.0 * 0.72
         elif local < 0.5:
-            defects.append(f"Slight wear on {name} corner")
-            cscore -= 0.8
+            detections.append(Detection(
+                label=f"Slight wear on {name} corner",
+                kind="wear",
+                category="corners",
+                severity="light",
+                confidence=0.58,
+                location=loc,
+            ))
+            cscore -= 0.8 * 0.58
 
-        # Whitening / pulp exposure — common on played cards; damage often looks "sharp"
-        if white_frac > 0.22:
-            defects.append(f"Heavy whitening on {name} corner")
-            cscore -= 4.5
-        elif white_frac > 0.12:
-            defects.append(f"Whitening on {name} corner")
-            cscore -= 2.5
-        elif white_frac > 0.05:
-            defects.append(f"Light whitening on {name} corner")
-            cscore -= 1.0
+        white_det = detection_from_frac(
+            label=f"Whitening on {name} corner",
+            kind="whitening",
+            category="corners",
+            frac=white_frac,
+            location=loc,
+        )
+        if white_det.severity != "none":
+            detections.append(white_det)
+            cscore -= min(4.5, 8.0 * white_det.coverage) * white_det.confidence
 
         # Chips / tears: busy irregular edge + whitening or extreme edge density
         if edge_density > 0.45 and white_frac > 0.08:
-            defects.append(f"Chipped / damaged {name} corner")
-            cscore -= 3.5
+            detections.append(Detection(
+                label=f"Chipped / damaged {name} corner",
+                kind="chip",
+                category="corners",
+                severity="heavy",
+                confidence=min(0.9, 0.55 + white_frac),
+                coverage=white_frac,
+                location=loc,
+            ))
+            cscore -= 3.5 * 0.7
         elif edge_density > 0.40:
-            defects.append(f"Possible fraying at {name} corner")
-            cscore -= 1.5
+            detections.append(Detection(
+                label=f"Possible fraying at {name} corner",
+                kind="wear",
+                category="corners",
+                severity="light",
+                confidence=0.6,
+                location=loc,
+            ))
+            cscore -= 1.5 * 0.6
 
         # PSA-style sub-scores (1-10 scale) — whitening lowers fill
         fray_score = round(min(10.0, 7.0 + 3.0 * (1.0 - min(edge_density * 2, 1.0))), 1)
@@ -1499,6 +1685,10 @@ def analyze_corners(
     worst = min(corner_scores) if corner_scores else 4.0
     # Worst corner dominates more (PSA-like)
     score = round(avg * 0.35 + worst * 0.65, 1)
+
+    merged = merge_detections(detections)
+    defects = detections_to_defect_strings(merged)
+    mean_conf = float(np.mean([d.confidence for d in merged])) if merged else 0.78
 
     details = (
         f"Corner condition avg {avg:.1f}/10 (worst {worst:.1f}). "
@@ -1551,10 +1741,16 @@ def analyze_corners(
                 cv2.line(annotated, (0, edge_y), (ew, edge_y), (255, 0, 255), 1, cv2.LINE_AA)
 
             corner_defects = [d for d in defects if name.replace("-", " ") in d.lower() or name in d.lower()]
+            overlay_loc = {
+                "x": (0 if "left" in name else (w - white_cw)) / w,
+                "y": (0 if "top" in name else (h - white_ch)) / h,
+                "width": white_cw / w,
+                "height": white_ch / h,
+            }
             crops.append({
                 "label": name.replace("-", " ").title(),
                 "image": encode_crop(annotated),
-                "location": {"x": ex / vw, "y": ey / vh, "width": ew / vw, "height": eh / vh},
+                "location": overlay_loc,
             })
             if corner_defects:
                 highlight = generate_defect_highlight(
@@ -1567,21 +1763,32 @@ def analyze_corners(
                     crops.append({
                         "label": f"{name.replace('-', ' ').title()} defect",
                         "image": highlight,
-                        "location": {"x": ex / vw, "y": ey / vh, "width": ew / vw, "height": eh / vh},
+                        "location": overlay_loc,
                     })
 
-    result = CategoryResult(score=score, details=details, defects=defects, crops=crops)
+    result = CategoryResult(
+        score=score,
+        details=details,
+        defects=defects,
+        crops=crops,
+        confidence=mean_conf,
+        confidence_band=confidence_band(mean_conf),
+        detections=[d.to_dict() for d in merged],
+    )
     result.deviations = {"cornerDetails": corner_details}
     return result
 
 
-def _detect_whitening(edge_strip_bgr: np.ndarray) -> tuple[float, np.ndarray]:
+def _detect_whitening(edge_strip_bgr: np.ndarray, *, strict: bool = False) -> tuple[float, np.ndarray]:
     """
     Detect whitening on an edge/corner strip using Lab analysis.
 
     Handles dark borders (classic blue back) and light borders (yellow Base Set)
     by combining absolute near-white pulp, relative luminance spikes, and
     chroma loss vs the strip median.
+
+    strict=True (card backs): require closer-to-pulp white so printed swirl
+    is not scored as edge wear.
     """
     if edge_strip_bgr.size == 0 or edge_strip_bgr.shape[0] < 3 or edge_strip_bgr.shape[1] < 3:
         return 0.0, np.zeros((1, 1), dtype=np.uint8)
@@ -1596,18 +1803,25 @@ def _detect_whitening(edge_strip_bgr: np.ndarray) -> tuple[float, np.ndarray]:
     L_std = float(np.std(L)) + 1e-6
     chroma_median = float(np.median(chroma))
 
-    # Absolute pulp white (works on any border color)
-    absolute_white = (L > 210) & (chroma < 24)
-
-    # Relative: lighter than typical border pixels
-    relative_white = (L > L_median + 1.2 * L_std) & (L > 165) & (chroma < 35)
-
-    # Color loss on light/colored borders (yellow → white pulp)
-    desat_white = (
-        (L > max(175.0, L_median * 0.90))
-        & (chroma < max(15.0, chroma_median * 0.40))
-        & (chroma < 35)
-    )
+    if strict:
+        absolute_white = (L > 222) & (chroma < 18)
+        relative_white = (L > L_median + 1.8 * L_std) & (L > 195) & (chroma < 22)
+        desat_white = (
+            (L > max(200.0, L_median * 0.95))
+            & (chroma < max(10.0, chroma_median * 0.28))
+            & (chroma < 18)
+        )
+    else:
+        # Absolute pulp white (works on any border color)
+        absolute_white = (L > 210) & (chroma < 24)
+        # Relative: lighter than typical border pixels
+        relative_white = (L > L_median + 1.2 * L_std) & (L > 165) & (chroma < 35)
+        # Color loss on light/colored borders (yellow → white pulp)
+        desat_white = (
+            (L > max(175.0, L_median * 0.90))
+            & (chroma < max(15.0, chroma_median * 0.40))
+            & (chroma < 35)
+        )
 
     white_mask = absolute_white | relative_white | desat_white
     frac = float(white_mask.mean())
@@ -1619,7 +1833,8 @@ def analyze_edges(
     card: np.ndarray,
     annotate: bool = True,
     display: np.ndarray | None = None,
-    meta: dict[str, int] | None = None,
+    meta: dict[str, Any] | None = None,
+    is_front: bool = True,
 ) -> CategoryResult:
     """Edge consistency via Canny + Hough; dedicated whitening detector per edge."""
     gray = cv2.cvtColor(card, cv2.COLOR_BGR2GRAY)
@@ -1627,11 +1842,12 @@ def analyze_edges(
     # PSA-style: analysis strip ~2-4% of short side
     strip_w = max(8, int(min(h, w) * 0.05))
 
-    # Whitening strip: slightly wider for detection
-    white_strip = max(10, int(min(h, w) * 0.06))
+    # Back: a 6% strip swallows printed swirl and calls it pulp white.
+    white_strip = max(10, int(min(h, w) * 0.06)) if is_front else max(4, int(min(h, w) * 0.022))
 
     edges = cv2.Canny(gray, 40, 120)
     defects: list[str] = []
+    detections: list[Detection] = []
 
     strips = {
         "left": (0, 0, strip_w, h),
@@ -1657,34 +1873,66 @@ def analyze_edges(
         variance = float(np.var(profile)) if profile.size > 2 else 0.0
 
         # Whitening detection
-        white_frac, white_mask = _detect_whitening(white_strips[name])
+        white_frac, white_mask = _detect_whitening(white_strips[name], strict=not is_front)
 
         continuity = 1.0 - min(variance / 2000.0, 1.0)
 
         # PSA-style: start at 10.0, deduct
         escore = 10.0
 
-        if variance > 1500:
-            defects.append(f"Uneven / chipped {name} edge")
-            escore -= 2.5
-        elif variance > 800:
-            defects.append(f"Minor roughness on {name} edge")
-            escore -= 1.0
+        loc = {
+            "left": {"x": 0.0, "y": 0.0, "width": white_strip / w, "height": 1.0},
+            "right": {"x": (w - white_strip) / w, "y": 0.0, "width": white_strip / w, "height": 1.0},
+            "top": {"x": 0.0, "y": 0.0, "width": 1.0, "height": white_strip / h},
+            "bottom": {"x": 0.0, "y": (h - white_strip) / h, "width": 1.0, "height": white_strip / h},
+        }[name]
 
-        if white_frac > 0.25:
-            defects.append(f"Heavy whitening on {name} edge ({white_frac * 100:.0f}%)")
-            escore -= 4.5
-        elif white_frac > 0.15:
-            defects.append(f"Whitening on {name} edge ({white_frac * 100:.0f}%)")
-            escore -= 3.0
-        elif white_frac > 0.06:
-            defects.append(f"Light whitening on {name} edge")
-            escore -= 1.5
+        if variance > 1500:
+            detections.append(Detection(
+                label=f"Uneven / chipped {name} edge",
+                kind="chip",
+                category="edges",
+                severity="moderate",
+                confidence=0.7,
+                location=loc,
+            ))
+            escore -= 2.5 * 0.7
+        elif variance > 800:
+            detections.append(Detection(
+                label=f"Minor roughness on {name} edge",
+                kind="wear",
+                category="edges",
+                severity="light",
+                confidence=0.55,
+                location=loc,
+            ))
+            escore -= 1.0 * 0.55
+
+        white_det = detection_from_frac(
+            label=f"Whitening on {name} edge",
+            kind="whitening",
+            category="edges",
+            frac=white_frac,
+            location=loc,
+            heavy_at=0.25,
+            moderate_at=0.15,
+            light_at=0.06,
+        )
+        if white_det.severity != "none":
+            detections.append(white_det)
+            escore -= min(4.5, 12.0 * white_det.coverage) * white_det.confidence
 
         # Also flag high Canny density as possible whitening
         if density > 0.35 and white_frac < 0.03:
-            defects.append(f"Possible whitening/lifting on {name} edge")
-            escore -= 1.2
+            detections.append(Detection(
+                label=f"Possible whitening/lifting on {name} edge",
+                kind="whitening",
+                category="edges",
+                severity="trace",
+                confidence=0.48,
+                location=loc,
+            ))
+            escore -= 1.2 * 0.48
 
         edge_integrity = round(min(10.0, 4.0 + 6.0 * continuity), 1)
         strip_scores.append(round(np.clip(escore, 1.0, 10.0), 1))
@@ -1713,7 +1961,13 @@ def analyze_edges(
             angles.append(min(ang, 90 - ang))
         mean_dev = float(np.mean(angles)) if angles else 0
         if mean_dev > 4:
-            defects.append("Possible card warp / edge skew")
+            detections.append(Detection(
+                label="Possible card warp / edge skew",
+                kind="wear",
+                category="edges",
+                severity="light",
+                confidence=0.5,
+            ))
             warp_penalty = min(2.0, mean_dev * 0.2)
 
     avg = float(np.mean(strip_scores)) if strip_scores else 4.0
@@ -1723,10 +1977,21 @@ def analyze_edges(
     heavy_white_edges = sum(1 for d in edge_details if d.get("whitening", 0) > 0.10)
     if heavy_white_edges >= 3:
         score = min(score, 3.0)
-        defects.append("Heavy whitening on multiple edges")
+        detections.append(Detection(
+            label="Heavy whitening on multiple edges",
+            kind="whitening",
+            category="edges",
+            severity="severe",
+            confidence=0.88,
+            coverage=0.4,
+        ))
     elif heavy_white_edges >= 2:
         score = min(score, 5.0)
     score = round(float(np.clip(score, 1.0, 10.0)), 1)
+
+    merged_edges = merge_detections(detections)
+    defects = detections_to_defect_strings(merged_edges)
+    mean_edge_conf = float(np.mean([d.confidence for d in merged_edges])) if merged_edges else 0.78
 
     details = (
         f"Edge continuity avg {avg:.1f}/10 (worst {worst:.1f}). "
@@ -1878,10 +2143,16 @@ def analyze_edges(
                 cv2.line(crop_bgr, (0, gy), (cw_img, gy), outline, 3, cv2.LINE_AA)
                 cv2.line(crop_bgr, (0, gy), (cw_img, gy), guide, 1, cv2.LINE_AA)
 
+            overlay_loc = {
+                "left": {"x": 0.0, "y": 0.0, "width": white_strip / w, "height": 1.0},
+                "right": {"x": (w - white_strip) / w, "y": 0.0, "width": white_strip / w, "height": 1.0},
+                "top": {"x": 0.0, "y": 0.0, "width": 1.0, "height": white_strip / h},
+                "bottom": {"x": 0.0, "y": (h - white_strip) / h, "width": 1.0, "height": white_strip / h},
+            }[name]
             crops.append({
                 "label": f"{name.title()} edge",
                 "image": encode_crop(crop_bgr),
-                "location": {"x": ex / vw, "y": ey / vh, "width": ew / vw, "height": eh / vh},
+                "location": overlay_loc,
             })
 
             edge_defects = [d for d in defects if name in d.lower()]
@@ -1896,16 +2167,34 @@ def analyze_edges(
                     crops.append({
                         "label": f"{name.title()} edge defect",
                         "image": highlight,
-                        "location": {"x": ex / vw, "y": ey / vh, "width": ew / vw, "height": eh / vh},
+                        "location": overlay_loc,
                     })
 
-    result = CategoryResult(score=score, details=details, defects=defects, crops=crops)
+    result = CategoryResult(
+        score=score,
+        details=details,
+        defects=defects,
+        crops=crops,
+        confidence=mean_edge_conf,
+        confidence_band=confidence_band(mean_edge_conf),
+        detections=[d.to_dict() for d in merged_edges],
+    )
     result.deviations = {"edgeDetails": edge_details}
     return result
 
 
-def analyze_surface(card: np.ndarray, annotate: bool = True) -> CategoryResult:
-    """Surface defects via variance, scratches, print lines, and crease/tear detection."""
+def analyze_surface(
+    card: np.ndarray,
+    annotate: bool = True,
+    *,
+    quality: Any | None = None,
+    finish: str = "non-holo",
+) -> CategoryResult:
+    """Surface defects via variance, scratches, and crease/tear detection.
+
+    When the quality gate refuses surface, this returns a withheld result and
+    does not emit scratches, print texture, or crease findings.
+    """
     gray = cv2.cvtColor(card, cv2.COLOR_BGR2GRAY)
     h, w = gray.shape
     m = max(4, min(h, w) // 20)
@@ -1913,16 +2202,37 @@ def analyze_surface(card: np.ndarray, annotate: bool = True) -> CategoryResult:
     if inner.size < 100:
         inner = gray
 
-    defects: list[str] = []
+    glare = float(getattr(quality, "glare_ratio", 0.0) or 0.0) if quality is not None else 0.0
+    surface_ok = True if quality is None else bool(getattr(quality, "surface_ok", True))
+    refuse_msg = getattr(quality, "surface_message", None) if quality is not None else None
+
+    if not surface_ok:
+        details = refuse_msg or (
+            "Surface analysis unreliable from this photo. Retake without glare, "
+            "unsleeved, at a slight angle."
+        )
+        return CategoryResult(
+            score=None,
+            details=details,
+            defects=[],
+            withheld=True,
+            withheld_reason=details,
+            confidence=0.2,
+            confidence_band="low",
+            score_low=5.0,
+            score_high=8.0,
+            detections=[],
+            crops=[],
+            deviations={"structural": {"severity": 0, "creaseCount": 0, "majorCrease": False, "possibleTear": False}},
+        )
+
+    detections: list[Detection] = []
 
     blur = cv2.GaussianBlur(inner, (5, 5), 0)
     local_var = cv2.blur((inner.astype(np.float32) - blur.astype(np.float32)) ** 2, (9, 9))
     var_mean = float(local_var.mean())
     var_std = float(local_var.std()) + 1e-6
-    # Detect holographic/foil surface: high L-channel std + high mean variance
-    lab_full = cv2.cvtColor(card, cv2.COLOR_BGR2LAB)
-    holo_indicator = float(np.std(lab_full[:, :, 0].astype(np.float32)))
-    is_holo = holo_indicator > 45 and var_mean > 150
+    is_holo = finish in ("standard-holo", "reverse-holo", "textured")
     hotspots = (local_var > (var_mean + 3.0 * var_std)).astype(np.uint8) * 255
     hotspot_ratio = hotspots.mean() / 255.0
 
@@ -1938,64 +2248,145 @@ def analyze_surface(card: np.ndarray, annotate: bool = True) -> CategoryResult:
     sobel_y = cv2.Sobel(inner, cv2.CV_64F, 0, 1, ksize=3)
     horiz_energy = float(np.abs(sobel_y).mean())
 
-    structural = _detect_structural_damage(card)
+    structural = _detect_structural_damage(card, glare_ratio=glare)
 
-    # PSA-style: start at 10.0, deduct for each defect
     score = 10.0
+    inner_loc = {"x": m / w, "y": m / h, "width": (w - 2 * m) / w, "height": (h - 2 * m) / h}
 
-    hotspot_threshold = 0.15 if is_holo else 0.08
-    light_hotspot_threshold = 0.08 if is_holo else 0.04
+    hotspot_threshold = 0.22 if finish == "textured" else 0.18 if is_holo else 0.08
+    light_hotspot_threshold = 0.12 if is_holo else 0.04
+    scratch_heavy = 0.10 if is_holo else 0.06
+    scratch_light = 0.055 if is_holo else 0.03
+
     if hotspot_ratio > hotspot_threshold:
-        defects.append("Surface scratches or scuffs detected")
-        score -= 2.0
+        det = Detection(
+            label="Surface scratches or scuffs",
+            kind="scratch",
+            category="surface",
+            severity="moderate",
+            confidence=min(0.9, 0.55 + hotspot_ratio * 2),
+            coverage=hotspot_ratio,
+            location=None,
+        )
+        detections.append(det)
+        score -= 2.0 * det.confidence
     elif hotspot_ratio > light_hotspot_threshold:
-        defects.append("Light surface wear")
-        score -= 0.8
+        det = Detection(
+            label="Light surface wear",
+            kind="scratch",
+            category="surface",
+            severity="light",
+            confidence=0.58,
+            coverage=hotspot_ratio,
+            location=None,
+        )
+        detections.append(det)
+        score -= 0.8 * det.confidence
 
-    if scratch_score > 0.06:
-        defects.append("Linear scratch marks")
-        score -= 1.5
-    elif scratch_score > 0.03:
-        defects.append("Faint scratch traces")
-        score -= 0.5
+    if scratch_score > scratch_heavy:
+        det = Detection(
+            label="Linear scratch marks",
+            kind="scratch",
+            category="surface",
+            severity="moderate",
+            confidence=min(0.88, 0.5 + scratch_score * 4),
+            coverage=scratch_score,
+            location=None,
+        )
+        detections.append(det)
+        score -= 1.5 * det.confidence
+    elif scratch_score > scratch_light and not is_holo:
+        det = Detection(
+            label="Faint scratch traces",
+            kind="scratch",
+            category="surface",
+            severity="trace",
+            confidence=0.5,
+            coverage=scratch_score,
+            location=None,
+        )
+        detections.append(det)
+        score -= 0.5 * det.confidence
 
-    if horiz_energy > 18 and scratch_score > 0.02:
-        defects.append("Possible print lines on surface")
-        score -= 1.0
-    elif horiz_energy > 25:
-        defects.append("Surface texture irregularity (print)")
-        score -= 0.5
+    # Print lines / foil texture: do not treat as damage on holo/textured cards
+    if not is_holo:
+        if horiz_energy > 18 and scratch_score > 0.02:
+            detections.append(Detection(
+                label="Possible print lines on surface",
+                kind="other",
+                category="surface",
+                severity="light",
+                confidence=0.52,
+                location=None,
+            ))
+            score -= 1.0 * 0.52
 
     bgr_inner = card[m : h - m, m : w - m] if card.shape[0] > 2 * m else card
     lab = cv2.cvtColor(bgr_inner, cv2.COLOR_BGR2LAB)
     l_std = float(lab[:, :, 0].std())
-    if l_std > 65 and hotspot_ratio > 0.025:
-        defects.append("Possible surface clouding / denting")
-        score -= 1.2
+    if l_std > 65 and hotspot_ratio > 0.025 and not is_holo:
+        detections.append(Detection(
+            label="Possible surface clouding / denting",
+            kind="dent",
+            category="surface",
+            severity="light",
+            confidence=0.5,
+            location=None,
+        ))
+        score -= 1.2 * 0.5
 
-    # Creases / folds / tears — hard caps (these dominate PSA surface grades)
-    if structural["possible_tear"]:
-        defects.append("Possible tear or severe edge-reaching crease")
+    crease_conf = float(structural.get("confidence") or 0.35)
+    if structural["possible_tear"] and crease_conf >= 0.8:
+        detections.append(Detection(
+            label="Possible tear or severe edge-reaching crease",
+            kind="tear",
+            category="surface",
+            severity="severe",
+            confidence=crease_conf,
+            location=None,
+        ))
         score = min(score, 2.0)
-    elif structural["major_crease"]:
+    elif structural["major_crease"] and crease_conf >= 0.8:
         n = structural["crease_count"]
-        defects.append(
-            f"Major crease/fold damage detected ({n} line{'s' if n != 1 else ''})"
-        )
-        score = min(score, 3.5)
-    elif structural["crease_count"] >= 1:
-        defects.append("Crease or fold line detected")
-        score = min(score - 2.0, 5.0)
-        score -= structural["severity"] * 1.0
+        detections.append(Detection(
+            label="Major crease/fold damage",
+            kind="crease",
+            category="surface",
+            severity="severe",
+            confidence=crease_conf,
+            coverage=float(structural.get("max_len_frac") or 0),
+            location=None,
+        ))
+        score = min(score, 4.0)
+    elif structural["crease_count"] >= 1 and crease_conf >= 0.7:
+        detections.append(Detection(
+            label="Crease or fold line",
+            kind="crease",
+            category="surface",
+            severity="moderate",
+            confidence=crease_conf,
+            location=None,
+        ))
+        score = min(score - 2.0 * crease_conf, 5.0)
 
-    score = round(np.clip(score, 1.0, 10.0), 1)
+    score = round(float(np.clip(score, 1.0, 10.0)), 1)
+    merged = merge_detections(detections)
+    defects = detections_to_defect_strings(merged, min_conf=0.65)
+    mean_conf = float(np.mean([d.confidence for d in merged])) if merged else 0.72
+    if is_holo:
+        mean_conf = min(mean_conf, 0.62)
 
     details = (
-        f"Surface uniformity {score}/10 "
-        f"(hotspot {hotspot_ratio * 100:.1f}%, scratch index {scratch_score:.3f}"
-        f"{', crease severity ' + str(structural['severity']) if structural['crease_count'] else ''}). "
-        f"{'Clean surface.' if score >= 9.0 else 'Minor surface marks.' if score >= 7.0 else 'Visible surface defects.' if score >= 4.0 else 'Severe surface damage.'}"
+        "Clean surface."
+        if score >= 9.0
+        else "Minor surface marks."
+        if score >= 7.0
+        else "Visible surface defects."
+        if score >= 4.0
+        else "Severe surface damage."
     )
+    if is_holo:
+        details += f" Finish treated as {finish} — foil speculars are not counted as scratches."
 
     crops: list[dict[str, Any]] = []
     if annotate:
@@ -2010,11 +2401,11 @@ def analyze_surface(card: np.ndarray, annotate: bool = True) -> CategoryResult:
         crops.append({
             "label": "Surface heatmap (red = defect zones)",
             "image": encode_crop(overlay),
-            "location": {"x": m / w, "y": m / h, "width": (w - 2 * m) / w, "height": (h - 2 * m) / h},
+            "location": inner_loc,
         })
 
         line_mask = structural.get("line_mask")
-        if line_mask is not None and line_mask.any():
+        if line_mask is not None and line_mask.any() and crease_conf >= 0.7:
             crease_viz = card.copy()
             crease_viz[line_mask > 0] = (0, 0, 255)
             crease_viz = cv2.addWeighted(card, 0.55, crease_viz, 0.45, 0)
@@ -2027,7 +2418,7 @@ def analyze_surface(card: np.ndarray, annotate: bool = True) -> CategoryResult:
         crops.append({
             "label": "Full card surface",
             "image": encode_crop(inner_bgr),
-            "location": {"x": m / w, "y": m / h, "width": (w - 2 * m) / w, "height": (h - 2 * m) / h},
+            "location": inner_loc,
         })
         if defects:
             hotspot_coords = np.where(local_var > var_mean + 2.0 * var_std)
@@ -2056,14 +2447,28 @@ def analyze_surface(card: np.ndarray, annotate: bool = True) -> CategoryResult:
                             "location": {"x": cx1 / w, "y": cy1 / h, "width": (cx2 - cx1) / w, "height": (cy2 - cy1) / h},
                         })
 
-    result = CategoryResult(score=score, details=details, defects=defects, crops=crops)
+    rng = category_range(score, mean_conf, False)
+    result = CategoryResult(
+        score=score,
+        details=details,
+        defects=defects,
+        crops=crops,
+        confidence=mean_conf,
+        confidence_band=rng["band"],
+        detections=[d.to_dict() for d in merged],
+        score_low=rng["low"],
+        score_high=rng["high"],
+    )
     result.deviations = {
         "structural": {
             "severity": structural["severity"],
             "creaseCount": structural["crease_count"],
             "majorCrease": structural["major_crease"],
             "possibleTear": structural["possible_tear"],
-        }
+            "confidence": crease_conf,
+        },
+        "finish": finish,
+        "glareRatio": glare,
     }
     return result
 
@@ -2075,6 +2480,8 @@ def grade_side(
     annotate: bool = True,
     is_front: bool = True,
     extraction: Any | None = None,
+    quality: Any | None = None,
+    extra_cards: list[np.ndarray] | None = None,
 ) -> dict[str, Any]:
     """
     Grade one side (front or back) of a card.
@@ -2108,23 +2515,25 @@ def grade_side(
         **(c_info.get("deviations") or {}),
     }
 
-    # Corners / edges / surface: ONNX specialists with heuristic fallback,
-    # still using legacy analyzers for crops / evidence imagery.
-    corners = analyze_corners(card, annotate, display=display, meta=meta)
-    edges = analyze_edges(card, annotate, display=display, meta=meta)
-    surface = analyze_surface(card, annotate)
+    from quality_gate import classify_finish
+
+    finish = classify_finish(card)
+
+    # Corners / edges / surface: specialists on localized crops, not the whole card.
+    corners = analyze_corners(card, annotate, display=display, meta=meta, is_front=is_front)
+    edges = analyze_edges(card, annotate, display=display, meta=meta, is_front=is_front)
+    surface = analyze_surface(card, annotate, quality=quality, finish=finish)
 
     corner_pred = predict_axis("corners", card)
     edge_pred = predict_axis("edges", card)
-    surface_pred = predict_axis("surface", card)
 
-    heuristic_corners_score = corners.score
+    heuristic_corners_score = float(corners.score or 5.0)
     onnx_corners_score = float(corner_pred["score"])
     onnx_corners_conf = float(corner_pred.get("confidence", 0.5))
     corners.score = round(heuristic_corners_score * (1.0 - onnx_corners_conf) + onnx_corners_score * onnx_corners_conf, 1)
+    corners.confidence = min(corners.confidence, onnx_corners_conf if corner_pred.get("source") == "onnx" else corners.confidence)
+    corners.confidence_band = confidence_band(corners.confidence)
     corners.defects = list(dict.fromkeys([*(corners.defects or []), *(corner_pred.get("defects") or [])]))
-    if corner_pred.get("source") == "onnx":
-        corners.details = f"Corners specialist model · {corners.score}/10. {corners.details}"
     corners.deviations = {
         **(corners.deviations or {}),
         "confidence": corner_pred.get("confidence"),
@@ -2133,13 +2542,13 @@ def grade_side(
         "onnxScore": onnx_corners_score,
     }
 
-    heuristic_edges_score = edges.score
+    heuristic_edges_score = float(edges.score or 5.0)
     onnx_edges_score = float(edge_pred["score"])
     onnx_edges_conf = float(edge_pred.get("confidence", 0.5))
     edges.score = round(heuristic_edges_score * (1.0 - onnx_edges_conf) + onnx_edges_score * onnx_edges_conf, 1)
+    edges.confidence = min(edges.confidence, onnx_edges_conf if edge_pred.get("source") == "onnx" else edges.confidence)
+    edges.confidence_band = confidence_band(edges.confidence)
     edges.defects = list(dict.fromkeys([*(edges.defects or []), *(edge_pred.get("defects") or [])]))
-    if edge_pred.get("source") == "onnx":
-        edges.details = f"Edges specialist model · {edges.score}/10. {edges.details}"
     edges.deviations = {
         **(edges.deviations or {}),
         "confidence": edge_pred.get("confidence"),
@@ -2148,60 +2557,145 @@ def grade_side(
         "onnxScore": onnx_edges_score,
     }
 
-    heuristic_surface_score = surface.score
-    onnx_surface_score = float(surface_pred["score"])
-    onnx_surface_conf = float(surface_pred.get("confidence", 0.5))
-    surface.score = round(heuristic_surface_score * (1.0 - onnx_surface_conf) + onnx_surface_score * onnx_surface_conf, 1)
-    surface.defects = list(dict.fromkeys([*(surface.defects or []), *(surface_pred.get("defects") or [])]))
-    if surface_pred.get("source") == "onnx":
-        surface.details = f"Surface specialist model · {surface.score}/10. {surface.details}"
-    # Preserve structural damage from classical detector
-    structural = (surface.deviations or {}).get("structural") or {}
-    surface.deviations = {
-        **(surface.deviations or {}),
-        "confidence": surface_pred.get("confidence"),
-        "source": surface_pred.get("source"),
-        "structural": structural,
-    }
+    surface_pred: dict[str, Any] = {"score": surface.score, "confidence": 0.2, "defects": [], "source": "withheld"}
+    if not surface.withheld:
+        surface_pred = predict_axis("surface", card)
+        heuristic_surface_score = float(surface.score or 5.0)
+        onnx_surface_score = float(surface_pred["score"])
+        onnx_surface_conf = float(surface_pred.get("confidence", 0.5))
+        # Holo/foil: do not let a generic surface model dominate
+        if finish in ("standard-holo", "textured"):
+            onnx_surface_conf *= 0.45
+        surface.score = round(
+            heuristic_surface_score * (1.0 - onnx_surface_conf) + onnx_surface_score * onnx_surface_conf,
+            1,
+        )
+        surface.confidence = min(surface.confidence, max(0.25, onnx_surface_conf))
+        surface.confidence_band = confidence_band(surface.confidence)
+        surface.defects = list(dict.fromkeys([*(surface.defects or []), *(surface_pred.get("defects") or [])]))
+        structural = (surface.deviations or {}).get("structural") or {}
+        surface.deviations = {
+            **(surface.deviations or {}),
+            "confidence": surface_pred.get("confidence"),
+            "source": surface_pred.get("source"),
+            "structural": structural,
+        }
+    else:
+        structural = (surface.deviations or {}).get("structural") or {}
+
+    centering.confidence = float(c_info.get("confidence") or 0.7)
+    centering.confidence_band = "low" if c_info.get("lowConfidence") else confidence_band(centering.confidence)
 
     if not found:
-        for cat in (centering, corners, edges, surface):
-            cat.score = round(max(1.0, cat.score * 0.92), 1)
+        for cat in (centering, corners, edges):
+            if cat.score is not None:
+                cat.score = round(max(1.0, cat.score * 0.92), 1)
         centering.defects.append("Card boundary uncertain — scores may be conservative")
 
-    # PSA-like limiter: overall biased toward worst category (not soft average)
-    scores = [centering.score, corners.score, edges.score, surface.score]
-    avg = float(np.mean(scores))
-    worst = min(scores)
-    overall = round(avg * 0.35 + worst * 0.65, 1)
+    all_dets: list[Detection] = []
+    for cat in (corners, edges, surface):
+        for raw in cat.detections or []:
+            try:
+                all_dets.append(
+                    Detection(
+                        label=str(raw.get("label") or ""),
+                        kind=str(raw.get("kind") or "other"),
+                        category=str(raw.get("category") or "surface"),
+                        severity=str(raw.get("severity") or "light"),
+                        confidence=float(raw.get("confidence") or 0.5),
+                        coverage=float(raw.get("coverage") or 0),
+                        location=raw.get("location"),
+                    )
+                )
+            except Exception:
+                continue
 
-    # Structural hard-caps — only when classical detector and surface score agree
-    # (avoids artwork/texture false positives crushing otherwise clean cards)
-    if structural.get("possibleTear") and surface.score < 6.5:
-        overall = min(overall, 2.0)
-        surface.defects.append("Possible tear / edge-reaching crease")
-    elif structural.get("majorCrease") and surface.score < 6.5:
-        overall = min(overall, 3.5)
-        if "Major crease" not in " ".join(surface.defects):
-            surface.defects.append("Major crease detected")
-    elif structural.get("creaseCount", 0) >= 3 and surface.score < 7.0:
-        overall = min(overall, 5.0)
-
-    # Half-point snap
-    overall = round(overall * 2) / 2
+    surface_ok = not surface.withheld
+    math = bottleneck_overall(
+        {
+            "centering": centering.score,
+            "corners": corners.score,
+            "edges": edges.score,
+            "surface": None if surface.withheld else surface.score,
+        },
+        all_dets,
+        surface_ok=surface_ok,
+    )
+    overall = float(math["grade"])
     grade, label = score_to_grade(overall)
 
     axis_conf = [
         float(c_info.get("confidence") or 0.5),
         float(corner_pred.get("confidence") or 0.5),
         float(edge_pred.get("confidence") or 0.5),
-        float(surface_pred.get("confidence") or 0.5),
+        0.2 if surface.withheld else float(surface_pred.get("confidence") or 0.5),
     ]
     side_confidence = float(np.mean(axis_conf))
     if c_info.get("lowConfidence"):
         side_confidence = min(side_confidence, 0.45)
     if not found:
         side_confidence = min(side_confidence, 0.4)
+    if surface.withheld:
+        side_confidence = min(side_confidence, 0.55)
+
+    from measurement import corner_geometry, edge_profiles, to_tcg_points
+    from multi_frame import inspect_frames, should_keep_surface_detection
+
+    fusion = inspect_frames(card, extra_cards or [])
+    if extra_cards and not surface.withheld:
+        kept = []
+        for raw in surface.detections or []:
+            kind = str(raw.get("kind") or "other")
+            if should_keep_surface_detection(fusion, kind):
+                kept.append(raw)
+        if len(kept) != len(surface.detections or []):
+            surface.detections = kept
+            from defect_grouping import Detection, detections_to_defect_strings
+            dets = [
+                Detection(
+                    label=str(d.get("label") or ""),
+                    kind=str(d.get("kind") or "other"),
+                    category="surface",
+                    severity=str(d.get("severity") or "light"),
+                    confidence=float(d.get("confidence") or 0.5),
+                    coverage=float(d.get("coverage") or 0),
+                    location=d.get("location"),
+                )
+                for d in kept
+            ]
+            surface.defects = detections_to_defect_strings(dets)
+        if fusion.get("unconfirmedLikelyGlare") and not any(
+            str(d.get("kind")) in ("crease", "tear") for d in (surface.detections or [])
+        ):
+            surface.details = (
+                (surface.details or "") + " "
+                + fusion["message"]
+                + " Scratch-like findings that did not persist across lighting angles were dropped."
+            ).strip()
+        surface.deviations = {**(surface.deviations or {}), "multiFrame": fusion}
+
+    edges.deviations = {
+        **(edges.deviations or {}),
+        "profiles": edge_profiles(card),
+    }
+    corners.deviations = {
+        **(corners.deviations or {}),
+        "geometry": corner_geometry(card),
+    }
+
+    tcg = {
+        "centering": to_tcg_points(centering.score),
+        "corners": to_tcg_points(corners.score),
+        "edges": to_tcg_points(edges.score),
+        "surface": None if surface.withheld else to_tcg_points(surface.score),
+    }
+
+    remap_meta = dict(meta or {})
+    if extraction is not None and getattr(extraction, "corners", None) is not None:
+        remap_meta.setdefault("corners", np.asarray(extraction.corners, dtype=float).tolist())
+        remap_meta.setdefault("warped", True)
+    for cat in (centering, corners, edges, surface):
+        _remap_category_locations(cat, card=card, display=display, meta=remap_meta)
 
     return {
         "centering": centering,
@@ -2216,7 +2710,55 @@ def grade_side(
         "confidence": round(side_confidence, 3),
         "extraction": ext_meta,
         "cardImage": card,
+        "finish": finish,
+        "surfaceRefused": surface.withheld,
+        "psaRange": {"low": math["low"], "high": math["high"]},
+        "psaDistribution": math["mass"],
+        "modelGrade": overall,
+        "tcgScore": tcg,
+        "multiFrame": fusion,
     }
+
+
+def _warp_extra_frames(
+    extra_frames: list[tuple[str, Image.Image]] | None,
+    side: str,
+    max_side: int,
+) -> list[np.ndarray]:
+    """Warp extra illumination/angle shots for one side onto canonical size."""
+    from extraction import extract_card
+
+    if not extra_frames:
+        return []
+    out: list[np.ndarray] = []
+    for role, img in extra_frames:
+        if not str(role).startswith(side):
+            continue
+        bgr = pil_to_cv(img)
+        h, w = bgr.shape[:2]
+        if max(h, w) > max_side:
+            scale = max_side / max(h, w)
+            bgr = cv2.resize(bgr, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+        ext = extract_card(bgr, require_detection=False)
+        if ext.card_bgr is not None and ext.card_bgr.size:
+            out.append(ext.card_bgr)
+    return out
+
+
+def _tcg_score_payload(side_or_scores: dict[str, Any], score_map: dict[str, float | None] | None = None) -> dict[str, Any]:
+    from measurement import tcg_overall, to_tcg_points
+
+    if score_map is not None:
+        cats = {k: to_tcg_points(v) for k, v in score_map.items()}
+    else:
+        cats = side_or_scores.get("tcgScore") or {
+            "centering": to_tcg_points(getattr(side_or_scores.get("centering"), "score", None)),
+            "corners": to_tcg_points(getattr(side_or_scores.get("corners"), "score", None)),
+            "edges": to_tcg_points(getattr(side_or_scores.get("edges"), "score", None)),
+            "surface": to_tcg_points(getattr(side_or_scores.get("surface"), "score", None)),
+        }
+    overall = tcg_overall(cats)
+    return {"overall": overall, "categories": cats}
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -2226,6 +2768,8 @@ def grade_card_image(
     back_img: Image.Image | None = None,
     *,
     strict_extraction: bool = False,
+    extra_frames: list[tuple[str, Image.Image]] | None = None,
+    scan_mode: str = "quick",
 ) -> dict[str, Any]:
     """
     Full PSA-style grading pipeline. Accepts front (required) and back (optional) PIL Images.
@@ -2234,7 +2778,7 @@ def grade_card_image(
     """
     from extraction import extract_card
     from model_inference import provider_info
-    from quality_gate import assess_image_quality, quality_confidence_penalty
+    from quality_gate import assess_card_quality, assess_image_quality, quality_confidence_penalty
 
     front_quality = assess_image_quality(front_img)
     if not front_quality.ok:
@@ -2251,7 +2795,16 @@ def grade_card_image(
     if strict_extraction and not front_ext.found:
         raise ValueError(f"{front_ext.code or 'card_not_detected'}:{front_ext.message or 'Card not detected'}")
 
-    front_result = grade_side(front_bgr, annotate=True, is_front=True, extraction=front_ext)
+    front_card_q = assess_card_quality(front_ext.card_bgr, extraction=front_ext, raw_bgr=front_bgr)
+    front_extras = _warp_extra_frames(extra_frames, "front", max_side)
+    front_result = grade_side(
+        front_bgr,
+        annotate=True,
+        is_front=True,
+        extraction=front_ext,
+        quality=front_card_q,
+        extra_cards=front_extras,
+    )
 
     front_cats = {
         "centering": front_result["centering"],
@@ -2260,8 +2813,9 @@ def grade_card_image(
         "surface": front_result["surface"],
     }
 
-    q_pen = quality_confidence_penalty(front_quality.metrics)
+    q_pen = quality_confidence_penalty(front_card_q.metrics)
     overall_confidence = float(front_result.get("confidence", 0.6)) * q_pen
+    surface_refused = bool(front_result.get("surfaceRefused"))
 
     result: dict[str, Any] = {
         "id": f"grade-{uuid.uuid4().hex[:12]}",
@@ -2271,11 +2825,23 @@ def grade_card_image(
         "suggestedCondition": grade_to_condition(front_result["grade"]),
         "front": {k: v.to_dict() for k, v in front_cats.items()},
         "confidence": round(overall_confidence, 3),
-        "quality": front_quality.to_dict(),
+        "quality": {**front_quality.to_dict(), **front_card_q.to_dict(), "ok": True},
         "extraction": front_result.get("extraction") or front_ext.to_debug_dict(),
         "provider": provider_info(),
         "retakeRecommended": overall_confidence < 0.5,
+        "surfaceRefused": surface_refused,
+        "surfaceRetakeRecommended": surface_refused,
+        "psaRange": front_result.get("psaRange"),
+        "psaDistribution": front_result.get("psaDistribution"),
+        "modelGrade": front_result.get("modelGrade", front_result["grade"]),
+        "finishType": front_result.get("finish"),
+        "scanMode": scan_mode,
+        "tcgScore": _tcg_score_payload(front_result),
+        "multiFrame": front_result.get("multiFrame"),
+        "frameCount": 1 + len(front_extras),
     }
+    if surface_refused and front_card_q.surface_message:
+        result["limitations"] = front_card_q.surface_message
 
     # Grade back if provided
     if back_img is not None:
@@ -2293,7 +2859,16 @@ def grade_card_image(
         if strict_extraction and not back_ext.found:
             raise ValueError(f"{back_ext.code or 'card_not_detected'}:{back_ext.message or 'Back card not detected'}")
 
-        back_result = grade_side(back_bgr, annotate=True, is_front=False, extraction=back_ext)
+        back_card_q = assess_card_quality(back_ext.card_bgr, extraction=back_ext, raw_bgr=back_bgr)
+        back_extras = _warp_extra_frames(extra_frames, "back", max_side)
+        back_result = grade_side(
+            back_bgr,
+            annotate=True,
+            is_front=False,
+            extraction=back_ext,
+            quality=back_card_q,
+            extra_cards=back_extras,
+        )
         back_cats = {
             "centering": back_result["centering"],
             "corners": back_result["corners"],
@@ -2301,45 +2876,96 @@ def grade_card_image(
             "surface": back_result["surface"],
         }
         result["back"] = {k: v.to_dict() for k, v in back_cats.items()}
-        result["backQuality"] = back_quality.to_dict()
+        result["backQuality"] = {**back_quality.to_dict(), **back_card_q.to_dict(), "ok": True}
         result["backExtraction"] = back_result.get("extraction") or back_ext.to_debug_dict()
 
-        blended_scores = []
         combined_cats: dict[str, dict[str, Any]] = {}
+        score_map: dict[str, float | None] = {}
+        combined_dets: list[Detection] = []
         for cat_name in front_cats:
             front_score = front_cats[cat_name].score
             back_score = back_cats[cat_name].score
-            worse = back_cats[cat_name] if back_score < front_score else front_cats[cat_name]
-            worse_val = min(front_score, back_score)
-            better_val = max(front_score, back_score)
-            blended = round(worse_val * 0.7 + better_val * 0.3, 1)
-            blended_scores.append(blended)
+            front_w = bool(getattr(front_cats[cat_name], "withheld", False))
+            back_w = bool(getattr(back_cats[cat_name], "withheld", False))
+            if front_w and back_w:
+                worse = front_cats[cat_name]
+                blended = None
+            elif front_w:
+                worse = back_cats[cat_name]
+                blended = back_score
+            elif back_w:
+                worse = front_cats[cat_name]
+                blended = front_score
+            else:
+                worse = back_cats[cat_name] if (back_score or 10) < (front_score or 10) else front_cats[cat_name]
+                worse_val = min(front_score or 10, back_score or 10)
+                better_val = max(front_score or 1, back_score or 1)
+                blended = round(worse_val * 0.7 + better_val * 0.3, 1)
+            score_map[cat_name] = blended
             combined = worse.to_dict()
             combined["score"] = blended
-            if front_score != back_score:
+            if front_w and back_w:
+                combined["withheld"] = True
+                combined["withheldReason"] = (
+                    getattr(front_cats[cat_name], "withheld_reason", None)
+                    or getattr(back_cats[cat_name], "withheld_reason", None)
+                )
+            elif front_w or back_w:
+                combined["withheld"] = False
+                combined["details"] = (
+                    f"{combined.get('details', '')} "
+                    "One side could not be scored for this category (glare/sleeve/lighting)."
+                ).strip()
+            if front_score != back_score and blended is not None:
                 combined["details"] = (
                     f"{combined.get('details', '')} "
                     f"(front {front_score}/10, back {back_score}/10 — weighted blend)."
                 ).strip()
             combined_cats[cat_name] = combined
+            for raw in (worse.detections or []):
+                try:
+                    combined_dets.append(
+                        Detection(
+                            label=str(raw.get("label") or ""),
+                            kind=str(raw.get("kind") or "other"),
+                            category=str(raw.get("category") or cat_name),
+                            severity=str(raw.get("severity") or "light"),
+                            confidence=float(raw.get("confidence") or 0.5),
+                            coverage=float(raw.get("coverage") or 0),
+                            location=raw.get("location"),
+                        )
+                    )
+                except Exception:
+                    pass
 
-        avg_blended = float(np.mean(blended_scores))
-        worst_blended = min(blended_scores)
-        overall = round(avg_blended * 0.35 + worst_blended * 0.65, 1)
-        overall = min(overall, front_result["grade"], back_result["grade"])
-        overall = max(1.0, min(10.0, round(overall * 2) / 2))
+        surface_refused = bool(
+            (front_result.get("surfaceRefused") and back_result.get("surfaceRefused"))
+            or (front_result.get("surfaceRefused") and score_map.get("surface") is None)
+        )
+        surface_retake = bool(front_result.get("surfaceRefused") or back_result.get("surfaceRefused"))
+        math = bottleneck_overall(score_map, combined_dets, surface_ok=not surface_refused)
+        overall = float(math["grade"])
         result["grade"] = overall
         result["gradeLabel"] = score_to_grade(overall)[1]
         result["totalScore"] = round(overall * 100, 1)
         result["suggestedCondition"] = grade_to_condition(overall)
+        result["psaRange"] = {"low": math["low"], "high": math["high"]}
+        result["psaDistribution"] = math["mass"]
+        result["modelGrade"] = overall
+        result["surfaceRefused"] = surface_refused
+        result["surfaceRetakeRecommended"] = surface_retake
+        result["finishType"] = front_result.get("finish") or back_result.get("finish")
 
-        back_pen = quality_confidence_penalty(back_quality.metrics)
+        back_pen = quality_confidence_penalty(back_card_q.metrics)
         overall_confidence = min(
             overall_confidence,
             float(back_result.get("confidence", 0.6)) * back_pen,
         )
         result["confidence"] = round(overall_confidence, 3)
         result["retakeRecommended"] = overall_confidence < 0.5
+        if surface_retake:
+            msgs = [front_card_q.surface_message, back_card_q.surface_message]
+            result["limitations"] = next((m for m in msgs if m), result.get("limitations"))
 
         result["defectRegions"] = _build_defect_regions(front_result, back_result, front_bgr, back_bgr)
 
@@ -2347,6 +2973,12 @@ def grade_card_image(
         result["corners"] = combined_cats["corners"]
         result["edges"] = combined_cats["edges"]
         result["surface"] = combined_cats["surface"]
+        result["tcgScore"] = _tcg_score_payload(front_result, score_map)
+        result["frameCount"] = 2 + len(front_extras) + len(back_extras)
+        result["multiFrame"] = {
+            "front": front_result.get("multiFrame"),
+            "back": back_result.get("multiFrame"),
+        }
     else:
         result["defectRegions"] = _build_defect_regions(front_result, None, front_bgr, None)
         result["centering"] = result["front"]["centering"]
