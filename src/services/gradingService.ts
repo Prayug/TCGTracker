@@ -6,18 +6,19 @@ import {
   GradingStats,
   gradeToVaultCondition,
 } from '../types/grading';
+import { buildGradeDecision } from '../features/grading/gradingDecision';
+import { compressImageDataUrl } from '../utils/imageCompress';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 const HISTORY_KEY = 'tcg_grading_history';
 
-const SCANNER_BASE =
-  import.meta.env.VITE_CARD_SCANNER_API_URL || 'http://localhost:5001';
+const SCANNER_BASE = import.meta.env.VITE_CARD_SCANNER_API_URL || 'http://localhost:5001';
 
 const client = axios.create({
   withCredentials: true,
-  timeout: 60_000,
+  timeout: 90_000,
 });
 
 function validateFile(file: File): string | null {
@@ -39,11 +40,30 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
+async function encodeForApi(
+  image: File | string,
+  opts?: { maxSide?: number; quality?: number }
+): Promise<string> {
+  const raw = typeof image === 'string' ? image : await fileToBase64(image);
+  if (!opts || !raw.startsWith('data:image/')) return raw;
+  return compressImageDataUrl(raw, opts);
+}
+
 function persistLocal(result: GradingResult): void {
   try {
     const existing = loadLocalHistory();
     existing.unshift(result);
     localStorage.setItem(HISTORY_KEY, JSON.stringify(existing.slice(0, 100)));
+  } catch {
+    // ignore quota errors
+  }
+}
+
+export function updateLocalHistoryEntry(id: string, patch: Partial<GradingResult>): void {
+  try {
+    const existing = loadLocalHistory();
+    const next = existing.map((r) => (r.id === id ? { ...r, ...patch } : r));
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
   } catch {
     // ignore quota errors
   }
@@ -96,18 +116,21 @@ export interface GradeCardOptions {
   rawPrice?: number;
   imageUrl?: string;
   backImage?: File | string;
+  extraFrames?: Array<{ role: string; image: File | string }>;
+  scanMode?: 'quick' | 'precision';
 }
 
 function normalizeGradingResult(grading: GradingResult): GradingResult {
   const front = grading.front;
   return {
     ...grading,
-    centering: grading.centering ?? front?.centering ?? {
-      score: 0,
-      details: '',
-      deviations: { leftRight: 0, topBottom: 0 },
-      defects: [],
-    },
+    centering: grading.centering ??
+      front?.centering ?? {
+        score: 0,
+        details: '',
+        deviations: { leftRight: 0, topBottom: 0 },
+        defects: [],
+      },
     corners: grading.corners ?? front?.corners ?? { score: 0, details: '', defects: [] },
     edges: grading.edges ?? front?.edges ?? { score: 0, details: '', defects: [] },
     surface: grading.surface ?? front?.surface ?? { score: 0, details: '', defects: [] },
@@ -117,14 +140,15 @@ function normalizeGradingResult(grading: GradingResult): GradingResult {
 /** Legacy TAG score detection: if a stored category score is > 10, treat as old TAG. */
 function hasLegacyScores(result: GradingResult): boolean {
   const cats = [result.centering, result.corners, result.edges, result.surface];
-  return cats.some((c) => c?.score > 10);
+  return cats.some((c) => typeof c?.score === 'number' && c.score > 10);
 }
 
 /** Normalize legacy TAG scores in-place for display */
 function normalizeLegacyResult(result: GradingResult): GradingResult {
   if (!hasLegacyScores(result)) return result;
   const divisor = result.centering?.score > 100 ? 100 : 25;
-  const norm = (v: number | undefined) => (v != null && v > 10 ? Math.round((v / divisor) * 10) / 10 : v ?? 0);
+  const norm = (v: number | undefined) =>
+    v != null && v > 10 ? Math.round((v / divisor) * 10) / 10 : (v ?? 0);
   return {
     ...result,
     centering: { ...result.centering, score: norm(result.centering?.score) },
@@ -165,6 +189,15 @@ export async function gradeCard(
     }
   }
 
+  const extraFrames = options.extraFrames?.length
+    ? await Promise.all(
+        options.extraFrames.map(async (frame) => ({
+          role: frame.role,
+          image: await encodeForApi(frame.image, { maxSide: 1400, quality: 0.8 }),
+        }))
+      )
+    : undefined;
+
   const payload: Record<string, unknown> = {
     image: base64,
     backImage: backBase64,
@@ -173,30 +206,36 @@ export async function gradeCard(
     game: options.game || 'pokemon',
     rawPrice: options.rawPrice,
     imageUrl: options.imageUrl,
+    extraFrames,
+    scanMode: options.scanMode || (extraFrames?.length ? 'precision' : 'quick'),
   };
+
+  const timeout = extraFrames?.length ? 90_000 : 60_000;
 
   // Prefer Node proxy (stores result)
   try {
-    const res = await client.post(buildApiUrl('/api/grading/analyze'), payload);
+    const res = await client.post(buildApiUrl('/api/grading/analyze'), payload, { timeout });
     const grading = (res.data?.data?.grading || res.data?.grading) as GradingResult;
     if (grading) {
-      const withImage = normalizeLegacyResult(normalizeGradingResult({
-        ...grading,
-        imageUrl: grading.imageUrl || previewUrl,
-        estimatedGradedValue:
-          grading.estimatedGradedValue ??
-          (options.rawPrice != null
-            ? calculateGradedValue(options.rawPrice, grading.grade)
-            : undefined),
-        suggestedCondition:
-          grading.suggestedCondition || gradeToVaultCondition(grading.grade),
-      }));
-      persistLocal(withImage);
-      return withImage;
+      const withImage = normalizeLegacyResult(
+        normalizeGradingResult({
+          ...grading,
+          imageUrl: grading.imageUrl || previewUrl,
+        })
+      );
+      const decided = {
+        ...withImage,
+        suggestedCondition: buildGradeDecision(withImage).marketplace,
+      };
+      persistLocal(decided);
+      return decided;
     }
   } catch (nodeErr: unknown) {
     const ax = nodeErr as {
-      response?: { status?: number; data?: { error?: string; code?: string; retakeRecommended?: boolean } };
+      response?: {
+        status?: number;
+        data?: { error?: string; code?: string; retakeRecommended?: boolean };
+      };
       message?: string;
     };
     if (ax.response?.status === 422) {
@@ -207,30 +246,27 @@ export async function gradeCard(
   }
 
   // Fallback: Flask CV service
-  const flask = await axios.post(
-    `${SCANNER_BASE}/api/grade-card`,
-    payload,
-    { timeout: 60_000, headers: { 'Content-Type': 'application/json' } }
-  );
+  const flask = await axios.post(`${SCANNER_BASE}/api/grade-card`, payload, {
+    timeout,
+    headers: { 'Content-Type': 'application/json' },
+  });
 
   if (!flask.data?.success || !flask.data?.grading) {
     throw new Error(flask.data?.error || 'Grading failed');
   }
 
-  const grading = normalizeLegacyResult(normalizeGradingResult({
-    ...flask.data.grading,
-    imageUrl: flask.data.grading.imageUrl || previewUrl,
-    estimatedGradedValue:
-      flask.data.grading.estimatedGradedValue ??
-      (options.rawPrice != null
-        ? calculateGradedValue(options.rawPrice, flask.data.grading.grade)
-        : undefined),
-    suggestedCondition:
-      flask.data.grading.suggestedCondition ||
-      gradeToVaultCondition(flask.data.grading.grade),
-  }));
-  persistLocal(grading);
-  return grading;
+  const grading = normalizeLegacyResult(
+    normalizeGradingResult({
+      ...flask.data.grading,
+      imageUrl: flask.data.grading.imageUrl || previewUrl,
+    })
+  );
+  const decided = {
+    ...grading,
+    suggestedCondition: buildGradeDecision(grading).marketplace,
+  };
+  persistLocal(decided);
+  return decided;
 }
 
 export async function getGradingHistory(cardId?: string): Promise<GradingResult[]> {
@@ -240,7 +276,8 @@ export async function getGradingHistory(cardId?: string): Promise<GradingResult[
       : buildApiUrl('/api/grading/history');
     const res = await client.get(url);
     const history = (res.data?.data?.history || res.data?.history || []) as GradingResult[];
-    if (history.length > 0) return history.map((h) => normalizeLegacyResult(normalizeGradingResult(h)));
+    if (history.length > 0)
+      return history.map((h) => normalizeLegacyResult(normalizeGradingResult(h)));
   } catch {
     // fall through to local
   }
@@ -271,12 +308,40 @@ export async function getGradingStats(): Promise<GradingStats | null> {
   }
 }
 
+export async function submitGradingFeedback(payload: {
+  gradingId?: string;
+  cardId?: string;
+  cardName?: string;
+  finishType?: string;
+  predictedDefect: string;
+  predictedCategory?: string;
+  modelConfidence?: number;
+  verdict: 'looks-right' | 'not-damage';
+  reason?: 'print' | 'foil' | 'glare' | 'shadow' | 'other';
+  location?: { x: number; y: number; width: number; height: number };
+}): Promise<void> {
+  try {
+    await client.post(buildApiUrl('/api/grading/feedback'), payload);
+  } catch {
+    try {
+      await axios.post(`${SCANNER_BASE}/api/grading-feedback`, payload, {
+        timeout: 8_000,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    } catch {
+      // Feedback is best-effort; the UI estimate is unchanged either way.
+    }
+  }
+}
+
 export const gradingService = {
   gradeCard,
   getGradingHistory,
   getGradingStats,
+  submitGradingFeedback,
   calculateGradedValue,
   calculateGradingUplift,
   checkGradingBackendHealth,
   gradeToVaultCondition,
+  updateLocalHistoryEntry,
 };
