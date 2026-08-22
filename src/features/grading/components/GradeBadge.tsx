@@ -30,6 +30,7 @@ export const GradeBadge: React.FC<GradeBadgeProps> = ({
   const hex = gradeHex(grade);
   const text = gradeTextClass(grade);
   const isTen = grade >= 10;
+  const celebrate = grade >= 9;
   const conf = SIZE[size];
 
   return (
@@ -50,9 +51,11 @@ export const GradeBadge: React.FC<GradeBadgeProps> = ({
             filter: 'blur(10px)',
           }}
           animate={
-            isTen && !reduced
-              ? { opacity: [0.5, 1, 0.5], scale: [1, 1.07, 1] }
-              : { opacity: 0.8, scale: 1 }
+            celebrate && !reduced
+              ? isTen
+                ? { opacity: [0.5, 1, 0.5], scale: [1, 1.07, 1] }
+                : { opacity: 0.55, scale: 1 }
+              : { opacity: 0.25, scale: 1 }
           }
           transition={{
             repeat: isTen && !reduced ? Infinity : undefined,
@@ -74,7 +77,9 @@ export const GradeBadge: React.FC<GradeBadgeProps> = ({
           className={`relative rounded-full ${conf.ring}`}
           style={{
             background: `conic-gradient(from 210deg, ${hex}14 0deg, ${hex}cc 70deg, ${hex}40 150deg, ${hex}14 220deg, ${hex}80 305deg, ${hex}14 360deg)`,
-            boxShadow: `0 0 22px ${hex}30, inset 0 0 6px ${hex}40`,
+            boxShadow: celebrate
+              ? `0 0 22px ${hex}30, inset 0 0 6px ${hex}40`
+              : `inset 0 0 6px ${hex}28`,
           }}
         >
           {/* Recessed face */}
@@ -88,7 +93,10 @@ export const GradeBadge: React.FC<GradeBadgeProps> = ({
           >
             <span
               className={`font-display font-bold leading-none tabular-nums ${conf.numeral}`}
-              style={{ color: hex, textShadow: `0 0 18px ${hex}66` }}
+              style={{
+                color: hex,
+                textShadow: celebrate ? `0 0 18px ${hex}66` : undefined,
+              }}
             >
               {display}
             </span>
@@ -102,9 +110,7 @@ export const GradeBadge: React.FC<GradeBadgeProps> = ({
         />
       </div>
       {label && (
-        <span className={`text-[10px] font-semibold uppercase tracking-[0.16em] ${text}`}>
-          {label}
-        </span>
+        <span className={`text-xs font-semibold uppercase tracking-[0.12em] ${text}`}>{label}</span>
       )}
     </motion.div>
   );

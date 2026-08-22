@@ -1,365 +1,198 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState } from 'react';
+import { AlertTriangle, ChevronDown, Eye } from 'lucide-react';
+import { CategoryDetails, CropImage, GradingResult } from '../../../types/grading';
 import {
-  AlertTriangle,
-  ChevronDown,
-  ChevronRight,
-  CircleDot,
-  Crosshair,
-  Diamond,
-  Eye,
-  Square,
-  type LucideIcon,
-} from 'lucide-react';
-import {
-  GradingResult,
-  SideGrading,
-  CategoryDetails,
-  CropImage,
-  CornerDetail,
-} from '../../../types/grading';
+  CategoryKey,
+  CATEGORY_LABEL,
+  cornerWearRows,
+  evidenceForDefect,
+  formatCenteringSplit,
+  formatScore,
+  humanCategoryNarrative,
+  selectEvidenceCrops,
+  sideData,
+  wearTextClass,
+} from '../gradingPresentation';
 import { ZoomModal } from './ZoomModal';
 
 interface GradingReportProps {
   result: GradingResult;
-}
-
-const CATEGORY_META: Record<
-  string,
-  { label: string; icon: LucideIcon; color: string; borderColor: string; headerBg: string }
-> = {
-  centering: {
-    label: 'Centering',
-    icon: Crosshair,
-    color: 'text-sky-300',
-    borderColor: 'border-sky-500/30',
-    headerBg: 'bg-sky-500/10',
-  },
-  corners: {
-    label: 'Corners',
-    icon: Diamond,
-    color: 'text-emerald-300',
-    borderColor: 'border-emerald-500/30',
-    headerBg: 'bg-emerald-500/10',
-  },
-  edges: {
-    label: 'Edges',
-    icon: Square,
-    color: 'text-amber-300',
-    borderColor: 'border-amber-500/30',
-    headerBg: 'bg-amber-500/10',
-  },
-  surface: {
-    label: 'Surface',
-    icon: CircleDot,
-    color: 'text-rose-300',
-    borderColor: 'border-rose-500/30',
-    headerBg: 'bg-rose-500/10',
-  },
-};
-
-// ── Corner Detail Table ──────────────────────────────────────────────────────
-
-function CornerDetailTable({ corners }: { corners: CategoryDetails }) {
-  const cornerDetails = corners.deviations?.cornerDetails as CornerDetail[] | undefined;
-  if (!cornerDetails || cornerDetails.length === 0) return null;
-
-  return (
-    <div className="mt-2">
-      <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
-        Per-corner breakdown
-      </div>
-      <div className="overflow-hidden rounded-lg border border-border-subtle">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b border-border-subtle bg-surface-inset/40">
-              <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider text-ink-muted">
-                Corner
-              </th>
-              <th className="px-3 py-2 text-right font-semibold uppercase tracking-wider text-ink-muted">
-                Fray
-              </th>
-              <th className="px-3 py-2 text-right font-semibold uppercase tracking-wider text-ink-muted">
-                Fill
-              </th>
-              <th className="px-3 py-2 text-right font-semibold uppercase tracking-wider text-ink-muted">
-                Angle
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {cornerDetails.map((c) => (
-              <tr
-                key={c.name}
-                className="border-b border-border-subtle/50 transition-colors last:border-0 hover:bg-surface-inset/30"
-              >
-                <td className="px-3 py-2 font-medium capitalize text-ink-secondary">
-                  {c.name.replace(/-/g, ' ')}
-                </td>
-                <td
-                  className={`px-3 py-2 text-right font-mono tabular-nums ${c.fray >= 9.5 ? 'text-emerald-300' : c.fray >= 8.0 ? 'text-sky-300' : c.fray >= 6.0 ? 'text-amber-300' : 'text-red-300'}`}
-                >
-                  {c.fray}
-                </td>
-                <td
-                  className={`px-3 py-2 text-right font-mono tabular-nums ${c.fill >= 9.5 ? 'text-emerald-300' : c.fill >= 8.0 ? 'text-sky-300' : c.fill >= 6.0 ? 'text-amber-300' : 'text-red-300'}`}
-                >
-                  {c.fill}
-                </td>
-                <td
-                  className={`px-3 py-2 text-right font-mono tabular-nums ${c.angle >= 9.5 ? 'text-emerald-300' : c.angle >= 8.0 ? 'text-sky-300' : c.angle >= 6.0 ? 'text-amber-300' : 'text-red-300'}`}
-                >
-                  {c.angle}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ── Category Section ─────────────────────────────────────────────────────────
-
-function CategorySection({
-  category,
-  data,
-  side,
-  onZoom,
-}: {
-  category: string;
-  data: CategoryDetails;
   side: 'front' | 'back';
-  onZoom: (src: string, label: string) => void;
-}) {
-  const [expanded, setExpanded] = useState(true);
-  const config = CATEGORY_META[category] || CATEGORY_META.surface;
-  const crops = data.crops || [];
-  const Icon = config.icon;
+  category: CategoryKey;
+  selectedDefect: string | null;
+  onSelectDefect: (defect: string) => void;
+}
 
+function CenteringMeasurements({ data }: { data: CategoryDetails }) {
+  const lr =
+    data.deviations && typeof data.deviations.leftRight === 'number'
+      ? formatCenteringSplit(data.deviations.leftRight as number)
+      : null;
+  const tb =
+    data.deviations && typeof data.deviations.topBottom === 'number'
+      ? formatCenteringSplit(data.deviations.topBottom as number)
+      : null;
+  if (!lr && !tb) return null;
   return (
-    <div className={`overflow-hidden rounded-lg border ${config.borderColor}`}>
-      <button
-        type="button"
-        onClick={() => setExpanded(!expanded)}
-        aria-expanded={expanded}
-        className={`flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left transition-colors hover:brightness-110 ${config.headerBg}`}
-      >
-        <div className="flex min-w-0 items-center gap-2">
-          <span className={`shrink-0 ${config.color}`}>
-            <Icon className="h-4 w-4" />
-          </span>
-          <span className="truncate text-xs font-semibold uppercase tracking-wider text-ink-secondary">
-            {side} {config.label}
-          </span>
-          <span
-            className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border-subtle bg-surface-overlay px-2 py-0.5 font-mono text-[10px] font-semibold tabular-nums ${config.color}`}
+    <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+      {lr && (
+        <div>
+          <dt className="text-ink-muted">Left-right</dt>
+          <dd
+            className={`font-mono tabular-nums ${lr.off ? 'text-amber-300' : 'text-ink-primary'}`}
           >
-            <span className="h-1 w-1 rounded-full bg-current" aria-hidden />
-            {data.score}/10
-          </span>
-          {data.defects.length > 0 && (
-            <span className="shrink-0 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-medium text-amber-300">
-              {data.defects.length} issue{data.defects.length !== 1 ? 's' : ''}
-            </span>
-          )}
+            {lr.text}
+          </dd>
         </div>
-        {expanded ? (
-          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-ink-muted" />
-        ) : (
-          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-ink-muted" />
-        )}
-      </button>
-
-      <AnimatePresence initial={false}>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
+      )}
+      {tb && (
+        <div>
+          <dt className="text-ink-muted">Top-bottom</dt>
+          <dd
+            className={`font-mono tabular-nums ${tb.off ? 'text-amber-300' : 'text-ink-primary'}`}
           >
-            <div className="border-t border-border-subtle px-3 py-3">
-              <p className="mb-3 text-xs leading-relaxed text-ink-muted">{data.details}</p>
-
-              {data.defects.length > 0 && (
-                <div className="mb-3 space-y-1.5">
-                  {data.defects.map((d, i) => (
-                    <div
-                      key={i}
-                      className="flex items-start gap-2 rounded-md bg-amber-500/[0.07] px-2.5 py-1.5 text-xs leading-snug text-amber-200/90"
-                    >
-                      <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-amber-400/80" />
-                      {d}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {category === 'corners' && <CornerDetailTable corners={data} />}
-
-              {crops.length > 0 && (
-                <div className="mt-3">
-                  <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
-                    Close-up regions
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-                    {crops.map((crop: CropImage, i: number) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => onZoom(crop.image, `${side} ${config.label}: ${crop.label}`)}
-                        className="group relative overflow-hidden rounded-md border border-border-subtle bg-surface-overlay transition-all hover:border-border-strong hover:shadow-md"
-                      >
-                        <div className="aspect-square overflow-hidden">
-                          <img
-                            src={crop.image}
-                            alt={crop.label}
-                            className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-110"
-                            loading="lazy"
-                          />
-                        </div>
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/40">
-                          <Eye className="h-5 w-5 text-white opacity-0 transition-opacity group-hover:opacity-100" />
-                        </div>
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1">
-                          <span className="truncate text-[9px] text-white/90">{crop.label}</span>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+            {tb.text}
+          </dd>
+        </div>
+      )}
+    </dl>
   );
 }
 
-// ── Side Section ─────────────────────────────────────────────────────────────
-
-function SideSection({
-  label,
+export const GradingReport: React.FC<GradingReportProps> = ({
+  result,
   side,
-  data,
-  onZoom,
-}: {
-  label: string;
-  side: 'front' | 'back';
-  data: SideGrading;
-  onZoom: (src: string, label: string) => void;
-}) {
-  return (
-    <div>
-      <div className="mb-3 flex items-center gap-2.5">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-foil/30 bg-foil-muted font-display text-xs font-bold text-foil">
-          {side === 'front' ? 'F' : 'B'}
-        </span>
-        <h3 className="text-sm font-bold uppercase tracking-wider text-ink-primary">{label}</h3>
-        <div className="flex-1 border-t border-border-subtle" />
-      </div>
-      <div className="space-y-2">
-        {(['centering', 'corners', 'edges', 'surface'] as const).map((cat) => (
-          <CategorySection
-            key={`${side}-${cat}`}
-            category={cat}
-            data={data[cat]}
-            side={side}
-            onZoom={onZoom}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
+  category,
+  selectedDefect,
+  onSelectDefect,
+}) => {
+  const [showMeasurements, setShowMeasurements] = useState(false);
+  const [zoom, setZoom] = useState<{ src: string; label: string } | null>(null);
 
-// ── Main Report ──────────────────────────────────────────────────────────────
+  const data = sideData(result, side)?.[category];
+  if (!data) {
+    return <p className="text-sm text-ink-muted">No {side} analysis for this category.</p>;
+  }
 
-export const GradingReport: React.FC<GradingReportProps> = ({ result }) => {
-  const [zoomImage, setZoomImage] = useState<{ src: string; label: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<'front' | 'back'>('front');
+  const defects = data.defects || [];
+  const crops = selectEvidenceCrops(data.crops, 3);
+  const selectedCrop: CropImage | undefined = selectedDefect
+    ? evidenceForDefect(selectedDefect, category, side, data, result.defectRegions).crop
+    : undefined;
+  const shownCrops = selectedCrop?.image
+    ? [selectedCrop, ...crops.filter((c) => c.image !== selectedCrop.image)].slice(0, 3)
+    : crops;
 
-  const hasBack = !!result.back;
-
-  // Determine which side data to show in the top-level category keys (for backward compat)
-  const frontData: SideGrading | undefined = result.front || {
-    centering: result.centering,
-    corners: result.corners,
-    edges: result.edges,
-    surface: result.surface,
-  };
-
-  const backData = result.back;
-
-  // Auto-select front tab
-  useEffect(() => {
-    if (!hasBack) setActiveTab('front');
-  }, [hasBack]);
-
-  const handleZoom = useCallback((src: string, label: string) => {
-    setZoomImage({ src, label });
-  }, []);
+  const corners = category === 'corners' ? cornerWearRows(data) : [];
+  const hasCentering =
+    category === 'centering' && data.deviations && typeof data.deviations.leftRight === 'number';
 
   return (
     <div className="space-y-4">
-      {/* Front/Back tabs */}
-      {hasBack && (
-        <div
-          role="tablist"
-          aria-label="Card side"
-          className="flex gap-1 rounded-xl border border-border-subtle bg-surface-inset/40 p-1"
-        >
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-sm font-semibold text-ink-primary">{CATEGORY_LABEL[category]}</h3>
+        <p className={`font-mono text-sm tabular-nums ${wearTextClass(data.score)}`}>
+          {data.withheld || data.score == null
+            ? data.scoreLow != null && data.scoreHigh != null
+              ? `${data.scoreLow}–${data.scoreHigh}`
+              : 'Unknown'
+            : `${formatScore(data.score)}/10`}
+        </p>
+      </div>
+
+      <p className="text-sm leading-relaxed text-ink-secondary">
+        {humanCategoryNarrative(category, data)}
+      </p>
+
+      {defects.length > 0 && (
+        <ul className="space-y-1.5">
+          {defects.map((defect) => {
+            const active = selectedDefect === defect;
+            return (
+              <li key={defect}>
+                <button
+                  type="button"
+                  onClick={() => onSelectDefect(defect)}
+                  className={`flex w-full cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-left text-sm leading-snug transition-colors ${
+                    active
+                      ? 'border-amber-400/40 bg-amber-400/10 text-ink-primary'
+                      : 'border-border-subtle bg-surface-inset/40 text-ink-secondary hover:border-border-default hover:text-ink-primary'
+                  }`}
+                >
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+                  <span>{defect}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {(hasCentering || corners.length > 0) && (
+        <div>
           <button
             type="button"
-            role="tab"
-            aria-selected={activeTab === 'front'}
-            onClick={() => setActiveTab('front')}
-            className={`flex-1 cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-              activeTab === 'front'
-                ? 'bg-surface-overlay text-ink-primary shadow-sm ring-1 ring-border-subtle'
-                : 'text-ink-muted hover:text-ink-secondary'
-            }`}
+            onClick={() => setShowMeasurements((v) => !v)}
+            className="inline-flex cursor-pointer items-center gap-1 text-sm font-medium text-ink-secondary hover:text-ink-primary"
+            aria-expanded={showMeasurements}
           >
-            Front
+            Measurements
+            <ChevronDown
+              className={`h-4 w-4 transition-transform ${showMeasurements ? 'rotate-180' : ''}`}
+            />
           </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'back'}
-            onClick={() => setActiveTab('back')}
-            className={`flex-1 cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-              activeTab === 'back'
-                ? 'bg-surface-overlay text-ink-primary shadow-sm ring-1 ring-border-subtle'
-                : 'text-ink-muted hover:text-ink-secondary'
-            }`}
-          >
-            Back
-          </button>
+          {showMeasurements && (
+            <div className="mt-2 rounded-lg border border-border-subtle bg-surface-inset/30 p-3">
+              {hasCentering && <CenteringMeasurements data={data} />}
+              {corners.length > 0 && (
+                <ul className="space-y-1.5 text-sm">
+                  {corners.map((c) => (
+                    <li key={c.name} className="flex justify-between gap-3 capitalize">
+                      <span className="text-ink-secondary">{c.name} wear</span>
+                      <span className={`font-mono tabular-nums ${wearTextClass(c.wear)}`}>
+                        {formatScore(c.wear)}/10
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Active side */}
-      {activeTab === 'front' && frontData && (
-        <SideSection label="Front" side="front" data={frontData} onZoom={handleZoom} />
-      )}
-      {activeTab === 'back' && backData && (
-        <SideSection label="Back" side="back" data={backData} onZoom={handleZoom} />
+      {shownCrops.length > 0 && selectedDefect && (
+        <div>
+          <p className="mb-2 text-sm text-ink-muted">Close-up</p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {shownCrops.map((crop, i) => (
+              <button
+                key={`${crop.label}-${i}`}
+                type="button"
+                onClick={() => setZoom({ src: crop.image, label: crop.label })}
+                className="group relative overflow-hidden rounded-lg border border-border-subtle"
+              >
+                <div className="aspect-square overflow-hidden">
+                  <img
+                    src={crop.image}
+                    alt={crop.label}
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                </div>
+                <span className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/35">
+                  <Eye className="h-5 w-5 text-white opacity-0 group-hover:opacity-100" />
+                </span>
+                <span className="absolute inset-x-0 bottom-0 bg-black/65 px-2 py-1 text-xs text-white">
+                  {crop.label}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
-      {/* Zoom modal */}
-      <AnimatePresence>
-        {zoomImage && (
-          <ZoomModal
-            imageSrc={zoomImage.src}
-            label={zoomImage.label}
-            onClose={() => setZoomImage(null)}
-          />
-        )}
-      </AnimatePresence>
+      {zoom && <ZoomModal imageSrc={zoom.src} label={zoom.label} onClose={() => setZoom(null)} />}
     </div>
   );
 };

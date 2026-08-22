@@ -4,11 +4,25 @@ export interface CropImage {
   location?: { x: number; y: number; width: number; height: number };
 }
 
+export interface CenteringMm {
+  leftMm: number;
+  rightMm: number;
+  topMm: number;
+  bottomMm: number;
+  leftRight: string;
+  topBottom: string;
+}
+
 export interface CenteringDetails {
   /** PSA-style 1.0–10.0 half-point score */
   score: number;
   details: string;
-  deviations: { leftRight: number; topBottom: number };
+  deviations: {
+    leftRight: number;
+    topBottom: number;
+    mm?: CenteringMm;
+    borders?: Record<string, number>;
+  };
   defects?: string[];
   crops?: CropImage[];
 }
@@ -25,13 +39,37 @@ export interface CornerDetail {
   height?: number;
 }
 
+export interface DefectDetection {
+  label: string;
+  kind?: string;
+  category?: string;
+  severity?: string;
+  confidence?: number;
+  coverage?: number;
+  location?: { x: number; y: number; width: number; height: number };
+}
+
+export interface QualityCheck {
+  id: string;
+  status: 'pass' | 'warn' | 'fail' | string;
+  message: string;
+  value?: number;
+}
+
 export interface CategoryDetails {
-  /** PSA-style 1.0–10.0 half-point score */
-  score: number;
+  /** PSA-style 1.0–10.0 half-point score. Null when this category was not scored. */
+  score: number | null;
   details: string;
   defects: string[];
   crops?: CropImage[];
   deviations?: Record<string, unknown>;
+  withheld?: boolean;
+  withheldReason?: string;
+  confidence?: number;
+  confidenceBand?: 'low' | 'moderate' | 'high';
+  detections?: DefectDetection[];
+  scoreLow?: number;
+  scoreHigh?: number;
 }
 
 export interface DefectRegion {
@@ -77,7 +115,18 @@ export interface GradingResult {
   confidence?: number;
   retakeRecommended?: boolean;
   limitations?: string;
-  quality?: { ok?: boolean; metrics?: Record<string, number>; code?: string; message?: string };
+  quality?: {
+    ok?: boolean;
+    metrics?: Record<string, number>;
+    code?: string;
+    message?: string;
+    surfaceOk?: boolean;
+    surfaceMessage?: string;
+    glareRatio?: number;
+    finishHint?: string;
+    checks?: QualityCheck[];
+  };
+  backQuality?: GradingResult['quality'];
   extraction?: {
     found?: boolean;
     method?: string;
@@ -90,6 +139,34 @@ export interface GradingResult {
     usingHeuristics?: boolean;
     models?: Record<string, boolean>;
   };
+  surfaceRefused?: boolean;
+  surfaceRetakeRecommended?: boolean;
+  psaRange?: { low: number; high: number };
+  psaDistribution?: Array<{ grade: number; pct: number }>;
+  /** Immutable model estimate. User Yes/No does not overwrite this. */
+  modelGrade?: number;
+  finishType?: string;
+  scanMode?: 'quick' | 'precision';
+  tcgScore?: {
+    overall: number;
+    categories: {
+      centering?: number | null;
+      corners?: number | null;
+      edges?: number | null;
+      surface?: number | null;
+    };
+  };
+  multiFrame?: {
+    frameCount?: number;
+    glareRatio?: number;
+    persistentDefectCoverage?: number;
+    surfaceConfirmed?: boolean;
+    unconfirmedLikelyGlare?: boolean;
+    message?: string;
+    front?: Record<string, unknown>;
+    back?: Record<string, unknown>;
+  };
+  frameCount?: number;
 }
 
 export interface GradingStats {
@@ -136,34 +213,28 @@ export function gradeBadgeColor(grade: number): string {
   if (grade >= 10) return 'bg-amber-400/15 text-amber-200 border-amber-400/40';
   if (grade >= 9) return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40';
   if (grade >= 8) return 'bg-sky-500/15 text-sky-300 border-sky-500/40';
-  if (grade >= 7) return 'bg-blue-500/15 text-blue-300 border-blue-500/40';
-  if (grade >= 6) return 'bg-indigo-500/15 text-indigo-300 border-indigo-500/40';
-  if (grade >= 5) return 'bg-yellow-500/15 text-yellow-300 border-yellow-500/40';
-  if (grade >= 3) return 'bg-orange-500/15 text-orange-300 border-orange-500/40';
+  if (grade >= 6) return 'bg-amber-500/15 text-amber-300 border-amber-500/40';
+  if (grade >= 4) return 'bg-orange-500/15 text-orange-300 border-orange-500/40';
   return 'bg-red-500/15 text-red-300 border-red-500/40';
 }
 
-/** Hex color of the grade band (used by grade medals, chips, and glows). */
+/** Hex color of the 5-step wear band (gem / excellent / good / moderate / heavy / severe). */
 export function gradeHex(grade: number): string {
   if (grade >= 10) return '#fbbf24';
   if (grade >= 9) return '#34d399';
-  if (grade >= 8) return '#38bdf8';
-  if (grade >= 7) return '#60a5fa';
-  if (grade >= 6) return '#818cf8';
-  if (grade >= 5) return '#facc15';
-  if (grade >= 3) return '#fb923c';
+  if (grade >= 8) return '#7dd3fc';
+  if (grade >= 6) return '#fbbf24';
+  if (grade >= 4) return '#fb923c';
   return '#f87171';
 }
 
-/** Tailwind text-color class for the grade band. */
+/** Tailwind text-color class for the wear band. */
 export function gradeTextClass(grade: number): string {
   if (grade >= 10) return 'text-amber-300';
   if (grade >= 9) return 'text-emerald-300';
   if (grade >= 8) return 'text-sky-300';
-  if (grade >= 7) return 'text-blue-300';
-  if (grade >= 6) return 'text-indigo-300';
-  if (grade >= 5) return 'text-yellow-300';
-  if (grade >= 3) return 'text-orange-300';
+  if (grade >= 6) return 'text-amber-300';
+  if (grade >= 4) return 'text-orange-300';
   return 'text-red-300';
 }
 

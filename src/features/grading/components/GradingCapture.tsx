@@ -1,76 +1,17 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Camera, Upload, ChevronRight, RefreshCw, RotateCcw, Check, Smartphone } from 'lucide-react';
+import { Camera, Upload, RotateCcw, Check, Smartphone } from 'lucide-react';
 import { PhoneCaptureQr } from '../../capture/components/PhoneCaptureQr';
 import { compressImageDataUrl } from '../../../utils/imageCompress';
+import { assessClientQuality } from '../captureQuality';
+import { GradeCapturePayload } from '../scanProtocol';
 
-type Mode = 'idle' | 'upload' | 'camera' | 'phone';
+type Mode = 'idle' | 'camera' | 'phone';
 type Step = 'front' | 'back';
 
 interface GradingCaptureProps {
-  onCapture: (frontImage: File | string, backImage?: File | string) => void;
+  onCapture: (payload: GradeCapturePayload) => void;
   isProcessing?: boolean;
   disabled?: boolean;
-}
-
-/** Client-side blur / brightness gate using a downscaled canvas sample. */
-async function assessClientQuality(src: string | File): Promise<string | null> {
-  const url = typeof src === 'string' ? src : URL.createObjectURL(src);
-  try {
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const el = new Image();
-      el.onload = () => resolve(el);
-      el.onerror = () => reject(new Error('Could not load image'));
-      el.src = url;
-    });
-    const canvas = document.createElement('canvas');
-    const maxSide = 320;
-    const scale = maxSide / Math.max(img.width, img.height);
-    canvas.width = Math.max(32, Math.round(img.width * scale));
-    canvas.height = Math.max(32, Math.round(img.height * scale));
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    const { data, width, height } = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-    let sum = 0;
-    let sumSq = 0;
-    const gray = new Float32Array(width * height);
-    for (let i = 0, p = 0; i < data.length; i += 4, p++) {
-      const g = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-      gray[p] = g;
-      sum += g;
-      sumSq += g * g;
-    }
-    const n = gray.length;
-    const mean = sum / n;
-    const contrast = Math.sqrt(Math.max(0, sumSq / n - mean * mean));
-
-    // Laplacian variance proxy
-    let lap = 0;
-    let count = 0;
-    for (let y = 1; y < height - 1; y++) {
-      for (let x = 1; x < width - 1; x++) {
-        const i = y * width + x;
-        const v =
-          -4 * gray[i] +
-          gray[i - 1] +
-          gray[i + 1] +
-          gray[i - width] +
-          gray[i + width];
-        lap += v * v;
-        count++;
-      }
-    }
-    const sharpness = lap / Math.max(1, count);
-
-    if (sharpness < 28) return 'Photo looks blurry. Hold steady, tap to focus, and retake.';
-    if (mean < 40) return 'Photo is too dark. Use even lighting and avoid shadows.';
-    if (mean > 245) return 'Photo is overexposed. Reduce glare or bright reflections.';
-    if (contrast < 16) return 'Low contrast — place the card on a contrasting solid background.';
-    return null;
-  } finally {
-    if (typeof src !== 'string') URL.revokeObjectURL(url);
-  }
 }
 
 export const GradingCapture: React.FC<GradingCaptureProps> = ({
@@ -92,6 +33,8 @@ export const GradingCapture: React.FC<GradingCaptureProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const busy = disabled || isProcessing || checking;
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -122,7 +65,7 @@ export const GradingCapture: React.FC<GradingCaptureProps> = ({
     }
   };
 
-  const handleModeSelect = async (m: 'upload' | 'camera' | 'phone') => {
+  const handleModeSelect = async (m: 'camera' | 'phone') => {
     setError(null);
     setMode(m);
     if (m === 'camera') await startCamera();
@@ -163,9 +106,7 @@ export const GradingCapture: React.FC<GradingCaptureProps> = ({
       setMode('idle');
     } catch (e) {
       setError(
-        e instanceof Error
-          ? e.message
-          : 'Phone photo could not be read. Retake and try again.'
+        e instanceof Error ? e.message : 'Phone photo could not be read. Retake and try again.'
       );
       setMode('idle');
     } finally {
@@ -182,8 +123,7 @@ export const GradingCapture: React.FC<GradingCaptureProps> = ({
         setError(qualityError);
         return;
       }
-      const preview =
-        typeof fileOrData === 'string' ? fileOrData : URL.createObjectURL(fileOrData);
+      const preview = typeof fileOrData === 'string' ? fileOrData : URL.createObjectURL(fileOrData);
       if (step === 'front') {
         setFrontPreview(preview);
         setFrontImage(fileOrData);
@@ -230,30 +170,48 @@ export const GradingCapture: React.FC<GradingCaptureProps> = ({
 
   const handleSubmit = () => {
     if (frontImage) {
-      onCapture(frontImage, backImage || undefined);
+      onCapture({
+        mode: 'quick',
+        front: frontImage,
+        back: backImage || undefined,
+      });
     }
+  };
+
+  const retakeFront = () => {
+    setFrontPreview(null);
+    setFrontImage(null);
+    setBackPreview(null);
+    setBackImage(null);
+    setStep('front');
+    setMode('idle');
+    setError(null);
+  };
+
+  const retakeBack = () => {
+    setBackPreview(null);
+    setBackImage(null);
+    setStep('back');
+    setMode('idle');
+    setError(null);
   };
 
   if (mode === 'phone') {
     const capturingBackOnly = step === 'back' && Boolean(frontImage);
     return (
-      <div className="card-glass-scene space-y-3">
-        {error && (
-          <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
-            {error}
-          </div>
-        )}
+      <CaptureShell>
+        <StepRail step={step} frontDone={Boolean(frontPreview)} backDone={Boolean(backPreview)} />
+        {error && <ErrorBanner message={error} />}
         <PhoneCaptureQr
           mode={capturingBackOnly ? 'scan' : 'grade'}
           sideHint={capturingBackOnly ? 'back' : undefined}
-          disabled={disabled || isProcessing || checking}
+          disabled={busy}
           onCancel={() => {
             setMode('idle');
             setError(null);
           }}
           onImages={(front, back) => {
             if (capturingBackOnly) {
-              // Single-image session: treat the photo as the card back.
               void (async () => {
                 try {
                   const normalized = await compressImageDataUrl(front, {
@@ -275,257 +233,17 @@ export const GradingCapture: React.FC<GradingCaptureProps> = ({
             void acceptPhoneImages(front, back);
           }}
         />
-      </div>
+      </CaptureShell>
     );
   }
 
-  // Idle mode — show front/back status + capture buttons
-  if (mode === 'idle' && !frontPreview) {
+  if (mode === 'camera') {
     return (
-      <div className="card-glass-scene">
-        <div className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-ink-muted">
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent/20 text-[10px] font-bold text-accent">
-            1
-          </span>
-          Capture front of card
-        </div>
-        <p className="mb-4 text-sm text-ink-muted">
-          Place the card flat on a solid contrasting background. Fill the frame, avoid glare,
-          and keep the camera parallel to the card.
-        </p>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => handleModeSelect('camera')}
-            className="group rounded-xl border border-border-default bg-surface-raised p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-border-strong hover:shadow-elevated disabled:opacity-50"
-          >
-            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-accent/30 bg-accent/10">
-              <Camera className="h-5 w-5 text-accent" />
-            </div>
-            <h3 className="mb-1 font-semibold text-ink-primary">Camera grade</h3>
-            <p className="text-sm text-ink-muted">
-              Photograph your card under even lighting for best centering accuracy.
-            </p>
-            <div className="mt-3 flex items-center gap-1 text-xs font-medium text-accent">
-              <span>Open camera</span>
-              <ChevronRight className="h-3.5 w-3.5" />
-            </div>
-          </button>
-
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => handleModeSelect('phone')}
-            className="group rounded-xl border border-border-default bg-surface-raised p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-border-strong hover:shadow-elevated disabled:opacity-50"
-          >
-            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-accent/30 bg-accent/10">
-              <Smartphone className="h-5 w-5 text-accent" />
-            </div>
-            <h3 className="mb-1 font-semibold text-ink-primary">Phone camera</h3>
-            <p className="text-sm text-ink-muted">
-              Scan a QR code and capture a steadier front/back photo on your phone.
-            </p>
-            <div className="mt-3 flex items-center gap-1 text-xs font-medium text-accent">
-              <span>Show QR code</span>
-              <ChevronRight className="h-3.5 w-3.5" />
-            </div>
-          </button>
-
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => handleModeSelect('upload')}
-            className="group rounded-xl border border-border-default bg-surface-raised p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-border-strong hover:shadow-elevated disabled:opacity-50 sm:col-span-2 lg:col-span-1"
-          >
-            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-accent/30 bg-accent/10">
-              <Upload className="h-5 w-5 text-accent" />
-            </div>
-            <h3 className="mb-1 font-semibold text-ink-primary">Upload photo</h3>
-            <p className="text-sm text-ink-muted">
-              Use a clear, front-facing scan or photo (JPEG, PNG, WebP).
-            </p>
-            <div className="mt-3 flex items-center gap-1 text-xs font-medium text-accent">
-              <span>Choose file</span>
-              <ChevronRight className="h-3.5 w-3.5" />
-            </div>
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Front captured — show preview + option to add back
-  if (mode === 'idle' && frontPreview && step === 'front') {
-    return (
-      <div className="card-glass-scene">
-        <div className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-ink-muted">
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-gain/20 text-[10px] font-bold text-gain">
-            <Check className="h-3 w-3" />
-          </span>
-          Front captured
-        </div>
-        <div className="flex flex-col gap-4 sm:flex-row">
-          <img
-            src={frontPreview}
-            alt="Front of card"
-            className="mx-auto h-48 w-auto rounded-lg border border-border-subtle object-contain sm:mx-0"
-          />
-          <div className="flex flex-1 flex-col justify-center gap-2">
-            <p className="text-xs text-ink-muted">
-              Adding the back improves accuracy — PSA grades the whole card by the worst side.
-            </p>
-            <button type="button" onClick={handleNext} className="btn-primary">
-              <Camera className="h-4 w-4" />
-              Add back of card (recommended)
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setFrontPreview(null);
-                setFrontImage(null);
-              }}
-              className="btn-secondary"
-            >
-              <RotateCcw className="h-4 w-4" />
-              Retake front
-            </button>
-            <button type="button" onClick={handleSubmit} className="btn-secondary text-xs">
-              Grade now (front only)
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Back capture mode
-  if (step === 'back') {
-    if (mode === 'idle' && !backPreview) {
-      return (
-        <div className="card-glass-scene">
-          <div className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-ink-muted">
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent/20 text-[10px] font-bold text-accent">
-              2
-            </span>
-            Capture back of card
-          </div>
-          <div className="mb-3 flex items-center gap-3">
-            <img
-              src={frontPreview!}
-              alt="Front"
-              className="h-16 w-auto rounded border border-border-subtle object-contain"
-            />
-            <div className="text-xs text-ink-muted">
-              Front captured — now photograph the back for a combined grade
-            </div>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={() => handleModeSelect('camera')}
-              className="group rounded-xl border border-border-default bg-surface-raised p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-border-strong hover:shadow-elevated disabled:opacity-50"
-            >
-              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-accent/30 bg-accent/10">
-                <Camera className="h-5 w-5 text-accent" />
-              </div>
-              <h3 className="mb-1 font-semibold text-ink-primary">Camera (back)</h3>
-              <p className="text-sm text-ink-muted">Flip the card and photograph the back.</p>
-            </button>
-
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={() => handleModeSelect('phone')}
-              className="group rounded-xl border border-border-default bg-surface-raised p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-border-strong hover:shadow-elevated disabled:opacity-50"
-            >
-              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-accent/30 bg-accent/10">
-                <Smartphone className="h-5 w-5 text-accent" />
-              </div>
-              <h3 className="mb-1 font-semibold text-ink-primary">Phone (back)</h3>
-              <p className="text-sm text-ink-muted">Scan a QR and capture the back on your phone.</p>
-            </button>
-
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={() => handleModeSelect('upload')}
-              className="group rounded-xl border border-border-default bg-surface-raised p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-border-strong hover:shadow-elevated disabled:opacity-50 sm:col-span-2 lg:col-span-1"
-            >
-              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-accent/30 bg-accent/10">
-                <Upload className="h-5 w-5 text-accent" />
-              </div>
-              <h3 className="mb-1 font-semibold text-ink-primary">Upload (back)</h3>
-              <p className="text-sm text-ink-muted">Upload a photo of the back.</p>
-            </button>
-          </div>
-          <div className="mt-3">
-            <button type="button" onClick={handleSubmit} className="btn-secondary text-xs">
-              Skip back — grade front only
-            </button>
-          </div>
-        </div>
-      );
-    }
-
-    if (mode === 'idle' && backPreview) {
-      return (
-        <div className="card-glass-scene">
-          <div className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-ink-muted">
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-gain/20 text-[10px] font-bold text-gain">
-              <Check className="h-3 w-3" />
-            </span>
-            Both sides captured
-          </div>
-          <div className="flex flex-col gap-4 sm:flex-row">
-            <div className="flex gap-2">
-              <img
-                src={frontPreview!}
-                alt="Front"
-                className="h-32 w-auto rounded-lg border border-border-subtle object-contain"
-              />
-              <img
-                src={backPreview}
-                alt="Back"
-                className="h-32 w-auto rounded-lg border border-border-subtle object-contain"
-              />
-            </div>
-            <div className="flex flex-1 flex-col justify-center gap-2">
-              <button type="button" onClick={handleSubmit} className="btn-primary">
-                <Camera className="h-4 w-4" />
-                Grade front + back
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setBackPreview(null);
-                  setBackImage(null);
-                }}
-                className="btn-secondary"
-              >
-                <RotateCcw className="h-4 w-4" />
-                Retake back
-              </button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-  }
-
-  // Camera / Upload active
-  return (
-    <div className="card-glass-scene">
-      {error && (
-        <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
-          {error}
-        </div>
-      )}
-
-      {mode === 'camera' && (
+      <CaptureShell>
+        <StepRail step={step} frontDone={Boolean(frontPreview)} backDone={Boolean(backPreview)} />
+        {error && <ErrorBanner message={error} />}
         <div className="space-y-3">
-          <div className="relative overflow-hidden rounded-lg bg-black aspect-[4/3]">
+          <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-black">
             <video
               ref={videoRef}
               autoPlay
@@ -533,15 +251,14 @@ export const GradingCapture: React.FC<GradingCaptureProps> = ({
               muted
               className="h-full w-full object-cover"
             />
-            {/* Card aspect overlay (~63:88) */}
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <div
                 className="border-2 border-dashed border-white/70 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]"
                 style={{ width: '42%', aspectRatio: '63 / 88', borderRadius: 6 }}
               />
             </div>
-            <div className="absolute top-2 left-2 rounded bg-black/60 px-2 py-1 text-[10px] font-medium text-white">
-              {step === 'front' ? 'FRONT' : 'BACK'} — align card inside guide
+            <div className="absolute left-2 top-2 rounded bg-black/60 px-2 py-1 text-xs font-medium text-white">
+              {step === 'front' ? 'Front' : 'Back'} — align the card inside the guide
             </div>
             {!isCameraActive && (
               <div className="absolute inset-0 flex items-center justify-center text-sm text-ink-muted">
@@ -553,11 +270,11 @@ export const GradingCapture: React.FC<GradingCaptureProps> = ({
             <button
               type="button"
               onClick={captureFrame}
-              disabled={!isCameraActive || isProcessing || checking}
+              disabled={!isCameraActive || busy}
               className="btn-primary"
             >
               <Camera className="h-4 w-4" />
-              {checking ? 'Checking…' : `Capture ${step === 'front' ? 'front' : 'back'}`}
+              {checking ? 'Checking…' : `Capture ${step}`}
             </button>
             <button
               type="button"
@@ -571,66 +288,271 @@ export const GradingCapture: React.FC<GradingCaptureProps> = ({
             </button>
           </div>
         </div>
-      )}
+      </CaptureShell>
+    );
+  }
 
-      {mode === 'upload' && (
-        <div
-          onDragOver={(e) => {
-            e.preventDefault();
-            setIsDragging(true);
-          }}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setIsDragging(false);
-            const file = e.dataTransfer.files[0];
-            if (file) processFile(file);
-          }}
-          className={`flex min-h-[220px] flex-col items-center justify-center rounded-lg border-2 border-dashed px-4 py-8 transition-colors ${
-            isDragging
-              ? 'border-accent bg-accent/10'
-              : 'border-border-default bg-surface-inset/40'
-          }`}
-        >
-          <Upload className="mb-3 h-8 w-8 text-ink-muted" />
-          <p className="mb-3 text-sm text-ink-muted">
-            Drag & drop or choose {step === 'front' ? 'front' : 'back'} card photo
-          </p>
-          <div className="flex flex-wrap gap-2">
+  if (frontPreview && step === 'front') {
+    return (
+      <CaptureShell>
+        <StepRail step="front" frontDone backDone={false} />
+        {error && <ErrorBanner message={error} />}
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+          <img
+            src={frontPreview}
+            alt="Front of card"
+            className="mx-auto h-52 w-auto rounded-lg border border-border-subtle object-contain sm:mx-0"
+          />
+          <div className="flex flex-1 flex-col justify-center gap-3">
+            <div>
+              <h2 className="font-display text-h3 text-ink-primary">
+                Front is in. Photograph the back.
+              </h2>
+              <p className="mt-1 text-sm text-ink-secondary">
+                Same distance and lighting, card flipped. Both sides are required for a PSA number.
+              </p>
+            </div>
+            <button type="button" onClick={handleNext} className="btn-primary self-start">
+              <Camera className="h-4 w-4" />
+              Add back of card
+            </button>
+            <button type="button" onClick={retakeFront} className="btn-secondary self-start">
+              <RotateCcw className="h-4 w-4" />
+              Retake front
+            </button>
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isProcessing || checking}
-              className="btn-primary"
+              onClick={handleSubmit}
+              className="self-start text-sm text-ink-muted hover:text-ink-primary"
             >
-              {isProcessing || checking ? (
-                <>
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                  {checking ? 'Checking…' : 'Analyzing…'}
-                </>
-              ) : (
-                <>
-                  <Upload className="h-4 w-4" />
-                  Select image
-                </>
-              )}
-            </button>
-            <button type="button" onClick={() => setMode('idle')} className="btn-secondary">
-              Cancel
+              Grade without back — listing condition only
             </button>
           </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) processFile(file);
-            }}
+        </div>
+      </CaptureShell>
+    );
+  }
+
+  if (step === 'back' && backPreview) {
+    return (
+      <CaptureShell>
+        <StepRail step="back" frontDone backDone />
+        {error && <ErrorBanner message={error} />}
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+          <div className="flex justify-center gap-2 sm:justify-start">
+            <img
+              src={frontPreview!}
+              alt="Front"
+              className="h-40 w-auto rounded-lg border border-border-subtle object-contain"
+            />
+            <img
+              src={backPreview}
+              alt="Back"
+              className="h-40 w-auto rounded-lg border border-border-subtle object-contain"
+            />
+          </div>
+          <div className="flex flex-1 flex-col justify-center gap-3">
+            <div>
+              <h2 className="font-display text-h3 text-ink-primary">Both sides captured</h2>
+              <p className="mt-1 text-sm text-ink-secondary">
+                We’ll return a predicted PSA number from these two photos.
+              </p>
+            </div>
+            <button type="button" onClick={handleSubmit} className="btn-primary self-start">
+              Get PSA estimate
+            </button>
+            <button type="button" onClick={retakeBack} className="btn-secondary self-start">
+              <RotateCcw className="h-4 w-4" />
+              Retake back
+            </button>
+          </div>
+        </div>
+      </CaptureShell>
+    );
+  }
+
+  const askingBack = step === 'back';
+
+  return (
+    <CaptureShell>
+      <StepRail
+        step={askingBack ? 'back' : 'front'}
+        frontDone={Boolean(frontPreview)}
+        backDone={false}
+      />
+      {error && <ErrorBanner message={error} />}
+
+      {askingBack && frontPreview && (
+        <div className="mb-4 flex items-center gap-3">
+          <img
+            src={frontPreview}
+            alt="Front"
+            className="h-16 w-auto rounded border border-border-subtle object-contain"
           />
+          <p className="text-sm text-ink-secondary">
+            Front locked. Flip the card and match the same frame.
+          </p>
         </div>
       )}
-    </div>
+
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          setIsDragging(true);
+        }}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setIsDragging(false);
+          const file = e.dataTransfer.files[0];
+          if (file) processFile(file);
+        }}
+        className={`relative overflow-hidden rounded-xl border transition-colors ${
+          isDragging ? 'border-accent bg-accent/10' : 'border-border-default bg-surface-inset/50'
+        }`}
+        role="button"
+        tabIndex={0}
+        onClick={() => fileInputRef.current?.click()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            fileInputRef.current?.click();
+          }
+        }}
+      >
+        <div className="flex min-h-[280px] flex-col items-center justify-center px-5 py-10 text-center">
+          <div
+            className="mb-5 border border-dashed border-border-strong bg-surface-base/80"
+            style={{ width: 92, aspectRatio: '63 / 88', borderRadius: 8 }}
+            aria-hidden
+          />
+          <h2 className="font-display text-h3 text-ink-primary">
+            {askingBack ? 'Photograph the back' : 'Photograph the front'}
+          </h2>
+          <p className="mt-1 max-w-md text-sm text-ink-secondary">
+            {checking
+              ? 'Checking photo quality…'
+              : askingBack
+                ? 'Same distance and lighting as the front. Pokémon backs glare easily — tilt slightly if you see a hot spot.'
+                : 'Unsleeved, dark mat, fill the frame, camera parallel. Drop a photo here or capture one below.'}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void handleModeSelect('camera')}
+          className="btn-primary"
+        >
+          <Camera className="h-4 w-4" />
+          Open camera
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void handleModeSelect('phone')}
+          className="btn-secondary"
+        >
+          <Smartphone className="h-4 w-4" />
+          Use phone
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            setError(null);
+            fileInputRef.current?.click();
+          }}
+          className="btn-secondary"
+        >
+          <Upload className="h-4 w-4" />
+          Upload
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) processFile(file);
+            e.target.value = '';
+          }}
+        />
+      </div>
+
+      {askingBack && (
+        <button
+          type="button"
+          onClick={handleSubmit}
+          className="mt-3 text-sm text-ink-muted hover:text-ink-primary"
+        >
+          Grade without back — listing condition only
+        </button>
+      )}
+    </CaptureShell>
   );
 };
+
+function CaptureShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-2xl border border-border-subtle bg-surface-raised p-5 sm:p-6">
+      {children}
+    </div>
+  );
+}
+
+function StepRail({
+  step,
+  frontDone,
+  backDone,
+}: {
+  step: Step;
+  frontDone: boolean;
+  backDone: boolean;
+}) {
+  return (
+    <ol className="mb-5 flex items-center gap-3 text-sm">
+      <li className="flex items-center gap-2">
+        <StepMark done={frontDone} current={step === 'front' && !frontDone} />
+        <span className={frontDone || step === 'front' ? 'text-ink-primary' : 'text-ink-muted'}>
+          Front
+        </span>
+      </li>
+      <li className="h-px flex-1 bg-border-default" aria-hidden />
+      <li className="flex items-center gap-2">
+        <StepMark done={backDone} current={step === 'back' && !backDone} />
+        <span className={backDone || step === 'back' ? 'text-ink-primary' : 'text-ink-muted'}>
+          Back
+        </span>
+      </li>
+    </ol>
+  );
+}
+
+function StepMark({ done, current }: { done: boolean; current: boolean }) {
+  if (done) {
+    return (
+      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-gain/20 text-gain">
+        <Check className="h-3 w-3" />
+      </span>
+    );
+  }
+  return (
+    <span
+      className={`h-5 w-5 rounded-full border ${
+        current ? 'border-accent bg-accent/20' : 'border-border-strong bg-transparent'
+      }`}
+    />
+  );
+}
+
+function ErrorBanner({ message }: { message: string }) {
+  return (
+    <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+      {message}
+    </div>
+  );
+}

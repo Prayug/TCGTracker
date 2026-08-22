@@ -44,6 +44,7 @@ interface CardSearchPickerModalProps {
   onSelect: (card: PokemonCard) => void;
   title?: string;
   description?: string;
+  emptyHint?: string;
 }
 
 export const CardSearchPickerModal: React.FC<CardSearchPickerModalProps> = ({
@@ -53,6 +54,7 @@ export const CardSearchPickerModal: React.FC<CardSearchPickerModalProps> = ({
   onSelect,
   title = 'Match card for vault',
   description = 'Search the catalog and pick the real card to add.',
+  emptyHint = 'Type a card name and search to match your graded photo.',
 }) => {
   const { game, isOnePiece } = useGame();
   const [query, setQuery] = useState('');
@@ -143,9 +145,7 @@ export const CardSearchPickerModal: React.FC<CardSearchPickerModalProps> = ({
                   void runSearch(query);
                 }
               }}
-              placeholder={
-                isOnePiece ? 'Search One Piece cards…' : 'Search Pokémon cards…'
-              }
+              placeholder={isOnePiece ? 'Search One Piece cards…' : 'Search Pokémon cards…'}
               className="input w-full pl-10"
               aria-label="Search cards"
             />
@@ -178,9 +178,7 @@ export const CardSearchPickerModal: React.FC<CardSearchPickerModalProps> = ({
           )}
 
           {!searched && !isSearching && (
-            <p className="py-8 text-center text-sm text-ink-muted">
-              Type a card name and search to match your graded photo.
-            </p>
+            <p className="py-8 text-center text-sm text-ink-muted">{emptyHint}</p>
           )}
 
           {results.map((card) => {
@@ -192,11 +190,7 @@ export const CardSearchPickerModal: React.FC<CardSearchPickerModalProps> = ({
                 onClick={() => handleSelect(card)}
                 className="flex w-full items-center gap-3 rounded-xl border border-border-subtle bg-surface-inset p-3 text-left transition-colors hover:bg-surface-hover"
               >
-                <img
-                  src={card.images.small}
-                  alt=""
-                  className="h-16 w-11 shrink-0 object-contain"
-                />
+                <img src={card.images.small} alt="" className="h-16 w-11 shrink-0 object-contain" />
                 <div className="min-w-0 flex-1">
                   <h4 className="truncate font-semibold text-ink-primary">{card.name}</h4>
                   <p className="text-xs text-ink-muted">

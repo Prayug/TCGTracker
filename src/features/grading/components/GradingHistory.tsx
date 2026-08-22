@@ -1,6 +1,7 @@
 import React from 'react';
 import { GradingResult } from '../../../types/grading';
-import { GradeBadge } from './GradeBadge';
+import { buildGradeDecision } from '../gradingDecision';
+import { displayCardName } from '../gradingPresentation';
 
 interface GradingHistoryProps {
   history: GradingResult[];
@@ -8,61 +9,73 @@ interface GradingHistoryProps {
   selectedId?: string;
 }
 
+function relativeTime(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return '';
+  const delta = Date.now() - then;
+  const mins = Math.round(delta / 60_000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
 export const GradingHistory: React.FC<GradingHistoryProps> = ({
   history,
   onSelect,
   selectedId,
 }) => {
-  if (history.length === 0) {
-    return (
-      <div className="rounded-xl border border-border-subtle bg-surface-inset/40 px-4 py-8 text-center text-sm text-ink-muted">
-        No graded cards yet. Capture or upload a card to start.
-      </div>
-    );
-  }
+  if (history.length === 0) return null;
 
   return (
-    <ul className="space-y-2">
-      {history.map((item) => {
-        const active = item.id === selectedId;
-        return (
-          <li key={item.id}>
-            <button
-              type="button"
-              onClick={() => onSelect?.(item)}
-              className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors ${
-                active
-                  ? 'border-accent/40 bg-accent/10'
-                  : 'border-border-subtle bg-surface-inset/50 hover:border-border-default'
-              }`}
-            >
-              {item.imageUrl ? (
-                <img
-                  src={item.imageUrl}
-                  alt=""
-                  className="h-14 w-10 shrink-0 rounded object-cover"
-                />
-              ) : (
-                <div className="flex h-14 w-10 shrink-0 items-center justify-center rounded bg-white/5 text-[10px] text-ink-muted">
-                  N/A
+    <section>
+      <div className="mb-3 flex items-baseline justify-between gap-3">
+        <h2 className="text-sm font-semibold text-ink-primary">Recent scans</h2>
+        <p className="text-sm text-ink-muted">{history.length} saved</p>
+      </div>
+      <ul className="flex gap-2 overflow-x-auto pb-1">
+        {history.slice(0, 12).map((item) => {
+          const active = item.id === selectedId;
+          const decision = buildGradeDecision(item);
+          return (
+            <li key={item.id} className="shrink-0">
+              <button
+                type="button"
+                onClick={() => onSelect?.(item)}
+                className={`flex w-48 cursor-pointer items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left transition-colors ${
+                  active
+                    ? 'border-accent/40 bg-accent/10'
+                    : 'border-border-subtle bg-surface-inset/50 hover:border-border-default'
+                }`}
+              >
+                {item.imageUrl ? (
+                  <img
+                    src={item.imageUrl}
+                    alt=""
+                    className="h-12 w-9 shrink-0 rounded object-cover"
+                  />
+                ) : (
+                  <div className="flex h-12 w-9 shrink-0 items-center justify-center rounded bg-white/5 text-xs text-ink-muted">
+                    —
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-ink-primary">
+                    {displayCardName(item.cardName)}
+                  </p>
+                  <p className="truncate text-sm text-ink-secondary">
+                    {decision.psaRangeLabel ?? decision.marketplaceAbbr}
+                  </p>
+                  <p className="text-xs text-ink-muted">{relativeTime(item.timestamp)}</p>
                 </div>
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-ink-primary">
-                  {item.cardName || 'Unknown Card'}
-                </p>
-                <p className="text-xs text-ink-muted">
-                  {item.grade}/10 · {item.gradeLabel}
-                </p>
-                <p className="text-[10px] text-ink-muted">
-                  {new Date(item.timestamp).toLocaleString()}
-                </p>
-              </div>
-              <GradeBadge grade={item.grade} size="sm" />
-            </button>
-          </li>
-        );
-      })}
-    </ul>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 };
