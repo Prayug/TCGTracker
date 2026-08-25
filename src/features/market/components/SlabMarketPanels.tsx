@@ -34,6 +34,7 @@ function openStubCard(
       total: 0,
     },
     number: '',
+    types: [],
     marketPrice: row.rawPrice ?? 0,
   });
 }

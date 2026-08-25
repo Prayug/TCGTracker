@@ -3,6 +3,8 @@ import { CardIdentifier } from '../types/identifiers';
 import { env } from '../config/env';
 import { resolveHistoryPointPrice } from '../utils/resolveListingPrice';
 import { normalizeVariantKey } from '../utils/normalizeVariantKey';
+import { scoreVariantMatch } from '../utils/variantMatch';
+import { repairStalePlateauCliffs } from '../utils/priceHistory';
 
 interface PriceHistoryPoint {
   date: string;
@@ -62,6 +64,8 @@ export interface TopMoverEntry {
   tcgplayerProductId: string | null;
   tcgplayerPrices: string | null;
   productId: number;
+  grader?: 'PSA' | string | null;
+  grade?: string | null;
 }
 
 export interface TopMoversResponse {
@@ -69,6 +73,8 @@ export interface TopMoversResponse {
   days: number;
   gainers: TopMoverEntry[];
   losers: TopMoverEntry[];
+  grader?: 'PSA' | string;
+  grade?: string;
 }
 
 const TOP_MOVERS_TTL_MS = 10 * 60 * 1000; // match backend TTL
@@ -77,6 +83,9 @@ type TopMoversCacheEntry = {
   expiresAt: number;
   data: TopMoversResponse;
 };
+
+const isFreshTopMoversEntry = (entry: TopMoversCacheEntry | null | undefined): entry is TopMoversCacheEntry =>
+  Boolean(entry && entry.data && typeof entry.expiresAt === 'number' && entry.expiresAt > Date.now());
 
 /**
  * Fetches top movers (biggest gainers/losers) over a given period
@@ -92,8 +101,10 @@ export class PriceHistoryApi {
     return `${days}:${limit}`;
   }
 
-  private static topMoversStorageKey(days: number, limit: number): string {
-    return `tcgtracker:top-movers:${days}:${limit}`;
+  private static topMoversStorageKey(days: number, limit: number, kind: 'raw' | 'slab' = 'raw'): string {
+    return kind === 'slab'
+      ? `tcgtracker:top-slab-movers:v2:${days}:${limit}`
+      : `tcgtracker:top-movers:v3:${days}:${limit}`;
   }
 
   private static readTopMoversStorage(days: number, limit: number): TopMoversCacheEntry | null {
@@ -126,9 +137,9 @@ export class PriceHistoryApi {
   static peekTopMovers(days: number = 7, limit: number = 20): TopMoversResponse | null {
     const key = this.topMoversCacheKey(days, limit);
     const mem = this.topMoversMemory.get(key);
-    if (mem?.data) return mem.data;
+    if (isFreshTopMoversEntry(mem)) return mem.data;
     const stored = this.readTopMoversStorage(days, limit);
-    if (stored?.data) {
+    if (isFreshTopMoversEntry(stored)) {
       this.topMoversMemory.set(key, stored);
       return stored.data;
     }
@@ -177,6 +188,89 @@ export class PriceHistoryApi {
     }
   }
 
+  private static slabMoversMemory = new Map<string, TopMoversCacheEntry>();
+
+  private static slabMoversCacheKey(days: number, limit: number): string {
+    return `slab:${days}:${limit}`;
+  }
+
+  private static readSlabMoversStorage(days: number, limit: number): TopMoversCacheEntry | null {
+    try {
+      const raw = localStorage.getItem(this.topMoversStorageKey(days, limit, 'slab'));
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as TopMoversCacheEntry;
+      if (!parsed?.data || typeof parsed.expiresAt !== 'number') return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
+  private static writeSlabMoversCache(days: number, limit: number, data: TopMoversResponse): void {
+    const entry: TopMoversCacheEntry = {
+      expiresAt: Date.now() + TOP_MOVERS_TTL_MS,
+      data,
+    };
+    this.slabMoversMemory.set(this.slabMoversCacheKey(days, limit), entry);
+    try {
+      localStorage.setItem(this.topMoversStorageKey(days, limit, 'slab'), JSON.stringify(entry));
+    } catch {
+      // Quota / private mode
+    }
+  }
+
+  static peekTopSlabMovers(days: number = 7, limit: number = 20): TopMoversResponse | null {
+    const key = this.slabMoversCacheKey(days, limit);
+    const mem = this.slabMoversMemory.get(key);
+    if (isFreshTopMoversEntry(mem)) return mem.data;
+    const stored = this.readSlabMoversStorage(days, limit);
+    if (isFreshTopMoversEntry(stored)) {
+      this.slabMoversMemory.set(key, stored);
+      return stored.data;
+    }
+    return null;
+  }
+
+  static async getTopSlabMovers(
+    days: number = 7,
+    limit: number = 20,
+    options: { force?: boolean } = {}
+  ): Promise<TopMoversResponse> {
+    const key = this.slabMoversCacheKey(days, limit);
+    const mem = this.slabMoversMemory.get(key);
+    if (
+      !options.force &&
+      mem &&
+      mem.expiresAt > Date.now() &&
+      (mem.data.gainers.length > 0 || mem.data.losers.length > 0)
+    ) {
+      return mem.data;
+    }
+
+    const stored = this.readSlabMoversStorage(days, limit);
+    if (
+      !options.force &&
+      stored &&
+      stored.expiresAt > Date.now() &&
+      (stored.data.gainers.length > 0 || stored.data.losers.length > 0)
+    ) {
+      this.slabMoversMemory.set(key, stored);
+      return stored.data;
+    }
+
+    try {
+      const response = await fetch(`${this.baseUrl}/top-slab-movers?days=${days}&limit=${limit}`);
+      if (!response.ok) {
+        return mem?.data ?? stored?.data ?? { date: null, days, gainers: [], losers: [] };
+      }
+      const data = (await response.json()) as TopMoversResponse;
+      this.writeSlabMoversCache(days, limit, data);
+      return data;
+    } catch {
+      return mem?.data ?? stored?.data ?? { date: null, days, gainers: [], losers: [] };
+    }
+  }
+
   private static async getStaticMappings(): Promise<CardIdentifier[]> {
     if (this.staticMappings) {
       return this.staticMappings;
@@ -219,10 +313,17 @@ export class PriceHistoryApi {
     const mappings = await this.getStaticMappings();
     if (mappings.length === 0) return null;
 
-    // Priority 1: Find by TCGPlayer Product ID (most reliable)
+    // productId is only a hint — never override a conflicting collector number
+    // (Trainer Gallery TG16 must not resolve to main-set #68 via a stale SKU).
     if (card.productId) {
       const found = mappings.find(m => m.tcgplayerProductId === card.productId);
-      if (found) return found;
+      if (found) {
+        const wantNum = (card.number || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const gotNum = (found.cardNumber || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (!wantNum || !gotNum || wantNum === gotNum) {
+          return found;
+        }
+      }
     }
 
     // Priority 2: Find by details with improved matching
@@ -433,62 +534,36 @@ export class PriceHistoryApi {
 
   /**
    * Deduplicate to one price per calendar day. Does NOT gap-fill — that's for chart display only.
+   * Never lets reverseHolofoil bleed into holofoil via substring match.
    */
   static formatPriceHistory(
     priceHistory: PriceHistoryPoint[],
     preferredVariant?: string
-  ): Array<{ date: string; price: number }> {
-    const preferred = normalizeVariantKey(preferredVariant);
-    const byDate = new Map<string, { price: number; score: number }>();
-
-    const scoreVariant = (subTypeName?: string): number => {
-      const rowVariant = normalizeVariantKey(subTypeName);
-      if (rowVariant === preferred) return 3;
-      if (preferred !== 'normal' && rowVariant.includes(preferred)) return 2;
-      if (preferred === 'normal' && (rowVariant === 'normal' || rowVariant === 'unlimited')) return 2;
-      return rowVariant === 'normal' ? 1 : 0;
-    };
+  ): Array<{ date: string; price: number; source?: string }> {
+    const byDate = new Map<string, { price: number; score: number; source?: string }>();
 
     priceHistory
       .filter((point) => resolveHistoryPointPrice(point) > 0)
       .forEach((point) => {
         const pointDate = point.date.includes('T') ? point.date.split('T')[0] : point.date;
         const normalizedPrice = resolveHistoryPointPrice(point);
-        const score = scoreVariant(point.subTypeName);
+        const score = scoreVariantMatch(preferredVariant, point.subTypeName);
+        if (score <= 0) return;
         const existing = byDate.get(pointDate);
         if (!existing || score > existing.score) {
-          byDate.set(pointDate, { price: normalizedPrice, score });
+          byDate.set(pointDate, {
+            price: normalizedPrice,
+            score,
+            source: point.source,
+          });
         }
       });
 
     const deduped = Array.from(byDate.entries())
-      .filter(([, { score }]) => score > 0)
-      .map(([date, { price }]) => ({ date, price }))
+      .map(([date, { price, source }]) => ({ date, price, source }))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    // If variant filter was too strict, keep best available row per day.
-    if (
-      deduped.length === 0 ||
-      deduped.length < Math.min(10, priceHistory.filter((p) => resolveHistoryPointPrice(p) > 0).length * 0.25)
-    ) {
-      byDate.clear();
-      priceHistory
-        .filter((point) => resolveHistoryPointPrice(point) > 0)
-        .forEach((point) => {
-          const pointDate = point.date.includes('T') ? point.date.split('T')[0] : point.date;
-          const normalizedPrice = resolveHistoryPointPrice(point);
-          const score = scoreVariant(point.subTypeName);
-          const existing = byDate.get(pointDate);
-          if (!existing || score > existing.score) {
-            byDate.set(pointDate, { price: normalizedPrice, score });
-          }
-        });
-      return Array.from(byDate.entries())
-        .map(([date, { price }]) => ({ date, price }))
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    }
-
-    return deduped;
+    return repairStalePlateauCliffs(deduped);
   }
 
   /**
@@ -583,15 +658,8 @@ export class PriceHistoryApi {
         }
         const data = await response.json();
         const raw = data?.priceHistory ?? [];
-        const formatted = this.formatPriceHistory(raw, variantToUse);
-        // If variant-specific result is sparse, retry using all subtype rows from the same product.
-        if (formatted.length < 14 && raw.length > formatted.length) {
-          const fallback = this.formatPriceHistory(raw, undefined);
-          if (fallback.length > formatted.length) {
-            return fallback;
-          }
-        }
-        return formatted;
+        // Never fall back to "all subtypes" — that reintroduces reverse↔holo bleed.
+        return this.formatPriceHistory(raw, variantToUse);
       };
 
       return await fetchHistory(variantKey);

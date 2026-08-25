@@ -42,6 +42,10 @@ export const fetchCardPopulation = async (params: {
   setName?: string;
   cardNumber?: string;
   variant?: string;
+  language?: string;
+  matchName?: string;
+  game?: 'pokemon' | 'onepiece';
+  cardImageId?: string;
 }): Promise<PopulationLookupResponse | null> => {
   const url = new URL(buildApiUrl('/api/cards/population'));
   if (params.cardId) url.searchParams.set('cardId', params.cardId);
@@ -50,6 +54,10 @@ export const fetchCardPopulation = async (params: {
   if (params.setName) url.searchParams.set('setName', params.setName);
   if (params.cardNumber) url.searchParams.set('cardNumber', params.cardNumber);
   if (params.variant) url.searchParams.set('variant', params.variant);
+  if (params.language) url.searchParams.set('language', params.language);
+  if (params.matchName) url.searchParams.set('matchName', params.matchName);
+  if (params.game) url.searchParams.set('game', params.game);
+  if (params.cardImageId) url.searchParams.set('cardImageId', params.cardImageId);
 
   try {
     const response = await fetch(url.toString(), {

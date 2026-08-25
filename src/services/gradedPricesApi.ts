@@ -5,6 +5,17 @@ export interface GradedPriceEntry {
   grade: string;
   price: number | null;
   soldListings: number;
+  lastSoldDate?: string | null;
+  lastSoldPrice?: number | null;
+  listedLow?: number | null;
+  listedAvg?: number | null;
+  listedCount?: number | null;
+  listedFetchedAt?: string | null;
+  marketMark?: number | null;
+  marketMarkReason?: string | null;
+  staleSold?: boolean;
+  lastSoldAgeDays?: number | null;
+  listedPremiumPct?: number | null;
 }
 
 export interface GradedPriceResult {
@@ -61,6 +72,11 @@ export const fetchGradedPrices = async (params: {
   setId?: string;
   setName?: string;
   cardNumber?: string;
+  language?: string;
+  matchName?: string;
+  variant?: string;
+  game?: 'pokemon' | 'onepiece';
+  cardImageId?: string;
 }): Promise<GradedPriceResult | null> => {
   const url = new URL(buildApiUrl('/api/cards/graded-prices'));
   url.searchParams.set('cardId', params.cardId);
@@ -68,6 +84,11 @@ export const fetchGradedPrices = async (params: {
   if (params.setId) url.searchParams.set('setId', params.setId);
   if (params.setName) url.searchParams.set('setName', params.setName);
   if (params.cardNumber) url.searchParams.set('cardNumber', params.cardNumber);
+  if (params.language) url.searchParams.set('language', params.language);
+  if (params.matchName) url.searchParams.set('matchName', params.matchName);
+  if (params.variant) url.searchParams.set('variant', params.variant);
+  if (params.game) url.searchParams.set('game', params.game);
+  if (params.cardImageId) url.searchParams.set('cardImageId', params.cardImageId);
 
   try {
     const response = await fetch(url.toString(), {
@@ -81,9 +102,13 @@ export const fetchGradedPrices = async (params: {
   }
 };
 
-export const fetchGradedSpreads = async (cardId: string): Promise<GradedSpreadSummary | null> => {
+export const fetchGradedSpreads = async (
+  cardId: string,
+  variant?: string
+): Promise<GradedSpreadSummary | null> => {
   const url = new URL(buildApiUrl('/api/cards/graded-spreads'));
   url.searchParams.set('cardId', cardId);
+  if (variant) url.searchParams.set('variant', variant);
   try {
     const response = await fetch(url.toString(), {
       headers: { Accept: 'application/json' },
@@ -115,7 +140,7 @@ export const fetchTopGradedPremiums = async (
   }
 };
 
-/** Batch PSA 10 spreads for watchlist / vault card ids. */
+/** Batch PSA 10 spreads for vault card ids. */
 export const fetchPsa10SpreadsForCards = async (
   cardIds: string[]
 ): Promise<GradedSpreadRow[]> => {
@@ -228,12 +253,14 @@ export const fetchGradedPriceHistory = async (params: {
   grader: string;
   grade: string;
   days?: number;
+  variant?: string;
 }): Promise<GradedPriceHistoryResult | null> => {
   const url = new URL(buildApiUrl('/api/cards/graded-price-history'));
   url.searchParams.set('cardId', params.cardId);
   url.searchParams.set('grader', params.grader);
   url.searchParams.set('grade', params.grade);
   if (params.days != null) url.searchParams.set('days', String(params.days));
+  if (params.variant) url.searchParams.set('variant', params.variant);
 
   try {
     const response = await fetch(url.toString(), {
@@ -260,10 +287,12 @@ export interface AllGradedPriceHistoryResult {
 export const fetchAllGradedPriceHistory = async (params: {
   cardId: string;
   days?: number;
+  variant?: string;
 }): Promise<AllGradedPriceHistoryResult | null> => {
   const url = new URL(buildApiUrl('/api/cards/graded-price-history'));
   url.searchParams.set('cardId', params.cardId);
   if (params.days != null) url.searchParams.set('days', String(params.days));
+  if (params.variant) url.searchParams.set('variant', params.variant);
 
   try {
     const response = await fetch(url.toString(), {
@@ -284,8 +313,19 @@ export interface GradeWorthinessRow {
   setName: string | null;
   era?: string;
   imageSmall?: string | null;
+  cardNumber?: string | null;
   rawPrice: number;
   psa10Price: number;
+  soldGuide?: number;
+  marketMark?: number;
+  marketMarkReason?: string;
+  lastSoldDate?: string | null;
+  lastSoldPrice?: number | null;
+  lastSoldAgeDays?: number | null;
+  listedLow?: number | null;
+  listedAvg?: number | null;
+  listedCount?: number;
+  staleSold?: boolean;
   premium: number;
   premiumPct: number;
   multiple: number;

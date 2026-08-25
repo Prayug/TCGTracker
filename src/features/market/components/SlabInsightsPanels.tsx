@@ -2,8 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   BookMarked,
   Droplets,
-  GitCompareArrows,
-  Layers,
   Loader2,
   Plus,
   Scale,
@@ -15,14 +13,10 @@ import {
   fetchCrackRegrade,
   fetchGradeLadder,
   fetchPopRegime,
-  fetchSetSlabHeatmap,
   fetchSlabMarks,
-  fetchSubmitVsBuy,
   GradeLadderRow,
   PopShockRow,
-  SetSlabHeatmapRow,
   SlabMark,
-  SubmitVsBuyRow,
 } from '../../../services/gradedPricesApi';
 import { slabBookService, SlabGrader, SlabLot } from '../../../services/slabBookService';
 import { formatCurrency } from '../../../utils/cardDisplay';
@@ -55,187 +49,6 @@ function openStubCard(
     marketPrice: row.rawPrice ?? 0,
   });
 }
-
-export const SubmitVsBuyPanel: React.FC = () => {
-  const { openCard } = useCardModal();
-  const [rows, setRows] = useState<SubmitVsBuyRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'submit' | 'buy'>('all');
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    void fetchSubmitVsBuy({ limit: 12 }).then((data) => {
-      if (!cancelled) {
-        setRows(data?.rows ?? []);
-        setLoading(false);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const visible = rows.filter((r) =>
-    filter === 'all' ? true : r.recommendation === filter
-  );
-
-  return (
-    <div className="card-glass-scene">
-      <SlabPanelHeader
-        icon={<GitCompareArrows className="h-4 w-4 text-accent" aria-hidden />}
-        title="Submit vs buy PSA 10"
-        subtitle="Raw + submit EV vs buying the slab (~45d)"
-        actions={
-          <div className="flex gap-1.5">
-            {(['all', 'submit', 'buy'] as const).map((f) => (
-              <FilterChip
-                key={f}
-                active={filter === f}
-                onClick={() => setFilter(f)}
-                className="text-xs"
-              >
-                {f === 'all' ? 'All' : f === 'submit' ? 'Submit' : 'Buy'}
-              </FilterChip>
-            ))}
-          </div>
-        }
-      />
-
-      {loading ? (
-        <div className="flex justify-center py-6">
-          <Loader2 className="h-5 w-5 animate-spin text-accent" />
-        </div>
-      ) : visible.length === 0 ? (
-        <SlabEmpty>Need verified PSA 10 + pop + raw to compare paths.</SlabEmpty>
-      ) : (
-        <div className="space-y-0.5">
-          {visible.map((row) => (
-            <SlabRow
-              key={row.cardId}
-              name={row.cardName || row.cardId}
-              setName={row.setName}
-              chip={
-                <StatusChip
-                  tone={
-                    row.recommendation === 'submit'
-                      ? 'gain'
-                      : row.recommendation === 'buy'
-                        ? 'accent'
-                        : 'muted'
-                  }
-                >
-                  {row.recommendation === 'toss_up' ? 'Toss-up' : row.recommendation}
-                </StatusChip>
-              }
-              primary={
-                <>
-                  EV {row.submitEV >= 0 ? '+' : ''}
-                  {formatCurrency(row.submitEV)}
-                </>
-              }
-              primaryTone={row.submitEV >= 0 ? 'gain' : 'loss'}
-              secondary={
-                <>
-                  Buy {formatCurrency(row.buyCost)} · gem {row.gemRatePct.toFixed(0)}%
-                </>
-              }
-              onClick={() => openStubCard(openCard, { ...row, rawPrice: row.rawPrice })}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
-export const SetSlabHeatmapPanel: React.FC<{
-  onSelectSet?: (setId: string, setName: string) => void;
-  selectedSetId?: string;
-  onClear?: () => void;
-}> = ({ onSelectSet, selectedSetId, onClear }) => {
-  const [rows, setRows] = useState<SetSlabHeatmapRow[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    void fetchSetSlabHeatmap({ limit: 16, minCards: 3 }).then((data) => {
-      if (!cancelled) {
-        setRows(data);
-        setLoading(false);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return (
-    <div className="card-glass-scene">
-      <SlabPanelHeader
-        icon={<Layers className="h-4 w-4 text-foil" aria-hidden />}
-        title="Set regimes"
-        subtitle="Median PSA 10 premium — tap to filter grade list"
-        actions={
-          selectedSetId && onClear ? (
-            <button
-              type="button"
-              onClick={onClear}
-              className="cursor-pointer text-xs text-accent hover:underline"
-            >
-              Clear filter
-            </button>
-          ) : null
-        }
-      />
-      {loading ? (
-        <div className="flex justify-center py-4">
-          <Loader2 className="h-5 w-5 animate-spin text-accent" />
-        </div>
-      ) : rows.length === 0 ? (
-        <SlabEmpty>Not enough graded coverage to map set regimes yet.</SlabEmpty>
-      ) : (
-        <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:thin]">
-          {rows.map((row) => {
-            const active = selectedSetId === row.setId;
-            return (
-              <button
-                key={row.setId}
-                type="button"
-                onClick={() => onSelectSet?.(row.setId, row.setName)}
-                className={`shrink-0 cursor-pointer rounded-lg border px-2.5 py-1.5 text-left transition-colors ${
-                  active
-                    ? 'border-accent bg-accent/15'
-                    : 'border-border-subtle hover:bg-surface-hover/60'
-                }`}
-              >
-                <p className="max-w-[9rem] truncate text-xs font-medium text-ink-primary">
-                  {row.setName}
-                </p>
-                <p className="font-mono text-[11px] tabular-nums text-accent">
-                  {row.medianPremiumPct >= 0 ? '+' : ''}
-                  {row.medianPremiumPct.toFixed(0)}%
-                  {row.premiumPctDelta30d != null && (
-                    <span
-                      className={
-                        row.premiumPctDelta30d >= 0
-                          ? 'ml-1.5 text-gain'
-                          : 'ml-1.5 text-loss'
-                      }
-                    >
-                      {row.premiumPctDelta30d >= 0 ? '+' : ''}
-                      {row.premiumPctDelta30d.toFixed(0)}pp
-                    </span>
-                  )}
-                </p>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-};
 
 export const PopRegimePanel: React.FC = () => {
   const { openCard } = useCardModal();
