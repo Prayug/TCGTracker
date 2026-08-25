@@ -137,16 +137,23 @@ export const PriceChart: React.FC<PriceChartProps> = ({
           margin={{ top: 12, right: 12, bottom: 28, left: 44 }}
           className="h-full w-full"
         >
-          <Grid horizontal vertical={false} />
+          <Grid
+            horizontal
+            vertical={false}
+            numTicksRows={2}
+            hideHorizontalEdgeLines
+            strokeDasharray="0"
+            strokeOpacity={0.4}
+          />
           <Area
             dataKey="price"
             fill={strokeColor}
             stroke={strokeColor}
-            fillOpacity={0.22}
+            fillOpacity={0.1}
             gradientToOpacity={0}
             strokeWidth={2}
           />
-          <YAxis tickFormatter={formatAxisPrice} numTicks={4} />
+          <YAxis tickFormatter={formatAxisPrice} numTicks={3} />
           <XAxis />
           <ChartTooltip
             rows={(point) => [

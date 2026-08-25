@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, TrendingUp } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowDown, ArrowRight, ArrowUp, TrendingUp } from 'lucide-react';
 import { PokemonCard } from '../../types/pokemon';
 import { PriceHistoryApi, TopMoverEntry } from '../../services/priceHistoryApi';
 import { formatCurrency, proxyImageUrl } from '../../utils/cardDisplay';
@@ -253,29 +254,27 @@ export const TopMovers: React.FC<TopMoversProps> = ({ onCardClick }) => {
   }
 
   const renderRow = (rowEntries: MoverDisplay[], isGainers: boolean) => (
-    <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none' }}>
+    <div className="flex gap-3.5 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none' }}>
       {rowEntries.map(({ productName, subtitle, currentPrice, changePct, imageSmall, raw }) => (
         <button
           key={moverKey(raw)}
           type="button"
           onClick={() => handleCardClick(raw)}
-          className={`group relative w-32 shrink-0 overflow-hidden rounded-xl border text-left transition-all duration-200 hover:-translate-y-1 ${
+          className={`group relative w-36 shrink-0 overflow-hidden rounded-xl border text-left transition-all duration-200 hover:-translate-y-1 ${
             isGainers && changePct > 15 ? 'hot-border' : ''
           }`}
           style={{
             borderColor: 'var(--border-default)',
-            background: 'var(--gradient-surface)',
+            background: 'var(--surface-raised)',
           }}
         >
-          <div className="absolute inset-0 holo-sweep pointer-events-none" />
-          <div className="absolute inset-0 holo-texture pointer-events-none" />
           <img
             src={proxyImageUrl(imageSmall)}
             alt={productName}
-            className="h-24 w-full object-cover object-top"
+            className="h-28 w-full object-cover object-top"
             loading="lazy"
           />
-          <div className="space-y-1 p-2">
+          <div className="space-y-1 p-2.5">
             <p className="truncate text-[11px] font-medium leading-tight" style={{ color: 'var(--ink-primary)' }}>
               {productName}
             </p>
@@ -284,16 +283,16 @@ export const TopMovers: React.FC<TopMoversProps> = ({ onCardClick }) => {
                 {subtitle}
               </p>
             ) : null}
-            <div className="flex flex-col gap-0.5">
-              <span className="font-mono text-xs tabular-nums" style={{ color: 'var(--ink-muted)' }}>
+            <div className="flex items-baseline justify-between gap-1.5">
+              <span className="truncate font-mono text-[11px] tabular-nums" style={{ color: 'var(--ink-muted)' }}>
                 {currentPrice > 0 ? formatCurrency(currentPrice) : '—'}
               </span>
               <span
-                className={`inline-flex items-center gap-0.5 text-xs font-semibold tabular-nums ${
+                className={`inline-flex shrink-0 items-center gap-0.5 text-[13px] font-bold tabular-nums ${
                   changePct >= 0 ? 'text-gain' : 'text-loss'
                 }`}
               >
-                {changePct >= 0 ? <ArrowUp className="h-2.5 w-2.5 shrink-0" /> : <ArrowDown className="h-2.5 w-2.5 shrink-0" />}
+                {changePct >= 0 ? <ArrowUp className="h-3 w-3 shrink-0" /> : <ArrowDown className="h-3 w-3 shrink-0" />}
                 {Number.isFinite(changePct) ? `${Math.abs(changePct).toFixed(1)}%` : '—'}
               </span>
             </div>
@@ -303,25 +302,59 @@ export const TopMovers: React.FC<TopMoversProps> = ({ onCardClick }) => {
     </div>
   );
 
+  const periodLabel = PERIODS.find((p) => p.key === period)?.label ?? period;
+  const avgMove = sorted.length
+    ? sorted.reduce((sum, e) => sum + e.changePercent, 0) / sorted.length
+    : 0;
+
   return (
     <div className="flex w-full flex-col gap-5">
-      <div className="flex items-center gap-3">
-        <h3 className="text-gradient text-lg font-display font-bold">Top movers</h3>
-        <div className="flex gap-1 rounded-lg border p-0.5" style={{ borderColor: 'var(--border-subtle)' }}>
-          {PERIODS.map(({ key, label }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => switchPeriod(key)}
-              className="rounded-md px-3 py-1 text-xs font-medium transition-all duration-200"
-              style={{
-                backgroundColor: period === key ? 'var(--accent)' : 'transparent',
-                color: period === key ? '#fff' : 'var(--ink-secondary)',
-              }}
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+        <div className="flex min-w-0 flex-col gap-1">
+          <h3 className="text-gradient text-lg font-display font-bold">Raw top movers</h3>
+          <p className="text-xs font-medium" style={{ color: 'var(--ink-secondary)' }}>
+            Avg move{' '}
+            <span className={`font-semibold tabular-nums ${avgMove >= 0 ? 'text-gain' : 'text-loss'}`}>
+              {avgMove >= 0 ? '+' : ''}{avgMove.toFixed(1)}%
+            </span>{' '}
+            over {periodLabel} · {sorted.length} cards with price changes
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div
+            className="flex items-center gap-1.5 rounded-lg border p-0.5"
+            style={{ borderColor: 'var(--border-subtle)' }}
+          >
+            <span
+              className="pl-2 text-[10px] font-bold uppercase tracking-[0.14em]"
+              style={{ color: 'var(--ink-muted)' }}
             >
-              {label}
-            </button>
-          ))}
+              Ungraded
+            </span>
+            <span className="h-4 w-px" style={{ backgroundColor: 'var(--border-subtle)' }} />
+            {PERIODS.map(({ key, label }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => switchPeriod(key)}
+                className="rounded-md px-3 py-1 text-xs font-medium transition-all duration-200"
+                style={{
+                  backgroundColor: period === key ? 'var(--accent)' : 'transparent',
+                  color: period === key ? '#fff' : 'var(--ink-secondary)',
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <Link
+            to="/market-insights"
+            className="inline-flex items-center gap-1 text-xs font-semibold transition-colors duration-200 hover:opacity-80"
+            style={{ color: 'var(--accent)' }}
+          >
+            View full rankings
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
         </div>
       </div>
 

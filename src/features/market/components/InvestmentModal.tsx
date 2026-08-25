@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PokemonCard } from '../../../types/pokemon';
+import { OnePieceCard } from '../../../types/onepiece';
 import { Modal } from '../../../components/common/Modal';
 import { PriceChart } from './PriceChart';
 import { PriceHistoryApi } from '../../../services/priceHistoryApi';
 import { AddToVaultModal } from '../../../features/vault/components/AddToVaultModal';
-import { Database, Heart, Loader2, Vault, TrendingUp } from 'lucide-react';
+import { Database, Heart, Loader2, Percent, Vault } from 'lucide-react';
 import { vaultService } from '../../../services/vaultService';
 import { pokemonApi } from '../../../services/pokemonApi';
-import { priceTrackingService } from '../../../services/priceTrackingService';
+import { onePieceApi } from '../../../services/onepieceApi';
 import { cardWishlistService } from '../../../services/cardWishlistService';
 import { useGame } from '../../../contexts/GameContext';
 import { useToast } from '../../../components/common/Toast';
@@ -23,13 +25,50 @@ import {
 } from '../../../services/gradedPricesApi';
 import { formatCurrency, formatPercent } from '../../../utils/cardDisplay';
 import { toIsoDate } from '../../../utils/priceHistory';
+import { PRICE_RANGES, PriceRangeKey, slicePriceHistory } from '../../../utils/chartDomain';
 import { GradedMultiPriceChart, gradedSeriesKey } from './GradedMultiPriceChart';
+import { GradedPriceCards } from './GradedPriceCards';
+import { headlineGradedPrice } from './gradedPriceDisplay';
+import { cn } from '@/lib/utils';
 
 interface InvestmentModalProps {
-  card: PokemonCard | null;
+  card: PokemonCard | OnePieceCard | null;
   isOpen: boolean;
   onClose: () => void;
 }
+
+function isOnePieceDetail(card: PokemonCard | OnePieceCard): card is OnePieceCard {
+  return 'cardColor' in card || 'cardType' in card || 'cardCost' in card || 'attribute' in card;
+}
+
+function toVaultCard(card: PokemonCard | OnePieceCard): PokemonCard {
+  if (!isOnePieceDetail(card) && 'set' in card && 'releaseDate' in (card.set ?? {})) {
+    return card;
+  }
+  return {
+    id: card.id,
+    name: card.name,
+    images: card.images,
+    set: {
+      id: card.set.id,
+      name: card.set.name,
+      releaseDate: 'releaseDate' in card.set ? String(card.set.releaseDate || '') : '',
+      total: 'total' in card.set ? Number(card.set.total) || 0 : 0,
+    },
+    number: card.number,
+    rarity: card.rarity,
+    marketPrice: card.marketPrice,
+  };
+}
+
+type DetailTab = 'overview' | 'grades' | 'population' | 'sales';
+
+const TABS: { id: DetailTab; label: string }[] = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'grades', label: 'Grades' },
+  { id: 'population', label: 'Population' },
+  { id: 'sales', label: 'Sales' },
+];
 
 function formatDisplayDate(dateStr: string): string {
   const iso = toIsoDate(dateStr);
@@ -84,6 +123,14 @@ function sortGradedEntries(a: GradedPriceEntry, b: GradedPriceEntry): number {
   return (oa === -1 ? 99 : oa) - (ob === -1 ? 99 : ob);
 }
 
+function formatSoldAge(days?: number | null): string {
+  if (days == null) return '';
+  if (days <= 1) return 'today';
+  if (days < 30) return `${days}d ago`;
+  if (days < 365) return `${Math.round(days / 30)}mo ago`;
+  return `${(days / 365).toFixed(1)}y ago`;
+}
+
 function pickDefaultGradedSeries(
   prices: GradedPriceEntry[]
 ): { grader: string; grade: string } | null {
@@ -125,33 +172,35 @@ function FreshnessNote({
   if (!label) return null;
   return (
     <span
-      className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
-        stale ? 'bg-loss/15 text-loss' : 'bg-gain/15 text-gain'
-      }`}
+      className={stale ? 'text-[11px] text-amber-200/60' : 'text-[11px] text-ink-muted'}
+      title={stale ? 'No newer verified sales available.' : undefined}
     >
-      {stale ? `stale · as of ${label}` : `as of ${label}`}
+      {stale ? `Updated ${label}` : `as of ${label}`}
     </span>
   );
 }
 
 export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, onClose }) => {
-  const { game } = useGame();
+  const { game, isOnePiece } = useGame();
+  const navigate = useNavigate();
   const { showToast } = useToast();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const heroRef = useRef<HTMLDivElement>(null);
+  const [compactHeader, setCompactHeader] = useState(false);
+  const [activeTab, setActiveTab] = useState<DetailTab>('overview');
+  const [priceRange, setPriceRange] = useState<PriceRangeKey>('6M');
   const [priceHistory, setPriceHistory] = useState<Array<{ date: string; price: number }>>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [hasRealData, setHasRealData] = useState(false);
   const [isVaultModalOpen, setIsVaultModalOpen] = useState(false);
   const [isInVault, setIsInVault] = useState(false);
-  const [isTracked, setIsTracked] = useState(false);
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [selectedVariant, setSelectedVariant] = useState('normal');
   const [populationData, setPopulationData] = useState<PopulationLookupResponse | null>(null);
   const [isLoadingPopulation, setIsLoadingPopulation] = useState(false);
-  const [showPopulation, setShowPopulation] = useState(false);
   const [gradedPrices, setGradedPrices] = useState<GradedPriceResult | null>(null);
   const [gradedSpreads, setGradedSpreads] = useState<GradedSpreadSummary | null>(null);
   const [isLoadingGradedPrices, setIsLoadingGradedPrices] = useState(false);
-  const [showGradedPrices, setShowGradedPrices] = useState(true);
   const [selectedGradedSeries, setSelectedGradedSeries] = useState<{
     grader: string;
     grade: string;
@@ -161,34 +210,59 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
   );
   const [isLoadingGradedHistory, setIsLoadingGradedHistory] = useState(false);
 
-  const hasGradedPrices = gradedPrices?.prices && gradedPrices.prices.length > 0;
-
   useEffect(() => {
     if (!isOpen) {
       setGradedPrices(null);
       setGradedSpreads(null);
-      setShowGradedPrices(true);
       setIsLoadingGradedPrices(false);
       setSelectedGradedSeries(null);
       setAllGradedHistory(null);
       setIsLoadingGradedHistory(false);
+      setCompactHeader(false);
+      setActiveTab('overview');
+      setPriceRange('6M');
       return;
     }
 
     setGradedPrices(null);
     setGradedSpreads(null);
-    setShowGradedPrices(true);
     setSelectedGradedSeries(null);
     setAllGradedHistory(null);
+    setCompactHeader(false);
+    setActiveTab('overview');
+    setPriceRange('6M');
   }, [card?.id, isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let observer: IntersectionObserver | null = null;
+    const frame = requestAnimationFrame(() => {
+      const root = scrollRef.current;
+      const hero = heroRef.current;
+      if (!root || !hero) return;
+      observer = new IntersectionObserver(
+        ([entry]) => {
+          setCompactHeader(entry.intersectionRatio < 0.4);
+        },
+        { root, threshold: [0, 0.25, 0.4, 0.75, 1] }
+      );
+      observer.observe(hero);
+    });
+
+    return () => {
+      cancelAnimationFrame(frame);
+      observer?.disconnect();
+    };
+  }, [isOpen, card?.id]);
+
   const variantOptions = React.useMemo(() => {
-    const fromPrices = card?.tcgplayer?.prices
-      ? Object.keys(card.tcgplayer.prices)
-      : [];
+    if (isOnePiece) return [{ key: 'normal', label: 'Normal' }];
+    const pokemon = card as PokemonCard | null;
+    const fromPrices = pokemon?.tcgplayer?.prices ? Object.keys(pokemon.tcgplayer.prices) : [];
     const keys = new Set(fromPrices);
-    if (card?.preferredVariant) {
-      keys.add(card.preferredVariant);
+    if (pokemon?.preferredVariant) {
+      keys.add(pokemon.preferredVariant);
     }
     if (keys.size === 0) {
       return [{ key: 'normal', label: 'Normal' }];
@@ -197,7 +271,7 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
       key,
       label: key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (char) => char.toUpperCase()),
     }));
-  }, [card]);
+  }, [card, isOnePiece]);
 
   const gradedRows = React.useMemo(() => {
     if (!gradedPrices?.prices) return [];
@@ -206,53 +280,33 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
       .sort(sortGradedEntries);
   }, [gradedPrices]);
 
-  const selectedGradedEntry = React.useMemo(() => {
-    if (!selectedGradedSeries) return null;
-    return (
-      gradedRows.find(
-        (e) =>
-          e.grader === selectedGradedSeries.grader && e.grade === selectedGradedSeries.grade
-      ) ?? null
-    );
-  }, [gradedRows, selectedGradedSeries]);
-
-  // Compare slabs to TCGPlayer/canonical raw — never PriceCharting "ungraded".
-  const rawGradedPrice = gradedSpreads?.rawPrice ?? null;
-
-  const selectedVsRaw = React.useMemo(() => {
-    const price = selectedGradedEntry?.price;
-    if (price == null || price <= 0 || rawGradedPrice == null || rawGradedPrice <= 0) {
-      return null;
-    }
-    return {
-      multiple: price / rawGradedPrice,
-      premiumPct: ((price - rawGradedPrice) / rawGradedPrice) * 100,
-    };
-  }, [selectedGradedEntry?.price, rawGradedPrice]);
+  const rawGradedPrice =
+    gradedSpreads?.rawPrice ??
+    (card?.marketPrice && card.marketPrice > 0 ? card.marketPrice : null);
 
   useEffect(() => {
     if (card && isOpen) {
       fetchPriceHistory();
       setIsInVault(vaultService.isInVault(card.id, game));
-      setIsTracked(priceTrackingService.isTracked(card.id, game));
       setIsWishlisted(cardWishlistService.isWishlisted(card.id, game));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- don't refetch on same-id enrich
-  }, [card?.id, isOpen, selectedVariant, game]);
+  }, [card?.id, isOpen, selectedVariant, game, isOnePiece]);
 
   useEffect(() => {
     if (card && isOpen) fetchPopulation();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [card?.id, isOpen, selectedVariant]);
+  }, [card?.id, isOpen, selectedVariant, isOnePiece]);
 
   useEffect(() => {
     if (card && isOpen) fetchGradedPricesData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [card?.id, isOpen]);
+  }, [card?.id, isOpen, selectedVariant, isOnePiece]);
 
   useEffect(() => {
-    if (!card || !isOpen) return;
-    const preferred = card.preferredVariant;
+    if (!card || !isOpen || isOnePiece) return;
+    const pokemon = card as PokemonCard;
+    const preferred = pokemon.preferredVariant;
     const match = preferred
       ? variantOptions.find((option) => option.key.toLowerCase() === preferred.toLowerCase())
       : undefined;
@@ -260,11 +314,10 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
       setSelectedVariant(match.key);
       return;
     }
-    // Default to the highest coherent listing so the modal matches browse.
     let bestKey = variantOptions[0]?.key || 'normal';
     let bestPrice = 0;
     for (const option of variantOptions) {
-      const price = pokemonApi.extractCardPrice(card, option.key);
+      const price = pokemonApi.extractCardPrice(pokemon, option.key);
       if (price > bestPrice) {
         bestPrice = price;
         bestKey = option.key;
@@ -272,15 +325,7 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
     }
     setSelectedVariant(bestKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [card?.id, card?.preferredVariant, isOpen]);
-
-  const handleTrack = () => {
-    if (card) {
-      priceTrackingService.trackCard(card, game);
-      setIsTracked(true);
-      showToast('Added to price watchlist', 'success');
-    }
-  };
+  }, [card?.id, isOpen, isOnePiece]);
 
   const handleWishlist = () => {
     if (!card) return;
@@ -293,15 +338,17 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
     if (!card) return;
     setIsLoadingHistory(true);
     try {
-      const history = await PriceHistoryApi.getPokemonCardPriceHistory({
-        id: card.id,
-        name: card.name,
-        set: card.set,
-        number: card.number,
-        rarity: card.rarity,
-        productId: card.tcgplayer?.productId,
-        variant: selectedVariant,
-      });
+      const history = isOnePiece
+        ? await onePieceApi.getPriceHistory(card.id, card.marketPrice)
+        : await PriceHistoryApi.getPokemonCardPriceHistory({
+            id: card.id,
+            name: card.name,
+            set: card.set as PokemonCard['set'],
+            number: card.number,
+            rarity: card.rarity,
+            productId: (card as PokemonCard).tcgplayer?.productId,
+            variant: selectedVariant,
+          });
       if (history?.length > 0) {
         setPriceHistory(history);
         setHasRealData(true);
@@ -321,13 +368,19 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
     if (!card) return;
     setIsLoadingPopulation(true);
     try {
+      const pokemon = card as PokemonCard;
+      const op = card as OnePieceCard;
       const result = await fetchCardPopulation({
         cardId: card.id,
         cardName: card.name,
         setId: card.set?.id,
         setName: card.set?.name,
         cardNumber: card.number,
-        variant: selectedVariant,
+        variant: isOnePiece ? 'normal' : selectedVariant,
+        language: isOnePiece ? undefined : pokemon.language,
+        matchName: isOnePiece ? undefined : pokemon.matchName,
+        game: isOnePiece ? 'onepiece' : 'pokemon',
+        cardImageId: isOnePiece ? op.cardImageId : undefined,
       });
       setPopulationData(result);
     } finally {
@@ -339,16 +392,21 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
     if (!card) return;
     setIsLoadingGradedPrices(true);
     try {
-      const [result, spreads] = await Promise.all([
-        fetchGradedPrices({
-          cardId: card.id,
-          cardName: card.name,
-          setId: card.set?.id,
-          setName: card.set?.name,
-          cardNumber: card.number,
-        }),
-        fetchGradedSpreads(card.id),
-      ]);
+      const pokemon = card as PokemonCard;
+      const op = card as OnePieceCard;
+      const result = await fetchGradedPrices({
+        cardId: card.id,
+        cardName: card.name,
+        setId: card.set?.id,
+        setName: card.set?.name,
+        cardNumber: card.number,
+        language: isOnePiece ? undefined : pokemon.language,
+        matchName: isOnePiece ? undefined : pokemon.matchName,
+        variant: isOnePiece ? 'normal' : selectedVariant,
+        game: isOnePiece ? 'onepiece' : 'pokemon',
+        cardImageId: isOnePiece ? op.cardImageId : undefined,
+      });
+      const spreads = await fetchGradedSpreads(card.id, isOnePiece ? 'normal' : selectedVariant);
       setGradedPrices(result);
       setGradedSpreads(spreads);
       if (result?.prices?.length) {
@@ -367,7 +425,7 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
 
     let cancelled = false;
     setIsLoadingGradedHistory(true);
-    fetchAllGradedPriceHistory({ cardId: card.id, days: 365 })
+    fetchAllGradedPriceHistory({ cardId: card.id, days: 365, variant: selectedVariant })
       .then((result) => {
         if (cancelled) return;
         setAllGradedHistory(result);
@@ -379,21 +437,28 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
     return () => {
       cancelled = true;
     };
-  }, [card?.id, isOpen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetch by card id + finish
+  }, [card?.id, isOpen, selectedVariant]);
+
+  const rangedHistory = useMemo(
+    () => slicePriceHistory(priceHistory, priceRange),
+    [priceHistory, priceRange]
+  );
 
   if (!card) return null;
 
   const selectedVariantLabel =
     variantOptions.find((option) => option.key === selectedVariant)?.label || 'Normal';
-  const firstHistoryPrice = priceHistory[0]?.price || 0;
-  const lastHistoryPrice = priceHistory[priceHistory.length - 1]?.price || 0;
+  const firstHistoryPrice = rangedHistory[0]?.price || 0;
+  const lastHistoryPrice = rangedHistory[rangedHistory.length - 1]?.price || 0;
   const listingFallback =
     (card.marketPrice && card.marketPrice > 0 ? card.marketPrice : 0) ||
-    pokemonApi.extractCardPrice(card, selectedVariant) ||
+    (isOnePiece ? 0 : pokemonApi.extractCardPrice(card as PokemonCard, selectedVariant)) ||
     0;
-  // Headline = backend snapshot (latest history point). Listing is fallback before history loads.
-  const actualCardPrice = lastHistoryPrice || listingFallback;
-  const priceChange = lastHistoryPrice > 0 && firstHistoryPrice > 0 ? lastHistoryPrice - firstHistoryPrice : 0;
+  const actualCardPrice =
+    (priceHistory[priceHistory.length - 1]?.price || 0) || listingFallback;
+  const priceChange =
+    lastHistoryPrice > 0 && firstHistoryPrice > 0 ? lastHistoryPrice - firstHistoryPrice : 0;
   const priceChangePercent = firstHistoryPrice > 0 ? (priceChange / firstHistoryPrice) * 100 : 0;
   const isPositiveChange = priceChange >= 0;
 
@@ -403,106 +468,121 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
     { key: 'beckett', label: 'BGS' },
   ] as const;
 
+  const psaPop = populationData?.companies?.psa?.pop;
+
+  const focusGrade = (grader: string, grade: string) => {
+    setSelectedGradedSeries({ grader, grade });
+    setActiveTab('grades');
+  };
+
+  const compactBar = compactHeader ? (
+    <div className="flex items-center gap-3 border-b border-border-subtle px-5 py-2.5 pr-14 sm:px-7">
+      <img
+        src={card.images?.small || card.images?.large || ''}
+        alt=""
+        className="h-9 w-7 shrink-0 rounded object-contain"
+      />
+      <p className="min-w-0 flex-1 truncate text-sm font-semibold text-ink-primary">{card.name}</p>
+      <p className="shrink-0 font-mono text-sm font-semibold tabular-nums text-ink-primary">
+        {formatCurrency(actualCardPrice)}
+      </p>
+    </div>
+  ) : null;
+
   return (
     <>
-      <Modal isOpen={isOpen} onClose={onClose} size="detail" variant="dive">
-        <div className="min-w-0">
-          <div className="flex gap-4 sm:gap-5">
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
+        size="detail"
+        variant="dive"
+        flush
+        bodyRef={scrollRef}
+        header={compactBar}
+      >
+        <div ref={heroRef} className="px-5 pb-6 pt-4 pr-14 sm:px-7 sm:pt-5">
+          <div className="flex gap-5 sm:gap-6">
             <img
-              src={card.images.large || card.images.small}
+              src={card.images?.large || card.images?.small || ''}
               alt=""
-              className="aspect-[5/7] w-[8.5rem] shrink-0 rounded-xl border border-border-default bg-surface-inset object-contain shadow-md sm:w-[9.5rem]"
+              className="aspect-[5/7] w-[11rem] shrink-0 rounded-xl bg-surface-raised object-contain sm:w-[12.5rem]"
               loading="lazy"
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
-                if (card.images.small && target.src !== card.images.small) {
+                if (card.images?.small && target.src !== card.images.small) {
                   target.src = card.images.small;
                 }
               }}
             />
 
-            <div className="min-w-0 flex-1">
-              <h2 className="text-xl font-bold leading-tight text-ink-primary sm:text-2xl">{card.name}</h2>
-              <p className="mt-1 text-sm text-ink-muted">
-                {card.set.name}
+            <div className="flex min-w-0 flex-1 flex-col">
+              <h2 className="font-display text-2xl font-semibold leading-tight tracking-tight text-ink-primary sm:text-[1.75rem]">
+                {card.name}
+              </h2>
+              <p className="mt-2 text-sm text-ink-muted">
+                {card.set?.name}
                 {card.number ? ` · #${card.number}` : ''}
               </p>
-              {card.rarity && (
-                <p className="mt-0.5 text-sm text-ink-muted">{card.rarity}</p>
-              )}
-
-              <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <span className="text-3xl font-bold tabular-nums text-ink-primary">
-                  {formatCurrency(actualCardPrice)}
-                </span>
-                {isWishlisted && (() => {
-                  const wish = cardWishlistService.getItem(card.id, game);
-                  if (
-                    wish?.targetPrice != null &&
-                    actualCardPrice > 0 &&
-                    actualCardPrice <= wish.targetPrice
-                  ) {
-                    return (
-                      <span className="rounded-full bg-gain/15 px-2.5 py-0.5 text-xs font-semibold text-gain">
-                        At buy target
-                      </span>
-                    );
-                  }
-                  return null;
+              {card.rarity && <p className="mt-1 text-sm text-ink-muted">{card.rarity}</p>}
+              {isOnePiece &&
+                (() => {
+                  const op = card as OnePieceCard;
+                  const bits = [op.cardColor, op.cardType, op.cardCost ? `Cost ${op.cardCost}` : null, op.cardPower ? `Power ${op.cardPower}` : null].filter(Boolean);
+                  return bits.length ? <p className="mt-1 text-sm text-ink-muted">{bits.join(' · ')}</p> : null;
                 })()}
-                {priceHistory.length > 1 && (
-                  <span
-                    className={`rounded-full px-2.5 py-0.5 text-sm font-semibold tabular-nums ${
-                      isPositiveChange ? 'bg-gain/15 text-gain' : 'bg-loss/15 text-loss'
+
+              <div className="mt-6">
+                <p className="font-mono text-4xl font-semibold tabular-nums tracking-tight text-ink-primary">
+                  {formatCurrency(actualCardPrice)}
+                </p>
+                {rangedHistory.length > 1 && (
+                  <p
+                    className={`mt-1.5 text-sm tabular-nums ${
+                      isPositiveChange ? 'text-gain' : 'text-loss'
                     }`}
                   >
                     {isPositiveChange ? '+' : ''}
-                    {formatCurrency(priceChange, { signed: false })} ({priceChangePercent.toFixed(1)}%)
-                  </span>
+                    {formatCurrency(priceChange, { signed: false })} ·{' '}
+                    {formatPercent(priceChangePercent, { signed: true })}
+                  </p>
                 )}
+                {isWishlisted &&
+                  (() => {
+                    const wish = cardWishlistService.getItem(card.id, game);
+                    if (
+                      wish?.targetPrice != null &&
+                      actualCardPrice > 0 &&
+                      actualCardPrice <= wish.targetPrice
+                    ) {
+                      return (
+                        <p className="mt-1 text-xs font-medium text-gain">At buy target</p>
+                      );
+                    }
+                    return null;
+                  })()}
                 {isLoadingHistory && (
-                  <Loader2 className="h-4 w-4 animate-spin text-ink-muted" aria-label="Loading price" />
+                  <Loader2 className="mt-2 h-4 w-4 animate-spin text-ink-muted" aria-label="Loading price" />
                 )}
               </div>
 
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <select
-                  value={selectedVariant}
-                  onChange={(e) => setSelectedVariant(e.target.value)}
-                  className="input max-w-[11rem] py-1.5 text-sm"
-                  aria-label="Card finish"
-                >
-                  {variantOptions.map((option) => (
-                    <option key={option.key} value={option.key}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={handleTrack}
-                  disabled={isTracked}
-                  className={
-                    isTracked
-                      ? 'inline-flex items-center gap-2 rounded-lg border border-border-default px-3 py-1.5 text-sm text-ink-muted'
-                      : 'btn-secondary'
-                  }
-                >
-                  <TrendingUp className="h-4 w-4" />
-                  {isTracked ? 'Tracking' : 'Track price'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleWishlist}
-                  className={
-                    isWishlisted
-                      ? 'inline-flex items-center gap-2 rounded-lg border border-accent/40 bg-accent-muted px-3 py-1.5 text-sm text-accent'
-                      : 'btn-secondary'
-                  }
-                >
-                  <Heart className={`h-4 w-4 ${isWishlisted ? 'fill-current' : ''}`} />
-                  {isWishlisted ? 'Wishlisted' : 'Wishlist'}
-                </button>
+              {!isOnePiece && (
+                <div className="mt-5">
+                  <select
+                    value={selectedVariant}
+                    onChange={(e) => setSelectedVariant(e.target.value)}
+                    className="input h-9 max-w-[12rem] py-1.5 text-sm"
+                    aria-label="Card finish"
+                  >
+                    {variantOptions.map((option) => (
+                      <option key={option.key} value={option.key}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="mt-4 flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setIsVaultModalOpen(true)}
@@ -511,262 +591,370 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
                   <Vault className="h-4 w-4" />
                   {isInVault ? 'In vault' : 'Add to vault'}
                 </button>
+                <button
+                  type="button"
+                  onClick={handleWishlist}
+                  className={cn(
+                    'btn-icon h-10 w-10',
+                    isWishlisted && 'text-accent'
+                  )}
+                  aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+                  aria-pressed={isWishlisted}
+                >
+                  <Heart className={`h-4 w-4 ${isWishlisted ? 'fill-current' : ''}`} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    navigate(`/deals?cardId=${encodeURIComponent(card.id)}`);
+                  }}
+                  className="btn-secondary h-10 px-3"
+                  aria-label="Find eBay deals for this card"
+                >
+                  <Percent className="h-4 w-4" />
+                  eBay Deals
+                </button>
               </div>
             </div>
           </div>
+        </div>
 
-          <div className="mt-5 border-t border-border-subtle pt-5">
-            {priceHistory.length > 0 ? (
-              <PriceChart
-                priceHistory={priceHistory}
-                variant="dark"
-                height={300}
-                compact
-              />
-            ) : isLoadingHistory ? (
-              <div className="flex h-[300px] items-center justify-center rounded-xl border border-border-default bg-surface-inset">
-                <Loader2 className="h-6 w-6 animate-spin text-accent" />
-              </div>
-            ) : (
-              <div className="flex h-[200px] flex-col items-center justify-center rounded-xl border border-dashed border-border-strong text-center">
-                <Database className="mb-2 h-8 w-8 text-ink-muted" />
-                <p className="text-sm text-ink-muted">No price history yet</p>
-                <p className="mt-1 text-xs text-ink-muted">
-                  {selectedVariantLabel} · sync backend for snapshots
-                </p>
-              </div>
-            )}
+        <div className="sticky top-0 z-10 border-b border-border-subtle bg-surface-overlay px-5 sm:px-7">
+          <div className="flex gap-1 overflow-x-auto" role="tablist" aria-label="Card detail sections">
+            {TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  'relative shrink-0 px-3 py-2.5 text-sm font-medium transition-colors',
+                  activeTab === tab.id ? 'text-ink-primary' : 'text-ink-muted hover:text-ink-secondary'
+                )}
+              >
+                {tab.label}
+                {activeTab === tab.id && (
+                  <span className="absolute inset-x-3 -bottom-px h-px bg-accent" aria-hidden />
+                )}
+              </button>
+            ))}
           </div>
+        </div>
 
-          <div className="mt-4 border-t border-border-subtle pt-4">
-            <button
-              type="button"
-              onClick={() => setShowGradedPrices((v) => !v)}
-              className="flex w-full items-center justify-between gap-3 text-left text-sm text-ink-muted hover:text-ink-secondary"
-              aria-expanded={showGradedPrices}
-            >
-              <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 font-medium text-ink-secondary">
-                Slab prices
-                {isLoadingGradedPrices && (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />
-                )}
-                {gradedPrices && (
-                  <FreshnessNote
-                    fetchedAt={gradedPrices.fetchedAt}
-                    stale={gradedPrices.stale}
-                  />
-                )}
-                {!showGradedPrices && hasGradedPrices && (
-                  <span className="truncate font-normal tabular-nums text-ink-muted">
-                    {gradedRows
-                      .slice(0, 3)
-                      .map(
-                        (e) =>
-                          `${gradedRowLabel(e)} ${e.price != null ? formatCurrency(e.price) : '—'}`
-                      )
-                      .join(' · ')}
-                  </span>
-                )}
-              </span>
-              <span className="shrink-0 text-ink-muted">{showGradedPrices ? '▾' : '▸'}</span>
-            </button>
-            {showGradedPrices && (
-              <div className="mt-3">
-                {isLoadingGradedPrices ? (
-                  <div className="flex items-center justify-center py-6">
-                    <Loader2 className="h-5 w-5 animate-spin text-accent" />
-                  </div>
-                ) : gradedRows.length === 0 ? (
-                  <p className="py-4 text-center text-sm text-ink-muted">No graded prices available</p>
-                ) : (
-                  <div className="space-y-3">
-                    <div
-                      className="relative overflow-hidden rounded-2xl border border-border-default"
-                      style={{ background: 'var(--gradient-chrome)' }}
-                    >
-                      <div
-                        className="pointer-events-none absolute inset-0 opacity-80"
-                        style={{
-                          background:
-                            'radial-gradient(ellipse 80% 70% at 100% 0%, rgba(110,231,183,0.14), transparent 55%), radial-gradient(ellipse 60% 50% at 0% 100%, rgba(91,196,212,0.1), transparent 50%)',
-                        }}
-                        aria-hidden
-                      />
-                      <div className="relative px-4 pt-4 sm:px-5">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="font-display text-[11px] font-semibold uppercase tracking-[0.18em] text-foil">
-                              Graded price history
-                            </p>
-                            <p className="mt-1 truncate font-display text-lg font-semibold tracking-tight text-ink-primary sm:text-xl">
-                              {selectedGradedEntry
-                                ? gradedRowLabel(selectedGradedEntry)
-                                : 'Toggle grades below'}
-                            </p>
-                          </div>
-                          {selectedVsRaw && selectedGradedEntry?.grader !== 'ungraded' && (
-                            <div className="shrink-0 text-right">
-                              <p className="font-mono text-2xl font-bold tabular-nums leading-none text-accent sm:text-3xl">
-                                {selectedVsRaw.multiple.toFixed(
-                                  selectedVsRaw.multiple >= 10 ? 1 : 2
-                                )}
-                                <span className="text-base font-semibold text-accent/80">×</span>
-                              </p>
-                              <p className="mt-1 text-[11px] font-medium text-ink-muted">vs raw</p>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-1">
-                          <p className="font-mono text-3xl font-bold tabular-nums tracking-tight text-ink-primary sm:text-4xl">
-                            {selectedGradedEntry?.price != null
-                              ? formatCurrency(selectedGradedEntry.price)
-                              : '—'}
-                          </p>
-                          <div className="mb-1 flex flex-wrap items-center gap-2 text-xs">
-                            {selectedVsRaw && selectedGradedEntry?.grader !== 'ungraded' && (
-                              <span
-                                className={`rounded-md px-2 py-0.5 font-mono font-semibold tabular-nums ${
-                                  selectedVsRaw.premiumPct >= 0
-                                    ? 'bg-gain-muted text-gain'
-                                    : 'bg-loss-muted text-loss'
-                                }`}
-                              >
-                                {formatPercent(selectedVsRaw.premiumPct, { signed: true })}
-                              </span>
-                            )}
-                            {selectedGradedEntry && selectedGradedEntry.soldListings > 0 && (
-                              <span className="text-ink-muted">
-                                {selectedGradedEntry.soldListings.toLocaleString()} comps
-                              </span>
-                            )}
-                            {rawGradedPrice != null &&
-                              selectedGradedEntry?.grader !== 'ungraded' && (
-                                <span className="text-ink-muted">
-                                  raw {formatCurrency(rawGradedPrice)}
-                                </span>
-                              )}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="relative mt-2 border-t border-border-subtle/80 px-3 pb-3 pt-2 sm:px-4">
-                        {isLoadingGradedHistory && !allGradedHistory ? (
-                          <div className="flex h-[180px] items-center justify-center">
-                            <Loader2 className="h-5 w-5 animate-spin text-accent" />
-                          </div>
-                        ) : (
-                          <GradedMultiPriceChart
-                            history={allGradedHistory}
-                            livePrices={gradedRows}
-                            height={200}
-                            focusedKey={
-                              selectedGradedSeries
-                                ? gradedSeriesKey(
-                                    selectedGradedSeries.grader,
-                                    selectedGradedSeries.grade
-                                  )
-                                : null
-                            }
-                            onFocusKey={(key) => {
-                              const [grader, ...gradeParts] = key.split('::');
-                              setSelectedGradedSeries({
-                                grader,
-                                grade: gradeParts.join('::') || '10',
-                              });
-                            }}
-                          />
-                        )}
-                      </div>
-                    </div>
-
-                    <p className="text-[11px] text-ink-muted">
-                      Click a grade in the legend to show/hide · double-click to focus
+        <div className="px-5 py-5 sm:px-7 sm:py-6">
+          {activeTab === 'overview' && (
+            <div className="space-y-8">
+              <section>
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-ink-primary">Market Price</h3>
+                    <p className="mt-0.5 text-xs text-ink-muted">
+                      {isOnePiece
+                        ? (card as OnePieceCard).priceSource === 'tcgplayer'
+                          ? 'TCGPlayer'
+                          : 'Market'
+                        : `${selectedVariantLabel} · TCGplayer`}
                     </p>
                   </div>
+                  <div className="flex gap-0.5 rounded-lg bg-surface-raised p-0.5">
+                    {PRICE_RANGES.map((range) => (
+                      <button
+                        key={range}
+                        type="button"
+                        onClick={() => setPriceRange(range)}
+                        className={cn(
+                          'rounded-md px-2 py-1 text-[11px] font-semibold tabular-nums',
+                          priceRange === range
+                            ? 'bg-surface-hover text-ink-primary'
+                            : 'text-ink-muted hover:text-ink-secondary'
+                        )}
+                      >
+                        {range}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <p className="font-mono text-2xl font-semibold tabular-nums text-ink-primary">
+                  {formatCurrency(actualCardPrice)}
+                </p>
+                {rangedHistory.length > 1 && (
+                  <p
+                    className={`mt-0.5 text-sm tabular-nums ${
+                      isPositiveChange ? 'text-gain' : 'text-loss'
+                    }`}
+                  >
+                    {formatPercent(priceChangePercent, { signed: true })}
+                  </p>
+                )}
+                <div className="mt-3">
+                  {rangedHistory.length > 0 ? (
+                    <PriceChart
+                      priceHistory={rangedHistory}
+                      variant="dark"
+                      height={220}
+                      compact
+                    />
+                  ) : isLoadingHistory ? (
+                    <div className="flex h-[220px] items-center justify-center">
+                      <Loader2 className="h-6 w-6 animate-spin text-ink-muted" />
+                    </div>
+                  ) : (
+                    <div className="flex h-[180px] flex-col items-center justify-center text-center">
+                      <Database className="mb-2 h-7 w-7 text-ink-muted" />
+                      <p className="text-sm text-ink-muted">No price history yet</p>
+                      <p className="mt-1 text-xs text-ink-muted">
+                        {isOnePiece ? 'Sync backend for snapshots' : `${selectedVariantLabel} · sync backend for snapshots`}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <section>
+                <div className="mb-3 flex items-baseline justify-between gap-3">
+                  <h3 className="text-sm font-semibold text-ink-primary">Graded Prices</h3>
+                  {gradedPrices && (
+                    <FreshnessNote fetchedAt={gradedPrices.fetchedAt} stale={gradedPrices.stale} />
+                  )}
+                </div>
+                {isLoadingGradedPrices ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-5 w-5 animate-spin text-ink-muted" />
+                  </div>
+                ) : gradedRows.length === 0 ? (
+                  <p className="py-4 text-sm text-ink-muted">No graded prices available</p>
+                ) : (
+                  <>
+                    <GradedPriceCards
+                      rows={gradedRows}
+                      rawPrice={rawGradedPrice}
+                      selectedKey={
+                        selectedGradedSeries
+                          ? gradedSeriesKey(selectedGradedSeries.grader, selectedGradedSeries.grade)
+                          : null
+                      }
+                      onSelect={focusGrade}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('grades')}
+                      className="mt-4 text-sm text-ink-secondary hover:text-ink-primary"
+                    >
+                      View grade history →
+                    </button>
+                  </>
+                )}
+              </section>
+
+              {isOnePiece &&
+                (card as OnePieceCard).cardText &&
+                (card as OnePieceCard).cardText !== 'NULL' && (
+                  <section>
+                    <h3 className="mb-2 text-sm font-semibold text-ink-primary">Card Text</h3>
+                    <p className="whitespace-pre-wrap text-sm text-ink-secondary">
+                      {(card as OnePieceCard).cardText}
+                    </p>
+                  </section>
+                )}
+            </div>
+          )}
+
+          {activeTab === 'grades' && (
+            <div className="space-y-5">
+              <div className="flex items-baseline justify-between gap-3">
+                <h3 className="text-sm font-semibold text-ink-primary">Graded Prices</h3>
+                {gradedPrices && (
+                  <FreshnessNote fetchedAt={gradedPrices.fetchedAt} stale={gradedPrices.stale} />
                 )}
               </div>
-            )}
-          </div>
-
-          <div className="mt-4 border-t border-border-subtle pt-4">
-            <button
-              type="button"
-              onClick={() => setShowPopulation((v) => !v)}
-              className="flex w-full items-center justify-between text-left text-sm text-ink-muted hover:text-ink-secondary"
-              aria-expanded={showPopulation}
-            >
-              <span>
-                Graded pop
-                {populationData && (
-                  <FreshnessNote
-                    fetchedAt={populationData.fetchedAt}
-                    stale={populationData.stale}
+              {isLoadingGradedPrices ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-5 w-5 animate-spin text-ink-muted" />
+                </div>
+              ) : gradedRows.length === 0 ? (
+                <p className="py-4 text-sm text-ink-muted">No graded prices available</p>
+              ) : (
+                <>
+                  <GradedPriceCards
+                    rows={gradedRows}
+                    rawPrice={rawGradedPrice}
+                    selectedKey={
+                      selectedGradedSeries
+                        ? gradedSeriesKey(selectedGradedSeries.grader, selectedGradedSeries.grade)
+                        : null
+                    }
+                    onSelect={(grader, grade) => setSelectedGradedSeries({ grader, grade })}
                   />
+
+                  {isLoadingGradedHistory && !allGradedHistory ? (
+                    <div className="flex h-[150px] items-center justify-center">
+                      <Loader2 className="h-5 w-5 animate-spin text-ink-muted" />
+                    </div>
+                  ) : (
+                    <GradedMultiPriceChart
+                      history={allGradedHistory}
+                      livePrices={gradedRows}
+                      height={150}
+                      focusedKey={
+                        selectedGradedSeries
+                          ? gradedSeriesKey(
+                              selectedGradedSeries.grader,
+                              selectedGradedSeries.grade
+                            )
+                          : null
+                      }
+                      onFocusKey={(key) => {
+                        const [grader, ...gradeParts] = key.split('::');
+                        setSelectedGradedSeries({
+                          grader,
+                          grade: gradeParts.join('::') || '10',
+                        });
+                      }}
+                    />
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'population' && (
+            <div className="space-y-6">
+              <div className="flex items-baseline justify-between gap-3">
+                <h3 className="text-sm font-semibold text-ink-primary">Population</h3>
+                {populationData && (
+                  <FreshnessNote fetchedAt={populationData.fetchedAt} stale={populationData.stale} />
                 )}
-                {!showPopulation && populationData && (
-                  <span className="ml-2 tabular-nums text-ink-muted">
-                    {popCompanies
-                      .map(({ key, label }) => {
-                        const company = populationData.companies?.[
-                          key as keyof PopulationLookupResponse['companies']
-                        ];
-                        const val = company?.total;
-                        return val != null ? `${label} ${val.toLocaleString()}` : null;
-                      })
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </span>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                {popCompanies.map(({ key, label }) => {
+                  const data =
+                    populationData?.companies?.[
+                      key as keyof PopulationLookupResponse['companies']
+                    ];
+                  const value = data?.total;
+                  const grade10 = data?.grade10;
+                  return (
+                    <div key={key} className="rounded-xl bg-surface-raised px-3 py-3 text-center">
+                      <p className="text-xs font-medium text-ink-muted">{label}</p>
+                      <p className="mt-1 text-xl font-semibold tabular-nums text-ink-primary">
+                        {isLoadingPopulation ? '…' : value != null ? value.toLocaleString() : '—'}
+                      </p>
+                      {grade10 != null && grade10 > 0 && (
+                        <p className="mt-0.5 text-[11px] text-ink-muted">
+                          {grade10.toLocaleString()} gem mint
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {psaPop && psaPop.some((n) => n > 0) && (
+                <div>
+                  <h4 className="mb-3 text-sm font-semibold text-ink-primary">PSA grade distribution</h4>
+                  <div className="space-y-1.5">
+                    {psaPop
+                      .map((count, index) => ({ grade: index + 1, count }))
+                      .filter((row) => row.grade >= 7 && row.count > 0)
+                      .reverse()
+                      .map((row) => {
+                        const max = Math.max(...psaPop.slice(6), 1);
+                        return (
+                          <div key={row.grade} className="flex items-center gap-3">
+                            <span className="w-10 shrink-0 text-right text-xs tabular-nums text-ink-muted">
+                              {row.grade}
+                            </span>
+                            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-raised">
+                              <div
+                                className="h-full rounded-full bg-ink-secondary/50"
+                                style={{ width: `${Math.max(4, (row.count / max) * 100)}%` }}
+                              />
+                            </div>
+                            <span className="w-12 shrink-0 text-xs tabular-nums text-ink-muted">
+                              {row.count.toLocaleString()}
+                            </span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'sales' && (
+            <div className="space-y-4">
+              <div className="flex items-baseline justify-between gap-3">
+                <h3 className="text-sm font-semibold text-ink-primary">Recent comps</h3>
+                {gradedPrices && (
+                  <FreshnessNote fetchedAt={gradedPrices.fetchedAt} stale={gradedPrices.stale} />
                 )}
-              </span>
-              <span className="text-ink-muted">{showPopulation ? '▾' : '▸'}</span>
-            </button>
-            {showPopulation && (
-              <div className="mt-3">
-                <div className="grid grid-cols-3 gap-3">
-                  {popCompanies.map(({ key, label }) => {
-                    const data =
-                      populationData?.companies?.[
-                        key as keyof PopulationLookupResponse['companies']
-                      ];
-                    const value = data?.total;
-                    const grade10 = data?.grade10;
+              </div>
+              {isLoadingGradedPrices ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-5 w-5 animate-spin text-ink-muted" />
+                </div>
+              ) : gradedRows.length === 0 ? (
+                <p className="py-4 text-sm text-ink-muted">No sold comps yet</p>
+              ) : (
+                <div className="divide-y divide-border-subtle">
+                  {gradedRows.map((entry) => {
+                    const price = headlineGradedPrice(entry);
                     return (
                       <div
-                        key={key}
-                        className="rounded-xl border border-border-default bg-surface-inset px-3 py-2.5 text-center"
+                        key={`${entry.grader}-${entry.grade}`}
+                        className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-3"
                       >
-                        <p className="text-xs font-medium text-ink-muted">{label}</p>
-                        <p className="mt-0.5 text-lg font-bold tabular-nums text-ink-primary">
-                          {isLoadingPopulation ? '…' : value != null ? value.toLocaleString() : '—'}
-                        </p>
-                        {grade10 != null && grade10 > 0 && (
-                          <p className="mt-0.5 text-[11px] text-ink-muted">
-                            {grade10.toLocaleString()} {key === 'psa' ? 'PSA 10' : key === 'cgc' ? 'CGC 10' : '10'}
+                        <div>
+                          <p className="text-sm font-medium text-ink-primary">
+                            {gradedRowLabel(entry)}
                           </p>
-                        )}
+                          <p className="mt-0.5 text-xs text-ink-muted">
+                            {entry.soldListings > 0
+                              ? `${entry.soldListings.toLocaleString()} comps · PriceCharting`
+                              : 'PriceCharting'}
+                            {entry.lastSoldDate
+                              ? ` · last ${
+                                  entry.lastSoldPrice != null
+                                    ? formatCurrency(entry.lastSoldPrice)
+                                    : ''
+                                } ${formatSoldAge(entry.lastSoldAgeDays)}`
+                              : ''}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-mono text-sm font-semibold tabular-nums text-ink-primary">
+                            {price != null ? formatCurrency(price) : '—'}
+                          </p>
+                          {(entry.listedCount ?? 0) > 0 && entry.listedLow != null && (
+                            <p className="mt-0.5 text-xs text-ink-muted">
+                              lowest listed {formatCurrency(entry.listedLow)}
+                              {entry.listedCount ? ` · ${entry.listedCount}` : ''}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
                 </div>
-                <p className="mt-2 text-center text-[11px] text-ink-muted">
-                  Total graded submissions (all grades) · PSA 10 count is the top grade
-                </p>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
-          {hasRealData && priceHistory.length > 0 && (
-            <p className="mt-3 text-center text-xs text-ink-muted">
-              TCGPlayer {selectedVariantLabel} · as of{' '}
-              {formatDisplayDate(priceHistory[priceHistory.length - 1].date)}
+          {hasRealData && priceHistory.length > 0 && activeTab === 'overview' && (
+            <p className="mt-6 text-xs text-ink-muted">
+              {isOnePiece
+                ? `Market · as of ${formatDisplayDate(priceHistory[priceHistory.length - 1].date)}`
+                : `TCGPlayer ${selectedVariantLabel} · as of ${formatDisplayDate(priceHistory[priceHistory.length - 1].date)}`}
             </p>
           )}
         </div>
       </Modal>
 
       <AddToVaultModal
-        card={card}
+        card={toVaultCard(card)}
         isOpen={isVaultModalOpen}
         onClose={() => setIsVaultModalOpen(false)}
         onSuccess={() => setIsInVault(vaultService.isInVault(card.id, game))}

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Bell, ChevronsUpDown, Loader2, Search, Sparkles, X } from 'lucide-react';
+import { ArrowRight, Bell, ChevronsUpDown, Loader2, Search, Sparkles, X } from 'lucide-react';
 import {
   fetchGradeWorthiness,
   GradeWorthinessEraFacet,
@@ -24,7 +24,8 @@ function rowToPokemonCard(row: GradeWorthinessRow): PokemonCard {
       releaseDate: '',
       total: 0,
     },
-    number: '',
+    number: row.cardNumber || '',
+    types: [],
     marketPrice: row.rawPrice,
   };
 }
@@ -92,6 +93,32 @@ function TrustCue({
   return null;
 }
 
+function formatSoldAge(days?: number | null): string {
+  if (days == null) return '';
+  if (days <= 1) return 'today';
+  if (days < 30) return `${days}d ago`;
+  if (days < 365) return `${Math.round(days / 30)}mo ago`;
+  return `${(days / 365).toFixed(1)}y ago`;
+}
+
+function AskSoldCue({ row }: { row: GradeWorthinessRow }) {
+  const parts: string[] = [];
+  if (row.soldListings > 0) parts.push(`${row.soldListings.toLocaleString()} comps`);
+  if (row.lastSoldDate) {
+    const age = formatSoldAge(row.lastSoldAgeDays);
+    parts.push(
+      `last ${row.lastSoldPrice != null ? formatCurrency(row.lastSoldPrice) : ''} ${age}`.trim()
+    );
+  }
+  if ((row.listedCount ?? 0) > 0 && row.listedLow != null) {
+    parts.push(`lowest listed ${formatCurrency(row.listedLow)}`);
+  } else if (row.staleSold) {
+    parts.push('stale sale');
+  }
+  if (parts.length === 0) return null;
+  return <>{` · ${parts.join(' · ')}`}</>;
+}
+
 interface GradeWorthinessListProps {
   /** When set, ranks only these catalog ids (vault scope). */
   cardIds?: string[];
@@ -101,6 +128,8 @@ interface GradeWorthinessListProps {
   title?: string;
   subtitle?: string;
   emptyMessage?: string;
+  /** Compact vault preview: top 3, no featured panel. */
+  variant?: 'full' | 'compact';
   /** Prefill graded_premium alert for a card */
   onAlertPremium?: (card: {
     cardId: string;
@@ -316,8 +345,9 @@ export const GradeWorthinessList: React.FC<GradeWorthinessListProps> = ({
   setIds,
   limit = 10,
   title = 'Best cards to grade',
-  subtitle = 'After PSA fees (Value tiers paused) × gem ease',
+  subtitle = 'After PSA fees × gem ease · mark mixes sold comps with listed asks',
   emptyMessage = 'Need verified PSA 10 prices and pop reports to rank cards.',
+  variant = 'full',
   onAlertPremium,
 }) => {
   const { openCard: openCardModal } = useCardModal();
@@ -331,6 +361,8 @@ export const GradeWorthinessList: React.FC<GradeWorthinessListProps> = ({
   const [selectedEras, setSelectedEras] = useState<string[]>([]);
   const [selectedSetId, setSelectedSetId] = useState('');
   const [sort, setSort] = useState<GradeWorthinessSort>('score');
+  const [expanded, setExpanded] = useState(false);
+  const compact = variant === 'compact';
 
   const cardIdsKey = cardIds?.join('|') ?? '';
   const erasKey = selectedEras.join(',');
@@ -376,6 +408,8 @@ export const GradeWorthinessList: React.FC<GradeWorthinessListProps> = ({
     [rows, selectedId]
   );
 
+  const visibleRows = compact && !expanded ? rows.slice(0, 3) : rows;
+
   const setsForSelect = useMemo(() => {
     if (selectedEras.length === 0) return setFacets;
     const eraSet = new Set(selectedEras);
@@ -411,72 +445,145 @@ export const GradeWorthinessList: React.FC<GradeWorthinessListProps> = ({
             <Sparkles className="h-4 w-4 text-accent" aria-hidden />
             {title}
           </h3>
-          <p className="mt-0.5 text-xs text-ink-muted">{subtitle}</p>
+          <p className="mt-0.5 text-xs text-ink-muted">
+            {compact
+              ? sort === 'score'
+                ? 'Best overall blends net after fees with gem rate — not highest dollar.'
+                : subtitle
+              : subtitle}
+          </p>
         </div>
-        {!loading && (
-          <span className="shrink-0 font-mono text-[11px] tabular-nums text-ink-muted">
-            {count.toLocaleString()} ranked
-          </span>
-        )}
-      </div>
-
-      <div className="mb-2 -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:thin]">
-        {SORT_OPTIONS.map((opt) => (
-          <FilterChip
-            key={opt.id}
-            active={sort === opt.id}
-            onClick={() => setSort(opt.id)}
-            className="shrink-0 text-xs"
-          >
-            {opt.label}
-          </FilterChip>
-        ))}
-      </div>
-
-      {(eraFacets.length > 0 || setFacets.length > 0) && (
-        <div className="mb-2.5 space-y-2">
-          <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:thin]">
-            <FilterChip
-              active={selectedEras.length === 0}
-              onClick={() => setSelectedEras([])}
-              className="shrink-0 text-xs"
+        <div className="flex shrink-0 items-center gap-2">
+          {!loading && (
+            <span className="font-mono text-[11px] tabular-nums text-ink-muted">
+              {count.toLocaleString()} ranked
+            </span>
+          )}
+          {compact && rows.length > 3 && (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className="inline-flex cursor-pointer items-center gap-1 text-xs font-semibold text-accent hover:opacity-80"
             >
-              All eras
-            </FilterChip>
-            {eraFacets.map((era) => (
+              {expanded ? 'Show less' : 'View all'}
+              <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {compact ? (
+        <div className="mb-2.5 flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-1.5 text-[11px] text-ink-muted">
+            Rank by
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as GradeWorthinessSort)}
+              className="h-8 rounded-lg border border-border-subtle bg-surface-inset px-2 text-xs font-medium text-ink-secondary"
+            >
+              {SORT_OPTIONS.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {eraFacets.length > 0 && (
+            <label className="flex items-center gap-1.5 text-[11px] text-ink-muted">
+              Era
+              <select
+                value={selectedEras[0] ?? ''}
+                onChange={(e) => setSelectedEras(e.target.value ? [e.target.value] : [])}
+                className="h-8 max-w-[10rem] rounded-lg border border-border-subtle bg-surface-inset px-2 text-xs font-medium text-ink-secondary"
+              >
+                <option value="">All eras</option>
+                {eraFacets.map((era) => (
+                  <option key={era.id} value={era.id}>
+                    {era.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {setsForSelect.length > 0 && (
+            <label className="flex items-center gap-1.5 text-[11px] text-ink-muted">
+              Set
+              <select
+                value={selectedSetId}
+                onChange={(e) => setSelectedSetId(e.target.value)}
+                className="h-8 max-w-[10rem] rounded-lg border border-border-subtle bg-surface-inset px-2 text-xs font-medium text-ink-secondary"
+              >
+                <option value="">All sets</option>
+                {setsForSelect.map((s) => (
+                  <option key={s.setId} value={s.setId}>
+                    {s.setName}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+      ) : (
+        <>
+          <div className="mb-2 -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:thin]">
+            {SORT_OPTIONS.map((opt) => (
               <FilterChip
-                key={era.id}
-                active={selectedEras.includes(era.id)}
-                onClick={() => toggleEra(era.id)}
+                key={opt.id}
+                active={sort === opt.id}
+                onClick={() => setSort(opt.id)}
                 className="shrink-0 text-xs"
               >
-                {era.label}
-                <span className="ml-1 font-mono tabular-nums text-ink-muted">{era.count}</span>
+                {opt.label}
               </FilterChip>
             ))}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <SetPicker
-              sets={setsForSelect}
-              value={selectedSetId}
-              onChange={setSelectedSetId}
-              eraScoped={selectedEras.length > 0}
-            />
-            {filtersActive && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedEras([]);
-                  setSelectedSetId('');
-                }}
-                className="cursor-pointer text-xs text-ink-muted hover:text-ink-secondary"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-        </div>
+          {(eraFacets.length > 0 || setFacets.length > 0) && (
+            <div className="mb-2.5 space-y-2">
+              <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:thin]">
+                <FilterChip
+                  active={selectedEras.length === 0}
+                  onClick={() => setSelectedEras([])}
+                  className="shrink-0 text-xs"
+                >
+                  All eras
+                </FilterChip>
+                {eraFacets.map((era) => (
+                  <FilterChip
+                    key={era.id}
+                    active={selectedEras.includes(era.id)}
+                    onClick={() => toggleEra(era.id)}
+                    className="shrink-0 text-xs"
+                  >
+                    {era.label}
+                    <span className="ml-1 font-mono tabular-nums text-ink-muted">{era.count}</span>
+                  </FilterChip>
+                ))}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <SetPicker
+                  sets={setsForSelect}
+                  value={selectedSetId}
+                  onChange={setSelectedSetId}
+                  eraScoped={selectedEras.length > 0}
+                />
+                {filtersActive && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedEras([]);
+                      setSelectedSetId('');
+                    }}
+                    className="cursor-pointer text-xs text-ink-muted hover:text-ink-secondary"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {loading ? (
@@ -491,6 +598,7 @@ export const GradeWorthinessList: React.FC<GradeWorthinessListProps> = ({
         </p>
       ) : (
         <div className="space-y-2.5">
+          {!compact && (
           <div
             className="relative overflow-hidden rounded-2xl border border-border-default"
             style={{ background: 'var(--gradient-chrome)' }}
@@ -534,9 +642,8 @@ export const GradeWorthinessList: React.FC<GradeWorthinessListProps> = ({
                       </p>
                       <p className="truncate text-xs text-ink-muted">
                         {featured.setName || 'Unknown set'}
-                        {featured.soldListings > 0
-                          ? ` · ${featured.soldListings.toLocaleString()} comps`
-                          : ''}
+                        {featured.cardNumber ? ` · #${featured.cardNumber}` : ''}
+                        <AskSoldCue row={featured} />
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
@@ -552,10 +659,17 @@ export const GradeWorthinessList: React.FC<GradeWorthinessListProps> = ({
 
                   <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                     <div className="rounded-lg bg-surface-inset/80 px-2 py-1.5">
-                      <p className="text-[10px] uppercase tracking-wider text-ink-muted">PSA 10</p>
+                      <p className="text-[10px] uppercase tracking-wider text-ink-muted">
+                        PSA 10
+                      </p>
                       <p className="font-mono text-xs font-semibold tabular-nums text-ink-primary">
                         {formatCurrency(featured.psa10Price)}
                       </p>
+                      {featured.listedLow != null && (featured.listedCount ?? 0) > 0 && (
+                        <p className="font-mono text-[10px] tabular-nums text-ink-muted">
+                          lowest listed {formatCurrency(featured.listedLow)}
+                        </p>
+                      )}
                     </div>
                     <div className="rounded-lg bg-surface-inset/80 px-2 py-1.5">
                       <p className="text-[10px] uppercase tracking-wider text-ink-muted">Raw</p>
@@ -604,15 +718,17 @@ export const GradeWorthinessList: React.FC<GradeWorthinessListProps> = ({
               </div>
             </div>
           </div>
+          )}
 
           <div className="space-y-0.5">
-            {rows.map((row, index) => {
-              const active = row.cardId === featured.cardId;
+            {visibleRows.map((row, index) => {
+              const active = !compact && row.cardId === featured.cardId;
+              const lead = compact && index === 0;
               return (
                 <div
                   key={row.cardId}
                   className={`flex w-full items-center gap-1 rounded-xl px-1 py-0.5 ${
-                    active
+                    active || lead
                       ? 'bg-accent-muted shadow-[inset_0_0_0_1px_var(--accent)]'
                       : 'hover:bg-surface-hover/70'
                   }`}
@@ -637,9 +753,8 @@ export const GradeWorthinessList: React.FC<GradeWorthinessListProps> = ({
                       </div>
                       <p className="truncate text-[11px] text-ink-muted">
                         {row.setName || 'Unknown set'}
-                        {row.soldListings > 0
-                          ? ` · ${row.soldListings.toLocaleString()} comps`
-                          : ''}
+                        {row.cardNumber ? ` · #${row.cardNumber}` : ''}
+                        <AskSoldCue row={row} />
                       </p>
                     </div>
                     <div className="shrink-0 text-right">

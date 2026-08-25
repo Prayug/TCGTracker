@@ -38,6 +38,85 @@ function addUtcDays(isoDate: string, days: number): string {
 }
 
 /**
+ * TCGdex / catalog_fallback often rewrite the same snapshot every night, then
+ * cliff to a new value when the feed finally updates. That looks like a real
+ * crash on charts. When a long exact plateau from those sources is followed by
+ * a downward step that itself holds, rewrite the stale plateau to the
+ * post-update quote. Upward moves are left alone (real pumps).
+ */
+export function repairStalePlateauCliffs(
+  points: Array<PricePoint & { source?: string }>,
+  options?: { minPlateauDays?: number; cliffPct?: number; minFollowDays?: number }
+): PricePoint[] {
+  const minPlateauDays = options?.minPlateauDays ?? 10;
+  const cliffPct = options?.cliffPct ?? 8;
+  const minFollowDays = options?.minFollowDays ?? 5;
+
+  const sorted = [...points]
+    .map((p) => ({
+      date: toIsoDate(p.date),
+      price: p.price,
+      source: (p.source || '').toLowerCase(),
+    }))
+    .filter((p) => p.price > 0)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  if (sorted.length < minPlateauDays + minFollowDays) return points;
+
+  const byDate = new Map<string, { price: number; staleSource: boolean }>();
+  for (const p of sorted) {
+    const staleSource = p.source === 'tcgdex' || p.source === 'catalog_fallback' || !p.source;
+    byDate.set(p.date, { price: p.price, staleSource });
+  }
+  const series = [...byDate.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, v]) => ({ date, price: v.price, staleSource: v.staleSource }));
+
+  type Run = { start: number; end: number; price: number; staleShare: number };
+  const runs: Run[] = [];
+  for (let i = 0; i < series.length; i++) {
+    const last = runs[runs.length - 1];
+    if (last && Math.abs(last.price - series[i].price) < 0.005) {
+      last.end = i;
+      last.staleShare += series[i].staleSource ? 1 : 0;
+    } else {
+      runs.push({
+        start: i,
+        end: i,
+        price: series[i].price,
+        staleShare: series[i].staleSource ? 1 : 0,
+      });
+    }
+  }
+
+  const corrected = series.map((p) => ({ ...p }));
+  for (let r = 0; r < runs.length - 1; r++) {
+    const cur = runs[r];
+    const next = runs[r + 1];
+    const plateauLen = cur.end - cur.start + 1;
+    const followLen = next.end - next.start + 1;
+    if (plateauLen < minPlateauDays || followLen < minFollowDays) continue;
+    if (cur.price <= 0) continue;
+    // Only correct stale-feed plateaus that cliff downward.
+    if (next.price >= cur.price) continue;
+    if (cur.staleShare / plateauLen < 0.7) continue;
+    const stepPct = ((cur.price - next.price) / cur.price) * 100;
+    if (stepPct < cliffPct) continue;
+
+    for (let i = cur.start; i <= cur.end; i++) {
+      corrected[i].price = next.price;
+    }
+  }
+
+  const outMap = new Map(corrected.map((p) => [p.date, p.price]));
+  return points.map((p) => {
+    const key = toIsoDate(p.date);
+    const next = outMap.get(key);
+    return next == null ? p : { ...p, price: next };
+  });
+}
+
+/**
  * Build chart series from raw market quotes.
  * - Only real quotes get dots and "market quote" tooltips.
  * - Short gaps (≤3 days, e.g. weekends) may carry the prior price.
@@ -49,8 +128,10 @@ export function preparePriceChartSeries(
 ): PreparedChartSeries {
   const maxCarryGapDays = options?.maxCarryGapDays ?? 3;
 
+  const repaired = repairStalePlateauCliffs(points);
+
   const byDate = new Map<string, number>();
-  for (const point of points) {
+  for (const point of repaired) {
     const key = toIsoDate(point.date);
     if (point.price > 0) {
       byDate.set(key, point.price);

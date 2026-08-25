@@ -80,6 +80,28 @@ export function getCardDeltaPct(
   return ((current - avg) / avg) * 100;
 }
 
+export function getBrowsePriceMove(
+  card: AnyCard
+): { percent: number; window: string } | null {
+  if (!isPokemonCard(card)) return null;
+
+  const analysis = card.investmentData?.marketAnalysis;
+  if (analysis?.priceChange90d != null && Math.abs(analysis.priceChange90d) >= 0.05) {
+    return { percent: analysis.priceChange90d, window: '3M' };
+  }
+  if (analysis?.priceChange1y != null && Math.abs(analysis.priceChange1y) >= 0.05) {
+    return { percent: analysis.priceChange1y, window: '1Y' };
+  }
+
+  const d30 = getCardDeltaPct(card, '30d');
+  if (d30 != null && Math.abs(d30) >= 0.05) return { percent: d30, window: '30D' };
+
+  const d7 = getCardDeltaPct(card, '7d');
+  if (d7 != null && Math.abs(d7) >= 0.05) return { percent: d7, window: '7D' };
+
+  return null;
+}
+
 const LOOKBACK: Record<string, number> = { '1d': 1, '7d': 7, '30d': 30 };
 
 export function computeDeltaFromHistory(
