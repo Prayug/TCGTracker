@@ -1,8 +1,9 @@
 import { Suspense, useMemo, useRef, type MutableRefObject } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { useFrame } from '@react-three/fiber';
 import { useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import { proxyImageUrl } from '../../utils/cardDisplay';
+import { SafeCanvas } from './SafeCanvas';
 
 /**
  * Visually verified chase / grail art only.
@@ -209,7 +210,7 @@ export function ScrollWorld({
   progressRef: MutableRefObject<number>;
 }) {
   return (
-    <Canvas
+    <SafeCanvas
       className={className}
       dpr={[1, 1.25]}
       camera={{ position: [0, 0.35, 8.6], fov: 38 }}
@@ -224,6 +225,6 @@ export function ScrollWorld({
         <WorldRig progressRef={progressRef} />
       </Suspense>
       <CameraRig progressRef={progressRef} />
-    </Canvas>
+    </SafeCanvas>
   );
 }

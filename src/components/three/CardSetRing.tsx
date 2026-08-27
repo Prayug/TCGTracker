@@ -6,10 +6,11 @@ import {
   useState,
   type RefObject,
 } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { useFrame } from '@react-three/fiber';
 import { Html, OrbitControls, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import { cn } from '@/lib/utils';
+import { SafeCanvas } from './SafeCanvas';
 import { useGame, type GameType } from '../../contexts/GameContext';
 import { usePrefersReducedMotion } from '../../hooks/useMotionPreferences';
 import { setTrackerService } from '../../services/setTrackerService';
@@ -412,7 +413,7 @@ export function CardSetRing({
 
   return (
     <div className={cn('relative h-full w-full', className)}>
-      <Canvas
+      <SafeCanvas
         dpr={[1, 1.5]}
         camera={{ position: [0, 4.2, 9], fov: 45 }}
         gl={{ antialias: true, alpha: true, powerPreference: 'low-power' }}
@@ -425,7 +426,7 @@ export function CardSetRing({
         <Suspense fallback={null}>
           {!isLoading && <RingRig sets={sets} autoRotate={autoRotate} reduced={reduced} />}
         </Suspense>
-      </Canvas>
+      </SafeCanvas>
 
       {isLoading && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
