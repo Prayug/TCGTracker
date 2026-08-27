@@ -1,9 +1,10 @@
 import { Suspense, useMemo, useRef } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { useFrame } from '@react-three/fiber';
 import { OrbitControls, Text, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import type { PokemonCard } from '../../types/pokemon';
 import { cn } from '@/lib/utils';
+import { SafeCanvas } from './SafeCanvas';
 import {
   buildRingClusters,
   gradientColor,
@@ -227,7 +228,7 @@ export function CardRing({
 
   return (
     <div className={cn('relative h-[70vh] w-full', className)}>
-      <Canvas
+      <SafeCanvas
         className="absolute inset-0"
         dpr={[1, 1.5]}
         gl={{ antialias: true, alpha: true, powerPreference: 'low-power' }}
@@ -256,7 +257,7 @@ export function CardRing({
             showLabels={labelsVisible}
           />
         </Suspense>
-      </Canvas>
+      </SafeCanvas>
     </div>
   );
 }

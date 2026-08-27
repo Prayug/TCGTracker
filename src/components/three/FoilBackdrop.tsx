@@ -1,6 +1,7 @@
 import { useMemo, useRef } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { SafeCanvas } from './SafeCanvas';
 
 function FoilParticles({ count = 40 }: { count?: number }) {
   const points = useRef<THREE.Points>(null);
@@ -39,13 +40,13 @@ function FoilParticles({ count = 40 }: { count?: number }) {
 export function FoilBackdrop({ className }: { className?: string }) {
   return (
     <div className={className ?? 'pointer-events-none absolute inset-0 -z-10 opacity-70'}>
-      <Canvas
+      <SafeCanvas
         dpr={[1, 1.25]}
         camera={{ position: [0, 0, 4], fov: 50 }}
         gl={{ antialias: false, alpha: true, powerPreference: 'low-power' }}
       >
         <FoilParticles />
-      </Canvas>
+      </SafeCanvas>
     </div>
   );
 }

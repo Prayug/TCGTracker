@@ -25,7 +25,7 @@ import { cn } from '@/lib/utils';
 const GATEWAYS: { label: string; hint: string; href: string; icon: LucideIcon }[] = [
   { label: 'Browse cards', hint: 'Catalog', href: '/browse', icon: Search },
   { label: 'Open vault', hint: 'Holdings', href: '/vault', icon: ShieldCheck },
-  { label: 'Market prices', hint: 'Live', href: '/prices', icon: TrendingUp },
+  { label: 'Slab market', hint: 'Graded', href: '/prices', icon: TrendingUp },
   { label: 'Rip packs', hint: 'Sim', href: '/packs', icon: Package },
   { label: 'AI grade', hint: 'Tools', href: '/grading', icon: ScanLine },
   { label: 'Insights', hint: 'Predict', href: '/market-insights', icon: LineChart },
@@ -161,7 +161,7 @@ export function MarketChapter() {
           title="Live price engine"
           body="Prices stream in from multiple market providers and refresh as they move — no stale quotes in your vault."
           href="/prices"
-          cta="Price tracker"
+          cta="Slab market"
         />
         <FeatureCard
           icon={History}
@@ -268,7 +268,7 @@ export function RipChapter() {
         <FeatureCard
           icon={ScanLine}
           title="AI grading"
-          body="Scan a card and get condition grading plus a graded-slab price estimate — instantly, from one photo."
+          body="Photograph a card to decide how to list it, whether to keep it raw, or whether PSA is worth the fee."
           href="/grading"
           cta="Try grading"
         />
