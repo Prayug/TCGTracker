@@ -1,9 +1,12 @@
 # Packs — Page Overrides
 
-**Overrides MASTER:** Unified tier stage (no rainbow neon tiers); open uses `stage` modal.
+**Overrides MASTER:** Pack-tier styling is pre-rip only. After the rip, the pulled item’s state owns the visual system.
 
 ## Rules
 
-- Pack cards share Chromatic Vault palette (chartreuse/teal depth, not rainbow)
-- Opening: near-fullscreen `stage` + PackOpeningScene
-- Disable heavy postprocessing on mobile / reduced motion
+- Shop cards share Chromatic Vault depth (chartreuse/teal), not rainbow neon
+- Pre-rip modal: compact pack identity + visual odds. Pack tier may use a restrained accent (Platinum purple, Gold amber)
+- Opening: the card is the stage — no giant pack-color rectangle, no empty “OPENING PACK…” hold
+- Post-rip raw: foil/cyan system, simple card + value + P/L
+- Post-rip graded: grade accent takes over (PSA gold, CGC cyan, BGS bronze)
+- Disable heavy motion when `prefers-reduced-motion`

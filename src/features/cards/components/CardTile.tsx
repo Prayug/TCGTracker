@@ -2,12 +2,8 @@ import React from 'react';
 import { BookPlus, Eye, LineChart } from 'lucide-react';
 import { PokemonCard as PokemonCardType } from '../../../types/pokemon';
 import { OnePieceCard } from '../../../types/onepiece';
-import {
-  formatCurrency,
-  getPremiumBorderClass,
-  getRarityBadgeClass,
-} from '../../../utils/cardDisplay';
-import { getCardPrice } from '../../../utils/cardPrice';
+import { formatCurrency, formatPercent } from '../../../utils/cardDisplay';
+import { getBrowsePriceMove, getCardPrice } from '../../../utils/cardPrice';
 
 export type AnyCard = PokemonCardType | OnePieceCard;
 
@@ -28,15 +24,15 @@ export const CardTile: React.FC<CardTileProps> = ({
   onViewPriceHistory,
 }) => {
   const price = getCardPrice(card);
+  const move = getBrowsePriceMove(card);
 
   const imageUrl = card.images?.small || card.images?.large;
 
   return (
     <article
       className={[
-        'group relative overflow-hidden rounded-xl border border-border-default bg-surface-raised shadow-card',
-        'origin-center transition-all duration-300 ease-out hover:-translate-y-1.5 hover:scale-[1.035] hover:border-border-strong hover:shadow-elevated',
-        getPremiumBorderClass(card.rarity),
+        'group relative overflow-hidden rounded-xl bg-surface-raised',
+        'origin-center transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-card',
       ].join(' ')}
     >
       {/* Pointer convenience only; keyboard access is provided by the labeled button below */}
@@ -72,6 +68,12 @@ export const CardTile: React.FC<CardTileProps> = ({
             <div className="flex h-full items-center justify-center px-4 text-center text-xs text-ink-muted">
               No image available
             </div>
+          )}
+
+          {'language' in card && card.language === 'ja' && (
+            <span className="absolute left-2 top-2 z-20 rounded-md border border-accent/30 bg-surface-overlay/90 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-accent">
+              JP
+            </span>
           )}
 
           <div className="absolute bottom-2 left-2 right-2 z-20 grid grid-cols-3 gap-1.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
@@ -132,31 +134,27 @@ export const CardTile: React.FC<CardTileProps> = ({
           >
             {card.name || 'Unknown Card'}
           </h3>
-          <p className="flex items-baseline justify-between gap-2 text-xs text-ink-muted">
-            <span className="truncate" title={card.set.name}>
-              {card.set.name || 'Unknown set'}
-            </span>
-            <span className="shrink-0 font-mono text-[10px]">#{card.number || '—'}</span>
+          <p className="truncate text-xs text-ink-muted" title={card.set.name}>
+            {card.set.name || 'Unknown set'}
+            {card.number ? ` · #${card.number}` : ''}
           </p>
 
-          <div className="flex items-center justify-between gap-2 border-t border-border-subtle pt-2">
-            {card.rarity ? (
-              <span
-                className={`inline-flex max-w-[55%] items-center truncate rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${getRarityBadgeClass(card.rarity)}`}
-                title={card.rarity}
+          <div className="pt-1">
+            <p
+              className={`font-mono text-sm font-semibold tabular-nums ${price > 0 ? 'text-ink-primary' : 'text-ink-muted'}`}
+            >
+              {price > 0 ? formatCurrency(price) : 'Unpriced'}
+            </p>
+            {move && (
+              <p
+                className={`mt-0.5 text-[11px] font-medium tabular-nums ${
+                  move.percent >= 0 ? 'text-gain' : 'text-loss'
+                }`}
               >
-                {card.rarity}
-              </span>
-            ) : (
-              <span className="text-[10px] text-ink-muted">—</span>
+                {move.percent >= 0 ? '▲' : '▼'} {formatPercent(move.percent)} {move.window}
+              </p>
             )}
-            <span className="flex items-center gap-1.5">
-              <span
-                className={`font-mono text-sm font-bold tabular-nums ${price > 0 ? 'text-ink-primary' : 'text-ink-muted'}`}
-              >
-                {price > 0 ? formatCurrency(price) : 'Unpriced'}
-              </span>
-            </span>
+            <p className="mt-1 text-[10px] uppercase tracking-[0.12em] text-ink-muted">Raw</p>
           </div>
         </div>
       </button>

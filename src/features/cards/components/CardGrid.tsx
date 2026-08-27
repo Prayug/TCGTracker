@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronDown, LayoutGrid, List } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { CardTile, AnyCard } from './CardTile';
 import { CardListRow } from './CardListRow';
 import { getCardReactKey } from '../../../utils/cardPrice';
+import { ViewModeToggle } from '../../../components/common/ViewModeToggle';
 
 export type CardViewMode = 'grid' | 'list';
+export { ViewModeToggle };
 
 interface CardGridProps {
   cards: AnyCard[];
@@ -149,34 +151,3 @@ export const CardGrid: React.FC<CardGridProps> = ({
   );
 };
 
-interface ViewModeToggleProps {
-  viewMode: CardViewMode;
-  onChange: (mode: CardViewMode) => void;
-}
-
-export const ViewModeToggle: React.FC<ViewModeToggleProps> = ({ viewMode, onChange }) => (
-  <div className="inline-flex rounded-lg border border-border-default bg-surface-inset p-0.5">
-    <button
-      type="button"
-      onClick={() => onChange('grid')}
-      className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
-        viewMode === 'grid' ? 'bg-white/12 text-white' : 'text-ink-muted hover:text-ink-secondary'
-      }`}
-      aria-pressed={viewMode === 'grid'}
-    >
-      <LayoutGrid className="h-3.5 w-3.5" />
-      Grid
-    </button>
-    <button
-      type="button"
-      onClick={() => onChange('list')}
-      className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
-        viewMode === 'list' ? 'bg-white/12 text-white' : 'text-ink-muted hover:text-ink-secondary'
-      }`}
-      aria-pressed={viewMode === 'list'}
-    >
-      <List className="h-3.5 w-3.5" />
-      List
-    </button>
-  </div>
-);

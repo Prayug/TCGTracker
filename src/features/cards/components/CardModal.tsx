@@ -43,7 +43,17 @@ export const CardModal: React.FC<CardModalProps> = ({ card, isOpen, onClose }) =
 
         <div className="space-y-4">
           <div className="text-center">
-            <h2 className="font-display text-xl font-bold text-ink-primary">{card.name}</h2>
+            <div className="flex items-center justify-center gap-2">
+              <h2 className="font-display text-xl font-bold text-ink-primary">{card.name}</h2>
+              {card.language === 'ja' && (
+                <span className="rounded-md border border-accent/30 bg-accent/10 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-accent">
+                  JP
+                </span>
+              )}
+            </div>
+            {card.matchName && card.language === 'ja' && card.matchName !== card.name && (
+              <p className="mt-1 text-xs text-ink-muted">{card.matchName}</p>
+            )}
             {card.types && card.types.length > 0 && (
               <div className="mt-2 flex justify-center gap-2">
                 {card.types.map((type) => (
