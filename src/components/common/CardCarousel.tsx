@@ -66,10 +66,8 @@ export const CardCarousel: React.FC<CardCarouselProps> = ({ onCardClick }) => {
             type="button"
             onClick={() => onCardClick(card)}
             className="card-lift group relative w-36 shrink-0 overflow-hidden rounded-xl border text-left"
-            style={{ borderColor: 'var(--border-default)', background: 'var(--gradient-surface)' }}
+            style={{ borderColor: 'var(--border-default)', background: 'var(--surface-raised)' }}
           >
-            <div className="absolute inset-0 holo-sweep pointer-events-none" />
-            <div className="absolute inset-0 holo-texture pointer-events-none" />
             <img
               src={proxyImageUrl(card.images.small)}
               alt={card.name}

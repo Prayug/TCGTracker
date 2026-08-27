@@ -11,6 +11,10 @@ import { pokemonApi } from '../../../services/pokemonApi';
 import { markOnboardingStep } from '../../../components/common/OnboardingChecklist';
 import { PackPullCardDisplay } from './PackPullCardDisplay';
 import { PackPullResults } from './PackPullResults';
+import { PackOddsTable } from './PackOddsTable';
+import { activePackRanges, getPullTheme, packTierTheme } from '../packPresentation';
+import { formatCurrency } from '../../../utils/cardDisplay';
+import { cn } from '../../../lib/utils';
 
 const PackOpeningScene = lazy(() => import('./PackOpeningScene'));
 
@@ -43,7 +47,7 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
   const { showToast } = useToast();
   const [isOpening, setIsOpening] = useState(false);
   const [packPull, setPackPull] = useState<PackPull | null>(null);
-  const [revealedCards, setRevealedCards] = useState<number>(0);
+  const [revealedCards, setRevealedCards] = useState(0);
   const [showResults, setShowResults] = useState(false);
   const [use3D, setUse3D] = useState(false);
   const [showFlash, setShowFlash] = useState(false);
@@ -51,14 +55,12 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
   const [boosted, setBoosted] = useState(initialBoosted);
   const skipRef = useRef(false);
 
-  // Sync boosted state when modal opens with a new pack
   useEffect(() => {
     if (isOpen) {
       setBoosted(initialBoosted);
     }
   }, [isOpen, initialBoosted]);
 
-  // Screen shake effect
   useEffect(() => {
     if (!screenShake) return;
     const timer = setTimeout(() => setScreenShake(false), 350);
@@ -103,7 +105,6 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
       const pull = await packPromise;
       setPackPull(pull);
 
-      // Trigger screen effects for dramatic reveal
       if (use3DNow && !skipRef.current) {
         setTimeout(() => setShowFlash(true), 1100);
         setTimeout(() => setScreenShake(true), 1150);
@@ -155,7 +156,7 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
       const price = packPull.totalValue || card.marketPrice || pokemonApi.extractCardPrice(card);
       const note =
         packPull.pullKind === 'slab'
-          ? `Pulled from ${packPull.pack.name} (simulated PSA 10)`
+          ? `Pulled from ${packPull.pack.name} (simulated ${packPull.grader || 'PSA'} ${packPull.grade || '10'})`
           : `Pulled from ${packPull.pack.name}`;
       vaultService.addToVault(card, price, 1, 'raw', note, game);
     });
@@ -168,6 +169,8 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
     setPackPull(null);
     setRevealedCards(0);
     setShowResults(false);
+    setIsOpening(false);
+    skipRef.current = false;
   };
 
   const handleClose = () => {
@@ -177,22 +180,9 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
 
   if (!pack) return null;
 
-  const getTierColor = (tier: string) => {
-    switch (tier) {
-      case 'starter':
-        return 'from-gray-400 to-gray-600';
-      case 'bronze':
-        return 'from-orange-400 to-orange-600';
-      case 'silver':
-        return 'from-gray-300 to-gray-500';
-      case 'gold':
-        return 'from-yellow-400 to-yellow-600';
-      case 'platinum':
-        return 'from-purple-400 to-purple-600';
-      default:
-        return 'from-blue-400 to-blue-600';
-    }
-  };
+  const tier = packTierTheme(pack.tier);
+  const resultTheme = packPull ? getPullTheme(packPull) : null;
+  const ranges = activePackRanges(pack, boosted);
 
   const getRarityColor = (rarity?: string) => {
     const r = (rarity || '').toLowerCase();
@@ -205,7 +195,6 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
     return 'from-gray-400 to-gray-500';
   };
 
-  // Mutually exclusive stages — never stack prep + opening (that forced scroll).
   const stage: 'prep' | 'opening' | 'reveal' | 'results' =
     showResults && packPull ? 'results' : packPull ? 'reveal' : isOpening ? 'opening' : 'prep';
 
@@ -214,7 +203,10 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
       <button
         type="button"
         onClick={handleOpenPack}
-        className={`flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r px-4 py-4 text-lg font-black text-white shadow-lg transition-all sm:py-4 sm:text-xl ${getTierColor(pack.tier)}`}
+        className={cn(
+          'flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-gradient-to-r px-4 py-4 text-lg font-black text-white shadow-lg transition-all sm:text-xl',
+          tier.gradient
+        )}
       >
         {boosted ? <Zap className="h-6 w-6 shrink-0" /> : <Sparkles className="h-6 w-6 shrink-0" />}
         {boosted ? 'RIP IT BOOSTED!' : 'RIP IT OPEN!'}
@@ -224,7 +216,7 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
         <button
           type="button"
           onClick={handleAddAllToVault}
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-md transition-all hover:from-purple-700 hover:to-blue-700 active:scale-[0.98]"
+          className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-md transition-all hover:from-purple-700 hover:to-blue-700 active:scale-[0.98]"
         >
           <Vault className="h-4 w-4 shrink-0" aria-hidden="true" />
           Add to Vault
@@ -232,17 +224,23 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
         <button
           type="button"
           onClick={handleReset}
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-md transition-all hover:from-green-700 hover:to-emerald-700 active:scale-[0.98]"
+          className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-md transition-all hover:from-green-700 hover:to-emerald-700 active:scale-[0.98]"
         >
           <Sparkles className="h-4 w-4 shrink-0" aria-hidden="true" />
-          Rip Another!
+          Rip Again
         </button>
       </div>
     ) : null;
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} size="pack" variant="stage" footer={footer}>
-      {/* Screen effects overlay — positioned above canvas but below UI */}
+    <Modal
+      isOpen={isOpen}
+      onClose={handleClose}
+      size="pack"
+      variant="stage"
+      footer={footer}
+      className={cn(stage === 'results' && resultTheme?.modalRing)}
+    >
       <AnimatePresence>
         {showFlash && (
           <motion.div
@@ -259,90 +257,41 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
         )}
       </AnimatePresence>
 
-      {/* Screen shake wrapper */}
-      <div className={`relative h-full ${screenShake ? 'animate-screen-shake' : ''}`}>
+      <div className={cn('relative h-full', screenShake && 'animate-screen-shake')}>
         {stage === 'prep' && (
-          <div className="flex h-full flex-col items-center justify-center gap-5 pb-2 sm:gap-6">
-            <div className="relative">
-              <div
-                className={`absolute inset-0 rounded-2xl bg-gradient-to-r opacity-50 blur-2xl motion-safe:animate-pulse ${getTierColor(pack.tier)}`}
-              />
-              <div
-                className={`relative rounded-2xl bg-gradient-to-br p-6 shadow-2xl sm:p-8 ${getTierColor(pack.tier)}`}
-              >
-                <Sparkles
-                  className="mx-auto h-16 w-16 text-white sm:h-20 sm:w-20"
-                  aria-hidden="true"
-                />
-              </div>
-            </div>
-
-            <div className="text-center">
-              <h2
-                className={`bg-gradient-to-r bg-clip-text text-3xl font-black text-transparent sm:text-4xl ${getTierColor(pack.tier)}`}
-              >
+          <div className="flex h-full flex-col justify-start gap-5 pb-2 sm:gap-6">
+            <div>
+              <p className={cn('text-[11px] font-semibold uppercase tracking-[0.2em]', tier.text)}>
+                {pack.tier}
+              </p>
+              <h2 className="mt-1 font-display text-3xl font-semibold text-ink-primary sm:text-4xl">
                 {pack.name}
               </h2>
-              <p className="mt-1 text-sm text-ink-muted sm:text-base">{pack.description}</p>
-            </div>
-
-            <div className="grid w-full max-w-xl grid-cols-3 gap-3 rounded-2xl border border-border-subtle bg-surface-inset/70 p-4 sm:gap-6 sm:p-5">
-              <div className="text-center">
-                <p className="text-[10px] uppercase tracking-wide text-ink-muted sm:text-xs">
-                  Cards
-                </p>
-                <p className="mt-1 text-2xl font-bold tabular-nums text-ink-primary sm:text-3xl">
-                  {pack.cardsPerPack}
-                </p>
-              </div>
-              <div className="border-x border-border-subtle text-center">
-                <p className="text-[10px] uppercase tracking-wide text-ink-muted sm:text-xs">
-                  Price
-                </p>
-                <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-400 sm:text-3xl">
-                  ${pack.price}
-                </p>
-              </div>
-              <div className="text-center">
-                <p className="text-[10px] uppercase tracking-wide text-ink-muted sm:text-xs">Avg</p>
-                <p className="mt-1 text-2xl font-bold tabular-nums text-purple-400 sm:text-3xl">
-                  ${pack.averageValue}
-                </p>
-              </div>
-            </div>
-
-            <div className="w-full max-w-xl rounded-2xl border border-border-subtle bg-surface-inset p-4 sm:p-5">
-              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-secondary">
-                Value Odds
-              </h3>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
-                {(boosted && pack.boostedValueRanges
-                  ? pack.boostedValueRanges
-                  : pack.valueRanges
-                ).map((range, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-baseline justify-between gap-2 text-xs sm:text-sm"
-                  >
-                    <span className="truncate text-ink-muted">{range.label}</span>
-                    <span className="shrink-0 font-bold tabular-nums text-ink-primary">
-                      {range.probability.toFixed(1)}%
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <p className="mt-3 text-[10px] italic text-ink-muted sm:text-xs">
-                {boosted
-                  ? 'Boosted odds — lower floor, higher ceiling. Same price.'
-                  : 'Exact simulated odds — every tier disclosed.'}
-                {!isOnePiece
-                  ? ' Raw vs PSA 10 slab at each tier follows what is in the card pool.'
-                  : ''}
+              <p className="mt-1 text-lg font-semibold tabular-nums text-ink-secondary">
+                {formatCurrency(pack.price)} per rip
+              </p>
+              <p className="mt-2 text-sm text-ink-muted">
+                {pack.cardsPerPack} pull
+                <span className="mx-2 text-ink-muted/50">·</span>
+                EV {formatCurrency(pack.averageValue)}
+                {pack.boostedValueRanges ? (
+                  <>
+                    <span className="mx-2 text-ink-muted/50">·</span>
+                    Boosted available
+                  </>
+                ) : null}
               </p>
             </div>
 
+            <PackOddsTable
+              ranges={ranges}
+              tierTheme={tier}
+              boosted={boosted}
+              isOnePiece={isOnePiece}
+            />
+
             {pack.boostedValueRanges && (
-              <label className="flex w-full max-w-xl items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 cursor-pointer select-none transition-colors hover:bg-amber-500/10">
+              <label className="flex w-full cursor-pointer select-none items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 transition-colors hover:bg-amber-500/10">
                 <div className="flex items-center gap-2.5">
                   <Zap className="h-5 w-5 shrink-0 text-amber-400" />
                   <div>
@@ -367,13 +316,15 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
           </div>
         )}
 
-        {/* Opening — replaces prep entirely (no stacked scroll) */}
         {stage === 'opening' && (
           <div className="flex h-full flex-col items-center justify-center gap-6 pb-2">
             <div className="relative">
               <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 opacity-50 blur-2xl motion-safe:animate-pulse" />
               <div
-                className={`relative rounded-2xl bg-gradient-to-br p-10 shadow-2xl sm:p-12 ${getTierColor(pack.tier)} motion-safe:animate-bounce`}
+                className={cn(
+                  'relative rounded-2xl bg-gradient-to-br p-10 shadow-2xl sm:p-12 motion-safe:animate-bounce',
+                  tier.gradient
+                )}
               >
                 <Sparkles
                   className="h-20 w-20 text-white motion-safe:animate-spin sm:h-24 sm:w-24"
@@ -394,7 +345,6 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
           </div>
         )}
 
-        {/* Reveal */}
         {stage === 'reveal' && packPull && (
           <div className="relative flex h-full flex-col">
             <button
@@ -403,13 +353,15 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
                 handleSkip();
                 if (use3D) setShowResults(true);
               }}
-              className="absolute right-0 top-0 z-20 inline-flex items-center gap-1.5 rounded-lg border border-border-default bg-surface-overlay/90 px-3 py-1.5 text-xs font-medium text-ink-secondary transition-colors hover:text-ink-primary"
+              className="absolute right-0 top-0 z-20 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border-default bg-surface-overlay/90 px-3 py-1.5 text-xs font-medium text-ink-secondary transition-colors hover:text-ink-primary"
             >
               <FastForward className="h-3.5 w-3.5" aria-hidden="true" />
               Skip
             </button>
             <h3 className="mb-4 shrink-0 bg-gradient-to-r from-yellow-400 via-pink-400 to-purple-600 bg-clip-text text-center text-2xl font-bold text-transparent motion-safe:animate-pulse sm:text-3xl">
-              {packPull.pullKind === 'slab' ? 'PSA 10 SLAB PULLED' : 'YOU PULLED'}
+              {packPull.pullKind === 'slab'
+                ? `${packPull.grader || 'PSA'} ${packPull.grade || '10'} SLAB PULLED`
+                : 'YOU PULLED'}
             </h3>
             <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
               {use3D ? (
@@ -460,11 +412,12 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
                       >
                         <div className="relative">
                           <div
-                            className={`absolute -inset-4 rounded-3xl bg-gradient-to-r opacity-60 blur-2xl motion-safe:animate-pulse ${
+                            className={cn(
+                              'absolute -inset-4 rounded-3xl bg-gradient-to-r opacity-60 blur-2xl motion-safe:animate-pulse',
                               isSlab
                                 ? 'from-amber-400 via-yellow-300 to-orange-500'
                                 : getRarityColor(card.rarity)
-                            }`}
+                            )}
                           />
                           <PackPullCardDisplay
                             card={card}
@@ -472,15 +425,18 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
                             rarityClassName={getRarityColor(card.rarity)}
                             size="reveal"
                             showSlabEffects={isSlab}
+                            grader={packPull.grader}
+                            grade={packPull.grade}
                             imageClassName="h-auto max-h-[min(60vh,500px)] w-auto max-w-[min(75vw,22rem)]"
                           />
                           <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 flex-col items-center gap-1">
                             <div
-                              className={`rounded-full px-4 py-2 text-lg font-black shadow-lg ${
+                              className={cn(
+                                'rounded-full px-4 py-2 text-lg font-black shadow-lg',
                                 price > packPull.pack.price
                                   ? 'bg-gradient-to-r from-green-400 to-emerald-500 text-white'
                                   : 'bg-gradient-to-r from-red-400 to-rose-500 text-white'
-                              }`}
+                              )}
                             >
                               ${price.toFixed(2)}
                             </div>
@@ -499,7 +455,6 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
           <PackPullResults
             packPull={packPull}
             rarityClassName={getRarityColor(packPull.cards[0]?.rarity)}
-            rawPriceFallback={(card) => pokemonApi.extractCardPrice(card)}
           />
         )}
       </div>

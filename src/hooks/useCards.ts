@@ -19,6 +19,7 @@ import {
   dedupeCards,
 } from '../utils/cardPrice';
 import { matchesInvestmentFilter } from '../utils/browseInvestmentFilters';
+import { queryContainsCjk } from '../utils/scriptDetection';
 
 export type { AnyCard };
 export { isPokemonCard, isOnePieceCard, getCardPrice, getCardName, getCardImage, getCardSet, getCardRarity, getCardId, getCardReactKey, dedupeCards };
@@ -30,9 +31,11 @@ interface UseCardsReturn {
   searchQuery: string;
   sortBy: SortOption | OnePieceSortOption;
   filterBy: FilterOption;
+  cardLanguage: 'en' | 'ja';
   setSearchQuery: (query: string) => void;
   setSortBy: (sort: SortOption | OnePieceSortOption) => void;
   setFilterBy: (filter: FilterOption) => void;
+  setCardLanguage: (language: 'en' | 'ja') => void;
   refetch: () => void;
 }
 
@@ -44,7 +47,15 @@ export function useCards(): UseCardsReturn {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortOption | OnePieceSortOption>('price-high');
   const [filterBy, setFilterBy] = useState<FilterOption>('all');
+  const [cardLanguage, setCardLanguage] = useState<'en' | 'ja'>('en');
   const abortRef = useRef<AbortController | null>(null);
+
+  // CJK text only exists on JA catalog cards — keep the toggle and API in sync.
+  useEffect(() => {
+    if (queryContainsCjk(searchQuery) && cardLanguage !== 'ja') {
+      setCardLanguage('ja');
+    }
+  }, [searchQuery, cardLanguage]);
 
   const loadCards = useCallback(
     async (query?: string) => {
@@ -59,7 +70,8 @@ export function useCards(): UseCardsReturn {
         let result: AnyCard[] = [];
 
         if (isPokemon) {
-          result = await pokemonApi.searchCards(query, undefined, 250);
+          const language = queryContainsCjk(query) ? 'ja' : cardLanguage;
+          result = await pokemonApi.searchCards(query, undefined, 250, language);
         } else if (isOnePiece) {
           result = await onePieceApi.searchCards(query);
         }
@@ -87,7 +99,7 @@ export function useCards(): UseCardsReturn {
         }
       }
     },
-    [isPokemon, isOnePiece]
+    [isPokemon, isOnePiece, cardLanguage]
   );
 
   useEffect(() => {
@@ -131,9 +143,11 @@ export function useCards(): UseCardsReturn {
     searchQuery,
     sortBy,
     filterBy,
+    cardLanguage,
     setSearchQuery,
     setSortBy,
     setFilterBy,
+    setCardLanguage,
     refetch,
   };
 }

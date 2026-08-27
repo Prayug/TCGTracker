@@ -8,6 +8,11 @@ import { PackPullKindBadge } from './PackPullCardDisplay';
 import { Package, Sparkles, History, Zap, ChevronDown, ArrowRight } from 'lucide-react';
 import { PageEmptyState } from '../../../components/common/PageEmptyState';
 import { formatCurrency } from '../../../utils/cardDisplay';
+import {
+  activePackRanges,
+  getPullTheme,
+  packIdentityStats,
+} from '../packPresentation';
 
 export const PackShop: React.FC = () => {
   const { game, isOnePiece } = useGame();
@@ -74,8 +79,6 @@ export const PackShop: React.FC = () => {
         return 'hover:border-border-strong';
     }
   };
-
-  const evRatio = (pack: Pack) => (pack.price > 0 ? pack.averageValue / pack.price : 0);
 
   if (isLoading) {
     return (
@@ -179,7 +182,7 @@ export const PackShop: React.FC = () => {
                 className={`group flex flex-col overflow-hidden rounded-2xl border border-border-subtle bg-surface-inset shadow-card transition-all duration-300 hover:-translate-y-1.5 ${getTierGlow(pack.tier)}`}
               >
                 <div
-                  className={`relative min-h-[10.5rem] bg-gradient-to-br ${getTierColor(pack.tier)} p-5 text-white`}
+                  className={`relative min-h-[12.5rem] bg-gradient-to-br ${getTierColor(pack.tier)} p-5 text-white`}
                 >
                   <div className="holo-texture" aria-hidden="true" />
                   <div className="absolute inset-0 bg-black/25" aria-hidden="true" />
@@ -196,9 +199,32 @@ export const PackShop: React.FC = () => {
                       </span>
                       <span className="text-xs text-white/70">per pack</span>
                     </div>
-                    <p className="mt-2 inline-flex rounded-md border border-white/20 bg-black/30 px-2 py-0.5 text-[10px] font-medium text-white/90">
-                      EV: ${evRatio(pack).toFixed(2)}/dollar spent
-                    </p>
+                    {(() => {
+                      const stats = packIdentityStats(
+                        activePackRanges(pack, !!boostedPacks[pack.id]),
+                        pack.price
+                      );
+                      return (
+                        <dl className="mt-3 grid grid-cols-3 gap-2 text-[11px] text-white/90">
+                          <div>
+                            <dt className="text-white/55">Floor</dt>
+                            <dd className="mt-0.5 font-bold tabular-nums">{formatCurrency(stats.floor)}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-white/55">Top pull</dt>
+                            <dd className="mt-0.5 font-bold tabular-nums">{formatCurrency(stats.top)}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-white/55">Jackpot</dt>
+                            <dd className="mt-0.5 font-bold tabular-nums">
+                              {stats.jackpotChance % 1 === 0
+                                ? `${stats.jackpotChance}%`
+                                : `${stats.jackpotChance.toFixed(1)}%`}
+                            </dd>
+                          </div>
+                        </dl>
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -295,37 +321,47 @@ export const PackShop: React.FC = () => {
             <History className="h-5 w-5 text-sky-400" />
             Recent openings
           </h3>
-          <div className="space-y-2.5">
-            {history.pulls.slice(0, 5).map((pull, index) => (
-              <div
-                key={index}
-                className="flex items-center justify-between gap-4 rounded-xl border border-border-subtle bg-surface-inset p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-border-strong hover:bg-surface-hover hover:shadow-card"
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <img
-                    src={pull.pack.imageUrl || '/images/pokemontcg/base1/logo.png'}
-                    alt={pull.pack.name}
-                    className="h-10 w-10 shrink-0 object-contain"
-                  />
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <p className="truncate font-medium text-ink-primary">{pull.pack.name}</p>
-                      <PackPullKindBadge isSlab={pull.pullKind === 'slab'} className="!px-1.5 !py-0 !text-[9px]" />
+          <div className="space-y-1.5">
+            {history.pulls.slice(0, 8).map((pull, index) => {
+              const card = pull.cards[0];
+              const theme = getPullTheme(pull);
+              const thumb = card?.images?.small || card?.images?.large;
+              return (
+                <div
+                  key={`${pull.openedAt}-${index}`}
+                  className="flex items-center gap-3 rounded-xl border border-border-subtle bg-surface-inset px-3 py-2.5 transition-colors hover:border-border-strong hover:bg-surface-hover"
+                >
+                  {thumb ? (
+                    <img src={thumb} alt="" className="h-11 w-8 shrink-0 rounded-sm object-cover" />
+                  ) : (
+                    <div className="h-11 w-8 shrink-0 rounded-sm bg-surface-hover" aria-hidden />
+                  )}
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-3">
+                    <p className="truncate text-xs text-ink-muted sm:w-[7.5rem] sm:shrink-0 sm:text-sm">
+                      {pull.pack.name}
+                    </p>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <PackPullKindBadge theme={theme} className="!px-1.5 !py-0 !text-[9px]" />
+                      <p className="truncate text-sm font-medium text-ink-primary">
+                        {card?.name ?? 'Pack pull'}
+                      </p>
                     </div>
-                    <p className="text-xs text-ink-muted">
-                      {new Date(pull.openedAt).toLocaleString()}
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-sm tabular-nums text-ink-secondary">
+                      {formatCurrency(pull.totalValue)}
+                    </p>
+                    <p
+                      className={`text-sm font-medium tabular-nums ${
+                        pull.profit >= 0 ? 'text-gain' : 'text-loss'
+                      }`}
+                    >
+                      {formatCurrency(pull.profit, { signed: true })}
                     </p>
                   </div>
                 </div>
-                <div className="shrink-0 text-right text-sm">
-                  <p className="tabular-nums text-ink-muted">{formatCurrency(pull.totalValue)}</p>
-                  <p className={`font-medium tabular-nums ${pull.profit >= 0 ? 'text-gain' : 'text-loss'}`}>
-                    {pull.profit >= 0 ? '+' : ''}
-                    {formatCurrency(pull.profit)}
-                  </p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

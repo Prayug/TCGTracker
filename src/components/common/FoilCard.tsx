@@ -50,7 +50,7 @@ export const FoilCard: React.FC<FoilCardProps> = ({
       onClick={onClick}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      className={`relative cursor-pointer overflow-hidden border transition-shadow duration-300 ${className}`}
+      className={`group relative cursor-pointer overflow-hidden border transition-shadow duration-300 ${className}`}
       style={{
         borderColor: 'var(--border-default)',
         background: 'var(--gradient-surface)',

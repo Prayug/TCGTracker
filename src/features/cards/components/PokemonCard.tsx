@@ -58,7 +58,7 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
             </div>
           )}
 
-          <div className="absolute bottom-2 left-2 right-2 z-20 grid grid-cols-3 gap-1.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+          <div className="pc-card-hover-actions absolute bottom-2 left-2 right-2 z-20 grid grid-cols-3 gap-1.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
             <button
               type="button"
               onClick={(e) => {
@@ -109,26 +109,26 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
         className="block w-full text-left"
         aria-label={`Open details for ${card.name}`}
       >
-        <div className="space-y-1.5 px-3.5 py-3">
+        <div className="pc-card-body space-y-1.5 px-3.5 py-3">
           <div className="flex items-baseline justify-between gap-2">
             <h3
-              className="truncate text-[13px] font-semibold leading-tight text-ink-primary"
+              className="pc-card-title truncate text-[clamp(0.8125rem,1vw,1.125rem)] font-semibold leading-tight text-ink-primary"
               title={card.name}
             >
               {card.name || 'Unknown Card'}
             </h3>
-            <span className="shrink-0 font-mono text-[10px] text-ink-muted">
+            <span className="pc-card-number shrink-0 font-mono text-[10px] text-ink-muted">
               #{card.number || '—'}
             </span>
           </div>
-          <p className="truncate text-xs text-ink-muted" title={card.set.name}>
+          <p className="pc-card-set truncate text-[clamp(0.6875rem,0.8vw,0.75rem)] text-ink-muted" title={card.set.name}>
             {card.set.name || 'Unknown set'}
           </p>
 
           <div className="flex items-center justify-between gap-2 border-t border-border-subtle pt-2">
             {card.rarity ? (
               <span
-                className={`inline-flex max-w-[55%] items-center truncate rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${getRarityBadgeClass(card.rarity)}`}
+                className={`pc-card-rarity inline-flex max-w-[55%] items-center truncate rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${getRarityBadgeClass(card.rarity)}`}
                 title={card.rarity}
               >
                 {card.rarity}
@@ -144,7 +144,7 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
               </span>
               {deltaPct !== null && Math.abs(deltaPct) >= 0.05 && (
                 <span
-                  className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${
+                  className={`pc-card-delta inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${
                     deltaPct > 0 ? 'bg-gain-muted text-gain' : 'bg-loss-muted text-loss'
                   }`}
                   title="7-day price trend (Cardmarket)"
