@@ -66,14 +66,14 @@ export function buildValueSeries(
 
   const points: { date: string; price: number }[] = [];
   const end = new Date();
-  const begin =
-    start ??
-    (() => {
-      const dates = vaultCards
-        .map((c) => new Date(c.purchaseDate).getTime())
-        .filter((t) => !Number.isNaN(t));
-      return new Date(dates.length ? Math.min(...dates) : end.getTime() - 90 * 86400000);
-    })();
+  const purchaseTimes = vaultCards
+    .map((c) => new Date(c.purchaseDate).getTime())
+    .filter((t) => !Number.isNaN(t));
+  const earliestPurchase = new Date(
+    purchaseTimes.length ? Math.min(...purchaseTimes) : end.getTime() - 90 * 86400000
+  );
+  const windowStart = start ?? earliestPurchase;
+  const begin = windowStart.getTime() < earliestPurchase.getTime() ? earliestPurchase : windowStart;
 
   const days = Math.max(1, Math.ceil((end.getTime() - begin.getTime()) / 86400000));
   const steps = Math.min(days, period === '7d' ? 7 : period === '30d' ? 30 : 60);
@@ -112,5 +112,39 @@ export function seriesDelta(series: { price: number }[]): {
   return {
     dollar,
     percent: first > 0 ? (dollar / first) * 100 : 0,
+  };
+}
+
+/**
+ * Period change that does not treat newly added capital as a market gain.
+ * Holdings bought inside the window enter at cost, so a vault funded this
+ * month no longer reports 30D change ≈ portfolio value.
+ */
+export function periodChangeExcludingInflows(
+  vaultCards: VaultCard[],
+  period: PerformancePeriod
+): { dollar: number; percent: number; sinceAddedOnly: boolean } {
+  if (vaultCards.length === 0) {
+    return { dollar: 0, percent: 0, sinceAddedOnly: false };
+  }
+
+  const start = periodStart(period);
+  const ownedAtStart = start
+    ? vaultCards.filter((vc) => new Date(vc.purchaseDate) <= start)
+    : vaultCards;
+  const sinceAddedOnly = !!start && ownedAtStart.length === 0;
+
+  let startValue = 0;
+  let endValue = 0;
+  for (const vc of vaultCards) {
+    startValue += effectiveCostBasis(vc);
+    endValue += holdingMarketValue(vc);
+  }
+
+  const dollar = endValue - startValue;
+  return {
+    dollar,
+    percent: startValue > 0 ? (dollar / startValue) * 100 : 0,
+    sinceAddedOnly,
   };
 }

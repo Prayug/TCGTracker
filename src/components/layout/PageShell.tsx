@@ -8,6 +8,8 @@ interface PageShellProps {
   className?: string;
   /** Wider shell for dense dashboards */
   wide?: boolean;
+  /** Use full main-column width (no max-width cap) — for dense grids */
+  fluid?: boolean;
   /** Skip horizontal padding (hero full-bleed) */
   flush?: boolean;
   /** Skip the zoom-in stage enter (rare) */
@@ -20,6 +22,7 @@ export function PageShell({
   children,
   className,
   wide,
+  fluid,
   flush,
   plain,
   atmosphere = 'default',
@@ -27,8 +30,8 @@ export function PageShell({
   const reduced = usePrefersReducedMotion();
   const glow =
     atmosphere === 'subtle'
-      ? 'bg-[radial-gradient(ellipse_at_50%_0%,rgba(110,231,183,0.045),transparent_38%),radial-gradient(ellipse_at_85%_12%,rgba(91,196,212,0.03),transparent_32%)]'
-      : 'bg-[radial-gradient(ellipse_at_50%_0%,rgba(110,231,183,0.1),transparent_48%),radial-gradient(ellipse_at_90%_20%,rgba(91,196,212,0.07),transparent_42%),radial-gradient(ellipse_at_10%_80%,rgba(110,231,183,0.05),transparent_40%)]';
+      ? 'bg-[radial-gradient(ellipse_at_50%_0%,rgba(110,231,183,0.02),transparent_42%)]'
+      : 'bg-[radial-gradient(ellipse_at_50%_0%,rgba(110,231,183,0.035),transparent_46%)]';
 
   return (
     <div className="relative isolate min-h-[calc(100dvh-3.5rem)]">
@@ -47,7 +50,8 @@ export function PageShell({
         className={cn(
           'mx-auto w-full',
           !flush && 'px-4 py-6 sm:px-6 sm:py-8 lg:px-8',
-          !flush && (wide ? 'max-w-7xl' : 'max-w-6xl'),
+          !flush && !fluid && (wide ? 'max-w-7xl' : 'max-w-6xl'),
+          fluid && 'max-w-none',
           'space-y-8',
           className
         )}
@@ -76,8 +80,7 @@ export function PageHeader({ title, description, actions, eyebrow, className }: 
     >
       <div className="min-w-0 space-y-2">
         {eyebrow ? (
-          <p className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-foil">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent shadow-glow-accent" aria-hidden />
+          <p className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-ink-muted">
             {eyebrow}
           </p>
         ) : null}

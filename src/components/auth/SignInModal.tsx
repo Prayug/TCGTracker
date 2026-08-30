@@ -108,7 +108,7 @@ export function SignInModal({ isOpen, mode, onModeChange, onClose }: SignInModal
             {pendingVerifyEmail
               ? `We sent a verification link to ${pendingVerifyEmail}. Open it to finish signing up.`
               : mode === 'login'
-                ? 'Sync your vault, watchlists, and alerts across devices.'
+                ? 'Sync your vault, wishlist, and alerts across devices.'
                 : 'We will email you a verification link to confirm your account.'}
           </p>
         </div>

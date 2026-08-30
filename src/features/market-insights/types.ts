@@ -17,6 +17,16 @@ export const CATEGORY_LABELS: Record<PredictionCategory, string> = {
   downtrend: 'Downtrend / Sell Risk',
 };
 
+export const CATEGORY_SHORT_LABELS: Record<PredictionCategory, string> = {
+  strong_buy: 'Strong Buy',
+  watch_dip: 'Watch / Dip',
+  recovery: 'Recovery',
+  momentum: 'Momentum',
+  stagnant: 'Stagnant',
+  avoid: 'Avoid',
+  downtrend: 'Downtrend',
+};
+
 export const CATEGORY_COLORS: Record<PredictionCategory, string> = {
   strong_buy: 'text-green-400 border-green-500/30 bg-green-500/10',
   watch_dip: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10',

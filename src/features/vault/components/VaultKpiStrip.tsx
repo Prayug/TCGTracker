@@ -4,7 +4,7 @@ import { CountUp } from '../../../components/common/CountUp';
 import { MiniSparkline } from '../../../components/common/MiniSparkline';
 import { formatCurrency, formatPercent } from '../../../utils/cardDisplay';
 import { cn } from '@/lib/utils';
-import { buildValueSeries, seriesDelta } from '../utils/portfolioSeries';
+import { buildValueSeries, periodChangeExcludingInflows } from '../utils/portfolioSeries';
 
 interface VaultKpiStripProps {
   stats: VaultStats;
@@ -20,7 +20,7 @@ function KpiTile({
   className,
   spark,
 }: {
-  label: string;
+  label: React.ReactNode;
   value: React.ReactNode;
   hint?: React.ReactNode;
   trend?: 'up' | 'down' | 'neutral';
@@ -38,7 +38,7 @@ function KpiTile({
       <div className="mt-1.5 flex items-end justify-between gap-3">
         <p
           className={cn(
-            'text-2xl font-semibold tabular-nums tracking-tight sm:text-3xl',
+            'text-xl font-semibold tabular-nums tracking-tight sm:text-2xl',
             trend === 'up' && 'text-gain',
             trend === 'down' && 'text-loss',
             (!trend || trend === 'neutral') && 'text-ink-primary'
@@ -59,7 +59,10 @@ export const VaultKpiStrip: React.FC<VaultKpiStripProps> = ({
   realizedPnl,
 }) => {
   const series30 = useMemo(() => buildValueSeries(vaultCards, '30d'), [vaultCards]);
-  const delta30 = useMemo(() => seriesDelta(series30), [series30]);
+  const delta30 = useMemo(
+    () => periodChangeExcludingInflows(vaultCards, '30d'),
+    [vaultCards]
+  );
   const sparkData = useMemo(
     () => series30.map((p) => ({ price: p.price })),
     [series30]
@@ -67,47 +70,28 @@ export const VaultKpiStrip: React.FC<VaultKpiStripProps> = ({
 
   const plTrend = stats.profit > 0 ? 'up' : stats.profit < 0 ? 'down' : 'neutral';
   const d30Trend = delta30.dollar > 0 ? 'up' : delta30.dollar < 0 ? 'down' : 'neutral';
-  const sparkColor =
-    delta30.dollar >= 0 ? 'var(--gain)' : 'var(--loss)';
+  const sparkColor = delta30.dollar >= 0 ? 'var(--gain)' : 'var(--loss)';
   const showRealized = realizedPnl != null && Number.isFinite(realizedPnl);
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-12">
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       <KpiTile
-        className="sm:col-span-2 lg:col-span-5"
         label="Portfolio Value"
         value={<CountUp end={stats.currentValue} prefix="$" decimals={2} />}
-        hint={
-          <span className={cn(stats.profit >= 0 ? 'text-gain' : 'text-loss')}>
-            {formatCurrency(stats.profit, { signed: true })} ·{' '}
-            {formatPercent(stats.profitPercentage, { signed: true })} all time
-          </span>
-        }
         spark={
           sparkData.length > 1 ? (
-            <MiniSparkline data={sparkData} width={96} height={32} color={sparkColor} />
+            <MiniSparkline data={sparkData} width={72} height={28} color={sparkColor} />
           ) : null
         }
       />
       <KpiTile
-        className="lg:col-span-2 sm:col-span-1"
-        label="Cost Basis"
-        value={
-          <span className="text-xl sm:text-2xl">
-            <CountUp end={stats.totalValue} prefix="$" decimals={2} />
-          </span>
-        }
-        hint={`${stats.uniqueCards} unique · ${stats.totalCards} total`}
-      />
-      <KpiTile
-        className="lg:col-span-2"
         label="Total P/L"
         trend={plTrend}
         value={
-          <span className="text-xl sm:text-2xl">
+          <>
             {stats.profit >= 0 ? '+' : '−'}
             <CountUp end={Math.abs(stats.profit)} prefix="$" decimals={2} />
-          </span>
+          </>
         }
         hint={
           showRealized ? (
@@ -128,23 +112,36 @@ export const VaultKpiStrip: React.FC<VaultKpiStripProps> = ({
         }
       />
       <KpiTile
-        className="lg:col-span-3"
-        label="30D Change"
+        label={
+          <span>
+            30D Change
+            <span className="ml-1.5 font-normal normal-case tracking-normal text-ink-muted">
+              · Estimated
+            </span>
+          </span>
+        }
         trend={d30Trend}
         value={
-          <span className="text-xl sm:text-2xl">
+          <>
             {delta30.dollar >= 0 ? '+' : '−'}
             <CountUp end={Math.abs(delta30.dollar)} prefix="$" decimals={2} />
-          </span>
+          </>
         }
         hint={
           <span>
             <span className={delta30.dollar >= 0 ? 'text-gain' : 'text-loss'}>
               {formatPercent(delta30.percent, { signed: true })}
             </span>
-            <span className="text-ink-muted"> · Estimated</span>
+            {delta30.sinceAddedOnly ? (
+              <span className="text-ink-muted"> · Since added</span>
+            ) : null}
           </span>
         }
+      />
+      <KpiTile
+        label="Cost Basis"
+        value={<CountUp end={stats.totalValue} prefix="$" decimals={2} />}
+        hint={`${stats.uniqueCards} unique · ${stats.totalCards} total`}
       />
     </div>
   );

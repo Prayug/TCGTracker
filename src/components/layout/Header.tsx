@@ -47,7 +47,7 @@ export const Header: React.FC = () => {
           <button
             type="button"
             onClick={openCommandPalette}
-            className="glass hidden h-10 w-72 cursor-pointer items-center gap-2 rounded-full border border-border-default px-4 text-sm text-ink-muted transition-all duration-200 hover:border-foil/40 hover:text-ink-secondary focus-visible:border-accent lg:flex"
+            className="glass hidden h-10 w-60 cursor-pointer items-center gap-2 rounded-full border border-border-default px-4 text-sm text-ink-muted transition-all duration-200 hover:border-foil/40 hover:text-ink-secondary focus-visible:border-accent lg:flex"
             aria-label="Open command palette"
           >
             <Search className="h-3.5 w-3.5 text-foil" />

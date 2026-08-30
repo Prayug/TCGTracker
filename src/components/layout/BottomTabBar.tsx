@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
-  Album,
+  ArrowLeftRight,
   Award,
   BookOpen,
   Boxes,
@@ -13,6 +13,7 @@ import {
   LineChart,
   MoreHorizontal,
   Package,
+  Percent,
   Settings,
   Swords,
   TrendingUp,
@@ -33,10 +34,13 @@ const MORE_ITEMS: { to: string; label: string; icon: React.ElementType }[] = [
   { to: '/open', label: 'Open Packs', icon: Boxes },
   { to: '/sets', label: 'Sets', icon: Layers },
   { to: '/wishlist', label: 'Wishlist', icon: Heart },
+  { to: '/trade', label: 'Trade', icon: ArrowLeftRight },
   { to: '/packs', label: 'Packs', icon: Package },
   { to: '/grading', label: 'Grade', icon: Award },
-  { to: '/prices', label: 'Prices', icon: LineChart },
+  { to: '/prices', label: 'Slabs', icon: Layers },
   { to: '/market-insights', label: 'Insights', icon: TrendingUp },
+  { to: '/investments', label: 'Investments', icon: LineChart },
+  { to: '/deals', label: 'Deals', icon: Percent },
   { to: '/binders', label: 'Binders', icon: BookOpen },
   { to: '/scanner', label: 'Scanner', icon: Camera },
   { to: '/settings', label: 'Settings', icon: Settings },

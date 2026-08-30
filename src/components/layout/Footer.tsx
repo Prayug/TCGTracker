@@ -13,10 +13,13 @@ export const Footer: React.FC = () => {
             Browse
           </Link>
           <Link to="/prices" className="cursor-pointer transition-colors hover:text-accent">
-            Prices
+            Slabs
           </Link>
           <Link to="/vault" className="cursor-pointer transition-colors hover:text-accent">
             Vault
+          </Link>
+          <Link to="/trade" className="cursor-pointer transition-colors hover:text-accent">
+            Trade
           </Link>
           <a
             href="https://pokemontcg.io/"

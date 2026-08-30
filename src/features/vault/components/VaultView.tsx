@@ -11,7 +11,7 @@ import { VaultInsightStrip } from './VaultInsightStrip';
 import { VaultActivityFeed } from './VaultActivityFeed';
 import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
 import { useToast } from '../../../components/common/Toast';
-import { FilterBar, FilterChip } from '../../../components/layout/PageShell';
+import { FilterChip } from '../../../components/layout/PageShell';
 import {
   Vault,
   Download,
@@ -20,8 +20,6 @@ import {
   Search,
   Plus,
   MoreHorizontal,
-  LayoutGrid,
-  List,
   Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -37,6 +35,7 @@ import {
 } from '../../../services/portfolioApiService';
 import { formatCurrency } from '../../../utils/cardDisplay';
 import { GradeWorthinessList } from '../../market/components/GradeWorthinessList';
+import { ViewModeToggle } from '../../../components/common/ViewModeToggle';
 
 interface VaultViewProps {
   onOpenSet?: (setId: string) => void;
@@ -278,7 +277,7 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0 space-y-1.5">
           <h1 className="font-display text-h1 tracking-tight text-ink-primary sm:text-[clamp(2rem,4vw,3rem)]">
@@ -393,16 +392,6 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
             }}
           />
 
-          {isPokemon && vaultCardIds.length > 0 && (
-            <GradeWorthinessList
-              cardIds={vaultCardIds}
-              limit={10}
-              title="Best vault cards to grade"
-              subtitle="Among your holdings — net after PSA fees × gem rate"
-              emptyMessage="No vault cards clear the fee hurdle with a verified PSA 10 quote and pop report."
-            />
-          )}
-
           <div className="flex flex-wrap items-center gap-1">
             {(
               [
@@ -434,92 +423,72 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
 
           {panel === 'holdings' ? (
             <div className="space-y-3">
-              <FilterBar className="items-center justify-between gap-3">
-                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-                  <div className="relative min-w-[10rem] flex-1 sm:max-w-xs">
-                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-muted" />
-                    <input
-                      type="search"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Search holdings..."
-                      className="input h-9 w-full pl-8 text-sm"
-                    />
-                  </div>
-                  <select
-                    value={setFilter}
-                    onChange={(e) => setSetFilter(e.target.value)}
-                    className="input h-9 max-w-[10rem] text-xs"
-                    aria-label="Filter by set"
-                  >
-                    <option value="">All sets</option>
-                    {setOptions.map(([id, name]) => (
-                      <option key={id} value={id}>
-                        {name}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={conditionFilter}
-                    onChange={(e) =>
-                      setConditionFilter(e.target.value as '' | CardCondition)
-                    }
-                    className="input h-9 text-xs"
-                    aria-label="Filter by condition"
-                  >
-                    {CONDITION_OPTIONS.map((o) => (
-                      <option key={o.value || 'all'} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={sortKey}
-                    onChange={(e) => setSortKey(e.target.value as SortKey)}
-                    className="input h-9 text-xs"
-                    aria-label="Sort holdings"
-                  >
-                    <option value="value">Value high → low</option>
-                    <option value="pl">P/L high → low</option>
-                    <option value="name">Name</option>
-                    <option value="date">Date</option>
-                    <option value="qty">Quantity</option>
-                  </select>
-                  {assumedOnly ? (
-                    <button
-                      type="button"
-                      onClick={() => setAssumedOnly(false)}
-                      className="rounded-lg bg-amber-400/15 px-2.5 py-1.5 text-xs font-medium text-amber-300"
-                    >
-                      Assumed cost · Clear
-                    </button>
-                  ) : null}
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-nowrap sm:items-center">
+                <div className="relative min-w-[10rem] flex-1">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-muted" />
+                  <input
+                    type="search"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search holdings..."
+                    className="input h-9 w-full pl-8 text-sm"
+                  />
                 </div>
-                <div className="flex items-center gap-1 rounded-lg border border-border-subtle p-0.5">
+                <select
+                  value={setFilter}
+                  onChange={(e) => setSetFilter(e.target.value)}
+                  className="input h-9 w-full shrink-0 text-xs sm:w-[9.5rem]"
+                  aria-label="Filter by set"
+                >
+                  <option value="">All sets</option>
+                  {setOptions.map(([id, name]) => (
+                    <option key={id} value={id}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={conditionFilter}
+                  onChange={(e) =>
+                    setConditionFilter(e.target.value as '' | CardCondition)
+                  }
+                  className="input h-9 w-full shrink-0 text-xs sm:w-[8.5rem]"
+                  aria-label="Filter by condition"
+                >
+                  {CONDITION_OPTIONS.map((o) => (
+                    <option key={o.value || 'all'} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={sortKey}
+                  onChange={(e) => setSortKey(e.target.value as SortKey)}
+                  className="input h-9 w-full shrink-0 text-xs sm:w-[10rem]"
+                  aria-label="Sort holdings"
+                >
+                  <option value="value">Value high → low</option>
+                  <option value="pl">P/L high → low</option>
+                  <option value="name">Name</option>
+                  <option value="date">Date</option>
+                  <option value="qty">Quantity</option>
+                </select>
+                {assumedOnly ? (
                   <button
                     type="button"
-                    onClick={() => setViewMode('table')}
-                    className={cn(
-                      'rounded-md p-1.5 cursor-pointer',
-                      viewMode === 'table' ? 'bg-accent/15 text-accent' : 'text-ink-muted'
-                    )}
-                    aria-label="Table view"
+                    onClick={() => setAssumedOnly(false)}
+                    className="h-9 shrink-0 rounded-lg bg-amber-400/15 px-2.5 text-xs font-medium text-amber-300"
                   >
-                    <List className="h-4 w-4" />
+                    Assumed cost · Clear
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode('grid')}
-                    className={cn(
-                      'rounded-md p-1.5 cursor-pointer',
-                      viewMode === 'grid' ? 'bg-accent/15 text-accent' : 'text-ink-muted'
-                    )}
-                    aria-label="Grid view"
-                  >
-                    <LayoutGrid className="h-4 w-4" />
-                  </button>
-                </div>
-              </FilterBar>
+                ) : null}
+                <ViewModeToggle
+                  className="ml-auto shrink-0"
+                  compact
+                  viewMode={viewMode === 'grid' ? 'grid' : 'list'}
+                  onChange={(mode) => setViewMode(mode === 'grid' ? 'grid' : 'table')}
+                />
+              </div>
 
               {selected.size > 0 ? (
                 <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border-subtle bg-surface-raised px-3 py-2">
@@ -672,6 +641,17 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
           ) : null}
 
           {panel === 'activity' ? <VaultActivityFeed items={activity} /> : null}
+
+          {isPokemon && vaultCardIds.length > 0 && panel === 'holdings' && (
+            <GradeWorthinessList
+              variant="compact"
+              cardIds={vaultCardIds}
+              limit={10}
+              title="Best cards to grade"
+              subtitle="Among your holdings — net after PSA fees × gem rate"
+              emptyMessage="No vault cards clear the fee hurdle with a verified PSA 10 quote and pop report."
+            />
+          )}
         </>
       )}
 

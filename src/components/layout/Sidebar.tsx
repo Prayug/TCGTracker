@@ -2,6 +2,7 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   Album,
+  ArrowLeftRight,
   Award,
   BookOpen,
   Boxes,
@@ -11,6 +12,7 @@ import {
   Layers,
   LayoutGrid,
   LineChart,
+  Percent,
   Package,
   Settings,
   Swords,
@@ -34,14 +36,17 @@ const NAV_GROUPS: {
       { to: '/binders', label: 'Binders', icon: Album },
       { to: '/vault', label: 'Vault', icon: BookOpen },
       { to: '/wishlist', label: 'Wishlist', icon: Heart },
+      { to: '/trade', label: 'Trade', icon: ArrowLeftRight },
       { to: '/sets', label: 'Sets', icon: Layers },
     ],
   },
   {
     label: 'Market',
     items: [
-      { to: '/prices', label: 'Prices', icon: LineChart },
+      { to: '/prices', label: 'Slabs', icon: Layers },
       { to: '/market-insights', label: 'Insights', icon: TrendingUp },
+      { to: '/investments', label: 'Investments', icon: LineChart },
+      { to: '/deals', label: 'Deals', icon: Percent },
     ],
   },
   {
@@ -78,14 +83,14 @@ export const Sidebar: React.FC = () => {
       </div>
 
       <div className="px-3 pt-4 pb-2">
-        <div className="flex rounded-xl border border-border-default bg-surface-inset p-0.5">
+        <div className="flex rounded-xl border border-border-subtle bg-surface-inset/60 p-0.5">
           {GAME_OPTIONS.map(({ value, label, icon: Icon }) => (
             <button
               key={value}
               type="button"
               onClick={() => setGame(value)}
               className={cn(
-                'flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-medium transition-colors duration-200',
+                'flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors duration-200',
                 game === value
                   ? 'bg-foil/15 text-foil'
                   : 'text-ink-muted hover:text-ink-secondary'
@@ -114,7 +119,7 @@ export const Sidebar: React.FC = () => {
                       cn(
                         'group relative flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200',
                         isActive
-                          ? 'bg-accent/10 text-accent'
+                          ? 'bg-accent/15 font-semibold text-accent shadow-[inset_0_0_0_1px_rgba(110,231,183,0.22)]'
                           : 'text-ink-secondary hover:bg-surface-hover hover:text-ink-primary'
                       )
                     }
