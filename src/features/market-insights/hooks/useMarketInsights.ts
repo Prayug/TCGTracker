@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { marketInsightsApi } from '../../../services/marketInsightsApi';
+import { InsightsApiClient, marketInsightsApi } from '../../../services/marketInsightsApi';
 import { formatApiError, isAbortError } from '../../../utils/apiError';
 import { useGame } from '../../../contexts/GameContext';
 import {
@@ -47,11 +47,21 @@ function windowToDays(window: PredictionWindow): number {
   return Number(window.replace('d', ''));
 }
 
-export function useMarketInsights() {
-  const { isOnePiece, game } = useGame();
+export function useMarketInsights(options?: {
+  api?: InsightsApiClient;
+  forcePokemon?: boolean;
+  defaultFilters?: PredictionFilters;
+  defaultWindow?: PredictionWindow;
+}) {
+  const api = options?.api ?? marketInsightsApi;
+  const { isOnePiece: gameIsOnePiece, game } = useGame();
+  const isOnePiece = options?.forcePokemon ? false : gameIsOnePiece;
   const apiGame = isOnePiece ? 'onepiece' as const : 'pokemon' as const;
 
-  const DEFAULT_FILTERS = useMemo(() => defaultFiltersForGame(isOnePiece), [isOnePiece]);
+  const DEFAULT_FILTERS = useMemo(
+    () => options?.defaultFilters ?? defaultFiltersForGame(isOnePiece),
+    [isOnePiece, options?.defaultFilters]
+  );
 
   const [activeTab, setActiveTab] = useState<InsightsTabType['id']>('overview');
 
@@ -77,8 +87,10 @@ export function useMarketInsights() {
   const [runningBacktest, setRunningBacktest] = useState(false);
   const [refreshingForward, setRefreshingForward] = useState(false);
 
-  const [predictionWindow, setPredictionWindow] = useState<PredictionWindow>('90d');
-  const [filters, setFilters] = useState<PredictionFilters>(() => defaultFiltersForGame(false));
+  const [predictionWindow, setPredictionWindow] = useState<PredictionWindow>(
+    options?.defaultWindow ?? '90d'
+  );
+  const [filters, setFilters] = useState<PredictionFilters>(() => options?.defaultFilters ?? defaultFiltersForGame(false));
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortField>('return');
   const [sortOrder, setSortOrder] = useState<SortDirection>('desc');
@@ -100,17 +112,17 @@ export function useMarketInsights() {
 
   // Reset filters when game switches so Pokemon eras don't wipe OP results.
   useEffect(() => {
-    setFilters(defaultFiltersForGame(isOnePiece));
+    setFilters(DEFAULT_FILTERS);
     setSearchQuery('');
     setCategoryFilter('all');
-  }, [isOnePiece, game]);
+  }, [isOnePiece, game, DEFAULT_FILTERS]);
 
   const loadPredictions = useCallback(async (signal?: AbortSignal) => {
     setPredictionsLoading(true);
     setPredictionsError(null);
     try {
-      const res = await marketInsightsApi.getPredictions({
-        limit: 250,
+      const res = await api.getPredictions({
+        limit: 500,
         window: predictionWindow,
         filters,
         search: searchQuery || undefined,
@@ -132,13 +144,13 @@ export function useMarketInsights() {
     } finally {
       if (!signal?.aborted) setPredictionsLoading(false);
     }
-  }, [predictionWindow, filters, searchQuery, sortBy, sortOrder, categoryFilter, apiGame]);
+  }, [predictionWindow, filters, searchQuery, sortBy, sortOrder, categoryFilter, apiGame, api]);
 
   const loadOverview = useCallback(async (signal?: AbortSignal) => {
     setOverviewLoading(true);
     setOverviewError(null);
     try {
-      const data = await marketInsightsApi.getOverview({ signal, game: apiGame });
+      const data = await api.getOverview({ signal, game: apiGame });
       if (signal?.aborted) return;
       setOverview(data);
     } catch (err: unknown) {
@@ -150,24 +162,24 @@ export function useMarketInsights() {
     } finally {
       if (!signal?.aborted) setOverviewLoading(false);
     }
-  }, [apiGame]);
+  }, [apiGame, api]);
 
   const loadBackendData = useCallback(async () => {
     const [btData, ftStatus] = await Promise.all([
-      marketInsightsApi.getBacktestResults().catch(() => ({ data: [] as BacktestResult[] })),
-      marketInsightsApi.getForwardTestStatus().catch(() => null),
+      api.getBacktestResults().catch(() => ({ data: [] as BacktestResult[] })),
+      api.getForwardTestStatus().catch(() => null),
     ]);
     setBacktestResults(btData?.data || []);
     setForwardStatus(ftStatus);
-  }, []);
+  }, [api]);
 
   const loadModelHealth = useCallback(async (signal?: AbortSignal) => {
     setHealthLoading(true);
     setHealthError(null);
     try {
       const [calRes, dqRes] = await Promise.all([
-        marketInsightsApi.getCalibrationStatus({ signal }),
-        marketInsightsApi.getDataQuality({ signal }),
+        api.getCalibrationStatus({ signal }),
+        api.getDataQuality({ signal }),
       ]);
       if (signal?.aborted) return;
       setCalibration(calRes.data ?? []);
@@ -179,22 +191,28 @@ export function useMarketInsights() {
     } finally {
       if (!signal?.aborted) setHealthLoading(false);
     }
-  }, []);
+  }, [api]);
 
   useEffect(() => {
+    if (activeTab !== 'overview') return;
     const controller = new AbortController();
     loadOverview(controller.signal);
-    loadBackendData();
     return () => controller.abort();
-  }, [loadOverview, loadBackendData]);
+  }, [activeTab, loadOverview]);
 
   useEffect(() => {
+    if (activeTab !== 'backtest' && activeTab !== 'forward') return;
+    void loadBackendData();
+  }, [activeTab, loadBackendData]);
+
+  useEffect(() => {
+    if (activeTab !== 'cards') return;
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
     loadPredictions(controller.signal);
     return () => controller.abort();
-  }, [loadPredictions]);
+  }, [activeTab, loadPredictions]);
 
   useEffect(() => {
     if (activeTab !== 'health') return;
@@ -221,12 +239,12 @@ export function useMarketInsights() {
   }, []);
 
   const handleResetFilters = useCallback(() => {
-    setFilters(defaultFiltersForGame(isOnePiece));
+    setFilters(DEFAULT_FILTERS);
     setSearchQuery('');
     setSortBy('return');
     setSortOrder('desc');
     setCategoryFilter('all');
-  }, [isOnePiece]);
+  }, [DEFAULT_FILTERS]);
 
   const handleSetPredictionWindow = useCallback((window: PredictionWindow) => {
     if (horizonSupport?.unsupported.includes(windowToDays(window) as 7 | 30 | 90 | 180 | 365)) {
@@ -238,11 +256,27 @@ export function useMarketInsights() {
   const handleRunPredictions = async () => {
     setRunningPrediction(true);
     try {
-      const result = await marketInsightsApi.triggerPredictionRun();
-      showMessage(`Prediction run ${result.runId}: ${result.message}`);
+      const result = await api.triggerPredictionRun();
+      showMessage(result.message);
+      if (result.running) {
+        const deadline = Date.now() + 12 * 60 * 1000;
+        while (Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, 4000));
+          const status = await api.getPredictionRunStatus();
+          if (!status.running) {
+            const last = status.last;
+            if (last) {
+              showMessage(
+                `Slab run complete: ${last.succeeded} predictions, ${last.failed} skipped (${last.total} slabs).`
+              );
+            }
+            break;
+          }
+        }
+      }
       await Promise.all([loadPredictions(), loadOverview(), loadBackendData(), loadModelHealth()]);
     } catch (err: unknown) {
-      showMessage(formatApiError(err, 'Failed to run predictions (admin login required)'));
+      showMessage(formatApiError(err, 'Failed to run predictions'));
     } finally {
       setRunningPrediction(false);
     }
@@ -251,11 +285,11 @@ export function useMarketInsights() {
   const handleRefreshForwardTest = async () => {
     setRefreshingForward(true);
     try {
-      const result = await marketInsightsApi.updateForwardTest();
+      const result = await api.updateForwardTest();
       showMessage(`Forward test updated: ${result.updated} outcomes refreshed`);
       await loadBackendData();
     } catch (err: unknown) {
-      showMessage(formatApiError(err, 'Forward test update failed (admin login required)'));
+      showMessage(formatApiError(err, 'Forward test update failed'));
     } finally {
       setRefreshingForward(false);
     }
@@ -264,13 +298,13 @@ export function useMarketInsights() {
   const handleRunBacktest = async () => {
     setRunningBacktest(true);
     try {
-      await marketInsightsApi.runBacktest({ backtestDate, windowDays: 90 });
+      await api.runBacktest({ backtestDate, windowDays: 90 });
       showMessage('Backtest completed');
-      const btData = await marketInsightsApi.getBacktestResults();
+      const btData = await api.getBacktestResults();
       setBacktestResults(btData?.data || []);
       setActiveTab('backtest');
     } catch (err: unknown) {
-      showMessage(formatApiError(err, 'Backtest failed (admin login required)'));
+      showMessage(formatApiError(err, 'Backtest failed'));
     } finally {
       setRunningBacktest(false);
     }

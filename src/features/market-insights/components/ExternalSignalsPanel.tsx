@@ -9,7 +9,7 @@ import {
   Trophy,
   Youtube,
 } from 'lucide-react';
-import { marketInsightsApi } from '../../../services/marketInsightsApi';
+import { useInsightsApi } from '../hooks/insightsApiContext';
 import { ExternalSignal } from '../types';
 
 const SOURCE_ICONS: Record<string, React.ReactNode> = {
@@ -51,6 +51,7 @@ interface Props {
 
 /** List of scraped external market signals (news, Reddit, YouTube, releases) for a card. */
 export function ExternalSignalsPanel({ cardId, signals: preloaded }: Props) {
+  const insightsApi = useInsightsApi();
   const [signals, setSignals] = useState<ExternalSignal[]>(preloaded ?? []);
   const [loading, setLoading] = useState(!preloaded);
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +60,7 @@ export function ExternalSignalsPanel({ cardId, signals: preloaded }: Props) {
     if (preloaded) return;
     let cancelled = false;
     setLoading(true);
-    marketInsightsApi
+    insightsApi
       .getExternalSignals(cardId)
       .then((res) => {
         if (!cancelled) setSignals(res.data);
@@ -73,7 +74,7 @@ export function ExternalSignalsPanel({ cardId, signals: preloaded }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [cardId, preloaded]);
+  }, [cardId, preloaded, insightsApi]);
 
   if (loading) {
     return (

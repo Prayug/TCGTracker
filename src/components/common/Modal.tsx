@@ -21,8 +21,16 @@ interface ModalProps {
   variant?: ModalVariant;
   /** Optional card art for inspect CSS-3D scene */
   sceneImageUrl?: string;
+  /** Sticky region above the scrolling body (compact identity header). */
+  header?: React.ReactNode;
   /** Extra class on the dialog panel */
   className?: string;
+  /** Extra class on the scrolling body */
+  bodyClassName?: string;
+  /** Drop default body padding so the child can own layout (sticky headers). */
+  flush?: boolean;
+  /** Ref to the scrolling body — used for sticky-header intersection. */
+  bodyRef?: React.Ref<HTMLDivElement>;
 }
 
 const sizeClasses: Record<NonNullable<ModalProps['size']>, string> = {
@@ -86,7 +94,11 @@ export const Modal: React.FC<ModalProps> = ({
   hideClose = false,
   variant = 'default',
   sceneImageUrl,
+  header,
   className,
+  bodyClassName,
+  flush = false,
+  bodyRef,
 }) => {
   const previousActiveElement = useRef<Element | null>(null);
   const isPack = size === 'pack' || variant === 'stage';
@@ -140,9 +152,7 @@ export const Modal: React.FC<ModalProps> = ({
   const borderAccent =
     variant === 'confirm'
       ? 'border-loss/40'
-      : variant === 'dive' || variant === 'reveal'
-        ? 'border-foil/30'
-        : 'border-border-strong';
+      : 'border-border-default';
 
   const modal = (
     <AnimatePresence>
@@ -160,10 +170,10 @@ export const Modal: React.FC<ModalProps> = ({
           >
             {showFoil ? (
               <div
-                className="pointer-events-none absolute inset-0 -z-10 opacity-60"
+                className="pointer-events-none absolute inset-0 -z-10 opacity-25"
                 style={{
                   background:
-                    'radial-gradient(ellipse at 30% 20%, rgba(110,231,183,0.18), transparent 45%), radial-gradient(ellipse at 80% 70%, rgba(91,196,212,0.16), transparent 40%)',
+                    'radial-gradient(ellipse at 50% 0%, rgba(110,231,183,0.08), transparent 42%)',
                 }}
                 aria-hidden
               />
@@ -188,7 +198,7 @@ export const Modal: React.FC<ModalProps> = ({
               }
               style={{ transformStyle: 'preserve-3d' }}
               className={cn(
-                'relative flex flex-col overflow-hidden rounded-2xl border bg-surface-overlay shadow-2xl',
+                'relative flex flex-col overflow-hidden rounded-2xl border bg-surface-overlay shadow-elevated',
                 borderAccent,
                 sizeClasses[size],
                 maxHeight,
@@ -202,7 +212,7 @@ export const Modal: React.FC<ModalProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className={`absolute right-3 top-3 z-20 cursor-pointer rounded-lg border border-border-default bg-surface-overlay/95 text-ink-secondary shadow-sm backdrop-blur transition-colors hover:bg-surface-hover hover:text-ink-primary ${
+                  className={`absolute right-3 top-3 z-30 cursor-pointer rounded-lg bg-surface-overlay/95 text-ink-secondary transition-colors hover:bg-surface-hover hover:text-ink-primary ${
                     isPack ? 'p-1.5' : 'p-2'
                   }`}
                   aria-label="Close modal"
@@ -224,13 +234,20 @@ export const Modal: React.FC<ModalProps> = ({
                 />
               ) : null}
 
+              {header ? <div className="shrink-0">{header}</div> : null}
+
               <div
+                ref={bodyRef}
                 className={cn(
-                  'custom-scrollbar min-h-0 flex-1 overflow-x-hidden px-4 pt-12 sm:px-8 sm:pt-14',
+                  'custom-scrollbar min-h-0 flex-1 overflow-x-hidden',
                   isPack
                     ? 'flex flex-col overflow-y-auto overscroll-contain pt-8 sm:pt-10'
-                    : 'overflow-y-auto overscroll-contain pb-4 sm:pb-5',
-                  showScene && 'pt-4 sm:pt-5'
+                    : 'overflow-y-auto overscroll-contain',
+                  flush
+                    ? 'px-0 pb-0 pt-0'
+                    : 'px-4 pt-12 pb-4 sm:px-8 sm:pt-14 sm:pb-5',
+                  showScene && !flush && 'pt-4 sm:pt-5',
+                  bodyClassName
                 )}
               >
                 <div className="min-h-0 flex-1">{children}</div>

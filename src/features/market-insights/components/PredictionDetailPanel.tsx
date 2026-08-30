@@ -3,7 +3,7 @@ import { X, Brain, Radio, TrendingUp, TrendingDown, Shield, AlertTriangle, Activ
 import { motion, AnimatePresence } from 'framer-motion';
 import { CardPrediction, CATEGORY_LABELS, CATEGORY_COLORS, expectedReturnForWindow, PREDICTION_WINDOW_LABELS, PredictionWindow } from '../types';
 import { PokemonCard } from '../../../types/pokemon';
-import { marketInsightsApi } from '../../../services/marketInsightsApi';
+import { useInsightsApi } from '../hooks/insightsApiContext';
 import { ExternalSignalsPanel } from './ExternalSignalsPanel';
 import { formatPercent } from '../../../utils/cardDisplay';
 
@@ -50,6 +50,7 @@ export function PredictionDetailPanel({ prediction, card, window: predictionWind
   const [explanation, setExplanation] = useState<string | null>(null);
   const [explanationLoading, setExplanationLoading] = useState(false);
   const [showSignals, setShowSignals] = useState(false);
+  const insightsApi = useInsightsApi();
 
   useEffect(() => {
     if (prediction) {
@@ -68,7 +69,7 @@ export function PredictionDetailPanel({ prediction, card, window: predictionWind
     if (explanation) return;
     setExplanationLoading(true);
     try {
-      const result = await marketInsightsApi.getAiExplanation(prediction.cardId);
+      const result = await insightsApi.getAiExplanation(prediction.cardId);
       setExplanation(result.explanation);
     } catch (err: any) {
       setExplanation(err?.message || 'AI analysis unavailable');
@@ -216,7 +217,7 @@ export function PredictionDetailPanel({ prediction, card, window: predictionWind
                       {prediction.gradingScore != null
                         ? ` · grade-worthiness score ${Math.round(prediction.gradingScore)}/100`
                         : ''}
-                      . Open the card on Prices → Slab market for PSA 10 fees, pop, and comps.
+                      . Open the card on Slabs for PSA 10 fees, pop, and comps.
                     </p>
                   </div>
                 </div>

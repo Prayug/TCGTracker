@@ -28,6 +28,16 @@ const MarketInsightsDashboard = lazy(() =>
     default: m.MarketInsightsPage,
   }))
 );
+const InvestmentsPage = lazy(() =>
+  import('./features/investments/components/InvestmentsPage').then((m) => ({
+    default: m.InvestmentsPage,
+  }))
+);
+const DealsPage = lazy(() =>
+  import('./features/deals/components/DealsPage').then((m) => ({
+    default: m.DealsPage,
+  }))
+);
 const VaultView = lazy(() =>
   import('./features/vault/components/VaultView').then((m) => ({ default: m.VaultView }))
 );
@@ -56,6 +66,9 @@ const SetDetail = lazy(() =>
 );
 const WishlistView = lazy(() =>
   import('./features/wishlist/components/WishlistView').then((m) => ({ default: m.WishlistView }))
+);
+const TradePage = lazy(() =>
+  import('./features/trade/components/TradePage').then((m) => ({ default: m.TradePage }))
 );
 const BindersIndex = lazy(() =>
   import('./features/binders/components/BindersIndex').then((m) => ({ default: m.BindersIndex }))
@@ -118,8 +131,20 @@ const pageVariants = {
   },
 };
 
-function ShellPage({ children, wide }: { children: ReactNode; wide?: boolean }) {
-  return <PageShell wide={wide}>{children}</PageShell>;
+function ShellPage({
+  children,
+  wide,
+  fluid,
+}: {
+  children: ReactNode;
+  wide?: boolean;
+  fluid?: boolean;
+}) {
+  return (
+    <PageShell wide={wide} fluid={fluid}>
+      {children}
+    </PageShell>
+  );
 }
 
 function AppRoutes() {
@@ -150,8 +175,24 @@ function AppRoutes() {
               <Route
                 path="/market-insights"
                 element={
-                  <ShellPage wide>
+                  <ShellPage wide fluid>
                     <MarketInsightsDashboard />
+                  </ShellPage>
+                }
+              />
+              <Route
+                path="/investments"
+                element={
+                  <ShellPage wide>
+                    <InvestmentsPage />
+                  </ShellPage>
+                }
+              />
+              <Route
+                path="/deals"
+                element={
+                  <ShellPage wide>
+                    <DealsPage />
                   </ShellPage>
                 }
               />
@@ -161,6 +202,22 @@ function AppRoutes() {
                 element={
                   <ShellPage>
                     <WishlistView />
+                  </ShellPage>
+                }
+              />
+              <Route
+                path="/trade"
+                element={
+                  <ShellPage wide>
+                    <TradePage />
+                  </ShellPage>
+                }
+              />
+              <Route
+                path="/trade/:shareToken"
+                element={
+                  <ShellPage wide>
+                    <TradePage />
                   </ShellPage>
                 }
               />
@@ -201,7 +258,7 @@ function AppRoutes() {
               <Route
                 path="/grading"
                 element={
-                  <ShellPage>
+                  <ShellPage wide>
                     <GradingPage />
                   </ShellPage>
                 }

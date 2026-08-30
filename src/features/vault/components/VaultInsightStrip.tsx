@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { ArrowRight, TrendingUp, Wallet, AlertTriangle } from 'lucide-react';
+import { TrendingUp, Wallet, AlertTriangle } from 'lucide-react';
 import { VaultCard } from '../../../types/pokemon';
 import { formatCurrency, formatPercent } from '../../../utils/cardDisplay';
 import { buildHoldings } from '../utils/portfolioSeries';
@@ -33,84 +33,66 @@ export const VaultInsightStrip: React.FC<VaultInsightStripProps> = ({
 
   if (!top) return null;
 
-  const chipClass =
-    'flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-xl border border-border-subtle bg-surface-raised/80 px-3.5 py-3 text-left transition-colors hover:bg-surface-hover/80';
-
   return (
-    <div className="grid gap-2 sm:grid-cols-3">
+    <div className="flex min-h-[52px] flex-wrap items-center gap-x-5 gap-y-1.5 rounded-xl border border-border-subtle bg-surface-raised/70 px-3.5 py-2 text-sm">
       <button
         type="button"
-        className={chipClass}
+        className="inline-flex min-w-0 max-w-full cursor-pointer items-center gap-2 text-left"
         onClick={() => onFocusHolding?.(top.id)}
       >
-        <Wallet className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden />
-        <div className="min-w-0">
-          <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-muted">
-            Top holding
-          </p>
-          <p className="truncate text-sm font-medium text-ink-primary">{top.card.name}</p>
-          <p className="text-xs tabular-nums text-ink-secondary">
-            {formatCurrency(holdingMarketValue(top))}
-          </p>
-        </div>
+        <Wallet className="h-3.5 w-3.5 shrink-0 text-ink-muted" aria-hidden />
+        <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-muted">
+          Top holding
+        </span>
+        <span className="truncate font-medium text-ink-primary">{top.card.name}</span>
+        <span className="shrink-0 tabular-nums text-ink-secondary">
+          · {formatCurrency(holdingMarketValue(top))}
+        </span>
       </button>
 
       {gainer ? (
         <button
           type="button"
-          className={chipClass}
+          className="inline-flex min-w-0 max-w-full cursor-pointer items-center gap-2 text-left"
           onClick={() => onFocusHolding?.(gainer.id)}
         >
-          <TrendingUp className="h-4 w-4 shrink-0 text-gain" aria-hidden />
-          <div className="min-w-0">
-            <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-muted">
-              Biggest gainer
-            </p>
-            <p className="truncate text-sm font-medium text-ink-primary">{gainer.name}</p>
-            <p
-              className={cn(
-                'text-xs tabular-nums',
-                gainer.profitPct >= 0 ? 'text-gain' : 'text-loss'
-              )}
-            >
-              {formatPercent(gainer.profitPct, { signed: true })}
-            </p>
-          </div>
+          <TrendingUp className="h-3.5 w-3.5 shrink-0 text-gain" aria-hidden />
+          <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-muted">
+            Best mover
+          </span>
+          <span className="truncate font-medium text-ink-primary">{gainer.name}</span>
+          <span
+            className={cn(
+              'shrink-0 tabular-nums',
+              gainer.profitPct >= 0 ? 'text-gain' : 'text-loss'
+            )}
+          >
+            · {formatPercent(gainer.profitPct, { signed: true })}
+          </span>
         </button>
-      ) : (
-        <div className={cn(chipClass, 'cursor-default opacity-60')} />
-      )}
+      ) : null}
 
       <button
         type="button"
-        className={chipClass}
+        className="ml-auto inline-flex cursor-pointer items-center gap-2 disabled:cursor-default"
         onClick={onReviewAssumed}
         disabled={assumedCostCount === 0}
       >
         <AlertTriangle
           className={cn(
-            'h-4 w-4 shrink-0',
+            'h-3.5 w-3.5 shrink-0',
             assumedCostCount > 0 ? 'text-amber-400' : 'text-ink-muted'
           )}
           aria-hidden
         />
-        <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-muted">
-            Assumed market cost
-          </p>
-          <p className="truncate text-sm font-medium text-ink-primary">
-            {assumedCostCount > 0
-              ? `${assumedCostCount} holding${assumedCostCount === 1 ? '' : 's'}`
-              : 'All set'}
-          </p>
-          {assumedCostCount > 0 ? (
-            <p className="inline-flex items-center gap-1 text-xs text-accent">
-              Review <ArrowRight className="h-3 w-3" />
-            </p>
-          ) : (
-            <p className="text-xs text-ink-muted">Purchase prices recorded</p>
-          )}
-        </div>
+        <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-muted">
+          Pricing
+        </span>
+        <span className="text-ink-secondary">
+          {assumedCostCount > 0
+            ? `Market prices assumed · ${assumedCostCount}`
+            : 'Purchase prices recorded'}
+        </span>
       </button>
     </div>
   );

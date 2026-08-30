@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen, Camera, Check, LayoutGrid, LineChart, X } from 'lucide-react';
+import { BookOpen, Camera, Check, LayoutGrid, Layers, X } from 'lucide-react';
 
 const STORAGE_KEY = 'tcg.onboarding';
 
-export type OnboardingStep = 'browse' | 'scan' | 'vault' | 'track';
+export type OnboardingStep = 'browse' | 'scan' | 'vault' | 'slabs';
 
 interface StepDef {
   id: OnboardingStep;
@@ -17,7 +17,7 @@ const STEPS: StepDef[] = [
   { id: 'browse', label: 'Browse cards', to: '/browse', icon: LayoutGrid },
   { id: 'scan', label: 'Scan a card', to: '/scanner', icon: Camera },
   { id: 'vault', label: 'Add to vault', to: '/vault', icon: BookOpen },
-  { id: 'track', label: 'Track a price', to: '/prices', icon: LineChart },
+  { id: 'slabs', label: 'Explore slabs', to: '/prices', icon: Layers },
 ];
 
 function readCompleted(): Set<OnboardingStep> {

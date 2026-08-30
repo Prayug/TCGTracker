@@ -2,6 +2,10 @@ export interface PokemonCard {
   id: string;
   name: string;
   uniqueIdentifier?: string;
+  /** Card print language; defaults to English when omitted. */
+  language?: 'en' | 'ja';
+  /** ASCII name for matching/display of Japanese cards. */
+  matchName?: string;
   images: {
     small: string;
     large: string;

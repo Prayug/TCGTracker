@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom';
 import {
   Album,
+  ArrowLeftRight,
   Award,
   BookOpen,
   Camera,
@@ -10,10 +11,10 @@ import {
   Heart,
   LayoutGrid,
   Layers,
-  LineChart,
   Loader2,
   LogIn,
   Package,
+  Percent,
   Search,
   Settings,
 } from 'lucide-react';
@@ -43,9 +44,12 @@ function getNavCommands(isOnePiece: boolean): NavCommand[] {
   return [
     { label: 'Home', to: '/', keywords: 'home start dashboard', icon: LayoutGrid, shortcut: 'G H' },
     { label: 'Browse cards', to: '/browse', keywords: 'browse cards marketplace', icon: LayoutGrid, shortcut: 'G B' },
-    { label: 'Price tracker', to: '/prices', keywords: 'prices tracking watchlist alerts', icon: LineChart, shortcut: 'G P' },
+    { label: 'Slab market', to: '/prices', keywords: 'prices slabs graded psa market', icon: Layers, shortcut: 'G P' },
+    { label: 'Investments', to: '/investments', keywords: 'investments opportunities movers buyouts similar slabs external factors invest', icon: Layers },
+    { label: 'eBay Deals', to: '/deals', keywords: 'deals ebay underpriced listings marketplace scanner bargains', icon: Percent },
     { label: 'My vault', to: '/vault', keywords: 'vault collection portfolio', icon: BookOpen, shortcut: 'G V' },
     { label: 'Wishlist', to: '/wishlist', keywords: 'wishlist want list buy targets', icon: Heart, shortcut: 'G W' },
+    { label: 'Fair trade', to: '/trade', keywords: 'trade swap fair calculator have want even', icon: ArrowLeftRight, shortcut: 'G T' },
     { label: 'Sets', to: '/sets', keywords: 'sets eras binder completion', icon: Layers, shortcut: 'G S' },
     { label: 'Binder planner', to: '/binders', keywords: 'binders plan planner page 3x3 organize collection', icon: Album },
     isOnePiece
@@ -88,12 +92,13 @@ const GO_TARGETS: Record<string, string> = {
   v: '/vault',
   w: '/wishlist',
   s: '/sets',
+  t: '/trade',
 };
 
 const SHORTCUTS_HELP: { keys: string; action: string }[] = [
   { keys: '⌘K / Ctrl+K', action: 'Open command palette' },
   { keys: '/', action: 'Open palette (search)' },
-  { keys: 'G then B / P / V / W / S / H', action: 'Go to Browse / Prices / Vault / Wishlist / Sets / Home' },
+  { keys: 'G then B / P / V / W / S / T / H', action: 'Go to Browse / Prices / Vault / Wishlist / Sets / Trade / Home' },
   { keys: '↑ ↓', action: 'Move selection' },
   { keys: 'Enter', action: 'Open selection' },
   { keys: 'Esc', action: 'Close palette or modal' },
@@ -256,7 +261,7 @@ export const CommandPalette: React.FC = () => {
             {
               id: 'auth-signin',
               label: 'Sign in',
-              sublabel: 'Sync vault, watchlists, and alerts',
+              sublabel: 'Sync vault, wishlist, and alerts',
               icon: <LogIn className="h-4 w-4 text-accent" aria-hidden="true" />,
               run: () => {
                 openAuthModal('login');

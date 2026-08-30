@@ -82,8 +82,9 @@ class PokemonApiService {
     query?: string,
     setId?: string,
     pageSize = 250,
+    language: 'en' | 'ja' | 'all' = 'en',
   ): Promise<PokemonCard[]> {
-    const cacheKey = `cards_${query || 'all'}_${setId || 'all'}_${pageSize}`;
+    const cacheKey = `cards_${query || 'all'}_${setId || 'all'}_${pageSize}_${language}`;
 
     const cached = cacheService.get<PokemonCard[]>(cacheKey);
     if (cached) return cached;
@@ -106,9 +107,10 @@ class PokemonApiService {
         }>('/api/cards/pokemon', {
           query: query.trim(),
           setId: setId || '',
-          pageSize: pageSize.toString(),
+          pageSize: language === 'ja' || /[\u3040-\u30ff\u3400-\u9fff]/.test(query) ? '500' : pageSize.toString(),
           fetchAll: volume === 'large' ? 'true' : 'false',
           maxPages: volume === 'large' ? '10' : '2',
+          language,
         });
 
         const cards = dedupeCards((response.data || []).filter((card) => card?.id)).map(rewriteCardImages);

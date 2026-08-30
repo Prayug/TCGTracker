@@ -44,7 +44,7 @@ export function MarketOverview({ data, loading, error }: Props) {
     return (
       <div className="flex h-64 items-center justify-center rounded-xl border border-dashed border-border-default">
         <p className="text-sm text-ink-muted">
-          {error || 'No overview data available. Run predictions first.'}
+          {typeof error === 'string' ? error : 'No overview data available. Run predictions first.'}
         </p>
       </div>
     );

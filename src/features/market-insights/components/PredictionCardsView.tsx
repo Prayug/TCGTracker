@@ -4,11 +4,9 @@ import {
   PredictionWindow,
   PredictionCategory,
   CATEGORY_LABELS,
-  CATEGORY_COLORS,
   SortField,
   SortDirection,
   PREDICTION_WINDOW_LABELS,
-  expectedReturnForWindow,
 } from '../types';
 import { PokemonCard } from '../../../types/pokemon';
 import { PredictionCard } from './PredictionCard';
@@ -29,6 +27,7 @@ interface Props {
   onCategoryFilterChange: (c: string) => void;
   onPredictionsRefresh: () => void;
   onViewDetail?: (prediction: CardPrediction) => void;
+  allLabel?: string;
 }
 
 const CATEGORY_OPTIONS: { value: string; label: string; icon: React.ReactNode }[] = [
@@ -66,26 +65,28 @@ export function PredictionCardsView({
   onCategoryFilterChange,
   onPredictionsRefresh,
   onViewDetail,
+  allLabel = 'All Cards',
 }: Props) {
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
+    <div className="space-y-[var(--insights-space-2,0.75rem)]">
+      <div className="insights-controls-row">
         <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search cards by name..."
-            className="w-full rounded-lg border border-border-default bg-surface-inset py-2 pl-10 pr-3 text-sm text-white placeholder-ink-muted outline-none focus:border-accent"
+            placeholder="Search by name..."
+            className="w-full rounded-lg border border-border-default bg-surface-inset py-[clamp(0.375rem,0.8vw,0.5rem)] pl-10 pr-3 text-[var(--insights-text-sm,0.875rem)] text-white placeholder-ink-muted outline-none focus:border-accent"
           />
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="insights-sort-group">
           <select
             value={sortBy}
             onChange={(e) => onSortByChange(e.target.value as SortField)}
-            className="rounded-lg border border-border-default bg-surface-inset px-3 py-2 text-xs text-white outline-none"
+            aria-label="Sort predictions"
+            className="min-w-0 rounded-lg border border-border-default bg-surface-inset px-3 py-[clamp(0.375rem,0.8vw,0.5rem)] text-[var(--insights-text-sm,0.875rem)] text-white outline-none"
           >
             {SORT_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -93,28 +94,28 @@ export function PredictionCardsView({
           </select>
           <button
             onClick={() => onSortOrderChange(sortOrder === 'desc' ? 'asc' : 'desc')}
-            className="flex items-center gap-1 rounded-lg border border-border-default bg-surface-inset px-3 py-2 text-xs text-ink-muted hover:text-ink-secondary"
+            className="flex shrink-0 items-center gap-1 rounded-lg border border-border-default bg-surface-inset px-3 py-[clamp(0.375rem,0.8vw,0.5rem)] text-[var(--insights-text-sm,0.875rem)] text-ink-muted hover:text-ink-secondary"
             title={sortOrder === 'desc' ? 'Descending' : 'Ascending'}
           >
             <ArrowUpDown className="h-3.5 w-3.5" />
-            {sortOrder === 'desc' ? 'Desc' : 'Asc'}
+            <span className="hidden sm:inline">{sortOrder === 'desc' ? 'Desc' : 'Asc'}</span>
           </button>
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-1.5">
+      <div className="scroll-rail scroll-rail-chips -mx-1 px-1 pb-0.5">
         {CATEGORY_OPTIONS.map((opt) => (
           <button
             key={opt.value}
             onClick={() => onCategoryFilterChange(opt.value)}
-            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={`inline-flex items-center gap-1.5 rounded-full px-[clamp(0.625rem,0.8vw,0.75rem)] py-[clamp(0.3125rem,0.6vw,0.375rem)] text-[var(--insights-text-sm,0.875rem)] font-medium transition-colors ${
               categoryFilter === opt.value
                 ? 'bg-accent text-white'
                 : 'border border-border-default bg-surface-inset text-ink-muted hover:bg-surface-hover hover:text-ink-secondary'
             }`}
           >
             {opt.icon}
-            {opt.label}
+            {opt.value === 'all' ? allLabel : opt.label}
           </button>
         ))}
       </div>
@@ -144,12 +145,12 @@ export function PredictionCardsView({
         </div>
       ) : (
         <>
-          <div className="flex items-center gap-2 text-xs text-ink-muted">
+          <div className="flex items-center gap-2 text-[var(--insights-text-sm,0.875rem)] text-ink-muted">
             <span>{predictions.length} card{predictions.length !== 1 ? 's' : ''}</span>
             <span className="text-border-subtle">|</span>
             <span>{PREDICTION_WINDOW_LABELS[predictionWindow]} window</span>
           </div>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+          <div className="insights-card-grid">
             {predictions.map((p) => (
               <PredictionCard
                 key={p.id}

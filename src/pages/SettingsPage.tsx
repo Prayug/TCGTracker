@@ -145,7 +145,7 @@ export function SettingsPage() {
         description={
           isAuthenticated
             ? 'Manage your account and notification preferences.'
-            : 'Sign in to sync your vault, watchlists, and price alerts.'
+            : 'Sign in to sync your vault, wishlist, and price alerts.'
         }
       />
 
@@ -198,7 +198,7 @@ export function SettingsPage() {
           <section className="space-y-2 border-t border-border-subtle pt-6">
             <h2 className="text-sm font-semibold text-ink-primary">Cloud sync</h2>
             <p className="text-sm text-ink-secondary">
-              Vault, watchlists, and alerts sync when you sign in. Push local changes anytime.
+              Vault, wishlist, and alerts sync when you sign in. Push local changes anytime.
             </p>
             <button
               type="button"

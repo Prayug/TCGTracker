@@ -14,6 +14,8 @@ import {
   AVAILABLE_ERAS,
 } from '../types';
 import { useMarketInsights } from '../hooks/useMarketInsights';
+import { InsightsApiContext } from '../hooks/insightsApiContext';
+import { InsightsApiClient, marketInsightsApi, slabInsightsApi } from '../../../services/marketInsightsApi';
 import { useResolvedPredictionCards } from '../hooks/useResolvedPredictionCards';
 import { MarketOverview } from './MarketOverview';
 import { PredictionCardsView } from './PredictionCardsView';
@@ -23,14 +25,42 @@ import { ForwardTestPanel } from './ForwardTestPanel';
 import { ModelHealthPanel } from './ModelHealthPanel';
 
 const TABS = [
-  { id: 'overview' as const, label: 'Overview', icon: <Activity className="h-4 w-4" /> },
-  { id: 'cards' as const, label: 'Cards', icon: <LayoutGrid className="h-4 w-4" /> },
-  { id: 'backtest' as const, label: 'Backtest', icon: <BarChart3 className="h-4 w-4" /> },
-  { id: 'forward' as const, label: 'Forward Test', icon: <Clock className="h-4 w-4" /> },
-  { id: 'health' as const, label: 'Model health', icon: <HeartPulse className="h-4 w-4" /> },
+  { id: 'overview' as const, label: 'Overview', shortLabel: 'Overview', icon: <Activity className="h-4 w-4" /> },
+  { id: 'cards' as const, label: 'Cards', shortLabel: 'Cards', icon: <LayoutGrid className="h-4 w-4" /> },
+  { id: 'backtest' as const, label: 'Backtest', shortLabel: 'Backtest', icon: <BarChart3 className="h-4 w-4" /> },
+  { id: 'forward' as const, label: 'Forward Test', shortLabel: 'Forward', icon: <Clock className="h-4 w-4" /> },
+  { id: 'health' as const, label: 'Model health', shortLabel: 'Health', icon: <HeartPulse className="h-4 w-4" /> },
 ];
 
-export function MarketInsightsPage() {
+const SLAB_DEFAULT_FILTERS: PredictionFilters = {
+  minPrice: 10,
+  maxPrice: 100000,
+  minConfidence: 10,
+  rarities: [],
+  eras: [],
+};
+
+export interface InsightsWorkspaceProps {
+  embedded?: boolean;
+  api?: InsightsApiClient;
+  title?: string;
+  subtitle?: string;
+  eyebrow?: string;
+  cardsTabLabel?: string;
+  allLabel?: string;
+  forcePokemon?: boolean;
+}
+
+export function MarketInsightsPage({
+  embedded = false,
+  api = marketInsightsApi,
+  title = 'Market Insights',
+  subtitle,
+  eyebrow = 'Market',
+  cardsTabLabel = 'Cards',
+  allLabel = 'All Cards',
+  forcePokemon = false,
+}: InsightsWorkspaceProps = {}) {
   const {
     activeTab, setActiveTab,
     predictions, predictionsLoading, predictionsError,
@@ -50,7 +80,12 @@ export function MarketInsightsPage() {
     loadPredictions, loadOverview,
     DEFAULT_FILTERS,
     isOnePiece,
-  } = useMarketInsights();
+  } = useMarketInsights({
+    api,
+    forcePokemon,
+    defaultFilters: forcePokemon ? SLAB_DEFAULT_FILTERS : undefined,
+    defaultWindow: forcePokemon ? '7d' : undefined,
+  });
 
   const rarityOptions = isOnePiece ? AVAILABLE_OP_RARITIES : AVAILABLE_RARITIES;
 
@@ -77,27 +112,43 @@ export function MarketInsightsPage() {
     (!isOnePiece && filters.eras && filters.eras.length !== (DEFAULT_FILTERS.eras?.length ?? 0));
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-        <div className="space-y-2">
-          <p className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-foil">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent shadow-glow-accent" aria-hidden />
-            Market
+    <InsightsApiContext.Provider value={api}>
+    <div className={`insights-page w-full ${embedded ? '' : ''}`}>
+      <div className={`flex flex-wrap items-end justify-between gap-[var(--insights-space-2,0.75rem)] ${embedded ? 'mb-4' : 'mb-[var(--insights-space-3,1.5rem)]'}`}>
+        {!embedded && (
+          <div className="insights-header-block min-w-0 space-y-1.5 sm:space-y-2">
+            <p className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-foil">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent shadow-glow-accent" aria-hidden />
+              {eyebrow}
+            </p>
+            <h1 className="font-display text-h1 text-ink-primary">{title}</h1>
+            <p className="insights-subtitle-long text-sm text-ink-secondary sm:text-base">
+              {subtitle ?? (
+                <>
+                  AI-powered price predictions and market analysis
+                  {isOnePiece ? ' for One Piece' : ' for Pokémon'}
+                </>
+              )}
+            </p>
+            <p className="insights-subtitle-short text-xs text-ink-secondary">
+              {subtitle ?? `AI-powered predictions${isOnePiece ? ' for One Piece' : ''}`}
+            </p>
+          </div>
+        )}
+        {embedded && (
+          <p className="max-w-xl text-xs text-ink-muted">
+            {subtitle ?? 'PSA 10 price predictions from graded history.'}
           </p>
-          <h1 className="font-display text-h1 text-ink-primary">Market Insights</h1>
-          <p className="text-sm text-ink-secondary sm:text-base">
-            AI-powered price predictions and market analysis
-            {isOnePiece ? ' for One Piece' : ' for Pokémon'}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
+        )}
+        <div className="insights-header-actions flex shrink-0 items-center gap-2 sm:gap-3">
           <button
             onClick={handleRunPredictions}
             disabled={runningPrediction}
             className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Play className={`h-3.5 w-3.5 ${runningPrediction ? 'animate-pulse' : ''}`} />
-            {runningPrediction ? 'Running...' : 'Run Predictions'}
+            <span className="insights-btn-label-long">{runningPrediction ? 'Running...' : 'Run Predictions'}</span>
+            <span className="insights-btn-label-short">{runningPrediction ? '...' : 'Run'}</span>
           </button>
           <button
             onClick={() => {
@@ -128,10 +179,11 @@ export function MarketInsightsPage() {
         </div>
       )}
 
-      <div className="mb-4 space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-ink-muted">Prediction window:</span>
-          <div className="inline-flex rounded-lg border border-border-default bg-surface-inset p-0.5">
+      <div className="mb-4 space-y-[var(--insights-space-2,0.75rem)]">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+          <span className="shrink-0 text-xs font-medium text-ink-muted">Prediction window:</span>
+          <div className="scroll-rail -mx-1 px-1">
+            <div className="inline-flex rounded-lg border border-border-default bg-surface-inset p-0.5">
             {PREDICTION_WINDOWS.map(w => {
               const status = windowStatus(w);
               const unsupported = status === 'unsupported';
@@ -171,6 +223,7 @@ export function MarketInsightsPage() {
                 </button>
               );
             })}
+            </div>
           </div>
           {windowExperimental && (
             <span className="text-[11px] text-amber-300/90" title="Experimental horizon">
@@ -319,19 +372,24 @@ export function MarketInsightsPage() {
         </div>
       </div>
 
-      <div className="mb-6 flex gap-1 rounded-xl border border-border-default bg-surface-inset p-1">
+      <div className="scroll-rail scroll-rail-tabs mb-6 -mx-1 rounded-xl border border-border-default bg-surface-inset p-1 px-1">
         {TABS.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+            className={`flex shrink-0 items-center gap-2 rounded-lg px-[clamp(0.625rem,1vw,1rem)] py-[clamp(0.375rem,0.8vw,0.5rem)] text-[var(--insights-text-sm,0.875rem)] font-medium transition-colors ${
               activeTab === tab.id
                 ? 'bg-accent/15 text-accent shadow-sm'
                 : 'text-ink-muted hover:bg-surface-hover hover:text-ink-secondary'
             }`}
           >
             {tab.icon}
-            <span className="hidden sm:inline">{tab.label}</span>
+            <span className="insights-tab-label-long">
+              {tab.id === 'cards' ? cardsTabLabel : tab.label}
+            </span>
+            <span className="insights-tab-label-short">
+              {tab.id === 'cards' ? cardsTabLabel : tab.shortLabel}
+            </span>
           </button>
         ))}
       </div>
@@ -363,6 +421,7 @@ export function MarketInsightsPage() {
             onCategoryFilterChange={setCategoryFilter}
             onPredictionsRefresh={loadPredictions}
             onViewDetail={(p) => setSelectedPrediction(p)}
+            allLabel={allLabel}
           />
         )}
 
@@ -421,6 +480,20 @@ export function MarketInsightsPage() {
         </>
       )}
     </div>
+    </InsightsApiContext.Provider>
+  );
+}
+
+export function SlabInsightsPanel() {
+  return (
+    <MarketInsightsPage
+      embedded
+      forcePokemon
+      api={slabInsightsApi}
+      cardsTabLabel="Slabs"
+      allLabel="All slabs"
+      subtitle="PSA 10 predictions across every slab with enough graded history."
+    />
   );
 }
 
