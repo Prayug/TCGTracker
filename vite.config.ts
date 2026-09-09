@@ -18,6 +18,7 @@ export default defineConfig(({ mode }) => {
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@tcgtracker/shared': path.resolve(__dirname, './packages/shared/src/index.ts'),
     },
   },
   optimizeDeps: {
@@ -122,6 +123,11 @@ export default defineConfig(({ mode }) => {
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
+    include: [
+      'src/**/*.{test,spec}.{ts,tsx}',
+      'packages/shared/src/**/*.{test,spec}.ts',
+    ],
+    exclude: ['backend/**', 'card-scanner-backend/**', 'node_modules/**', 'dist/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
