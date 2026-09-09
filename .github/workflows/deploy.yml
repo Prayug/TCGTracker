@@ -48,8 +48,10 @@ jobs:
       #     RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       #   working-directory: ./backend
 
+      # Slack optional — secrets cannot be used in `if:` expressions (GitHub Actions limitation).
+      # Enable by setting repository variable ENABLE_SLACK_NOTIFY=true and secret SLACK_WEBHOOK.
       - name: Notify deployment status
-        if: always() && secrets.SLACK_WEBHOOK != ''
+        if: ${{ always() && vars.ENABLE_SLACK_NOTIFY == 'true' }}
         uses: 8398a7/action-slack@v3
         with:
           status: ${{ job.status }}
