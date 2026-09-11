@@ -116,18 +116,18 @@ function VaultPage() {
 }
 
 const pageVariants = {
-  initial: { opacity: 0, y: 18, scale: 0.97 },
+  initial: { opacity: 0, rotateY: -8, x: 10 },
   animate: {
     opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] },
+    rotateY: 0,
+    x: 0,
+    transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] },
   },
   exit: {
     opacity: 0,
-    y: -10,
-    scale: 1.015,
-    transition: { duration: 0.22, ease: [0.16, 1, 0.3, 1] },
+    rotateY: 6,
+    x: -8,
+    transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] },
   },
 };
 
@@ -326,12 +326,7 @@ function AppShell() {
 }
 
 function App() {
-  const {
-    authModalOpen,
-    authModalMode,
-    closeAuthModal,
-    setAuthModalMode,
-  } = useAuth();
+  const { authModalOpen, authModalMode, closeAuthModal, setAuthModalMode } = useAuth();
 
   return (
     <MotionConfig reducedMotion="user">

@@ -149,10 +149,7 @@ export const Modal: React.FC<ModalProps> = ({
       ? 'max-h-[min(calc(100dvh-1.5rem),52rem)]'
       : 'max-h-[min(calc(100dvh-1rem),40rem)]';
 
-  const borderAccent =
-    variant === 'confirm'
-      ? 'border-loss/40'
-      : 'border-border-default';
+  const borderAccent = variant === 'confirm' ? 'border-loss/40' : 'border-border-default';
 
   const modal = (
     <AnimatePresence>
@@ -163,7 +160,7 @@ export const Modal: React.FC<ModalProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: reducedMotion ? 0.12 : 0.2 }}
-            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-2 backdrop-blur-sm sm:p-4"
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-[rgba(26,61,46,0.72)] p-2 backdrop-blur-sm sm:p-4"
             style={{ perspective: 1400 }}
             onClick={handleBackdropClick}
             role="presentation"
@@ -198,12 +195,13 @@ export const Modal: React.FC<ModalProps> = ({
               }
               style={{ transformStyle: 'preserve-3d' }}
               className={cn(
-                'relative flex flex-col overflow-hidden rounded-2xl border bg-surface-overlay shadow-elevated',
+                'relative flex flex-col overflow-hidden border bg-page shadow-elevated',
                 borderAccent,
                 sizeClasses[size],
                 maxHeight,
                 className
               )}
+              style={{ borderRadius: 'var(--radius-ui)', borderColor: 'var(--border-page)' }}
               role="dialog"
               aria-modal="true"
               onClick={(e) => e.stopPropagation()}
@@ -243,9 +241,7 @@ export const Modal: React.FC<ModalProps> = ({
                   isPack
                     ? 'flex flex-col overflow-y-auto overscroll-contain pt-8 sm:pt-10'
                     : 'overflow-y-auto overscroll-contain',
-                  flush
-                    ? 'px-0 pb-0 pt-0'
-                    : 'px-4 pt-12 pb-4 sm:px-8 sm:pt-14 sm:pb-5',
+                  flush ? 'px-0 pb-0 pt-0' : 'px-4 pt-12 pb-4 sm:px-8 sm:pt-14 sm:pb-5',
                   showScene && !flush && 'pt-4 sm:pt-5',
                   bodyClassName
                 )}

@@ -23,11 +23,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import {
-  holdingMarketValue,
-  holdingProfit,
-  isAssumedCost,
-} from '../../../utils/vaultCost';
+import { holdingMarketValue, holdingProfit, isAssumedCost } from '../../../utils/vaultCost';
 import { useAuth } from '../../../hooks/useAuth';
 import {
   fetchPortfolioStats,
@@ -205,9 +201,7 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
       });
     }
     if (setFilter) {
-      list = list.filter(
-        (vc) => vc.card.set?.id === setFilter || vc.card.set?.name === setFilter
-      );
+      list = list.filter((vc) => vc.card.set?.id === setFilter || vc.card.set?.name === setFilter);
     }
     if (conditionFilter) {
       list = list.filter((vc) => vc.condition === conditionFilter);
@@ -270,7 +264,11 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center" role="status" aria-live="polite">
+      <div
+        className="flex min-h-[40vh] items-center justify-center"
+        role="status"
+        aria-live="polite"
+      >
         <div className="h-10 w-10 animate-spin rounded-full border-2 border-border-subtle border-t-accent" />
       </div>
     );
@@ -284,15 +282,8 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
             {gameLabel} Vault
           </h1>
           <p className="text-sm text-ink-secondary">
-            Personal Collection
-            {vaultCards.length > 0 ? (
-              <>
-                {' '}
-                · {stats.uniqueCards} unique · {stats.totalCards} total
-              </>
-            ) : (
-              <> · Add cards to start tracking</>
-            )}
+            Binder page for your holdings
+            {vaultCards.length === 0 ? <> · Add cards to start tracking</> : null}
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-1.5">
@@ -350,11 +341,16 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
       </div>
 
       {vaultCards.length === 0 ? (
-        <div className="flex flex-col items-center rounded-2xl border border-dashed border-border-default bg-surface-raised/50 px-6 py-16 text-center">
-          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-accent/40 bg-accent/10">
-            <Vault className="h-7 w-7 text-accent" aria-hidden />
+        <div
+          className="flex flex-col items-center border border-dashed border-border-page bg-sleeve/60 px-6 py-16 text-center"
+          style={{ borderRadius: 'var(--radius-ui)' }}
+        >
+          <div className="mb-4 flex h-14 w-14 items-center justify-center border border-border-page bg-page">
+            <Vault className="h-7 w-7 text-sticker" aria-hidden />
           </div>
-          <h2 className="font-display text-lg font-semibold text-ink-primary">Your vault is empty</h2>
+          <h2 className="font-display text-lg font-semibold text-ink-primary">
+            Your vault is empty
+          </h2>
           <p className="mt-1.5 max-w-sm text-sm text-ink-secondary">
             {isPokemon
               ? 'Scan a card or browse the marketplace to start your collection.'
@@ -367,7 +363,10 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
                 Scan a card
               </Link>
             ) : null}
-            <Link to="/browse" className={cn('h-9 text-sm', isPokemon ? 'btn-secondary' : 'btn-primary')}>
+            <Link
+              to="/browse"
+              className={cn('h-9 text-sm', isPokemon ? 'btn-secondary' : 'btn-primary')}
+            >
               <Search className="h-4 w-4" aria-hidden />
               Browse {gameLabel}
             </Link>
@@ -397,9 +396,7 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
               [
                 { id: 'holdings' as const, label: 'Holdings', badge: vaultCards.length },
                 { id: 'performance' as const, label: 'Performance' },
-                ...(isPokemon
-                  ? [{ id: 'sets' as const, label: 'Sets', badge: setCount }]
-                  : []),
+                ...(isPokemon ? [{ id: 'sets' as const, label: 'Sets', badge: setCount }] : []),
                 { id: 'activity' as const, label: 'Activity', badge: activity.length || undefined },
               ] as { id: VaultPanel; label: string; badge?: number }[]
             ).map((tab) => (
@@ -449,9 +446,7 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
                 </select>
                 <select
                   value={conditionFilter}
-                  onChange={(e) =>
-                    setConditionFilter(e.target.value as '' | CardCondition)
-                  }
+                  onChange={(e) => setConditionFilter(e.target.value as '' | CardCondition)}
                   className="input h-9 w-full shrink-0 text-xs sm:w-[8.5rem]"
                   aria-label="Filter by condition"
                 >
@@ -492,9 +487,7 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
 
               {selected.size > 0 ? (
                 <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border-subtle bg-surface-raised px-3 py-2">
-                  <span className="text-xs text-ink-secondary">
-                    {selected.size} selected
-                  </span>
+                  <span className="text-xs text-ink-secondary">{selected.size} selected</span>
                   <button
                     type="button"
                     onClick={handleBulkDelete}

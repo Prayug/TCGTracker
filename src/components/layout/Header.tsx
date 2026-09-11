@@ -24,20 +24,17 @@ export const Header: React.FC = () => {
       className={cn(
         'sticky top-0 z-40 border-b transition-all duration-300',
         scrolled
-          ? 'border-border-subtle bg-surface-base/70 shadow-sm backdrop-blur-2xl'
+          ? 'border-white/10 bg-felt/90 shadow-sm backdrop-blur-xl'
           : 'border-transparent bg-transparent'
       )}
     >
       <div className="flex h-14 items-center justify-between gap-4 px-4 sm:px-6">
         <Link
           to="/"
-          className="flex shrink-0 items-center gap-2 transition-opacity duration-200 md:hidden"
+          className="flex shrink-0 items-center transition-opacity duration-200 md:hidden"
         >
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-accent/35 bg-accent/15 text-accent">
-            <span className="font-display text-sm font-bold tracking-tight">T</span>
-          </div>
-          <span className="font-display text-base font-semibold tracking-tight text-ink-primary">
-            TCGTracker
+          <span className="font-display text-lg font-extrabold tracking-tight text-felt-ink">
+            TCG Tracker
           </span>
         </Link>
 
@@ -47,12 +44,16 @@ export const Header: React.FC = () => {
           <button
             type="button"
             onClick={openCommandPalette}
-            className="glass hidden h-10 w-60 cursor-pointer items-center gap-2 rounded-full border border-border-default px-4 text-sm text-ink-muted transition-all duration-200 hover:border-foil/40 hover:text-ink-secondary focus-visible:border-accent lg:flex"
+            className="hidden h-10 w-60 cursor-pointer items-center gap-2 border border-white/15 bg-black/20 px-4 text-sm text-felt-muted transition-all duration-200 hover:border-foil/40 hover:text-felt-secondary focus-visible:border-foil lg:flex"
+            style={{ borderRadius: 'var(--radius-ui)' }}
             aria-label="Open command palette"
           >
             <Search className="h-3.5 w-3.5 text-foil" />
             <span className="flex-1 text-left">Search cards…</span>
-            <kbd className="rounded-md border border-border-subtle bg-surface-raised/80 px-1.5 py-0.5 font-mono text-[10px] text-ink-muted">
+            <kbd
+              className="border border-white/15 bg-black/30 px-1.5 py-0.5 font-mono text-[10px] text-felt-muted"
+              style={{ borderRadius: '2px' }}
+            >
               {isMac ? '⌘K' : 'Ctrl K'}
             </kbd>
           </button>
@@ -60,7 +61,8 @@ export const Header: React.FC = () => {
           <button
             type="button"
             onClick={openCommandPalette}
-            className="btn-icon lg:hidden"
+            className="inline-flex h-10 w-10 cursor-pointer items-center justify-center text-felt-secondary transition-colors hover:bg-white/10 hover:text-felt-ink lg:hidden"
+            style={{ borderRadius: 'var(--radius-ui)' }}
             aria-label="Search"
           >
             <Search className="h-[18px] w-[18px]" />
@@ -69,7 +71,8 @@ export const Header: React.FC = () => {
           <button
             type="button"
             onClick={toggleTheme}
-            className="btn-icon"
+            className="inline-flex h-10 w-10 cursor-pointer items-center justify-center text-felt-secondary transition-colors hover:bg-white/10 hover:text-felt-ink"
+            style={{ borderRadius: 'var(--radius-ui)' }}
             aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
           >
             <span key={theme} className="flex">

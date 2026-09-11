@@ -41,6 +41,19 @@ export default {
           secondary: 'var(--ink-secondary)',
           muted: 'var(--ink-muted)',
         },
+        felt: {
+          DEFAULT: 'var(--surface-felt)',
+          ink: 'var(--felt-ink)',
+          secondary: 'var(--felt-ink-secondary)',
+          muted: 'var(--felt-ink-muted)',
+        },
+        page: 'var(--surface-page)',
+        sleeve: 'var(--surface-sleeve)',
+        chrome: 'var(--chrome)',
+        sticker: {
+          DEFAULT: 'var(--sticker)',
+          hover: 'var(--sticker-hover)',
+        },
         neon: {
           gold: 'var(--neon-gold)',
           amber: 'var(--neon-amber)',
@@ -71,6 +84,7 @@ export default {
           DEFAULT: 'var(--border-default)',
           strong: 'var(--border-strong)',
           neon: 'var(--border-neon)',
+          page: 'var(--border-page)',
         },
         chart: {
           grid: 'var(--chart-grid)',
@@ -109,9 +123,19 @@ export default {
         popover: '0 8px 30px rgb(0 0 0 / 0.28)',
       },
       fontFamily: {
-        sans: ['"Jost"', 'system-ui', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
-        display: ['"Outfit"', '"Jost"', 'system-ui', 'sans-serif'],
+        sans: ['"IBM Plex Sans"', 'ui-sans-serif', 'sans-serif'],
+        mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
+        display: ['"Syne"', '"IBM Plex Sans"', 'ui-sans-serif', 'sans-serif'],
+      },
+      borderRadius: {
+        DEFAULT: '4px',
+        sm: '2px',
+        md: '4px',
+        lg: '4px',
+        xl: '4px',
+        '2xl': '6px',
+        '3xl': '8px',
+        full: '9999px',
       },
       fontSize: {
         display: [
@@ -135,8 +159,25 @@ export default {
         'hero-float': 'heroFloat 5.5s ease-in-out infinite',
         'hero-float-slow': 'heroFloat 7s ease-in-out infinite',
         'hero-float-delay': 'heroFloat 6.2s ease-in-out 0.8s infinite',
+        'page-turn': 'pageTurn 0.55s cubic-bezier(0.22, 1, 0.36, 1) both',
+        'sleeve-slide': 'sleeveSlide 0.42s cubic-bezier(0.22, 1, 0.36, 1) both',
+        'stamp-price': 'stampPrice 0.45s cubic-bezier(0.34, 1.4, 0.64, 1) both',
       },
       keyframes: {
+        pageTurn: {
+          '0%': { opacity: '0', transform: 'perspective(1200px) rotateY(-12deg) translateX(12px)', boxShadow: '0 0 0 transparent' },
+          '100%': { opacity: '1', transform: 'perspective(1200px) rotateY(0) translateX(0)', boxShadow: '8px 12px 28px rgba(20, 17, 14, 0.18)' },
+        },
+        sleeveSlide: {
+          '0%': { opacity: '0', transform: 'translateY(-10px)' },
+          '70%': { opacity: '1', transform: 'translateY(2px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        stampPrice: {
+          '0%': { opacity: '0', transform: 'scale(1.18) translateY(-6px)' },
+          '55%': { opacity: '1', transform: 'scale(0.96) translateY(1px)' },
+          '100%': { opacity: '1', transform: 'scale(1) translateY(0)' },
+        },
         fadeIn: {
           '0%': { opacity: '0', transform: 'translateY(8px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },

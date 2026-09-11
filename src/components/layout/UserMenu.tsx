@@ -28,25 +28,30 @@ export const UserMenu: React.FC = () => {
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 rounded-md border border-border-default bg-surface-raised py-1.5 pl-1.5 pr-2.5 transition-colors hover:bg-surface-hover"
+        className="flex items-center gap-2 border border-white/15 bg-black/20 py-1.5 pl-1.5 pr-2.5 transition-colors hover:bg-white/10"
+        style={{ borderRadius: 'var(--radius-ui)' }}
         aria-expanded={open}
         aria-haspopup="menu"
       >
-        <span className="flex h-8 w-8 items-center justify-center rounded-md bg-accent-muted text-xs font-bold text-accent">
+        <span
+          className="flex h-8 w-8 items-center justify-center bg-sticker/20 text-xs font-bold text-sticker"
+          style={{ borderRadius: 'var(--radius-ui)' }}
+        >
           {initials}
         </span>
-        <span className="hidden max-w-[100px] truncate text-sm font-medium text-ink-secondary sm:block">
+        <span className="hidden max-w-[100px] truncate text-sm font-medium text-felt-secondary sm:block">
           {displayName}
         </span>
         <ChevronDown
-          className={`h-4 w-4 text-ink-muted transition-transform ${open ? 'rotate-180' : ''}`}
+          className={`h-4 w-4 text-felt-muted transition-transform ${open ? 'rotate-180' : ''}`}
         />
       </button>
 
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-full z-50 mt-2 w-52 overflow-hidden rounded-lg border border-border-default bg-surface-overlay py-1 shadow-popover animate-fade-in"
+          className="absolute right-0 top-full z-50 mt-2 w-52 overflow-hidden border border-border-page bg-page py-1 shadow-popover animate-fade-in"
+          style={{ borderRadius: 'var(--radius-ui)' }}
         >
           <div className="border-b border-border-subtle px-3 py-2.5">
             <p className="truncate text-sm font-semibold text-ink-primary">{displayName}</p>

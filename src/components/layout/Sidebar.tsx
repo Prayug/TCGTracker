@@ -70,30 +70,27 @@ export const Sidebar: React.FC = () => {
   const { game, setGame } = useGame();
 
   return (
-    <aside className="hidden w-56 shrink-0 border-r border-border-subtle bg-sidebar/95 backdrop-blur-xl md:flex md:flex-col">
-      <div className="flex h-14 items-center border-b border-border-subtle px-5">
-        <NavLink to="/" className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-accent/35 bg-accent/15 text-accent">
-            <span className="font-display text-sm font-bold tracking-tight">T</span>
-          </div>
-          <span className="font-display text-base font-semibold tracking-tight text-ink-primary">
-            TCGTracker
+    <aside className="hidden w-56 shrink-0 border-r border-white/10 bg-chrome md:flex md:flex-col">
+      <div className="flex h-14 items-center border-b border-white/10 px-5">
+        <NavLink to="/" className="min-w-0">
+          <span className="font-display text-lg font-extrabold tracking-tight text-felt-ink">
+            TCG Tracker
           </span>
         </NavLink>
       </div>
 
       <div className="px-3 pt-4 pb-2">
-        <div className="flex rounded-xl border border-border-subtle bg-surface-inset/60 p-0.5">
+        <div className="flex rounded-[4px] border border-white/10 bg-black/20 p-0.5">
           {GAME_OPTIONS.map(({ value, label, icon: Icon }) => (
             <button
               key={value}
               type="button"
               onClick={() => setGame(value)}
               className={cn(
-                'flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors duration-200',
+                'flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-[3px] px-2 py-1.5 text-xs font-medium transition-colors duration-200',
                 game === value
-                  ? 'bg-foil/15 text-foil'
-                  : 'text-ink-muted hover:text-ink-secondary'
+                  ? 'bg-foil/20 text-foil'
+                  : 'text-felt-muted hover:text-felt-secondary'
               )}
             >
               <Icon className="h-3.5 w-3.5" />
@@ -106,9 +103,7 @@ export const Sidebar: React.FC = () => {
       <nav aria-label="Primary" className="flex-1 overflow-y-auto px-3 py-3">
         {NAV_GROUPS.map((group, groupIndex) => (
           <div key={group.label} className={cn(groupIndex > 0 && 'mt-5')}>
-            <p className="mb-1.5 px-2.5 text-[10px] font-medium uppercase tracking-[0.14em] text-ink-muted">
-              {group.label}
-            </p>
+            <p className="mb-1.5 px-2.5 text-[11px] font-medium text-felt-muted">{group.label}</p>
             <ul className="space-y-0.5">
               {group.items.map(({ to, label, icon: Icon, end }) => (
                 <li key={to}>
@@ -117,10 +112,10 @@ export const Sidebar: React.FC = () => {
                     end={end}
                     className={({ isActive }) =>
                       cn(
-                        'group relative flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200',
+                        'group relative flex cursor-pointer items-center gap-3 rounded-[4px] px-3 py-2 text-sm font-medium transition-colors duration-200',
                         isActive
-                          ? 'bg-accent/15 font-semibold text-accent shadow-[inset_0_0_0_1px_rgba(110,231,183,0.22)]'
-                          : 'text-ink-secondary hover:bg-surface-hover hover:text-ink-primary'
+                          ? 'bg-white/10 font-semibold text-felt-ink'
+                          : 'text-felt-secondary hover:bg-white/5 hover:text-felt-ink'
                       )
                     }
                   >
@@ -128,7 +123,7 @@ export const Sidebar: React.FC = () => {
                       <>
                         {isActive ? (
                           <span
-                            className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-accent"
+                            className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 bg-sticker"
                             aria-hidden
                           />
                         ) : null}
@@ -144,10 +139,8 @@ export const Sidebar: React.FC = () => {
         ))}
       </nav>
 
-      <div className="border-t border-border-subtle px-4 py-3">
-        <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-ink-muted">
-          Collection command
-        </p>
+      <div className="border-t border-white/10 px-4 py-3">
+        <p className="text-[11px] font-medium text-felt-muted">Shop desk</p>
       </div>
     </aside>
   );

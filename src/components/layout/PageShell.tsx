@@ -12,10 +12,12 @@ interface PageShellProps {
   fluid?: boolean;
   /** Skip horizontal padding (hero full-bleed) */
   flush?: boolean;
-  /** Skip the zoom-in stage enter (rare) */
+  /** Skip the page-turn enter (rare) */
   plain?: boolean;
   /** Soften the ambient glow (portfolio / dense tables) */
   atmosphere?: 'default' | 'subtle';
+  /** Wrap children in a binder paper sheet with ring rail */
+  binderPage?: boolean;
 }
 
 export function PageShell({
@@ -26,38 +28,55 @@ export function PageShell({
   flush,
   plain,
   atmosphere = 'default',
+  binderPage = true,
 }: PageShellProps) {
   const reduced = usePrefersReducedMotion();
   const glow =
     atmosphere === 'subtle'
-      ? 'bg-[radial-gradient(ellipse_at_50%_0%,rgba(110,231,183,0.02),transparent_42%)]'
-      : 'bg-[radial-gradient(ellipse_at_50%_0%,rgba(110,231,183,0.035),transparent_46%)]';
+      ? 'bg-[radial-gradient(ellipse_at_50%_0%,rgba(255,244,220,0.04),transparent_42%)]'
+      : 'bg-[radial-gradient(ellipse_at_50%_0%,rgba(255,244,220,0.08),transparent_55%)]';
+
+  const inner = (
+    <motion.div
+      initial={plain || reduced ? false : { opacity: 0, rotateY: -10, x: 14 }}
+      animate={{ opacity: 1, rotateY: 0, x: 0 }}
+      transition={{
+        duration: 0.5,
+        ease: [0.22, 1, 0.36, 1],
+      }}
+      style={{ transformOrigin: 'left center', transformStyle: 'preserve-3d' }}
+      className={cn(
+        'mx-auto w-full',
+        !flush && 'px-4 py-6 sm:px-6 sm:py-8 lg:px-8',
+        !flush && !fluid && (wide ? 'max-w-7xl' : 'max-w-6xl'),
+        fluid && 'max-w-none',
+        'space-y-8',
+        className
+      )}
+    >
+      {children}
+    </motion.div>
+  );
 
   return (
     <div className="relative isolate min-h-[calc(100dvh-3.5rem)]">
       <div aria-hidden className={`pointer-events-none absolute inset-0 -z-10 ${glow}`} />
 
-      <motion.div
-        initial={plain || reduced ? false : { opacity: 0, scale: 0.94, filter: 'blur(10px)' }}
-        animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-        transition={{
-          duration: 0.55,
-          ease: [0.16, 1, 0.3, 1],
-          // Blur cannot go negative — the bezier overshoots, so tween it separately.
-          filter: { duration: 0.45, ease: 'easeOut' },
-        }}
-        style={{ transformOrigin: '50% 8%' }}
-        className={cn(
-          'mx-auto w-full',
-          !flush && 'px-4 py-6 sm:px-6 sm:py-8 lg:px-8',
-          !flush && !fluid && (wide ? 'max-w-7xl' : 'max-w-6xl'),
-          fluid && 'max-w-none',
-          'space-y-8',
-          className
-        )}
-      >
-        {children}
-      </motion.div>
+      {binderPage && !flush ? (
+        <div className="mx-auto w-full px-3 pb-6 pt-4 sm:px-5 lg:px-6">
+          <div
+            className={cn(
+              'binder-page binder-page-rail animate-page-turn',
+              wide || fluid ? 'max-w-none' : 'mx-auto max-w-6xl',
+              wide && 'max-w-7xl mx-auto'
+            )}
+          >
+            {inner}
+          </div>
+        </div>
+      ) : (
+        inner
+      )}
     </div>
   );
 }
@@ -73,21 +92,16 @@ interface PageHeaderProps {
 export function PageHeader({ title, description, actions, eyebrow, className }: PageHeaderProps) {
   return (
     <div
-      className={cn(
-        'flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between',
-        className
-      )}
+      className={cn('flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between', className)}
     >
       <div className="min-w-0 space-y-2">
-        {eyebrow ? (
-          <p className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-ink-muted">
-            {eyebrow}
-          </p>
-        ) : null}
+        {eyebrow ? <p className="text-xs font-medium text-ink-muted">{eyebrow}</p> : null}
         <h1 className="font-display text-h1 tracking-tight text-ink-primary sm:text-[clamp(2rem,4vw,3.25rem)]">
           {title}
         </h1>
-        {description ? <p className="max-w-2xl text-sm text-ink-secondary sm:text-base">{description}</p> : null}
+        {description ? (
+          <p className="max-w-2xl text-sm text-ink-secondary sm:text-base">{description}</p>
+        ) : null}
       </div>
       {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
     </div>
@@ -104,8 +118,8 @@ interface StatBlockProps {
 
 export function StatBlock({ label, value, hint, trend, className }: StatBlockProps) {
   return (
-    <div className={cn('card-chrome space-y-2 rounded-2xl', className)}>
-      <p className="text-xs font-medium uppercase tracking-[0.12em] text-ink-muted">{label}</p>
+    <div className={cn('card-chrome space-y-2', className)}>
+      <p className="text-xs font-medium text-ink-muted">{label}</p>
       <p
         className={cn(
           'font-mono text-2xl font-semibold tabular-nums tracking-tight sm:text-3xl',
@@ -130,9 +144,10 @@ export function FilterBar({ children, className }: FilterBarProps) {
   return (
     <div
       className={cn(
-        'flex flex-wrap items-center gap-2 rounded-xl border border-border-subtle bg-surface-raised/60 p-2 sm:p-2.5',
+        'flex flex-wrap items-center gap-2 border border-border-page bg-sleeve/70 p-2 sm:p-2.5',
         className
       )}
+      style={{ borderRadius: 'var(--radius-ui)' }}
     >
       {children}
     </div>
@@ -152,12 +167,13 @@ export function FilterChip({ active, children, onClick, className }: FilterChipP
       type="button"
       onClick={onClick}
       className={cn(
-        'cursor-pointer rounded-lg px-3 py-1.5 text-sm font-medium transition-colors duration-200',
+        'cursor-pointer px-3 py-1.5 text-sm font-medium transition-colors duration-200',
         active
-          ? 'bg-accent/15 text-accent'
+          ? 'bg-foil/15 text-ink-primary'
           : 'text-ink-secondary hover:bg-surface-hover hover:text-ink-primary',
         className
       )}
+      style={{ borderRadius: 'var(--radius-ui)' }}
     >
       {children}
     </button>

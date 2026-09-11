@@ -10,13 +10,11 @@ export function scrollToMarketPulse(e?: { preventDefault?: () => void }) {
 }
 
 /**
- * Compact product-home hero. The 3D card ring is ambient background art only —
- * page scroll is never hijacked, so market data is one flick away.
+ * Binder Desk home hero — shop-sign brand on felt, one composition.
  */
 export function HomeHero() {
   const reduced = usePrefersReducedMotion();
   const [ready, setReady] = useState(false);
-  // Static progress: WorldRig adds its own slow time-based rotation.
   const progressRef = useRef(0);
 
   useEffect(() => {
@@ -26,44 +24,43 @@ export function HomeHero() {
   return (
     <section
       aria-label="Welcome"
-      className="relative h-[clamp(24rem,58dvh,36rem)] overflow-hidden border-b border-border-subtle"
+      className="relative h-[clamp(26rem,62dvh,40rem)] overflow-hidden border-b border-white/10"
     >
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_30%,rgba(110,231,183,0.05),transparent_50%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(255,244,220,0.1),transparent_55%)]" />
 
       {!reduced && ready && (
         <>
-          {/* r3f Canvas forces position:relative inline, so position via a wrapper */}
-          <div className="absolute inset-0">
+          <div className="absolute inset-0 opacity-55">
             <ScrollWorld progressRef={progressRef} />
           </div>
-          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(12,17,24,0.55)_0%,rgba(12,17,24,0.35)_45%,rgba(12,17,24,0.85)_100%)]" />
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(26,61,46,0.45)_0%,rgba(26,61,46,0.28)_40%,rgba(26,61,46,0.88)_100%)]" />
         </>
       )}
 
-      <div className="relative z-10 flex h-full flex-col justify-center px-5 sm:px-10 lg:px-14">
-        <div className="max-w-xl">
-          <p className="font-display text-xl font-bold tracking-tight text-ink-primary sm:text-2xl">
-            TCG<span className="text-accent">Tracker</span>
+      <div className="relative z-10 flex h-full flex-col justify-end px-5 pb-10 sm:justify-center sm:px-10 sm:pb-0 lg:px-14">
+        <div className="max-w-2xl">
+          <p className="font-display text-[clamp(2.75rem,8vw,5.5rem)] font-extrabold leading-[0.95] tracking-tight text-felt-ink">
+            TCG Tracker
           </p>
-          <h1 className="mt-3 font-display text-4xl font-bold leading-[1.05] tracking-tight text-ink-primary sm:text-5xl">
-            Rip packs. Grade cards.
-            <br />
-            <span className="text-gradient">Track the market.</span>
+          <h1 className="mt-4 max-w-lg font-display text-[clamp(1.35rem,3.2vw,2rem)] font-bold leading-snug tracking-tight text-felt-ink">
+            Your collection on the shop desk.
           </h1>
-          <p className="mt-3 max-w-md text-sm leading-relaxed text-ink-secondary sm:text-base">
-            Live prices, your vault, pack rips and AI grading — for Pokemon and One Piece.
+          <p className="mt-3 max-w-md text-sm leading-relaxed text-felt-secondary sm:text-base">
+            Live prices, vault pages, pack rips and grading — laid out like sleeves on felt.
           </p>
-          <div className="mt-6 flex flex-wrap items-center gap-3">
+          <div className="mt-7 flex flex-wrap items-center gap-3">
             <Link
               to="/packs"
-              className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-full bg-accent px-6 text-sm font-semibold text-primary-foreground shadow-glow-accent transition-all duration-200 hover:bg-accent-hover"
+              className="inline-flex h-11 cursor-pointer items-center gap-2 bg-sticker px-5 text-sm font-semibold text-felt-ink transition-colors hover:bg-sticker-hover"
+              style={{ borderRadius: 'var(--radius-ui)' }}
             >
               <Package className="h-4 w-4" />
               Open packs
             </Link>
             <Link
               to="/browse"
-              className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-border-default bg-surface-raised/70 px-6 text-sm font-semibold text-ink-primary backdrop-blur-md transition-colors hover:border-accent/40 hover:text-accent"
+              className="inline-flex h-11 cursor-pointer items-center gap-2 border border-white/25 bg-black/15 px-5 text-sm font-semibold text-felt-ink transition-colors hover:border-foil/50"
+              style={{ borderRadius: 'var(--radius-ui)' }}
             >
               Browse catalog
               <ArrowUpRight className="h-4 w-4" />
@@ -71,9 +68,9 @@ export function HomeHero() {
             <button
               type="button"
               onClick={scrollToMarketPulse}
-              className="inline-flex cursor-pointer items-center gap-1.5 text-sm font-semibold text-foil transition-colors hover:text-accent"
+              className="inline-flex cursor-pointer items-center gap-1.5 text-sm font-semibold text-foil transition-colors hover:text-felt-ink"
             >
-              See today's movers
+              See today&apos;s movers
               <ArrowDown className="h-4 w-4" />
             </button>
           </div>

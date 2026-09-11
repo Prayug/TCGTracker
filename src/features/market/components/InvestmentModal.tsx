@@ -112,7 +112,22 @@ function gradedRowLabel(entry: GradedPriceEntry): string {
 }
 
 const GRADER_ORDER = ['ungraded', 'psa', 'cgc', 'bgs', 'sgc', 'tag', 'ace'];
-const GRADE_ORDER = ['10', '10 pristine', '10 black', '9.5', '9', '8', '7', '6', '5', '4', '3', '2', '1', 'ungraded'];
+const GRADE_ORDER = [
+  '10',
+  '10 pristine',
+  '10 black',
+  '9.5',
+  '9',
+  '8',
+  '7',
+  '6',
+  '5',
+  '4',
+  '3',
+  '2',
+  '1',
+  'ungraded',
+];
 
 function sortGradedEntries(a: GradedPriceEntry, b: GradedPriceEntry): number {
   const ga = GRADER_ORDER.indexOf(a.grader);
@@ -135,11 +150,7 @@ function pickDefaultGradedSeries(
   prices: GradedPriceEntry[]
 ): { grader: string; grade: string } | null {
   const priced = prices.filter(
-    (p) =>
-      p.price != null &&
-      p.price > 0 &&
-      p.grader !== 'ungraded' &&
-      p.grader !== 'generic'
+    (p) => p.price != null && p.price > 0 && p.grader !== 'ungraded' && p.grader !== 'generic'
   );
   if (priced.length === 0) return null;
   const psa10 = priced.find((p) => p.grader === 'psa' && p.grade === '10');
@@ -455,8 +466,7 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
     (card.marketPrice && card.marketPrice > 0 ? card.marketPrice : 0) ||
     (isOnePiece ? 0 : pokemonApi.extractCardPrice(card as PokemonCard, selectedVariant)) ||
     0;
-  const actualCardPrice =
-    (priceHistory[priceHistory.length - 1]?.price || 0) || listingFallback;
+  const actualCardPrice = priceHistory[priceHistory.length - 1]?.price || 0 || listingFallback;
   const priceChange =
     lastHistoryPrice > 0 && firstHistoryPrice > 0 ? lastHistoryPrice - firstHistoryPrice : 0;
   const priceChangePercent = firstHistoryPrice > 0 ? (priceChange / firstHistoryPrice) * 100 : 0;
@@ -476,16 +486,15 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
   };
 
   const compactBar = compactHeader ? (
-    <div className="flex items-center gap-3 border-b border-border-subtle px-5 py-2.5 pr-14 sm:px-7">
+    <div className="flex items-center gap-3 border-b border-border-page bg-page px-5 py-2.5 pr-14 sm:px-7">
       <img
         src={card.images?.small || card.images?.large || ''}
         alt=""
-        className="h-9 w-7 shrink-0 rounded object-contain"
+        className="h-9 w-7 shrink-0 object-contain"
+        style={{ borderRadius: 'var(--radius-ui)' }}
       />
       <p className="min-w-0 flex-1 truncate text-sm font-semibold text-ink-primary">{card.name}</p>
-      <p className="shrink-0 font-mono text-sm font-semibold tabular-nums text-ink-primary">
-        {formatCurrency(actualCardPrice)}
-      </p>
+      <p className="stamp-price shrink-0 text-sm tabular-nums">{formatCurrency(actualCardPrice)}</p>
     </div>
   ) : null;
 
@@ -500,39 +509,78 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
         bodyRef={scrollRef}
         header={compactBar}
       >
-        <div ref={heroRef} className="px-5 pb-6 pt-4 pr-14 sm:px-7 sm:pt-5">
-          <div className="flex gap-5 sm:gap-6">
-            <img
-              src={card.images?.large || card.images?.small || ''}
-              alt=""
-              className="aspect-[5/7] w-[11rem] shrink-0 rounded-xl bg-surface-raised object-contain sm:w-[12.5rem]"
-              loading="lazy"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                if (card.images?.small && target.src !== card.images.small) {
-                  target.src = card.images.small;
-                }
-              }}
-            />
+        <div ref={heroRef} className="bg-felt px-4 pb-5 pt-4 pr-14 sm:px-6 sm:pt-5">
+          <div className="flex flex-col gap-5 sm:flex-row sm:gap-7">
+            <div className="mx-auto w-[min(14rem,70vw)] shrink-0 sm:mx-0 sm:w-[15rem]">
+              <div className="sleeve-window bg-black/20 p-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.28)]">
+                <img
+                  src={card.images?.large || card.images?.small || ''}
+                  alt=""
+                  className="aspect-[5/7] w-full object-contain"
+                  loading="lazy"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    if (card.images?.small && target.src !== card.images.small) {
+                      target.src = card.images.small;
+                    }
+                  }}
+                />
+              </div>
+            </div>
 
-            <div className="flex min-w-0 flex-1 flex-col">
-              <h2 className="font-display text-2xl font-semibold leading-tight tracking-tight text-ink-primary sm:text-[1.75rem]">
+            <div className="binder-page min-w-0 flex-1 p-4 sm:p-5">
+              <div className="mb-3 flex flex-wrap gap-1.5">
+                <span className="binder-tab" data-active="true">
+                  Spec
+                </span>
+                {card.rarity ? <span className="binder-tab">{card.rarity}</span> : null}
+                {!isOnePiece && (card as PokemonCard).language === 'ja' ? (
+                  <span className="binder-tab">JP</span>
+                ) : null}
+              </div>
+
+              <h2 className="font-display text-2xl font-extrabold leading-tight tracking-tight text-ink-primary sm:text-[1.85rem]">
                 {card.name}
               </h2>
-              <p className="mt-2 text-sm text-ink-muted">
-                {card.set?.name}
-                {card.number ? ` · #${card.number}` : ''}
-              </p>
-              {card.rarity && <p className="mt-1 text-sm text-ink-muted">{card.rarity}</p>}
+              <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                <div>
+                  <dt className="text-[11px] font-medium text-ink-muted">Set</dt>
+                  <dd className="font-medium text-ink-primary">{card.set?.name || '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-medium text-ink-muted">Number</dt>
+                  <dd className="font-mono text-ink-primary">
+                    {card.number ? `#${card.number}` : '—'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-medium text-ink-muted">Rarity</dt>
+                  <dd className="text-ink-primary">{card.rarity || '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-medium text-ink-muted">Finish</dt>
+                  <dd className="text-ink-primary">
+                    {isOnePiece ? 'Normal' : selectedVariantLabel}
+                  </dd>
+                </div>
+              </dl>
               {isOnePiece &&
                 (() => {
                   const op = card as OnePieceCard;
-                  const bits = [op.cardColor, op.cardType, op.cardCost ? `Cost ${op.cardCost}` : null, op.cardPower ? `Power ${op.cardPower}` : null].filter(Boolean);
-                  return bits.length ? <p className="mt-1 text-sm text-ink-muted">{bits.join(' · ')}</p> : null;
+                  const bits = [
+                    op.cardColor,
+                    op.cardType,
+                    op.cardCost ? `Cost ${op.cardCost}` : null,
+                    op.cardPower ? `Power ${op.cardPower}` : null,
+                  ].filter(Boolean);
+                  return bits.length ? (
+                    <p className="mt-2 text-sm text-ink-muted">{bits.join(' · ')}</p>
+                  ) : null;
                 })()}
 
-              <div className="mt-6">
-                <p className="font-mono text-4xl font-semibold tabular-nums tracking-tight text-ink-primary">
+              <div className="mt-5 border-t border-border-page pt-4">
+                <p className="text-[11px] font-medium text-ink-muted">Market</p>
+                <p className="stamp-price animate-stamp-price mt-1 text-4xl tabular-nums tracking-tight sm:text-5xl">
                   {formatCurrency(actualCardPrice)}
                 </p>
                 {rangedHistory.length > 1 && (
@@ -554,19 +602,20 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
                       actualCardPrice > 0 &&
                       actualCardPrice <= wish.targetPrice
                     ) {
-                      return (
-                        <p className="mt-1 text-xs font-medium text-gain">At buy target</p>
-                      );
+                      return <p className="mt-1 text-xs font-medium text-gain">At buy target</p>;
                     }
                     return null;
                   })()}
                 {isLoadingHistory && (
-                  <Loader2 className="mt-2 h-4 w-4 animate-spin text-ink-muted" aria-label="Loading price" />
+                  <Loader2
+                    className="mt-2 h-4 w-4 animate-spin text-ink-muted"
+                    aria-label="Loading price"
+                  />
                 )}
               </div>
 
               {!isOnePiece && (
-                <div className="mt-5">
+                <div className="mt-4">
                   <select
                     value={selectedVariant}
                     onChange={(e) => setSelectedVariant(e.target.value)}
@@ -582,7 +631,7 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
                 </div>
               )}
 
-              <div className="mt-4 flex items-center gap-2">
+              <div className="action-tray mt-5 -mx-4 -mb-4 flex flex-wrap items-center gap-2 px-4 py-3 sm:-mx-5 sm:-mb-5 sm:px-5">
                 <button
                   type="button"
                   onClick={() => setIsVaultModalOpen(true)}
@@ -594,10 +643,7 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
                 <button
                   type="button"
                   onClick={handleWishlist}
-                  className={cn(
-                    'btn-icon h-10 w-10',
-                    isWishlisted && 'text-accent'
-                  )}
+                  className={cn('btn-icon h-10 w-10', isWishlisted && 'text-sticker')}
                   aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
                   aria-pressed={isWishlisted}
                 >
@@ -620,8 +666,12 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
           </div>
         </div>
 
-        <div className="sticky top-0 z-10 border-b border-border-subtle bg-surface-overlay px-5 sm:px-7">
-          <div className="flex gap-1 overflow-x-auto" role="tablist" aria-label="Card detail sections">
+        <div className="sticky top-0 z-10 border-b border-border-page bg-page px-5 sm:px-7">
+          <div
+            className="flex gap-1 overflow-x-auto"
+            role="tablist"
+            aria-label="Card detail sections"
+          >
             {TABS.map((tab) => (
               <button
                 key={tab.id}
@@ -630,20 +680,18 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
                 aria-selected={activeTab === tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  'relative shrink-0 px-3 py-2.5 text-sm font-medium transition-colors',
-                  activeTab === tab.id ? 'text-ink-primary' : 'text-ink-muted hover:text-ink-secondary'
+                  'binder-tab shrink-0 border-b-0',
+                  activeTab === tab.id ? '' : 'opacity-70'
                 )}
+                data-active={activeTab === tab.id}
               >
                 {tab.label}
-                {activeTab === tab.id && (
-                  <span className="absolute inset-x-3 -bottom-px h-px bg-accent" aria-hidden />
-                )}
               </button>
             ))}
           </div>
         </div>
 
-        <div className="px-5 py-5 sm:px-7 sm:py-6">
+        <div className="bg-page px-5 py-5 sm:px-7 sm:py-6">
           {activeTab === 'overview' && (
             <div className="space-y-8">
               <section>
@@ -690,12 +738,7 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
                 )}
                 <div className="mt-3">
                   {rangedHistory.length > 0 ? (
-                    <PriceChart
-                      priceHistory={rangedHistory}
-                      variant="dark"
-                      height={220}
-                      compact
-                    />
+                    <PriceChart priceHistory={rangedHistory} variant="light" height={220} compact />
                   ) : isLoadingHistory ? (
                     <div className="flex h-[220px] items-center justify-center">
                       <Loader2 className="h-6 w-6 animate-spin text-ink-muted" />
@@ -705,7 +748,9 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
                       <Database className="mb-2 h-7 w-7 text-ink-muted" />
                       <p className="text-sm text-ink-muted">No price history yet</p>
                       <p className="mt-1 text-xs text-ink-muted">
-                        {isOnePiece ? 'Sync backend for snapshots' : `${selectedVariantLabel} · sync backend for snapshots`}
+                        {isOnePiece
+                          ? 'Sync backend for snapshots'
+                          : `${selectedVariantLabel} · sync backend for snapshots`}
                       </p>
                     </div>
                   )}
@@ -799,10 +844,7 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
                       height={150}
                       focusedKey={
                         selectedGradedSeries
-                          ? gradedSeriesKey(
-                              selectedGradedSeries.grader,
-                              selectedGradedSeries.grade
-                            )
+                          ? gradedSeriesKey(selectedGradedSeries.grader, selectedGradedSeries.grade)
                           : null
                       }
                       onFocusKey={(key) => {
@@ -824,15 +866,16 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
               <div className="flex items-baseline justify-between gap-3">
                 <h3 className="text-sm font-semibold text-ink-primary">Population</h3>
                 {populationData && (
-                  <FreshnessNote fetchedAt={populationData.fetchedAt} stale={populationData.stale} />
+                  <FreshnessNote
+                    fetchedAt={populationData.fetchedAt}
+                    stale={populationData.stale}
+                  />
                 )}
               </div>
               <div className="grid grid-cols-3 gap-3">
                 {popCompanies.map(({ key, label }) => {
                   const data =
-                    populationData?.companies?.[
-                      key as keyof PopulationLookupResponse['companies']
-                    ];
+                    populationData?.companies?.[key as keyof PopulationLookupResponse['companies']];
                   const value = data?.total;
                   const grade10 = data?.grade10;
                   return (
@@ -853,7 +896,9 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
 
               {psaPop && psaPop.some((n) => n > 0) && (
                 <div>
-                  <h4 className="mb-3 text-sm font-semibold text-ink-primary">PSA grade distribution</h4>
+                  <h4 className="mb-3 text-sm font-semibold text-ink-primary">
+                    PSA grade distribution
+                  </h4>
                   <div className="space-y-1.5">
                     {psaPop
                       .map((count, index) => ({ grade: index + 1, count }))
