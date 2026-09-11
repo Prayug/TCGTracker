@@ -14,8 +14,8 @@ export interface CenteringMm {
 }
 
 export interface CenteringDetails {
-  /** PSA-style 1.0–10.0 half-point score */
-  score: number;
+  /** PSA-style 1.0–10.0 half-point score. Null when this category was not scored. */
+  score: number | null;
   details: string;
   deviations: {
     leftRight: number;
@@ -23,8 +23,15 @@ export interface CenteringDetails {
     mm?: CenteringMm;
     borders?: Record<string, number>;
   };
-  defects?: string[];
+  defects: string[];
   crops?: CropImage[];
+  detections?: DefectDetection[];
+  withheld?: boolean;
+  withheldReason?: string;
+  confidence?: number;
+  confidenceBand?: 'low' | 'moderate' | 'high';
+  scoreLow?: number;
+  scoreHigh?: number;
 }
 
 export interface CornerDetail {
