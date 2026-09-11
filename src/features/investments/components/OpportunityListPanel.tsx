@@ -32,10 +32,11 @@ interface Props {
   loading: boolean;
   minScore: number;
   onMinScoreChange: (score: number) => void;
+  error?: string | null;
 }
 
 /** Aggregated, scored opportunities with a slide-over detail view. */
-export function OpportunityListPanel({ data, loading, minScore, onMinScoreChange }: Props) {
+export function OpportunityListPanel({ data, loading, minScore, onMinScoreChange, error }: Props) {
   const [selected, setSelected] = useState<Opportunity | null>(null);
 
   return (
@@ -57,6 +58,11 @@ export function OpportunityListPanel({ data, loading, minScore, onMinScoreChange
 
       {loading ? (
         <PanelLoading />
+      ) : error ? (
+        <EmptyState
+          message={`Unable to load opportunities: ${error}. The backend may be unavailable.`}
+          isError
+        />
       ) : !data || data.rows.length === 0 ? (
         <EmptyState message="No opportunities above the score threshold. Lower the minimum score or run slab predictions first." />
       ) : (

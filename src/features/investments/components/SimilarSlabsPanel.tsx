@@ -64,6 +64,7 @@ interface Props {
   anchorIds: string[];
   onAnchorIdsChange: (ids: string[]) => void;
   slabLots: SlabLot[];
+  error?: string | null;
 }
 
 /** Anchor picker (owned slabs + card search) with grouped comps per anchor. */
@@ -73,6 +74,7 @@ export function SimilarSlabsPanel({
   anchorIds,
   onAnchorIdsChange,
   slabLots,
+  error,
 }: Props) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PokemonCard[]>([]);
@@ -208,6 +210,11 @@ export function SimilarSlabsPanel({
 
       {loading ? (
         <PanelLoading />
+      ) : error ? (
+        <EmptyState
+          message={`Unable to load similar slabs: ${error}. The backend may be unavailable.`}
+          isError
+        />
       ) : anchorIds.length === 0 ? (
         <EmptyState message="Pick anchors from your slab book or search for a card to see similar slabs, set-mates, and character-mates." />
       ) : !data || data.groups.length === 0 ? (

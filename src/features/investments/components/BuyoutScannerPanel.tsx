@@ -32,11 +32,20 @@ function signalLabel(signal: string): string {
 interface Props {
   data: BuyoutScanResult | null;
   loading: boolean;
+  error?: string | null;
 }
 
 /** Buyout candidates: spike + supply-drain signals with ripple set-mates. */
-export function BuyoutScannerPanel({ data, loading }: Props) {
+export function BuyoutScannerPanel({ data, loading, error }: Props) {
   if (loading) return <PanelLoading />;
+  if (error) {
+    return (
+      <EmptyState
+        message={`Unable to load buyout candidates: ${error}. The backend may be unavailable.`}
+        isError
+      />
+    );
+  }
   if (!data || data.rows.length === 0) {
     return (
       <EmptyState message="No buyout candidates right now. Candidates need a 15%+ gradual price move over the scan window." />
