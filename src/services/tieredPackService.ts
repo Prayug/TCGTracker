@@ -37,7 +37,7 @@ class TieredPackService {
         { min: 25, max: 50, probability: 25.4, label: '$25-50' },
         { min: 50, max: 100, probability: 3, label: '$50-100' },
         { min: 100, max: 250, probability: 0.3, label: '$100-250' },
-        { min: 250, max: 500, probability: 0.1, label: '$250-500' }
+        { min: 250, max: 500, probability: 0.1, label: '$250-500' },
       ],
       boostedValueRanges: [
         { min: 0.5, max: 5, probability: 42, label: '$0.50-5' },
@@ -46,8 +46,8 @@ class TieredPackService {
         { min: 75, max: 150, probability: 10, label: '$75-150' },
         { min: 150, max: 350, probability: 8, label: '$150-350' },
         { min: 350, max: 500, probability: 5, label: '$350-500' },
-        { min: 500, max: 1250, probability: 2, label: '$500-1250 (5x+)' }
-      ]
+        { min: 500, max: 1250, probability: 2, label: '$500-1250 (5x+)' },
+      ],
     },
     {
       id: 'bronze-50',
@@ -64,7 +64,7 @@ class TieredPackService {
         { min: 50, max: 100, probability: 25, label: '$50-100' },
         { min: 100, max: 200, probability: 4, label: '$100-200' },
         { min: 200, max: 500, probability: 0.8, label: '$200-500' },
-        { min: 500, max: 1000, probability: 0.2, label: '$500-1000' }
+        { min: 500, max: 1000, probability: 0.2, label: '$500-1000' },
       ],
       boostedValueRanges: [
         { min: 1, max: 10, probability: 40, label: '$1-10' },
@@ -73,8 +73,8 @@ class TieredPackService {
         { min: 125, max: 250, probability: 10, label: '$125-250' },
         { min: 250, max: 500, probability: 8, label: '$250-500' },
         { min: 500, max: 1000, probability: 5, label: '$500-1000' },
-        { min: 1000, max: 2500, probability: 3, label: '$1000-2500 (5x+)' }
-      ]
+        { min: 1000, max: 2500, probability: 3, label: '$1000-2500 (5x+)' },
+      ],
     },
     {
       id: 'silver-100',
@@ -91,7 +91,7 @@ class TieredPackService {
         { min: 100, max: 200, probability: 25, label: '$100-200' },
         { min: 200, max: 400, probability: 4, label: '$200-400' },
         { min: 400, max: 1000, probability: 0.8, label: '$400-1000' },
-        { min: 1000, max: 2000, probability: 0.2, label: '$1000-2000' }
+        { min: 1000, max: 2000, probability: 0.2, label: '$1000-2000' },
       ],
       boostedValueRanges: [
         { min: 3, max: 20, probability: 38, label: '$3-20' },
@@ -100,8 +100,8 @@ class TieredPackService {
         { min: 200, max: 400, probability: 10, label: '$200-400' },
         { min: 400, max: 800, probability: 8, label: '$400-800' },
         { min: 800, max: 1500, probability: 6, label: '$800-1500' },
-        { min: 1500, max: 5000, probability: 5, label: '$1500-5000 (5x+)' }
-      ]
+        { min: 1500, max: 5000, probability: 5, label: '$1500-5000 (5x+)' },
+      ],
     },
     {
       id: 'gold-500',
@@ -118,7 +118,7 @@ class TieredPackService {
         { min: 500, max: 1000, probability: 25, label: '$500-1000' },
         { min: 1000, max: 2000, probability: 4, label: '$1000-2000' },
         { min: 2000, max: 5000, probability: 0.8, label: '$2000-5000' },
-        { min: 5000, max: 10000, probability: 0.2, label: '$5000-10000' }
+        { min: 5000, max: 10000, probability: 0.2, label: '$5000-10000' },
       ],
       boostedValueRanges: [
         { min: 10, max: 100, probability: 35, label: '$10-100' },
@@ -127,8 +127,8 @@ class TieredPackService {
         { min: 750, max: 1500, probability: 10, label: '$750-1500' },
         { min: 1500, max: 3500, probability: 9, label: '$1500-3500' },
         { min: 3500, max: 7500, probability: 8, label: '$3500-7500' },
-        { min: 7500, max: 25000, probability: 5, label: '$7500-25000 (5x+)' }
-      ]
+        { min: 7500, max: 25000, probability: 5, label: '$7500-25000 (5x+)' },
+      ],
     },
     {
       id: 'platinum-1000',
@@ -145,7 +145,7 @@ class TieredPackService {
         { min: 800, max: 1000, probability: 20, label: '$800-1000' },
         { min: 1000, max: 1500, probability: 8, label: '$1000-1500' },
         { min: 1500, max: 2500, probability: 1.5, label: '$1500-2500' },
-        { min: 2500, max: 5000, probability: 0.5, label: '$2500-5000' }
+        { min: 2500, max: 5000, probability: 0.5, label: '$2500-5000' },
       ],
       boostedValueRanges: [
         { min: 25, max: 200, probability: 30, label: '$25-200' },
@@ -154,11 +154,10 @@ class TieredPackService {
         { min: 1200, max: 2500, probability: 12, label: '$1200-2500' },
         { min: 2500, max: 5000, probability: 10, label: '$2500-5000' },
         { min: 5000, max: 10000, probability: 8, label: '$5000-10000' },
-        { min: 10000, max: 50000, probability: 8, label: '$10000-50000 (5x+)' }
-      ]
-    }
+        { min: 10000, max: 50000, probability: 8, label: '$10000-50000 (5x+)' },
+      ],
+    },
   ];
-
 
   // Get all available tiered packs
   getAvailablePacks(): Pack[] {
@@ -166,7 +165,11 @@ class TieredPackService {
   }
 
   // Open a tiered pack
-  async openPack(pack: Pack, boosted = false, game: 'pokemon' | 'onepiece' = 'pokemon'): Promise<PackPull> {
+  async openPack(
+    pack: Pack,
+    boosted = false,
+    game: 'pokemon' | 'onepiece' = 'pokemon'
+  ): Promise<PackPull> {
     try {
       let cardPool =
         game === 'onepiece' ? await this.fetchOnePieceCardPool() : await this.fetchCardPool();
@@ -186,7 +189,8 @@ class TieredPackService {
         `📊 Dedup: ${previousCount} -> ${cardPool.length} cards (${this.pulledCardIds.size} already pulled)`
       );
 
-      const ranges = boosted && pack.boostedValueRanges ? pack.boostedValueRanges : pack.valueRanges;
+      const ranges =
+        boosted && pack.boostedValueRanges ? pack.boostedValueRanges : pack.valueRanges;
       const rolledRange = this.selectValueRange(ranges);
       const allowSlabs = game === 'pokemon';
       const selected = this.selectPullInRange(cardPool, rolledRange, allowSlabs);
@@ -216,9 +220,7 @@ class TieredPackService {
         profit,
         openedAt: new Date().toISOString(),
         pullKind,
-        ...(pullKind === 'slab'
-          ? { grader: 'PSA', grade: '10', rawPrice }
-          : {}),
+        ...(pullKind === 'slab' ? { grader: 'PSA', grade: '10', rawPrice } : {}),
       };
 
       this.addToHistory(packPull, game);
@@ -233,7 +235,11 @@ class TieredPackService {
     const sets = await onePieceApi.getSets();
     const sample = sets.slice(0, 8);
     const batches = await Promise.all(
-      sample.map((s) => onePieceApi.getSetCards(s.id).catch(() => [] as Awaited<ReturnType<typeof onePieceApi.getSetCards>>))
+      sample.map((s) =>
+        onePieceApi
+          .getSetCards(s.id)
+          .catch(() => [] as Awaited<ReturnType<typeof onePieceApi.getSetCards>>)
+      )
     );
     const all = batches.flat();
     const withPrices = all.filter((c) => (c.marketPrice ?? 0) > 0 && (c.marketPrice ?? 0) < 100000);
@@ -273,33 +279,45 @@ class TieredPackService {
 
   // Fetch a large pool of cards from various sets (includes PSA 10 when available)
   private async fetchCardPool(): Promise<PokemonCard[]> {
-    const resp = await fetch(`${env.apiUrl}/api/cards/pool?limit=10000&includeSlabs=1`, {
-      cache: 'no-store',
-    });
-    
+    let resp: Response;
+    try {
+      resp = await fetch(`${env.apiUrl}/api/cards/pool?limit=10000&includeSlabs=1`, {
+        cache: 'no-store',
+      });
+    } catch {
+      throw new Error(
+        'Unable to reach the card pool service. Check your connection or try again later.'
+      );
+    }
+
     if (!resp.ok) {
+      if (resp.status === 502 || resp.status === 503 || resp.status === 504) {
+        throw new Error('Card pool service temporarily unavailable. Please try again later.');
+      }
       throw new Error(`Failed to fetch card pool: ${resp.status}`);
     }
-    
+
     const json = await resp.json();
     const allCards = json.data || [];
-    
+
     if (allCards.length === 0) {
       throw new Error('No cards returned from database');
     }
-    
+
     // Filter out cards with no price
     const cardsWithPrices = allCards.filter((card: PokemonCard) => {
       const price = card.marketPrice || pokemonApi.extractCardPrice(card);
       return price > 0 && price < 100000;
     });
-    
+
     if (cardsWithPrices.length === 0) {
       throw new Error('No cards with valid prices found');
     }
 
     // Debug: Log max price in pool
-    const prices = cardsWithPrices.map((card: PokemonCard) => card.marketPrice || pokemonApi.extractCardPrice(card));
+    const prices = cardsWithPrices.map(
+      (card: PokemonCard) => card.marketPrice || pokemonApi.extractCardPrice(card)
+    );
     const maxPrice = Math.max(...prices);
     const minPrice = Math.min(...prices);
     const withPsa10 = cardsWithPrices.filter((c: PokemonCard) => (c.psa10Price ?? 0) > 0).length;
@@ -311,11 +329,13 @@ class TieredPackService {
     const rewritten = cardsWithPrices.map((card: PokemonCard) => ({
       ...card,
       eraBand: card.eraBand || packEraBandFromSet(card.set),
-      images: card.images ? {
-        ...card.images,
-        small: proxyImageUrl(card.images.small),
-        large: proxyImageUrl(card.images.large),
-      } : card.images,
+      images: card.images
+        ? {
+            ...card.images,
+            small: proxyImageUrl(card.images.small),
+            large: proxyImageUrl(card.images.large),
+          }
+        : card.images,
     }));
 
     return this.shuffleArray([...rewritten]);
@@ -344,7 +364,10 @@ class TieredPackService {
     while (expand <= maxExpand) {
       const candidates = this.collectCandidatesInRange(cardPool, rolledRange, allowSlabs, expand);
       if (candidates.length > 0) {
-        return pickCandidateByEraBand(candidates, (c) => c.card.eraBand || packEraBandFromSet(c.card.set));
+        return pickCandidateByEraBand(
+          candidates,
+          (c) => c.card.eraBand || packEraBandFromSet(c.card.set)
+        );
       }
       expand++;
     }
@@ -376,13 +399,7 @@ class TieredPackService {
       }
 
       const psa10 = card.psa10Price;
-      if (
-        allowSlabs &&
-        typeof psa10 === 'number' &&
-        psa10 > 0 &&
-        psa10 >= min &&
-        psa10 <= max
-      ) {
+      if (allowSlabs && typeof psa10 === 'number' && psa10 > 0 && psa10 >= min && psa10 <= max) {
         const key = `${cardId}:slab`;
         if (!seenKeys.has(key)) {
           seenKeys.add(key);
@@ -462,4 +479,3 @@ class TieredPackService {
 }
 
 export const tieredPackService = new TieredPackService();
-

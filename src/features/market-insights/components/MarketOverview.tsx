@@ -30,10 +30,24 @@ export function MarketOverview({ data, loading, error }: Props) {
   }
 
   if (error || !data) {
+    const isBackendError =
+      typeof error === 'string' &&
+      (error.includes('503') ||
+        error.includes('502') ||
+        error.includes('fetch') ||
+        error.includes('network') ||
+        error.includes('Backend'));
     return (
-      <div className="flex h-64 items-center justify-center rounded-xl border border-dashed border-border-default">
-        <p className="text-sm text-ink-muted">
-          {typeof error === 'string' ? error : 'No overview data available. Run predictions first.'}
+      <div className="flex h-64 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border-default px-4 text-center">
+        <p className="text-sm font-medium text-ink-secondary">
+          {isBackendError ? 'Market Insights unavailable' : 'No overview data available'}
+        </p>
+        <p className="max-w-sm text-xs text-ink-muted">
+          {isBackendError
+            ? 'The prediction backend is not running. This feature requires backend services that are not available on the hosted demo.'
+            : typeof error === 'string'
+              ? error
+              : 'Run predictions to generate market overview data.'}
         </p>
       </div>
     );
