@@ -52,10 +52,12 @@ export function SignInModal({ isOpen, mode, onModeChange, onClose }: SignInModal
           return;
         }
         const result = await register(username.trim(), email.trim(), password);
-        setPendingVerifyEmail(result.email);
-        setDevVerifyUrl(result.verifyUrl ?? null);
-        setPassword('');
-        showToast(result.message, result.emailSent ? 'success' : 'info');
+        if (result.requiresVerification) {
+          setPendingVerifyEmail(result.email);
+          setDevVerifyUrl(result.verifyUrl ?? null);
+          setPassword('');
+          showToast(result.message, result.emailSent ? 'success' : 'info');
+        }
       }
     } catch (err: unknown) {
       const code = axios.isAxiosError(err) ? err.response?.data?.code : undefined;
@@ -118,9 +120,7 @@ export function SignInModal({ isOpen, mode, onModeChange, onClose }: SignInModal
             <div className="flex items-start gap-3 rounded-xl border border-border-default bg-surface-inset px-3 py-3">
               <Mail className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
               <div className="min-w-0 text-sm text-ink-secondary">
-                <p>
-                  Click the link in the email to verify. The link expires in 24 hours.
-                </p>
+                <p>Click the link in the email to verify. The link expires in 24 hours.</p>
                 {devVerifyUrl && (
                   <p className="mt-2 break-all text-xs text-ink-muted">
                     Dev link (SMTP off):{' '}
@@ -132,7 +132,10 @@ export function SignInModal({ isOpen, mode, onModeChange, onClose }: SignInModal
               </div>
             </div>
             {error && (
-              <p className="rounded-lg border border-loss/30 bg-loss-muted px-3 py-2 text-sm text-loss" role="alert">
+              <p
+                className="rounded-lg border border-loss/30 bg-loss-muted px-3 py-2 text-sm text-loss"
+                role="alert"
+              >
                 {error}
               </p>
             )}

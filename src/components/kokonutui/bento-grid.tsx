@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * @author: @dorianbaffier
@@ -10,31 +10,18 @@
  * @github: https://github.com/kokonut-labs/kokonutui
  */
 
-import {
-  ArrowUpRight,
-  CheckCircle2,
-  Clock,
-  Mic,
-  Plus,
-  Sparkles,
-  Zap,
-} from "lucide-react";
-import {
-  motion,
-  useMotionValue,
-  useTransform,
-  type Variants,
-} from "motion/react";
-import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import Anthropic from "@/components/kokonutui/anthropic";
-import AnthropicDark from "@/components/kokonutui/anthropic-dark";
-import DeepSeek from "@/components/kokonutui/deepseek";
-import Google from "@/components/kokonutui/gemini";
-import MistralAI from "@/components/kokonutui/mistral";
-import OpenAI from "@/components/kokonutui/open-ai";
-import OpenAIDark from "@/components/kokonutui/open-ai-dark";
-import { cn } from "@/lib/utils";
+import { ArrowUpRight, CheckCircle2, Clock, Mic, Plus, Sparkles, Zap } from 'lucide-react';
+import { motion, useMotionValue, useTransform, type Variants } from 'motion/react';
+import { Link } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import Anthropic from '@/components/kokonutui/anthropic';
+import AnthropicDark from '@/components/kokonutui/anthropic-dark';
+import DeepSeek from '@/components/kokonutui/deepseek';
+import Google from '@/components/kokonutui/gemini';
+import MistralAI from '@/components/kokonutui/mistral';
+import OpenAI from '@/components/kokonutui/open-ai';
+import OpenAIDark from '@/components/kokonutui/open-ai-dark';
+import { cn } from '@/lib/utils';
 
 interface BentoItem {
   id: string;
@@ -43,14 +30,14 @@ interface BentoItem {
   icons?: boolean;
   href?: string;
   feature?:
-    | "chart"
-    | "counter"
-    | "code"
-    | "timeline"
-    | "spotlight"
-    | "icons"
-    | "typing"
-    | "metrics";
+    | 'chart'
+    | 'counter'
+    | 'code'
+    | 'timeline'
+    | 'spotlight'
+    | 'icons'
+    | 'typing'
+    | 'metrics';
   spotlightItems?: string[];
   timeline?: Array<{ year: string; event: string }>;
   code?: string;
@@ -69,70 +56,68 @@ interface BentoItem {
     end?: number;
     suffix?: string;
   };
-  size?: "sm" | "md" | "lg";
+  size?: 'sm' | 'md' | 'lg';
   className?: string;
 }
 
 const bentoItems: BentoItem[] = [
   {
-    id: "main",
+    id: 'main',
     title: "Building tomorrow's technology",
     description:
-      "We architect and develop enterprise-grade applications that scale seamlessly with cloud-native technologies and microservices.",
-    href: "#",
-    feature: "spotlight",
+      'We architect and develop enterprise-grade applications that scale seamlessly with cloud-native technologies and microservices.',
+    href: '#',
+    feature: 'spotlight',
     spotlightItems: [
-      "Microservices architecture",
-      "Serverless computing",
-      "Container orchestration",
-      "API-first design",
-      "Event-driven systems",
+      'Microservices architecture',
+      'Serverless computing',
+      'Container orchestration',
+      'API-first design',
+      'Event-driven systems',
     ],
-    size: "lg",
-    className: "col-span-2 row-span-1 md:col-span-2 md:row-span-1",
+    size: 'lg',
+    className: 'col-span-2 row-span-1 md:col-span-2 md:row-span-1',
   },
   {
-    id: "stat1",
-    title: "AI Agents & Automation",
-    description:
-      "Intelligent agents that learn, adapt, and automate complex workflows",
-    href: "#",
-    feature: "typing",
+    id: 'stat1',
+    title: 'AI Agents & Automation',
+    description: 'Intelligent agents that learn, adapt, and automate complex workflows',
+    href: '#',
+    feature: 'typing',
     typingText:
       "const createAgent = async () => {\n  const agent = new AIAgent({\n    model: 'gpt-4-turbo',\n    tools: [codeAnalysis, dataProcessing],\n    memory: new ConversationalMemory()\n  });\n\n  // Train on domain knowledge\n  await agent.learn(domainData);\n\n  return agent;\n};",
-    size: "md",
-    className: "col-span-2 row-span-1 col-start-1 col-end-3",
+    size: 'md',
+    className: 'col-span-2 row-span-1 col-start-1 col-end-3',
   },
   {
-    id: "partners",
-    title: "Trusted partners",
+    id: 'partners',
+    title: 'Trusted partners',
     description:
-      "Working with the leading AI and cloud providers to deliver cutting-edge solutions",
+      'Working with the leading AI and cloud providers to deliver cutting-edge solutions',
     icons: true,
-    href: "#",
-    feature: "icons",
-    size: "md",
-    className: "col-span-1 row-span-1",
+    href: '#',
+    feature: 'icons',
+    size: 'md',
+    className: 'col-span-1 row-span-1',
   },
   {
-    id: "innovation",
-    title: "Innovation timeline",
-    description:
-      "Pioneering the future of AI and cloud computing with breakthrough innovations",
-    href: "#",
-    feature: "timeline",
+    id: 'innovation',
+    title: 'Innovation timeline',
+    description: 'Pioneering the future of AI and cloud computing with breakthrough innovations',
+    href: '#',
+    feature: 'timeline',
     timeline: [
-      { year: "2020", event: "Launch of Cloud-Native Platform" },
-      { year: "2021", event: "Advanced AI Integration & LLM APIs" },
-      { year: "2022", event: "Multi-Agent Systems & RAG Architecture" },
-      { year: "2023", event: "Autonomous AI Agents & Neural Networks" },
+      { year: '2020', event: 'Launch of Cloud-Native Platform' },
+      { year: '2021', event: 'Advanced AI Integration & LLM APIs' },
+      { year: '2022', event: 'Multi-Agent Systems & RAG Architecture' },
+      { year: '2023', event: 'Autonomous AI Agents & Neural Networks' },
       {
-        year: "2024",
-        event: "AGI-Ready Infrastructure & Edge Computing",
+        year: '2024',
+        event: 'AGI-Ready Infrastructure & Edge Computing',
       },
     ],
-    size: "sm",
-    className: "col-span-1 row-span-1",
+    size: 'sm',
+    className: 'col-span-1 row-span-1',
   },
 ];
 
@@ -143,7 +128,7 @@ const fadeInUp: Variants = {
     y: 0,
     transition: {
       duration: 0.5,
-      ease: "easeOut",
+      ease: 'easeOut',
     },
   },
 };
@@ -166,13 +151,11 @@ const SpotlightFeature = ({ items }: { items: string[] }) => (
         animate={{ opacity: 1, x: 0 }}
         className="flex items-center gap-2"
         initial={{ opacity: 0, x: -10 }}
-        key={`spotlight-${item.toLowerCase().replace(/\s+/g, "-")}`}
+        key={`spotlight-${item.toLowerCase().replace(/\s+/g, '-')}`}
         transition={{ delay: 0.1 * index }}
       >
         <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-emerald-500 dark:text-emerald-400" />
-        <span className="text-neutral-700 text-sm dark:text-neutral-300">
-          {item}
-        </span>
+        <span className="text-neutral-700 text-sm dark:text-neutral-300">{item}</span>
       </motion.li>
     ))}
   </ul>
@@ -181,7 +164,7 @@ const SpotlightFeature = ({ items }: { items: string[] }) => (
 const CounterAnimation = ({
   start,
   end,
-  suffix = "",
+  suffix = '',
 }: {
   start: number;
   end: number;
@@ -214,11 +197,9 @@ const CounterAnimation = ({
   return (
     <div className="flex items-baseline gap-1">
       <span className="font-bold text-3xl text-neutral-900 dark:text-neutral-100">
-        {count.toFixed(1).replace(/\.0$/, "")}
+        {count.toFixed(1).replace(/\.0$/, '')}
       </span>
-      <span className="font-medium text-neutral-900 text-xl dark:text-neutral-100">
-        {suffix}
-      </span>
+      <span className="font-medium text-neutral-900 text-xl dark:text-neutral-100">{suffix}</span>
     </div>
   );
 };
@@ -229,7 +210,7 @@ const ChartAnimation = ({ value }: { value: number }) => (
       animate={{ width: `${value}%` }}
       className="h-full rounded-full bg-emerald-500 dark:bg-emerald-400"
       initial={{ width: 0 }}
-      transition={{ duration: 1.5, ease: "easeOut" }}
+      transition={{ duration: 1.5, ease: 'easeOut' }}
     />
   </div>
 );
@@ -289,11 +270,7 @@ const IconsFeature = () => (
   </div>
 );
 
-const TimelineFeature = ({
-  timeline,
-}: {
-  timeline: Array<{ year: string; event: string }>;
-}) => (
+const TimelineFeature = ({ timeline }: { timeline: Array<{ year: string; event: string }> }) => (
   <div className="relative mt-3">
     <div className="absolute top-0 bottom-0 left-[9px] w-[2px] bg-neutral-200 dark:bg-neutral-700" />
     {timeline.map((item) => (
@@ -301,9 +278,7 @@ const TimelineFeature = ({
         animate={{ opacity: 1, x: 0 }}
         className="relative mb-3 flex gap-3"
         initial={{ opacity: 0, x: -10 }}
-        key={`timeline-${item.year}-${item.event
-          .toLowerCase()
-          .replace(/\s+/g, "-")}`}
+        key={`timeline-${item.year}-${item.event.toLowerCase().replace(/\s+/g, '-')}`}
         transition={{
           delay: (0.15 * Number.parseInt(item.year)) % 10,
         }}
@@ -313,9 +288,7 @@ const TimelineFeature = ({
           <div className="font-medium text-neutral-900 text-sm dark:text-neutral-100">
             {item.year}
           </div>
-          <div className="text-neutral-600 text-xs dark:text-neutral-400">
-            {item.event}
-          </div>
+          <div className="text-neutral-600 text-xs dark:text-neutral-400">{item.event}</div>
         </div>
       </motion.div>
     ))}
@@ -323,7 +296,7 @@ const TimelineFeature = ({
 );
 
 const TypingCodeFeature = ({ text }: { text: string }) => {
-  const [displayedText, setDisplayedText] = useState("");
+  const [displayedText, setDisplayedText] = useState('');
   const [currentIndex, setCurrentIndex] = useState(0);
   const terminalRef = useRef<HTMLDivElement>(null);
 
@@ -347,17 +320,14 @@ const TypingCodeFeature = ({ text }: { text: string }) => {
 
   // Reset animation when component unmounts and remounts
   useEffect(() => {
-    setDisplayedText("");
+    setDisplayedText('');
     setCurrentIndex(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <div className="relative mt-3">
       <div className="mb-2 flex items-center gap-2">
-        <div className="text-neutral-500 text-xs dark:text-neutral-400">
-          server.ts
-        </div>
+        <div className="text-neutral-500 text-xs dark:text-neutral-400">server.ts</div>
       </div>
       <div
         className="h-[150px] overflow-y-auto rounded-md bg-neutral-900 p-3 font-mono text-neutral-100 text-xs dark:bg-black"
@@ -382,13 +352,13 @@ const MetricsFeature = ({
     color?: string;
   }>;
 }) => {
-  const getColorClass = (color = "emerald") => {
+  const getColorClass = (color = 'emerald') => {
     const colors = {
-      emerald: "bg-emerald-500 dark:bg-emerald-400",
-      blue: "bg-blue-500 dark:bg-blue-400",
-      violet: "bg-violet-500 dark:bg-violet-400",
-      amber: "bg-amber-500 dark:bg-amber-400",
-      rose: "bg-rose-500 dark:bg-rose-400",
+      emerald: 'bg-emerald-500 dark:bg-emerald-400',
+      blue: 'bg-blue-500 dark:bg-blue-400',
+      violet: 'bg-violet-500 dark:bg-violet-400',
+      amber: 'bg-amber-500 dark:bg-amber-400',
+      rose: 'bg-rose-500 dark:bg-rose-400',
     };
     return colors[color as keyof typeof colors] || colors.emerald;
   };
@@ -400,18 +370,14 @@ const MetricsFeature = ({
           animate={{ opacity: 1, y: 0 }}
           className="space-y-1"
           initial={{ opacity: 0, y: 10 }}
-          key={`metric-${metric.label.toLowerCase().replace(/\s+/g, "-")}`}
+          key={`metric-${metric.label.toLowerCase().replace(/\s+/g, '-')}`}
           transition={{ delay: 0.15 * index }}
         >
           <div className="flex items-center justify-between text-sm">
             <div className="flex items-center gap-1.5 font-medium text-neutral-700 dark:text-neutral-300">
-              {metric.label === "Uptime" && <Clock className="h-3.5 w-3.5" />}
-              {metric.label === "Response time" && (
-                <Zap className="h-3.5 w-3.5" />
-              )}
-              {metric.label === "Cost reduction" && (
-                <Sparkles className="h-3.5 w-3.5" />
-              )}
+              {metric.label === 'Uptime' && <Clock className="h-3.5 w-3.5" />}
+              {metric.label === 'Response time' && <Zap className="h-3.5 w-3.5" />}
+              {metric.label === 'Cost reduction' && <Sparkles className="h-3.5 w-3.5" />}
               {metric.label}
             </div>
             <div className="font-semibold text-neutral-700 dark:text-neutral-300">
@@ -428,7 +394,7 @@ const MetricsFeature = ({
               initial={{ width: 0 }}
               transition={{
                 duration: 1.2,
-                ease: "easeOut",
+                ease: 'easeOut',
                 delay: 0.15 * index,
               }}
             />
@@ -466,9 +432,7 @@ function AIInput_Voice() {
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs
-      .toString()
-      .padStart(2, "0")}`;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   useEffect(() => {
@@ -504,10 +468,8 @@ function AIInput_Voice() {
       <div className="relative mx-auto flex w-full max-w-xl flex-col items-center gap-2">
         <button
           className={cn(
-            "group flex h-16 w-16 items-center justify-center rounded-xl transition-colors",
-            submitted
-              ? "bg-none"
-              : "bg-none hover:bg-black/10 dark:hover:bg-white/10"
+            'group flex h-16 w-16 items-center justify-center rounded-xl transition-colors',
+            submitted ? 'bg-none' : 'bg-none hover:bg-black/10 dark:hover:bg-white/10'
           )}
           onClick={handleClick}
           type="button"
@@ -515,7 +477,7 @@ function AIInput_Voice() {
           {submitted ? (
             <div
               className="pointer-events-auto h-6 w-6 animate-spin cursor-pointer rounded-sm bg-black dark:bg-white"
-              style={{ animationDuration: "3s" }}
+              style={{ animationDuration: '3s' }}
             />
           ) : (
             <Mic className="h-6 w-6 text-black/70 dark:text-white/70" />
@@ -524,10 +486,8 @@ function AIInput_Voice() {
 
         <span
           className={cn(
-            "font-mono text-sm transition-opacity duration-300",
-            submitted
-              ? "text-black/70 dark:text-white/70"
-              : "text-black/30 dark:text-white/30"
+            'font-mono text-sm transition-opacity duration-300',
+            submitted ? 'text-black/70 dark:text-white/70' : 'text-black/30 dark:text-white/30'
           )}
         >
           {formatTime(time)}
@@ -537,10 +497,10 @@ function AIInput_Voice() {
           {[...Array(48)].map((_, i) => (
             <div
               className={cn(
-                "w-0.5 rounded-full transition-all duration-300",
+                'w-0.5 rounded-full transition-all duration-300',
                 submitted
-                  ? "animate-pulse bg-black/50 dark:bg-white/50"
-                  : "h-1 bg-black/10 dark:bg-white/10"
+                  ? 'animate-pulse bg-black/50 dark:bg-white/50'
+                  : 'h-1 bg-black/10 dark:bg-white/10'
               )}
               key={`voice-bar-${i}`}
               style={
@@ -556,7 +516,7 @@ function AIInput_Voice() {
         </div>
 
         <p className="h-4 text-black/70 text-xs dark:text-white/70">
-          {submitted ? "Listening..." : "Click to speak"}
+          {submitted ? 'Listening...' : 'Click to speak'}
         </p>
       </div>
     </div>
@@ -564,7 +524,6 @@ function AIInput_Voice() {
 }
 
 const BentoCard = ({ item }: { item: BentoItem }) => {
-  const [isHovered, setIsHovered] = useState(false);
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   const rotateX = useTransform(y, [-100, 100], [2, -2]);
@@ -585,21 +544,19 @@ const BentoCard = ({ item }: { item: BentoItem }) => {
   function handleMouseLeave() {
     x.set(0);
     y.set(0);
-    setIsHovered(false);
   }
 
   return (
     <motion.div
       className="h-full"
       onHoverEnd={handleMouseLeave}
-      onHoverStart={() => setIsHovered(true)}
       onMouseMove={handleMouseMove}
       style={{
         rotateX,
         rotateY,
-        transformStyle: "preserve-3d",
+        transformStyle: 'preserve-3d',
       }}
-      transition={{ type: "spring", stiffness: 300, damping: 20 }}
+      transition={{ type: 'spring', stiffness: 300, damping: 20 }}
       variants={fadeInUp}
       whileHover={{ y: -5 }}
     >
@@ -607,12 +564,12 @@ const BentoCard = ({ item }: { item: BentoItem }) => {
         aria-label={`${item.title} - ${item.description}`}
         className={`group relative flex h-full flex-col gap-4 rounded-xl border border-neutral-200/60 bg-gradient-to-b from-neutral-50/60 via-neutral-50/40 to-neutral-50/30 p-5 shadow-[0_4px_20px_rgb(0,0,0,0.04)] backdrop-blur-[4px] transition-all duration-500 ease-out before:absolute before:inset-0 before:rounded-xl before:bg-gradient-to-b before:from-white/10 before:via-white/20 before:to-transparent before:opacity-100 before:transition-opacity before:duration-500 after:absolute after:inset-0 after:z-[-1] after:rounded-xl after:bg-neutral-50/70 hover:border-neutral-300/50 hover:bg-gradient-to-b hover:from-neutral-50/60 hover:via-neutral-50/30 hover:to-neutral-50/20 hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:backdrop-blur-[6px] dark:border-neutral-800/60 dark:from-neutral-900/60 dark:via-neutral-900/40 dark:to-neutral-900/30 dark:shadow-[0_4px_20px_rgb(0,0,0,0.2)] dark:hover:border-neutral-700/50 dark:hover:from-neutral-800/60 dark:hover:via-neutral-800/30 dark:hover:to-neutral-800/20 dark:hover:shadow-[0_8px_30px_rgb(0,0,0,0.3)] dark:after:bg-neutral-900/70 dark:before:from-black/10 dark:before:via-black/20 dark:before:to-transparent ${item.className}
                 `}
-        href={item.href || "#"}
+        to={item.href || '#'}
         tabIndex={0}
       >
         <div
           className="relative z-10 flex h-full flex-col gap-3"
-          style={{ transform: "translateZ(20px)" }}
+          style={{ transform: 'translateZ(20px)' }}
         >
           <div className="flex flex-1 flex-col space-y-2">
             <div className="flex items-center justify-between">
@@ -629,11 +586,11 @@ const BentoCard = ({ item }: { item: BentoItem }) => {
             </p>
 
             {/* Feature specific content */}
-            {item.feature === "spotlight" && item.spotlightItems && (
+            {item.feature === 'spotlight' && item.spotlightItems && (
               <SpotlightFeature items={item.spotlightItems} />
             )}
 
-            {item.feature === "counter" && item.statistic && (
+            {item.feature === 'counter' && item.statistic && (
               <div className="mt-auto pt-3">
                 <CounterAnimation
                   end={item.statistic.end || 100}
@@ -643,7 +600,7 @@ const BentoCard = ({ item }: { item: BentoItem }) => {
               </div>
             )}
 
-            {item.feature === "chart" && item.statistic && (
+            {item.feature === 'chart' && item.statistic && (
               <div className="mt-auto pt-3">
                 <div className="mb-1 flex items-center justify-between">
                   <span className="font-medium text-neutral-700 text-sm dark:text-neutral-300">
@@ -658,17 +615,17 @@ const BentoCard = ({ item }: { item: BentoItem }) => {
               </div>
             )}
 
-            {item.feature === "timeline" && item.timeline && (
+            {item.feature === 'timeline' && item.timeline && (
               <TimelineFeature timeline={item.timeline} />
             )}
 
-            {item.feature === "icons" && <IconsFeature />}
+            {item.feature === 'icons' && <IconsFeature />}
 
-            {item.feature === "typing" && item.typingText && (
+            {item.feature === 'typing' && item.typingText && (
               <TypingCodeFeature text={item.typingText} />
             )}
 
-            {item.feature === "metrics" && item.metrics && (
+            {item.feature === 'metrics' && item.metrics && (
               <MetricsFeature metrics={item.metrics} />
             )}
 
@@ -725,9 +682,8 @@ export default function BentoGrid() {
                   </h3>
                 </div>
                 <p className="mb-4 text-neutral-600 text-sm tracking-tight dark:text-neutral-400">
-                  Interact with our AI using natural voice commands. Experience
-                  seamless voice-driven interactions with advanced speech
-                  recognition.
+                  Interact with our AI using natural voice commands. Experience seamless
+                  voice-driven interactions with advanced speech recognition.
                 </p>
                 <AIInput_Voice />
               </div>

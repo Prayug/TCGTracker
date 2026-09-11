@@ -121,13 +121,13 @@ const pageVariants = {
     opacity: 1,
     y: 0,
     scale: 1,
-    transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] },
+    transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] as const },
   },
   exit: {
     opacity: 0,
     y: -10,
     scale: 1.015,
-    transition: { duration: 0.22, ease: [0.16, 1, 0.3, 1] },
+    transition: { duration: 0.22, ease: [0.16, 1, 0.3, 1] as const },
   },
 };
 
@@ -326,12 +326,7 @@ function AppShell() {
 }
 
 function App() {
-  const {
-    authModalOpen,
-    authModalMode,
-    closeAuthModal,
-    setAuthModalMode,
-  } = useAuth();
+  const { authModalOpen, authModalMode, closeAuthModal, setAuthModalMode } = useAuth();
 
   return (
     <MotionConfig reducedMotion="user">

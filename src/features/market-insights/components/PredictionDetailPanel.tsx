@@ -1,11 +1,17 @@
 import { useState, useEffect } from 'react';
-import { X, Brain, Radio, TrendingUp, TrendingDown, Shield, AlertTriangle, Activity } from 'lucide-react';
+import { X, Brain, Radio, Shield, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CardPrediction, CATEGORY_LABELS, CATEGORY_COLORS, expectedReturnForWindow, PREDICTION_WINDOW_LABELS, PredictionWindow } from '../types';
+import {
+  CardPrediction,
+  CATEGORY_LABELS,
+  CATEGORY_COLORS,
+  expectedReturnForWindow,
+  PREDICTION_WINDOW_LABELS,
+  PredictionWindow,
+} from '../types';
 import { PokemonCard } from '../../../types/pokemon';
 import { useInsightsApi } from '../hooks/insightsApiContext';
 import { ExternalSignalsPanel } from './ExternalSignalsPanel';
-import { formatPercent } from '../../../utils/cardDisplay';
 
 interface Props {
   prediction: CardPrediction | null;
@@ -14,7 +20,17 @@ interface Props {
   onClose: () => void;
 }
 
-function Bar({ label, value, maxValue, color }: { label: string; value: number; maxValue: number; color: string }) {
+function Bar({
+  label,
+  value,
+  maxValue,
+  color,
+}: {
+  label: string;
+  value: number;
+  maxValue: number;
+  color: string;
+}) {
   const pct = Math.min(100, (value / maxValue) * 100);
   return (
     <div className="space-y-1">
@@ -23,13 +39,28 @@ function Bar({ label, value, maxValue, color }: { label: string; value: number; 
         <span className="font-mono text-white">{value}</span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-surface-inset">
-        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
+        <div
+          className="h-full rounded-full transition-all"
+          style={{ width: `${pct}%`, background: color }}
+        />
       </div>
     </div>
   );
 }
 
-function PriceRangeRow({ label, low, mid, high, current }: { label: string; low: number; mid: number; high: number; current: number }) {
+function PriceRangeRow({
+  label,
+  low,
+  mid,
+  high,
+  current,
+}: {
+  label: string;
+  low: number;
+  mid: number;
+  high: number;
+  current: number;
+}) {
   const rangeColor = mid >= current ? '#34d399' : '#f87171';
   return (
     <div className="flex items-center justify-between rounded-lg bg-surface-inset px-3 py-2">
@@ -39,14 +70,20 @@ function PriceRangeRow({ label, low, mid, high, current }: { label: string; low:
         <span className="text-white">${mid.toFixed(2)}</span>
         <span className="text-ink-muted">${high.toFixed(2)}</span>
         <span style={{ color: rangeColor }}>
-          {mid >= current ? '+' : ''}{((mid - current) / current * 100).toFixed(1)}%
+          {mid >= current ? '+' : ''}
+          {(((mid - current) / current) * 100).toFixed(1)}%
         </span>
       </div>
     </div>
   );
 }
 
-export function PredictionDetailPanel({ prediction, card, window: predictionWindow, onClose }: Props) {
+export function PredictionDetailPanel({
+  prediction,
+  card,
+  window: predictionWindow,
+  onClose,
+}: Props) {
   const [explanation, setExplanation] = useState<string | null>(null);
   const [explanationLoading, setExplanationLoading] = useState(false);
   const [showSignals, setShowSignals] = useState(false);
@@ -71,8 +108,8 @@ export function PredictionDetailPanel({ prediction, card, window: predictionWind
     try {
       const result = await insightsApi.getAiExplanation(prediction.cardId);
       setExplanation(result.explanation);
-    } catch (err: any) {
-      setExplanation(err?.message || 'AI analysis unavailable');
+    } catch (err: unknown) {
+      setExplanation((err as Error)?.message || 'AI analysis unavailable');
     } finally {
       setExplanationLoading(false);
     }
@@ -117,15 +154,22 @@ export function PredictionDetailPanel({ prediction, card, window: predictionWind
 
             <div className="mb-4 grid grid-cols-2 gap-3">
               <div className="rounded-xl border border-border-default bg-surface-inset p-3">
-                <span className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">Current Price</span>
+                <span className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">
+                  Current Price
+                </span>
                 <div className="mt-1 font-mono text-lg font-semibold text-white">
                   ${prediction.currentPrice?.toFixed(2) || 'N/A'}
                 </div>
               </div>
               <div className="rounded-xl border border-border-default bg-surface-inset p-3">
-                <span className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">{windowLabel} Return</span>
-                <div className={`mt-1 font-mono text-lg font-semibold ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {isPositive ? '+' : ''}{expectedReturn.toFixed(1)}%
+                <span className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">
+                  {windowLabel} Return
+                </span>
+                <div
+                  className={`mt-1 font-mono text-lg font-semibold ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}
+                >
+                  {isPositive ? '+' : ''}
+                  {expectedReturn.toFixed(1)}%
                 </div>
               </div>
             </div>
@@ -186,43 +230,55 @@ export function PredictionDetailPanel({ prediction, card, window: predictionWind
 
             <div className="mb-4 space-y-2">
               <h3 className="text-xs font-medium text-ink-secondary">Scores</h3>
-              <Bar label="Confidence" value={prediction.confidenceScore} maxValue={100} color="#818cf8" />
+              <Bar
+                label="Confidence"
+                value={prediction.confidenceScore}
+                maxValue={100}
+                color="#818cf8"
+              />
               <Bar label="Risk" value={prediction.riskScore} maxValue={100} color="#f87171" />
               {prediction.liquidityScore != null && (
-                <Bar label="Liquidity" value={prediction.liquidityScore} maxValue={100} color="#34d399" />
+                <Bar
+                  label="Liquidity"
+                  value={prediction.liquidityScore}
+                  maxValue={100}
+                  color="#34d399"
+                />
               )}
             </div>
 
-            {prediction.riskFactors && prediction.riskFactors !== 'Low identifiable risk factors.' && (
-              <div className="mb-4 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
-                  <div>
-                    <h4 className="mb-1 text-xs font-medium text-amber-300">Risk Factors</h4>
-                    <p className="text-xs text-ink-muted">{prediction.riskFactors}</p>
+            {prediction.riskFactors &&
+              prediction.riskFactors !== 'Low identifiable risk factors.' && (
+                <div className="mb-4 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                    <div>
+                      <h4 className="mb-1 text-xs font-medium text-amber-300">Risk Factors</h4>
+                      <p className="text-xs text-ink-muted">{prediction.riskFactors}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {prediction.gradingPremiumPotential != null && prediction.gradingPremiumPotential >= 0.25 && (
-              <div className="mb-4 rounded-lg border border-violet-500/20 bg-violet-500/5 p-3">
-                <div className="flex items-start gap-2">
-                  <Shield className="mt-0.5 h-4 w-4 shrink-0 text-violet-400" />
-                  <div>
-                    <h4 className="mb-1 text-xs font-medium text-violet-300">Grading Premium</h4>
-                    <p className="text-xs text-ink-muted">
-                      Estimated +{Math.round(prediction.gradingPremiumPotential * 100)}% grading
-                      premium potential
-                      {prediction.gradingScore != null
-                        ? ` · grade-worthiness score ${Math.round(prediction.gradingScore)}/100`
-                        : ''}
-                      . Open the card on Slabs for PSA 10 fees, pop, and comps.
-                    </p>
+            {prediction.gradingPremiumPotential != null &&
+              prediction.gradingPremiumPotential >= 0.25 && (
+                <div className="mb-4 rounded-lg border border-violet-500/20 bg-violet-500/5 p-3">
+                  <div className="flex items-start gap-2">
+                    <Shield className="mt-0.5 h-4 w-4 shrink-0 text-violet-400" />
+                    <div>
+                      <h4 className="mb-1 text-xs font-medium text-violet-300">Grading Premium</h4>
+                      <p className="text-xs text-ink-muted">
+                        Estimated +{Math.round(prediction.gradingPremiumPotential * 100)}% grading
+                        premium potential
+                        {prediction.gradingScore != null
+                          ? ` · grade-worthiness score ${Math.round(prediction.gradingScore)}/100`
+                          : ''}
+                        . Open the card on Slabs for PSA 10 fees, pop, and comps.
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
             <div className="mb-4 flex gap-2">
               <button
@@ -231,7 +287,11 @@ export function PredictionDetailPanel({ prediction, card, window: predictionWind
                 className="flex items-center gap-1.5 rounded-lg border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-xs font-medium text-violet-300 transition-colors hover:bg-violet-500/20 disabled:opacity-50"
               >
                 <Brain className="h-3.5 w-3.5" />
-                {explanationLoading ? 'Generating...' : explanation ? 'Show AI Analysis' : 'Generate AI Analysis'}
+                {explanationLoading
+                  ? 'Generating...'
+                  : explanation
+                    ? 'Show AI Analysis'
+                    : 'Generate AI Analysis'}
               </button>
               <button
                 onClick={() => setShowSignals(!showSignals)}

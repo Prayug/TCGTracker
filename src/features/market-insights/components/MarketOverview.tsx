@@ -1,4 +1,4 @@
-import { TrendingUp, TrendingDown, Minus, Brain, Target, BarChart3 } from 'lucide-react';
+import { TrendingUp, TrendingDown, Brain, Target, BarChart3 } from 'lucide-react';
 import { MarketOverview as MarketOverviewType } from '../types';
 import { CategoryDonutChart } from './charts/CategoryDonutChart';
 import { ConfidenceDistribution } from './charts/ConfidenceDistribution';
@@ -7,17 +7,6 @@ interface Props {
   data: MarketOverviewType | null;
   loading: boolean;
   error: string | null;
-}
-
-function DirectionIcon({ direction }: { direction: string }) {
-  switch (direction) {
-    case 'bullish':
-      return <TrendingUp className="h-5 w-5 text-emerald-400" />;
-    case 'bearish':
-      return <TrendingDown className="h-5 w-5 text-red-400" />;
-    default:
-      return <Minus className="h-5 w-5 text-ink-muted" />;
-  }
 }
 
 function DirectionLabel({ direction }: { direction: string }) {
@@ -90,16 +79,18 @@ export function MarketOverview({ data, loading, error }: Props) {
           Realized market benchmark (from prediction history):{' '}
           {data.marketBenchmark30d != null && (
             <span className="font-mono text-ink-secondary">
-              30d {data.marketBenchmark30d >= 0 ? '+' : ''}{(data.marketBenchmark30d * 100).toFixed(1)}%
+              30d {data.marketBenchmark30d >= 0 ? '+' : ''}
+              {(data.marketBenchmark30d * 100).toFixed(1)}%
             </span>
           )}
           {data.marketBenchmark30d != null && data.marketBenchmark90d != null && ' · '}
           {data.marketBenchmark90d != null && (
             <span className="font-mono text-ink-secondary">
-              90d {data.marketBenchmark90d >= 0 ? '+' : ''}{(data.marketBenchmark90d * 100).toFixed(1)}%
+              90d {data.marketBenchmark90d >= 0 ? '+' : ''}
+              {(data.marketBenchmark90d * 100).toFixed(1)}%
             </span>
-          )}
-          {' '}— predictions are benchmarked against these.
+          )}{' '}
+          — predictions are benchmarked against these.
         </p>
       )}
 

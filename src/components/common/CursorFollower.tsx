@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 export const CursorFollower: React.FC = () => {
   const cursorRef = useRef<HTMLDivElement>(null);
@@ -7,8 +7,7 @@ export const CursorFollower: React.FC = () => {
   const rafRef = useRef<number>(0);
 
   const isTouchDevice =
-    typeof window !== 'undefined' &&
-    ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+    typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
 
   useEffect(() => {
     if (isTouchDevice) return;
@@ -32,8 +31,7 @@ export const CursorFollower: React.FC = () => {
       posRef.current.y += dy * 0.15;
 
       if (cursorRef.current) {
-        cursorRef.current.style.transform =
-          `translate3d(${posRef.current.x - 16}px, ${posRef.current.y - 16}px, 0)`;
+        cursorRef.current.style.transform = `translate3d(${posRef.current.x - 16}px, ${posRef.current.y - 16}px, 0)`;
       }
 
       rafRef.current = requestAnimationFrame(tick);

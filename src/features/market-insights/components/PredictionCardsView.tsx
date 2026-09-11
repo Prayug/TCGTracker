@@ -1,4 +1,12 @@
-import { Search, ArrowUpDown, TrendingUp, TrendingDown, Activity, AlertTriangle, Target, ArrowDown } from 'lucide-react';
+import {
+  Search,
+  ArrowUpDown,
+  TrendingUp,
+  Activity,
+  AlertTriangle,
+  Target,
+  ArrowDown,
+} from 'lucide-react';
 import {
   CardPrediction,
   PredictionWindow,
@@ -32,13 +40,41 @@ interface Props {
 
 const CATEGORY_OPTIONS: { value: string; label: string; icon: React.ReactNode }[] = [
   { value: 'all', label: 'All Cards', icon: <Activity className="h-3.5 w-3.5" /> },
-  { value: 'strong_buy', label: CATEGORY_LABELS.strong_buy, icon: <TrendingUp className="h-3.5 w-3.5 text-green-400" /> },
-  { value: 'watch_dip', label: CATEGORY_LABELS.watch_dip, icon: <Target className="h-3.5 w-3.5 text-emerald-400" /> },
-  { value: 'recovery', label: CATEGORY_LABELS.recovery, icon: <Activity className="h-3.5 w-3.5 text-blue-400" /> },
-  { value: 'momentum', label: CATEGORY_LABELS.momentum, icon: <TrendingUp className="h-3.5 w-3.5 text-purple-400" /> },
-  { value: 'stagnant', label: CATEGORY_LABELS.stagnant, icon: <Target className="h-3.5 w-3.5 text-ink-muted" /> },
-  { value: 'avoid', label: CATEGORY_LABELS.avoid, icon: <AlertTriangle className="h-3.5 w-3.5 text-red-400" /> },
-  { value: 'downtrend', label: CATEGORY_LABELS.downtrend, icon: <ArrowDown className="h-3.5 w-3.5 text-orange-400" /> },
+  {
+    value: 'strong_buy',
+    label: CATEGORY_LABELS.strong_buy,
+    icon: <TrendingUp className="h-3.5 w-3.5 text-green-400" />,
+  },
+  {
+    value: 'watch_dip',
+    label: CATEGORY_LABELS.watch_dip,
+    icon: <Target className="h-3.5 w-3.5 text-emerald-400" />,
+  },
+  {
+    value: 'recovery',
+    label: CATEGORY_LABELS.recovery,
+    icon: <Activity className="h-3.5 w-3.5 text-blue-400" />,
+  },
+  {
+    value: 'momentum',
+    label: CATEGORY_LABELS.momentum,
+    icon: <TrendingUp className="h-3.5 w-3.5 text-purple-400" />,
+  },
+  {
+    value: 'stagnant',
+    label: CATEGORY_LABELS.stagnant,
+    icon: <Target className="h-3.5 w-3.5 text-ink-muted" />,
+  },
+  {
+    value: 'avoid',
+    label: CATEGORY_LABELS.avoid,
+    icon: <AlertTriangle className="h-3.5 w-3.5 text-red-400" />,
+  },
+  {
+    value: 'downtrend',
+    label: CATEGORY_LABELS.downtrend,
+    icon: <ArrowDown className="h-3.5 w-3.5 text-orange-400" />,
+  },
 ];
 
 const SORT_OPTIONS: { value: SortField; label: string }[] = [
@@ -89,7 +125,9 @@ export function PredictionCardsView({
             className="min-w-0 rounded-lg border border-border-default bg-surface-inset px-3 py-[clamp(0.375rem,0.8vw,0.5rem)] text-[var(--insights-text-sm,0.875rem)] text-white outline-none"
           >
             {SORT_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
             ))}
           </select>
           <button
@@ -146,7 +184,9 @@ export function PredictionCardsView({
       ) : (
         <>
           <div className="flex items-center gap-2 text-[var(--insights-text-sm,0.875rem)] text-ink-muted">
-            <span>{predictions.length} card{predictions.length !== 1 ? 's' : ''}</span>
+            <span>
+              {predictions.length} card{predictions.length !== 1 ? 's' : ''}
+            </span>
             <span className="text-border-subtle">|</span>
             <span>{PREDICTION_WINDOW_LABELS[predictionWindow]} window</span>
           </div>
