@@ -30,23 +30,20 @@ export function PageShell({
   const reduced = usePrefersReducedMotion();
   const glow =
     atmosphere === 'subtle'
-      ? 'bg-[radial-gradient(ellipse_at_50%_0%,rgba(110,231,183,0.02),transparent_42%)]'
-      : 'bg-[radial-gradient(ellipse_at_50%_0%,rgba(110,231,183,0.035),transparent_46%)]';
+      ? 'bg-[radial-gradient(ellipse_at_50%_0%,rgba(255,236,210,0.035),transparent_42%)]'
+      : 'bg-[radial-gradient(ellipse_at_50%_0%,rgba(255,236,210,0.06),transparent_46%)]';
 
   return (
     <div className="relative isolate min-h-[calc(100dvh-3.5rem)]">
       <div aria-hidden className={`pointer-events-none absolute inset-0 -z-10 ${glow}`} />
 
       <motion.div
-        initial={plain || reduced ? false : { opacity: 0, scale: 0.94, filter: 'blur(10px)' }}
-        animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+        initial={plain || reduced ? false : { opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{
-          duration: 0.55,
+          duration: 0.45,
           ease: [0.16, 1, 0.3, 1],
-          // Blur cannot go negative — the bezier overshoots, so tween it separately.
-          filter: { duration: 0.45, ease: 'easeOut' },
         }}
-        style={{ transformOrigin: '50% 8%' }}
         className={cn(
           'mx-auto w-full',
           !flush && 'px-4 py-6 sm:px-6 sm:py-8 lg:px-8',
@@ -73,21 +70,20 @@ interface PageHeaderProps {
 export function PageHeader({ title, description, actions, eyebrow, className }: PageHeaderProps) {
   return (
     <div
-      className={cn(
-        'flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between',
-        className
-      )}
+      className={cn('flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between', className)}
     >
       <div className="min-w-0 space-y-2">
         {eyebrow ? (
-          <p className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-ink-muted">
+          <p className="inline-flex items-center gap-2 font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-ink-muted">
             {eyebrow}
           </p>
         ) : null}
         <h1 className="font-display text-h1 tracking-tight text-ink-primary sm:text-[clamp(2rem,4vw,3.25rem)]">
           {title}
         </h1>
-        {description ? <p className="max-w-2xl text-sm text-ink-secondary sm:text-base">{description}</p> : null}
+        {description ? (
+          <p className="max-w-2xl text-sm text-ink-secondary sm:text-base">{description}</p>
+        ) : null}
       </div>
       {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
     </div>
@@ -104,8 +100,10 @@ interface StatBlockProps {
 
 export function StatBlock({ label, value, hint, trend, className }: StatBlockProps) {
   return (
-    <div className={cn('card-chrome space-y-2 rounded-2xl', className)}>
-      <p className="text-xs font-medium uppercase tracking-[0.12em] text-ink-muted">{label}</p>
+    <div className={cn('card-chrome space-y-2 rounded-md', className)}>
+      <p className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-ink-muted">
+        {label}
+      </p>
       <p
         className={cn(
           'font-mono text-2xl font-semibold tabular-nums tracking-tight sm:text-3xl',

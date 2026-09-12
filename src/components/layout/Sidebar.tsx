@@ -72,27 +72,24 @@ export const Sidebar: React.FC = () => {
   return (
     <aside className="hidden w-56 shrink-0 border-r border-border-subtle bg-sidebar/95 backdrop-blur-xl md:flex md:flex-col">
       <div className="flex h-14 items-center border-b border-border-subtle px-5">
-        <NavLink to="/" className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-accent/35 bg-accent/15 text-accent">
-            <span className="font-display text-sm font-bold tracking-tight">T</span>
-          </div>
-          <span className="font-display text-base font-semibold tracking-tight text-ink-primary">
-            TCGTracker
+        <NavLink to="/" className="min-w-0">
+          <span className="font-display text-lg font-semibold tracking-[-0.02em] text-ink-primary">
+            TCG Tracker
           </span>
         </NavLink>
       </div>
 
       <div className="px-3 pt-4 pb-2">
-        <div className="flex rounded-xl border border-border-subtle bg-surface-inset/60 p-0.5">
+        <div className="flex rounded-md border border-border-subtle bg-surface-inset/60 p-0.5">
           {GAME_OPTIONS.map(({ value, label, icon: Icon }) => (
             <button
               key={value}
               type="button"
               onClick={() => setGame(value)}
               className={cn(
-                'flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors duration-200',
+                'flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-[4px] px-2 py-1.5 text-xs font-medium transition-colors duration-200',
                 game === value
-                  ? 'bg-foil/15 text-foil'
+                  ? 'bg-accent/15 text-accent'
                   : 'text-ink-muted hover:text-ink-secondary'
               )}
             >
@@ -106,7 +103,7 @@ export const Sidebar: React.FC = () => {
       <nav aria-label="Primary" className="flex-1 overflow-y-auto px-3 py-3">
         {NAV_GROUPS.map((group, groupIndex) => (
           <div key={group.label} className={cn(groupIndex > 0 && 'mt-5')}>
-            <p className="mb-1.5 px-2.5 text-[10px] font-medium uppercase tracking-[0.14em] text-ink-muted">
+            <p className="mb-1.5 px-2.5 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-ink-muted">
               {group.label}
             </p>
             <ul className="space-y-0.5">
@@ -117,9 +114,9 @@ export const Sidebar: React.FC = () => {
                     end={end}
                     className={({ isActive }) =>
                       cn(
-                        'group relative flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200',
+                        'group relative flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-200',
                         isActive
-                          ? 'bg-accent/15 font-semibold text-accent shadow-[inset_0_0_0_1px_rgba(110,231,183,0.22)]'
+                          ? 'bg-accent/10 font-semibold text-accent'
                           : 'text-ink-secondary hover:bg-surface-hover hover:text-ink-primary'
                       )
                     }
@@ -128,7 +125,7 @@ export const Sidebar: React.FC = () => {
                       <>
                         {isActive ? (
                           <span
-                            className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-accent"
+                            className="absolute left-0 top-1/2 h-4 w-px -translate-y-1/2 bg-accent"
                             aria-hidden
                           />
                         ) : null}
@@ -145,8 +142,8 @@ export const Sidebar: React.FC = () => {
       </nav>
 
       <div className="border-t border-border-subtle px-4 py-3">
-        <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-ink-muted">
-          Collection command
+        <p className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-ink-muted">
+          Specimen market
         </p>
       </div>
     </aside>

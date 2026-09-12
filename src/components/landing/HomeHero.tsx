@@ -1,69 +1,77 @@
-import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowDown, ArrowUpRight, Package } from 'lucide-react';
-import { ScrollWorld } from '@/components/three/ScrollWorld';
+import { motion } from 'motion/react';
+import { BentoCell, BentoGrid } from '@/components/blocks/hero-gallery-scroll-animation';
 import { usePrefersReducedMotion } from '@/hooks/useMotionPreferences';
+import { cn } from '@/lib/utils';
 
 export function scrollToMarketPulse(e?: { preventDefault?: () => void }) {
   e?.preventDefault?.();
   document.getElementById('market-pulse')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+/** Specimen cards — Pokémon TCG CDN (public art). */
+const SPECIMENS = [
+  'https://images.pokemontcg.io/swsh12pt5/160_hires.png',
+  'https://images.pokemontcg.io/swsh7/215_hires.png',
+  'https://images.pokemontcg.io/swsh9/18_hires.png',
+  'https://images.pokemontcg.io/swsh10/174_hires.png',
+  'https://images.pokemontcg.io/swsh11/TG30_hires.png',
+];
+
 /**
- * Compact product-home hero. The 3D card ring is ambient background art only —
- * page scroll is never hijacked, so market data is one flick away.
+ * Premium home hero — adapted from 21st.dev Hero Gallery Scroll (Systaliko).
+ * Full-bleed specimen bento + brand-first copy. No mint SaaS chrome.
  */
 export function HomeHero() {
   const reduced = usePrefersReducedMotion();
-  const [ready, setReady] = useState(false);
-  // Static progress: WorldRig adds its own slow time-based rotation.
-  const progressRef = useRef(0);
-
-  useEffect(() => {
-    setReady(true);
-  }, []);
 
   return (
     <section
       aria-label="Welcome"
-      className="relative h-[clamp(24rem,58dvh,36rem)] overflow-hidden border-b border-border-subtle"
+      className="relative min-h-[min(92dvh,52rem)] overflow-hidden border-b border-border-subtle"
     >
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_30%,rgba(110,231,183,0.05),transparent_50%)]" />
+      {/* Gallery atmosphere */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_18%,rgba(255,236,210,0.08),transparent_42%),radial-gradient(ellipse_at_80%_60%,rgba(168,180,192,0.05),transparent_40%)]"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-[0.035]"
+        style={{
+          backgroundImage:
+            'linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)',
+          backgroundSize: '64px 64px',
+        }}
+      />
 
-      {!reduced && ready && (
-        <>
-          {/* r3f Canvas forces position:relative inline, so position via a wrapper */}
-          <div className="absolute inset-0">
-            <ScrollWorld progressRef={progressRef} />
-          </div>
-          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(12,17,24,0.55)_0%,rgba(12,17,24,0.35)_45%,rgba(12,17,24,0.85)_100%)]" />
-        </>
-      )}
-
-      <div className="relative z-10 flex h-full flex-col justify-center px-5 sm:px-10 lg:px-14">
-        <div className="max-w-xl">
-          <p className="font-display text-xl font-bold tracking-tight text-ink-primary sm:text-2xl">
-            TCG<span className="text-accent">Tracker</span>
+      <div className="relative z-10 mx-auto grid min-h-[min(92dvh,52rem)] max-w-7xl items-center gap-10 px-5 py-14 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-12 lg:px-10">
+        <motion.div
+          initial={reduced ? false : { opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+          className="relative z-20 max-w-xl"
+        >
+          <p className="font-display text-[clamp(2.75rem,7vw,4.5rem)] font-semibold leading-[0.95] tracking-[-0.03em] text-ink-primary">
+            TCG Tracker
           </p>
-          <h1 className="mt-3 font-display text-4xl font-bold leading-[1.05] tracking-tight text-ink-primary sm:text-5xl">
-            Rip packs. Grade cards.
-            <br />
-            <span className="text-gradient">Track the market.</span>
+          <h1 className="mt-5 max-w-[18ch] font-sans text-[clamp(1.35rem,2.6vw,1.85rem)] font-medium leading-snug tracking-tight text-ink-secondary">
+            Live prices and a quiet vault for serious collectors.
           </h1>
-          <p className="mt-3 max-w-md text-sm leading-relaxed text-ink-secondary sm:text-base">
-            Live prices, your vault, pack rips and AI grading — for Pokemon and One Piece.
+          <p className="mt-4 max-w-md text-sm leading-relaxed text-ink-muted sm:text-[0.95rem]">
+            Market marks, graded comps, and holdings — presented like specimens, not a dashboard.
           </p>
-          <div className="mt-6 flex flex-wrap items-center gap-3">
+          <div className="mt-8 flex flex-wrap items-center gap-3">
             <Link
-              to="/packs"
-              className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-full bg-accent px-6 text-sm font-semibold text-primary-foreground shadow-glow-accent transition-all duration-200 hover:bg-accent-hover"
+              to="/vault"
+              className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-md bg-accent px-6 text-sm font-semibold text-primary-foreground transition-colors duration-200 hover:bg-accent-hover"
             >
-              <Package className="h-4 w-4" />
-              Open packs
+              Open vault
             </Link>
             <Link
               to="/browse"
-              className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-border-default bg-surface-raised/70 px-6 text-sm font-semibold text-ink-primary backdrop-blur-md transition-colors hover:border-accent/40 hover:text-accent"
+              className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-md border border-border-strong bg-transparent px-5 text-sm font-semibold text-ink-primary transition-colors hover:border-accent/50 hover:text-accent"
             >
               Browse catalog
               <ArrowUpRight className="h-4 w-4" />
@@ -71,12 +79,44 @@ export function HomeHero() {
             <button
               type="button"
               onClick={scrollToMarketPulse}
-              className="inline-flex cursor-pointer items-center gap-1.5 text-sm font-semibold text-foil transition-colors hover:text-accent"
+              className="inline-flex cursor-pointer items-center gap-1.5 text-sm font-medium text-ink-muted transition-colors hover:text-foil"
             >
-              See today's movers
-              <ArrowDown className="h-4 w-4" />
+              Today&apos;s market
+              <ArrowDown className="h-3.5 w-3.5" />
             </button>
           </div>
+          <Link
+            to="/packs"
+            className="mt-6 inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-ink-muted transition-colors hover:text-accent"
+          >
+            <Package className="h-3.5 w-3.5" />
+            Pack simulator
+          </Link>
+        </motion.div>
+
+        <div className={cn('relative h-[min(58vh,28rem)] w-full lg:h-[min(70vh,34rem)]')}>
+          <BentoGrid variant="default" className="h-full p-0">
+            {SPECIMENS.map((src, index) => (
+              <BentoCell
+                key={src}
+                className="overflow-hidden rounded-md border border-white/[0.06] bg-surface-raised shadow-[0_20px_50px_rgba(0,0,0,0.45)]"
+              >
+                <motion.img
+                  src={src}
+                  alt=""
+                  initial={reduced ? false : { opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.65, delay: 0.08 * index, ease: [0.16, 1, 0.3, 1] }}
+                  className="size-full object-cover object-center"
+                  loading={index === 0 ? 'eager' : 'lazy'}
+                />
+              </BentoCell>
+            ))}
+          </BentoGrid>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_40%,rgba(7,7,8,0.55)_100%)]"
+          />
         </div>
       </div>
     </section>

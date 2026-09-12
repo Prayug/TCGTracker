@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { VaultStats, VaultCard } from '../../../types/pokemon';
-import { CountUp } from '../../../components/common/CountUp';
+import { NumberTicker } from '@/components/ui/number-ticker';
+import { CardSpotlight } from '@/components/ui/card-spotlight';
 import { MiniSparkline } from '../../../components/common/MiniSparkline';
 import { formatCurrency, formatPercent } from '../../../utils/cardDisplay';
 import { cn } from '@/lib/utils';
@@ -28,17 +29,18 @@ function KpiTile({
   spark?: React.ReactNode;
 }) {
   return (
-    <div
-      className={cn(
-        'rounded-2xl border border-border-subtle bg-surface-raised px-4 py-3.5 sm:px-5 sm:py-4',
-        className
-      )}
+    <CardSpotlight
+      className={cn('rounded-md px-4 py-3.5 sm:px-5 sm:py-4', className)}
+      radius={280}
+      color="rgba(196, 180, 154, 0.12)"
     >
-      <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-muted">{label}</p>
+      <p className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-ink-muted">
+        {label}
+      </p>
       <div className="mt-1.5 flex items-end justify-between gap-3">
         <p
           className={cn(
-            'text-xl font-semibold tabular-nums tracking-tight sm:text-2xl',
+            'font-mono text-xl font-semibold tabular-nums tracking-tight sm:text-2xl',
             trend === 'up' && 'text-gain',
             trend === 'down' && 'text-loss',
             (!trend || trend === 'neutral') && 'text-ink-primary'
@@ -49,24 +51,14 @@ function KpiTile({
         {spark}
       </div>
       {hint ? <div className="mt-1.5 text-xs tabular-nums text-ink-muted">{hint}</div> : null}
-    </div>
+    </CardSpotlight>
   );
 }
 
-export const VaultKpiStrip: React.FC<VaultKpiStripProps> = ({
-  stats,
-  vaultCards,
-  realizedPnl,
-}) => {
+export const VaultKpiStrip: React.FC<VaultKpiStripProps> = ({ stats, vaultCards, realizedPnl }) => {
   const series30 = useMemo(() => buildValueSeries(vaultCards, '30d'), [vaultCards]);
-  const delta30 = useMemo(
-    () => periodChangeExcludingInflows(vaultCards, '30d'),
-    [vaultCards]
-  );
-  const sparkData = useMemo(
-    () => series30.map((p) => ({ price: p.price })),
-    [series30]
-  );
+  const delta30 = useMemo(() => periodChangeExcludingInflows(vaultCards, '30d'), [vaultCards]);
+  const sparkData = useMemo(() => series30.map((p) => ({ price: p.price })), [series30]);
 
   const plTrend = stats.profit > 0 ? 'up' : stats.profit < 0 ? 'down' : 'neutral';
   const d30Trend = delta30.dollar > 0 ? 'up' : delta30.dollar < 0 ? 'down' : 'neutral';
@@ -77,7 +69,12 @@ export const VaultKpiStrip: React.FC<VaultKpiStripProps> = ({
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       <KpiTile
         label="Portfolio Value"
-        value={<CountUp end={stats.currentValue} prefix="$" decimals={2} />}
+        value={
+          <>
+            $
+            <NumberTicker value={stats.currentValue} decimalPlaces={2} />
+          </>
+        }
         spark={
           sparkData.length > 1 ? (
             <MiniSparkline data={sparkData} width={72} height={28} color={sparkColor} />
@@ -89,8 +86,8 @@ export const VaultKpiStrip: React.FC<VaultKpiStripProps> = ({
         trend={plTrend}
         value={
           <>
-            {stats.profit >= 0 ? '+' : '−'}
-            <CountUp end={Math.abs(stats.profit)} prefix="$" decimals={2} />
+            {stats.profit >= 0 ? '+' : '−'}$
+            <NumberTicker value={Math.abs(stats.profit)} decimalPlaces={2} />
           </>
         }
         hint={
@@ -115,7 +112,7 @@ export const VaultKpiStrip: React.FC<VaultKpiStripProps> = ({
         label={
           <span>
             30D Change
-            <span className="ml-1.5 font-normal normal-case tracking-normal text-ink-muted">
+            <span className="ml-1.5 font-sans font-normal normal-case tracking-normal text-ink-muted">
               · Estimated
             </span>
           </span>
@@ -123,8 +120,8 @@ export const VaultKpiStrip: React.FC<VaultKpiStripProps> = ({
         trend={d30Trend}
         value={
           <>
-            {delta30.dollar >= 0 ? '+' : '−'}
-            <CountUp end={Math.abs(delta30.dollar)} prefix="$" decimals={2} />
+            {delta30.dollar >= 0 ? '+' : '−'}$
+            <NumberTicker value={Math.abs(delta30.dollar)} decimalPlaces={2} />
           </>
         }
         hint={
@@ -132,15 +129,18 @@ export const VaultKpiStrip: React.FC<VaultKpiStripProps> = ({
             <span className={delta30.dollar >= 0 ? 'text-gain' : 'text-loss'}>
               {formatPercent(delta30.percent, { signed: true })}
             </span>
-            {delta30.sinceAddedOnly ? (
-              <span className="text-ink-muted"> · Since added</span>
-            ) : null}
+            {delta30.sinceAddedOnly ? <span className="text-ink-muted"> · Since added</span> : null}
           </span>
         }
       />
       <KpiTile
         label="Cost Basis"
-        value={<CountUp end={stats.totalValue} prefix="$" decimals={2} />}
+        value={
+          <>
+            $
+            <NumberTicker value={stats.totalValue} decimalPlaces={2} />
+          </>
+        }
         hint={`${stats.uniqueCards} unique · ${stats.totalCards} total`}
       />
     </div>
