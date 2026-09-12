@@ -345,7 +345,7 @@ export const SlabTopMovers: React.FC<SlabTopMoversProps> = ({ onCardClick }) => 
               className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em]"
               style={{
                 color: '#0c1118',
-                background: 'linear-gradient(135deg, #5bc4d4 0%, #6ee7b7 100%)',
+                background: 'linear-gradient(135deg, #a8b4c0 0%, #c4b49a 100%)',
               }}
             >
               <Gem className="h-3 w-3" />

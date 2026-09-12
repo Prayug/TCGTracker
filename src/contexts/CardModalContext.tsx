@@ -54,32 +54,38 @@ export function CardModalProvider({ children }: { children: ReactNode }) {
     fetchingRef.current = cardId;
 
     if (isPokemon) {
-      pokemonApi.getCardById(cardId).then((fetched) => {
-        if (!controller.signal.aborted && fetchingRef.current === cardId) {
-          if (fetched) setPokemonCard(fetched);
-          // Mark loaded even on a miss so we keep any stub already shown.
-          loadedRef.current = cardId;
-        }
-      }).catch(() => {
-        if (!controller.signal.aborted) {
-          console.warn(`Failed to fetch Pokemon card: ${cardId}`);
-          loadedRef.current = cardId;
-        }
-      });
+      pokemonApi
+        .getCardById(cardId)
+        .then((fetched) => {
+          if (!controller.signal.aborted && fetchingRef.current === cardId) {
+            if (fetched) setPokemonCard(fetched);
+            // Mark loaded even on a miss so we keep any stub already shown.
+            loadedRef.current = cardId;
+          }
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) {
+            console.warn(`Failed to fetch Pokemon card: ${cardId}`);
+            loadedRef.current = cardId;
+          }
+        });
     }
 
     if (isOnePiece) {
-      onePieceApi.getCardById(cardId).then((fetched) => {
-        if (!controller.signal.aborted && fetchingRef.current === cardId) {
-          if (fetched) setOpCard(fetched);
-          loadedRef.current = cardId;
-        }
-      }).catch(() => {
-        if (!controller.signal.aborted) {
-          console.warn(`Failed to fetch One Piece card: ${cardId}`);
-          loadedRef.current = cardId;
-        }
-      });
+      onePieceApi
+        .getCardById(cardId)
+        .then((fetched) => {
+          if (!controller.signal.aborted && fetchingRef.current === cardId) {
+            if (fetched) setOpCard(fetched);
+            loadedRef.current = cardId;
+          }
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) {
+            console.warn(`Failed to fetch One Piece card: ${cardId}`);
+            loadedRef.current = cardId;
+          }
+        });
     }
 
     return () => {
@@ -130,15 +136,21 @@ export function CardModalProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(() => ({ openCard }), [openCard]);
 
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    (window as unknown as { __tcgOpenCard?: typeof openCard }).__tcgOpenCard = openCard;
+    return () => {
+      delete (window as unknown as { __tcgOpenCard?: typeof openCard }).__tcgOpenCard;
+    };
+  }, [openCard]);
+
   return (
     <CardModalContext.Provider value={value}>
       {children}
       {isPokemon && (
         <InvestmentModal card={pokemonCard} isOpen={Boolean(pokemonCard)} onClose={closeCard} />
       )}
-      {isOnePiece && (
-        <InvestmentModal card={opCard} isOpen={Boolean(opCard)} onClose={closeCard} />
-      )}
+      {isOnePiece && <InvestmentModal card={opCard} isOpen={Boolean(opCard)} onClose={closeCard} />}
     </CardModalContext.Provider>
   );
 }
