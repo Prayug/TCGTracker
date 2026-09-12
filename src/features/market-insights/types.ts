@@ -55,13 +55,21 @@ export const PREDICTION_WINDOW_LABELS: Record<PredictionWindow, string> = {
 };
 
 /** Expected return for the given window; long windows fall back to 90d for old prediction runs. */
-export function expectedReturnForWindow(prediction: CardPrediction, window: PredictionWindow): number {
+export function expectedReturnForWindow(
+  prediction: CardPrediction,
+  window: PredictionWindow
+): number {
   switch (window) {
-    case '7d': return prediction.expected7dReturn;
-    case '30d': return prediction.expected30dReturn;
-    case '90d': return prediction.expected90dReturn;
-    case '180d': return prediction.expected180dReturn ?? prediction.expected90dReturn;
-    case '365d': return prediction.expected365dReturn ?? prediction.expected90dReturn;
+    case '7d':
+      return prediction.expected7dReturn;
+    case '30d':
+      return prediction.expected30dReturn;
+    case '90d':
+      return prediction.expected90dReturn;
+    case '180d':
+      return prediction.expected180dReturn ?? prediction.expected90dReturn;
+    case '365d':
+      return prediction.expected365dReturn ?? prediction.expected90dReturn;
   }
 }
 
@@ -93,14 +101,7 @@ export const AVAILABLE_RARITIES = [
 ] as const;
 
 /** One Piece catalog rarity codes (investment-leaning defaults exclude C/UC/PR). */
-export const AVAILABLE_OP_RARITIES = [
-  'R',
-  'L',
-  'SR',
-  'SEC',
-  'TR',
-  'DON!!',
-] as const;
+export const AVAILABLE_OP_RARITIES = ['R', 'L', 'SR', 'SEC', 'TR', 'DON!!'] as const;
 
 /** Keep in sync with backend/src/utils/setEra.ts ERA_GROUPS (minus promo/other noise). */
 export const AVAILABLE_ERAS = [
@@ -350,7 +351,7 @@ export interface PredictionsResponse {
   modelVersion: string;
 }
 
-export interface OverviewResponse extends MarketOverview {}
+export type OverviewResponse = MarketOverview;
 
 export type HorizonDays = 7 | 30 | 90 | 180 | 365;
 
