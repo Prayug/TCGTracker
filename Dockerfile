@@ -33,8 +33,7 @@ RUN npm run build
 # Production stage
 FROM nginx:alpine AS frontend-production
 
-# Create nginx user/group if not exists
-RUN addgroup -g 101 -S nginx && adduser -S -D -H -u 101 -h /var/cache/nginx -s /sbin/nologin -G nginx -g nginx nginx
+# nginx:alpine already ships the nginx user/group — do not recreate them.
 
 # Copy built assets from builder
 COPY --from=frontend-builder /app/dist /usr/share/nginx/html
