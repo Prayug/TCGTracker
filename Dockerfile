@@ -28,8 +28,11 @@ COPY packages/shared ./packages/shared
 # Install full build toolchain (typescript, vite, @types/*), not production-only
 RUN npm ci --include=dev --ignore-scripts
 
-# Copy source code
-COPY . .
+# Copy only frontend build inputs (avoid pulling backend into this image)
+COPY index.html vite.config.ts tsconfig.json tsconfig.app.json tsconfig.node.json \
+     tailwind.config.js postcss.config.js eslint.config.js components.json ./
+COPY public ./public
+COPY src ./src
 
 # Build the application (Vite sets production mode via `vite build`)
 RUN npm run build
