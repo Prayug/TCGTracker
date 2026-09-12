@@ -1,4 +1,7 @@
-import { backfillCardMappingImages, getImageCoverageStats } from '../services/cardImageBackfillService';
+import {
+  backfillCardMappingImages,
+  getImageCoverageStats,
+} from '../services/cardImageBackfillService';
 import { logger } from '../utils/logger';
 
 async function main() {

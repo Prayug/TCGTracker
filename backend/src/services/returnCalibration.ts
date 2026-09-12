@@ -94,7 +94,7 @@ function stdDev(values: number[]): number {
  * Robust trimmed mean: drops the top and bottom `trim` fraction of values so a
  * fat right tail (a few cards that 10x) cannot inflate the "expected" return.
  */
-function trimmedMean(values: number[], trim = 0.10): number {
+function trimmedMean(values: number[], trim = 0.1): number {
   if (values.length === 0) return 0;
   const sorted = [...values].sort((a, b) => a - b);
   const k = Math.floor(sorted.length * trim);
@@ -151,11 +151,7 @@ export async function collectForwardTestSamples(excludeRunId?: number): Promise<
   const db = getDb();
   const excludeClause = excludeRunId ? ` AND cp.run_id <> ${Number(excludeRunId)}` : '';
 
-  const insert = (
-    horizon: number,
-    expectedCol: string,
-    actualCol: string
-  ): Promise<number> =>
+  const insert = (horizon: number, expectedCol: string, actualCol: string): Promise<number> =>
     new Promise((resolve, reject) => {
       db.run(
         `INSERT OR IGNORE INTO calibration_samples
@@ -221,15 +217,17 @@ export async function harvestBacktestSamples(
 }
 
 /** Persists backtest (predicted, actual) pairs as calibration samples. */
-export async function storeBacktestSamples(
-  result: { backtestDate: string; windowDays: number; cardResults: Array<{
+export async function storeBacktestSamples(result: {
+  backtestDate: string;
+  windowDays: number;
+  cardResults: Array<{
     cardId: string;
     predictedReturn: number;
     actualReturn: number | null;
     /** Raw composite signal (~[-1, 1]) — the calibration bucket key. */
     signalScore?: number;
-  }> }
-): Promise<number> {
+  }>;
+}): Promise<number> {
   const db = getDb();
   let stored = 0;
   for (const card of result.cardResults) {
@@ -289,14 +287,16 @@ export async function buildCalibrationModel(
     return null;
   }
 
-  const actuals = rows.map(r => Number(r.actual_return));
+  const actuals = rows.map((r) => Number(r.actual_return));
   const marketMedianReturn = median(actuals);
   const marketStdReturn = stdDev(actuals);
-  const biases = rows.map(r => Number(r.predicted_return) - Number(r.actual_return));
+  const biases = rows.map((r) => Number(r.predicted_return) - Number(r.actual_return));
   const bias = median(biases);
 
   // Quantile buckets over the raw signal score (pre-calibration predicted return).
-  const signals = rows.map(r => Number(r.signal_score ?? r.predicted_return)).sort((a, b) => a - b);
+  const signals = rows
+    .map((r) => Number(r.signal_score ?? r.predicted_return))
+    .sort((a, b) => a - b);
   const BUCKET_COUNT = 8;
   const boundaries: number[] = [];
   for (let i = 1; i < BUCKET_COUNT; i++) {
@@ -309,12 +309,13 @@ export async function buildCalibrationModel(
     const signalMin = i === 0 ? -Infinity : boundaries[i - 1];
     const signalMax = i === BUCKET_COUNT - 1 ? Infinity : boundaries[i];
     const inBucket = rows.filter(
-      r => Number(r.signal_score ?? r.predicted_return) >= signalMin &&
-           Number(r.signal_score ?? r.predicted_return) < signalMax
+      (r) =>
+        Number(r.signal_score ?? r.predicted_return) >= signalMin &&
+        Number(r.signal_score ?? r.predicted_return) < signalMax
     );
     if (inBucket.length === 0) continue;
 
-    const bucketActuals = inBucket.map(r => Number(r.actual_return));
+    const bucketActuals = inBucket.map((r) => Number(r.actual_return));
     const n = bucketActuals.length;
     // Robust central tendency: median + trimmed mean resist the fat right tail
     // (a few 10x cards) that makes the plain mean look like a buy everywhere.
@@ -332,7 +333,7 @@ export async function buildCalibrationModel(
     // direction gate keys on this rate instead — it is what actually orders
     // the market: 30d up-rates climb from ~41% (low signal) to ~69% (moderate
     // signal) in real data.
-    const upRate = bucketActuals.filter(a => a > 0).length / n;
+    const upRate = bucketActuals.filter((a) => a > 0).length / n;
 
     buckets.push({
       signalMin: i === 0 ? -Infinity : signalMin,
@@ -349,7 +350,7 @@ export async function buildCalibrationModel(
   // return. Without this, bucket noise (non-monotonic means) leaks garbage
   // into predictions and destroys the model's ordering skill (rank IC).
   const isotonicMeans = isotonicNonDecreasing(
-    buckets.map(b => b.meanActualReturn),
+    buckets.map((b) => b.meanActualReturn),
     bucketWeights
   );
   for (let i = 0; i < buckets.length; i++) {
@@ -359,7 +360,7 @@ export async function buildCalibrationModel(
   // Monotone up-rate curve for the direction gate (noisy bucket rates get
   // flattened to the weighted average of their pool).
   const isotonicUpRates = isotonicNonDecreasing(
-    buckets.map(b => b.upRate ?? 0),
+    buckets.map((b) => b.upRate ?? 0),
     bucketWeights
   );
 
@@ -369,16 +370,16 @@ export async function buildCalibrationModel(
   // kills the bullish bias (81% "up" calls vs ~42% realized up-rate).
   let positiveThreshold: number | null = null;
   if (buckets.length > 0) {
-    if (isotonicUpRates[0] >= 0.50) {
+    if (isotonicUpRates[0] >= 0.5) {
       positiveThreshold = -Infinity; // even the worst signals rise >50% of the time
-    } else if (isotonicUpRates[isotonicUpRates.length - 1] < 0.50) {
+    } else if (isotonicUpRates[isotonicUpRates.length - 1] < 0.5) {
       positiveThreshold = Infinity; // no signal level is reliably "up"
     } else {
       for (let i = 0; i < buckets.length - 1; i++) {
-        if (isotonicUpRates[i] < 0.50 && isotonicUpRates[i + 1] >= 0.50) {
+        if (isotonicUpRates[i] < 0.5 && isotonicUpRates[i + 1] >= 0.5) {
           const lo = buckets[i];
           const hi = buckets[i + 1];
-          const frac = (0.50 - isotonicUpRates[i]) / (isotonicUpRates[i + 1] - isotonicUpRates[i]);
+          const frac = (0.5 - isotonicUpRates[i]) / (isotonicUpRates[i + 1] - isotonicUpRates[i]);
           const lowerBound = Number.isFinite(lo.signalMax) ? lo.signalMax : hi.signalMin;
           const span = Number.isFinite(hi.signalMax) ? hi.signalMax - lowerBound : 0.01;
           positiveThreshold = lowerBound + frac * span;
@@ -427,9 +428,7 @@ export async function buildCalibrationModel(
 function serializeModel(model: CalibrationModel): string {
   const threshold = model.positiveThreshold;
   const safeThreshold =
-    threshold === Infinity ? 'Infinity'
-    : threshold === -Infinity ? '-Infinity'
-    : threshold;
+    threshold === Infinity ? 'Infinity' : threshold === -Infinity ? '-Infinity' : threshold;
   return JSON.stringify({ ...model, positiveThreshold: safeThreshold });
 }
 
@@ -437,9 +436,7 @@ function parseModel(json: string): CalibrationModel {
   const model = JSON.parse(json) as CalibrationModel & { positiveThreshold: unknown };
   const t = model.positiveThreshold as unknown;
   model.positiveThreshold =
-    t === 'Infinity' ? Infinity
-    : t === '-Infinity' ? -Infinity
-    : (typeof t === 'number' ? t : null);
+    t === 'Infinity' ? Infinity : t === '-Infinity' ? -Infinity : typeof t === 'number' ? t : null;
   return model;
 }
 
@@ -448,7 +445,9 @@ function parseModel(json: string): CalibrationModel {
  * Longer horizons stay null until history/outcomes mature — callers fall back
  * to bias correction instead of inventing a curve.
  */
-export async function rebuildAllCalibrationModels(): Promise<Record<number, CalibrationModel | null>> {
+export async function rebuildAllCalibrationModels(): Promise<
+  Record<number, CalibrationModel | null>
+> {
   const result: Record<number, CalibrationModel | null> = {};
   for (const horizon of CALIBRATION_HORIZONS) {
     const sampleCount = await new Promise<number>((resolve) => {
@@ -470,16 +469,16 @@ export async function rebuildAllCalibrationModels(): Promise<Record<number, Cali
 }
 
 /** Loads a persisted calibration model (with a short in-memory TTL). */
-export async function getCalibrationModel(horizon: CalibrationHorizon): Promise<CalibrationModel | null> {
+export async function getCalibrationModel(
+  horizon: CalibrationHorizon
+): Promise<CalibrationModel | null> {
   if (Date.now() - cacheLoadedAt < CACHE_TTL_MS && inMemoryCache.has(horizon)) {
     return inMemoryCache.get(horizon) ?? null;
   }
   const db = getDb();
   const row: any = await new Promise((resolve, reject) => {
-    db.get(
-      `SELECT model_json FROM calibration_model WHERE horizon = ?`,
-      [horizon],
-      (err, r) => (err ? reject(err) : resolve(r || null))
+    db.get(`SELECT model_json FROM calibration_model WHERE horizon = ?`, [horizon], (err, r) =>
+      err ? reject(err) : resolve(r || null)
     );
   });
   if (!row?.model_json) return null;
@@ -514,12 +513,13 @@ export function calibrateReturn(
   if (!model || model.buckets.length === 0) return null;
 
   let bucket = model.buckets.find(
-    b => predictedReturn >= b.signalMin && predictedReturn < b.signalMax
+    (b) => predictedReturn >= b.signalMin && predictedReturn < b.signalMax
   );
   if (!bucket) {
-    bucket = predictedReturn < model.buckets[0].signalMin
-      ? model.buckets[0]
-      : model.buckets[model.buckets.length - 1];
+    bucket =
+      predictedReturn < model.buckets[0].signalMin
+        ? model.buckets[0]
+        : model.buckets[model.buckets.length - 1];
   }
 
   return {
@@ -539,9 +539,9 @@ export function biasCorrectionForHorizon(
   models: Record<number, CalibrationModel | null>
 ): number {
   if (models[horizon]) return models[horizon]!.bias;
-  const nearest = CALIBRATION_HORIZONS
-    .filter(h => models[h])
-    .sort((a, b) => Math.abs(a - horizon) - Math.abs(b - horizon))[0];
+  const nearest = CALIBRATION_HORIZONS.filter((h) => models[h]).sort(
+    (a, b) => Math.abs(a - horizon) - Math.abs(b - horizon)
+  )[0];
   if (nearest == null) return 0;
   return models[nearest]!.bias * Math.sqrt(horizon / nearest);
 }
@@ -556,22 +556,17 @@ export function returnCapForHorizon(
   fallbackCap: number
 ): number {
   if (!model) return fallbackCap;
-  return Math.max(
-    fallbackCap,
-    Math.abs(model.marketMedianReturn) + model.marketStdReturn * 3
-  );
+  return Math.max(fallbackCap, Math.abs(model.marketMedianReturn) + model.marketStdReturn * 3);
 }
 
-export function getCalibrationStatus(
-  models: Record<number, CalibrationModel | null>
-): Array<{
+export function getCalibrationStatus(models: Record<number, CalibrationModel | null>): Array<{
   horizon: number;
   sampleCount: number;
   bias: number | null;
   marketMedianReturn: number | null;
   builtAt: string | null;
 }> {
-  return CALIBRATION_HORIZONS.map(h => ({
+  return CALIBRATION_HORIZONS.map((h) => ({
     horizon: h,
     sampleCount: models[h]?.sampleCount ?? 0,
     bias: models[h]?.bias ?? null,
@@ -611,9 +606,9 @@ export function positiveThresholdForHorizon(
 ): number | null | undefined {
   const direct = models?.[horizon]?.positiveThreshold;
   if (direct != null) return direct;
-  const nearest = CALIBRATION_HORIZONS
-    .filter(h => models?.[h]?.positiveThreshold != null)
-    .sort((a, b) => Math.abs(a - horizon) - Math.abs(b - horizon))[0];
+  const nearest = CALIBRATION_HORIZONS.filter((h) => models?.[h]?.positiveThreshold != null).sort(
+    (a, b) => Math.abs(a - horizon) - Math.abs(b - horizon)
+  )[0];
   if (nearest == null) return null;
   return models?.[nearest]?.positiveThreshold ?? null;
 }

@@ -137,7 +137,13 @@ const RARITY_MATCH_PATTERNS: Record<string, string[]> = {
 
 /** Themes that clash with rainbow / pastel card treatments. */
 const DARK_AESTHETIC_THEMES = new Set([
-  'dark', 'edgy', 'gothic', 'spooky', 'batman', 'noir', 'shadow',
+  'dark',
+  'edgy',
+  'gothic',
+  'spooky',
+  'batman',
+  'noir',
+  'shadow',
 ]);
 
 function wantsDarkAesthetic(prompt: string, themeKeywords: string[] = []): boolean {
@@ -155,7 +161,18 @@ function isRainbowTreatment(rarity: string | null | undefined): boolean {
 
 /** Prompt vibes → Pokemon name hints used for scoring (and soft search). */
 const VIBE_NAME_HINTS: Record<string, string[]> = {
-  batman: ['Umbreon', 'Darkrai', 'Zoroark', 'Gengar', 'Absol', 'Honchkrow', 'Yveltal', 'Greninja', 'Hydreigon', 'Murkrow'],
+  batman: [
+    'Umbreon',
+    'Darkrai',
+    'Zoroark',
+    'Gengar',
+    'Absol',
+    'Honchkrow',
+    'Yveltal',
+    'Greninja',
+    'Hydreigon',
+    'Murkrow',
+  ],
   dark: ['Umbreon', 'Darkrai', 'Zoroark', 'Gengar', 'Absol', 'Yveltal', 'Hydreigon', 'Spiritomb'],
   edgy: ['Gengar', 'Darkrai', 'Absol', 'Hydreigon', 'Houndoom'],
   gothic: ['Gengar', 'Mimikyu', 'Banette', 'Misdreavus', 'Sableye'],
@@ -240,7 +257,8 @@ async function callGroqApi(prompt: string): Promise<string> {
       messages: [
         {
           role: 'system',
-          content: 'You are a Pokemon TCG binder planner. Parse user requests into structured JSON card search filters.',
+          content:
+            'You are a Pokemon TCG binder planner. Parse user requests into structured JSON card search filters.',
         },
         { role: 'user', content: prompt },
       ],
@@ -273,7 +291,10 @@ export async function translateConstraints(userDescription: string): Promise<Bin
     const prompt = buildConstraintsPrompt(userDescription);
     const raw = await callGroqApi(prompt);
     const cleaned = cleanJsonResponse(raw);
-    const parsed = JSON.parse(cleaned) as BinderConstraints & { maxSingleCardPrice?: number | null; pokemonNames?: string[] };
+    const parsed = JSON.parse(cleaned) as BinderConstraints & {
+      maxSingleCardPrice?: number | null;
+      pokemonNames?: string[];
+    };
 
     if (parsed.maxSingleCardPrice !== undefined && parsed.maxSingleCardPrice !== null) {
       parsed.maxSingleCardPrice = Math.round(parsed.maxSingleCardPrice * 100);
@@ -291,9 +312,16 @@ function inferConstraintsFromText(text: string): BinderConstraints {
   const constraints: BinderConstraints = {};
 
   // Aesthetic vibes (batman, gothic, etc.) map to dark theme when no explicit theme word.
-  if (lower.includes('batman') || lower.includes('gotham') || lower.includes('gothic') || lower.includes('spooky')) {
+  if (
+    lower.includes('batman') ||
+    lower.includes('gotham') ||
+    lower.includes('gothic') ||
+    lower.includes('spooky')
+  ) {
     constraints.themeKeywords = [...new Set([...(constraints.themeKeywords || []), 'dark'])];
-    constraints.pokemonTypes = [...new Set([...(constraints.pokemonTypes || []), ...THEME_TYPE_MAP.dark])];
+    constraints.pokemonTypes = [
+      ...new Set([...(constraints.pokemonTypes || []), ...THEME_TYPE_MAP.dark]),
+    ];
   }
 
   const themeMatches: string[] = [];
@@ -305,16 +333,37 @@ function inferConstraintsFromText(text: string): BinderConstraints {
     }
   }
   if (themeMatches.length > 0) {
-    constraints.themeKeywords = [...new Set([...(constraints.themeKeywords || []), ...themeMatches])];
+    constraints.themeKeywords = [
+      ...new Set([...(constraints.themeKeywords || []), ...themeMatches]),
+    ];
     constraints.pokemonTypes = toTcgTypes(constraints.pokemonTypes || []);
   } else if (constraints.pokemonTypes?.length) {
     constraints.pokemonTypes = toTcgTypes(constraints.pokemonTypes);
   }
 
   const typeNames = [
-    'Fire', 'Water', 'Grass', 'Electric', 'Lightning', 'Psychic', 'Fighting',
-    'Dark', 'Darkness', 'Ghost', 'Steel', 'Metal', 'Fairy', 'Dragon', 'Ground', 'Ice',
-    'Normal', 'Colorless', 'Poison', 'Bug', 'Rock', 'Flying',
+    'Fire',
+    'Water',
+    'Grass',
+    'Electric',
+    'Lightning',
+    'Psychic',
+    'Fighting',
+    'Dark',
+    'Darkness',
+    'Ghost',
+    'Steel',
+    'Metal',
+    'Fairy',
+    'Dragon',
+    'Ground',
+    'Ice',
+    'Normal',
+    'Colorless',
+    'Poison',
+    'Bug',
+    'Rock',
+    'Flying',
   ];
   for (const t of typeNames) {
     if (lower.includes(t.toLowerCase())) {
@@ -323,17 +372,17 @@ function inferConstraintsFromText(text: string): BinderConstraints {
   }
 
   const rarityMap: Record<string, string> = {
-    'vstar': 'VSTAR',
-    'vmax': 'VMAX',
+    vstar: 'VSTAR',
+    vmax: 'VMAX',
     'full art': 'Full Art',
     'alternate art': 'Alternate Art',
     'alt art': 'Alternate Art',
     'secret rare': 'Secret Rare',
     'trainer gallery': 'Trainer Gallery',
     'ultra rare': 'Ultra Rare',
-    'reverse': 'Reverse Holo',
-    'radiant': 'Radiant',
-    'holo': 'Holo',
+    reverse: 'Reverse Holo',
+    radiant: 'Radiant',
+    holo: 'Holo',
   };
   const rarities: string[] = [];
   for (const [keyword, rarity] of Object.entries(rarityMap)) {
@@ -346,7 +395,9 @@ function inferConstraintsFromText(text: string): BinderConstraints {
   if (rarities.length > 0) constraints.rarityPreferences = rarities;
 
   // Only treat "$X" as a per-card cap when phrased as max/under/per card — not total budget.
-  const maxCardMatch = lower.match(/(?:max|under|upto|up to|per card|each)\s*\$?\s*(\d+(?:\.\d+)?)/);
+  const maxCardMatch = lower.match(
+    /(?:max|under|upto|up to|per card|each)\s*\$?\s*(\d+(?:\.\d+)?)/
+  );
   if (maxCardMatch) {
     constraints.maxSingleCardPrice = Math.round(parseFloat(maxCardMatch[1]) * 100);
   }
@@ -358,11 +409,14 @@ function inferConstraintsFromText(text: string): BinderConstraints {
   }
 
   const composition: string[] = [];
-  if (lower.includes('no duplicate') || lower.includes('no dup')) composition.push('no_duplicate_names');
+  if (lower.includes('no duplicate') || lower.includes('no dup'))
+    composition.push('no_duplicate_names');
   if (lower.includes('mix')) composition.push('mix_of_types');
-  if (lower.includes('all same') || lower.includes('single type')) composition.push('all_same_type');
+  if (lower.includes('all same') || lower.includes('single type'))
+    composition.push('all_same_type');
   if (lower.includes('evolution')) composition.push('single_evolution_line');
-  if (rarities.includes('V') && (lower.includes('v') || lower.includes('at least'))) composition.push('at_least_2_v');
+  if (rarities.includes('V') && (lower.includes('v') || lower.includes('at least')))
+    composition.push('at_least_2_v');
   if (composition.length > 0) constraints.compositionRules = composition;
 
   return constraints;
@@ -419,7 +473,8 @@ function computeRarityScore(rarity: string | null): number {
   if (!rarity) return 0.3;
   const r = rarity.toLowerCase();
 
-  if (/special illustration|hyper rare|mega hyper|shiny ultra|rare rainbow|rare secret/.test(r)) return 1.0;
+  if (/special illustration|hyper rare|mega hyper|shiny ultra|rare rainbow|rare secret/.test(r))
+    return 1.0;
   if (/illustration rare|amazing rare/.test(r)) return 0.9;
   if (/vstar|vmax/.test(r)) return 0.85;
   if (/ultra rare|rare ultra|double rare/.test(r)) return 0.8;
@@ -495,10 +550,7 @@ function applyPriceFilter(
 ): CardCandidate[] {
   return candidates.filter((c) => {
     if (c.marketPrice == null || c.marketPrice <= 0) return false;
-    if (
-      constraints.maxSingleCardPrice &&
-      c.marketPrice > constraints.maxSingleCardPrice / 100
-    ) {
+    if (constraints.maxSingleCardPrice && c.marketPrice > constraints.maxSingleCardPrice / 100) {
       return false;
     }
     return true;
@@ -532,7 +584,12 @@ async function queryCandidateCards(
         const rq = rarityApiQuery(rarityPrefs);
         if (rq) queryParts.push(rq);
       }
-      if (options.nameHints && options.nameHints.length > 0 && elementalTypes.length === 0 && rarityPrefs.length === 0) {
+      if (
+        options.nameHints &&
+        options.nameHints.length > 0 &&
+        elementalTypes.length === 0 &&
+        rarityPrefs.length === 0
+      ) {
         // Name-only soft search when types/rarities were dropped
         const nameQ = options.nameHints
           .slice(0, 8)
@@ -609,7 +666,9 @@ async function queryCandidateCards(
       }
     }
     const uniqueLikes = [...new Set(likePatterns)];
-    const rarityConds = uniqueLikes.map(() => 'LOWER(COALESCE(NULLIF(TRIM(cc.rarity), \'\'), cm.rarity)) LIKE ?');
+    const rarityConds = uniqueLikes.map(
+      () => "LOWER(COALESCE(NULLIF(TRIM(cc.rarity), ''), cm.rarity)) LIKE ?"
+    );
     conditions.push(`(${rarityConds.join(' OR ')})`);
     for (const like of uniqueLikes) {
       params.push(`%${like.toLowerCase()}%`);
@@ -647,7 +706,8 @@ async function queryCandidateCards(
     .filter((candidate) => {
       const price = priceMap.get(candidate.uniqueIdentifier);
       if (price === undefined || price <= 0) return false;
-      if (constraints.maxSingleCardPrice && price > constraints.maxSingleCardPrice / 100) return false;
+      if (constraints.maxSingleCardPrice && price > constraints.maxSingleCardPrice / 100)
+        return false;
       // Post-filter with precise rarity matchers (SQL LIKE is looser)
       if (rarityPrefs.length > 0 && !cardMatchesAnyRarity(candidate.rarity || '', rarityPrefs)) {
         return false;
@@ -680,7 +740,7 @@ function selectOptimalCards(
     return true;
   });
 
-  const scored = pool.map(c => {
+  const scored = pool.map((c) => {
     let score = 0;
 
     const themeScore = computeTypeThemeScore(c.types, constraints.themeKeywords || []);
@@ -738,7 +798,10 @@ function selectOptimalCards(
     if (selected.length >= totalSlots) break;
 
     if (hasNoDupes) {
-      const baseName = item.card.cardName.replace(/[♂♀★]/g, '').trim().split(' ')[0];
+      const baseName = item.card.cardName
+        .replace(/[♂♀★]/g, '')
+        .trim()
+        .split(' ')[0];
       if (usedNames.has(baseName)) continue;
     }
 
@@ -764,17 +827,24 @@ function selectOptimalCards(
     });
 
     if (hasNoDupes) {
-      const baseName = item.card.cardName.replace(/[♂♀★]/g, '').trim().split(' ')[0];
+      const baseName = item.card.cardName
+        .replace(/[♂♀★]/g, '')
+        .trim()
+        .split(' ')[0];
       usedNames.add(baseName);
     }
 
     if (needsTypeMix && item.card.types) {
-      for (const t of item.card.types.split(',').map(x => x.trim())) {
+      for (const t of item.card.types.split(',').map((x) => x.trim())) {
         usedTypes.add(t);
       }
     }
 
-    if (item.card.rarity?.includes('V') || item.card.rarity?.includes('VMAX') || item.card.rarity?.includes('VSTAR')) {
+    if (
+      item.card.rarity?.includes('V') ||
+      item.card.rarity?.includes('VMAX') ||
+      item.card.rarity?.includes('VSTAR')
+    ) {
       vCount++;
     }
 
@@ -785,8 +855,11 @@ function selectOptimalCards(
 
   if (needsAtLeast2V && vCount < 2 && selected.length < totalSlots) {
     const vCards = sorted.filter(
-      s => !selected.find(p => p.cardId === s.card.cardId) &&
-        (s.card.rarity?.includes('V') || s.card.rarity?.includes('VMAX') || s.card.rarity?.includes('VSTAR')) &&
+      (s) =>
+        !selected.find((p) => p.cardId === s.card.cardId) &&
+        (s.card.rarity?.includes('V') ||
+          s.card.rarity?.includes('VMAX') ||
+          s.card.rarity?.includes('VSTAR')) &&
         (!isBudgetMode || s.price <= remainingBudget)
     );
     for (const vCard of vCards) {
@@ -810,7 +883,7 @@ function selectOptimalCards(
     }
   }
 
-  const totalCost = selected.reduce((sum, s) => sum + ((s.marketPrice ?? 0) * 100), 0);
+  const totalCost = selected.reduce((sum, s) => sum + (s.marketPrice ?? 0) * 100, 0);
 
   return { selected, totalCost };
 }
@@ -865,7 +938,9 @@ export async function generateBinderPlan(
           (k) => THEME_TYPE_MAP[k.toLowerCase()] || []
         );
         if (fromThemes.length > 0) {
-          constraints.pokemonTypes = [...new Set([...(constraints.pokemonTypes || []), ...fromThemes])];
+          constraints.pokemonTypes = [
+            ...new Set([...(constraints.pokemonTypes || []), ...fromThemes]),
+          ];
         }
       }
     }
@@ -934,7 +1009,11 @@ export async function generateBinderPlan(
   };
 
   // If Darkness-only is thin, widen to other dark-theme types (still no rainbow)
-  if (candidates.length < totalSlots && darkAesthetic && (constraints.pokemonTypes?.length ?? 0) > 1) {
+  if (
+    candidates.length < totalSlots &&
+    darkAesthetic &&
+    (constraints.pokemonTypes?.length ?? 0) > 1
+  ) {
     mergeUnique(await queryCandidateCards(db, constraints, priceMap, { nameHints }));
   }
 
@@ -977,7 +1056,7 @@ export async function generateBinderPlan(
   );
 
   const filledSlots = selected.length;
-  const totalCostCents = selected.reduce((sum, s) => sum + ((s.marketPrice ?? 0) * 100), 0);
+  const totalCostCents = selected.reduce((sum, s) => sum + (s.marketPrice ?? 0) * 100, 0);
   const remainingBudget = budgetCents !== null ? Math.max(0, budgetCents - totalCostCents) : 0;
 
   return {

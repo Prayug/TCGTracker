@@ -104,8 +104,20 @@ describe('selectPriceHistoryForVariant', () => {
 
   it('prefers tcgdex over catalog fallback on the same date', () => {
     const tied = [
-      { date: '2026-09-08', subTypeName: 'reverseHolofoil', marketPrice: 24.11, price: 24.11, source: 'catalog_fallback' },
-      { date: '2026-09-08', subTypeName: 'reverseholofoil', marketPrice: 38.9, price: 38.9, source: 'tcgdex' },
+      {
+        date: '2026-09-08',
+        subTypeName: 'reverseHolofoil',
+        marketPrice: 24.11,
+        price: 24.11,
+        source: 'catalog_fallback',
+      },
+      {
+        date: '2026-09-08',
+        subTypeName: 'reverseholofoil',
+        marketPrice: 38.9,
+        price: 38.9,
+        source: 'tcgdex',
+      },
     ];
     const selected = selectPriceHistoryForVariant(tied, 'reverseHolofoil');
     expect(selected).toHaveLength(1);

@@ -56,11 +56,7 @@ const getStorageUploadUrl = (objectKey: string) => {
 
 const getStorageDownloadUrl = (objectKey: string) => getStorageUploadUrl(objectKey);
 
-const uploadObject = async (
-  objectKey: string,
-  body: Buffer | string,
-  contentType: string
-) => {
+const uploadObject = async (objectKey: string, body: Buffer | string, contentType: string) => {
   const url = getStorageUploadUrl(objectKey);
   const response = await undiciFetch(url, {
     method: 'POST',
@@ -80,11 +76,7 @@ const uploadObject = async (
   }
 };
 
-const uploadFileObject = async (
-  objectKey: string,
-  filePath: string,
-  contentType: string
-) => {
+const uploadFileObject = async (objectKey: string, filePath: string, contentType: string) => {
   const stats = fs.statSync(filePath);
   const body = fs.createReadStream(filePath);
   const url = getStorageUploadUrl(objectKey);
@@ -136,7 +128,11 @@ const compressDatabaseToGzip = async (dbPath: string, gzipPath: string) => {
   logger.info('Compressing database for cloud upload...', {
     sourceMb: (fs.statSync(dbPath).size / 1024 / 1024).toFixed(1),
   });
-  await pipeline(fs.createReadStream(dbPath), createGzip({ level: 6 }), fs.createWriteStream(gzipPath));
+  await pipeline(
+    fs.createReadStream(dbPath),
+    createGzip({ level: 6 }),
+    fs.createWriteStream(gzipPath)
+  );
 };
 
 const splitFileIntoChunks = (filePath: string, chunkSize: number, outDir: string): string[] => {
@@ -191,8 +187,16 @@ const uploadChunkedDatabase = async (
 
     for (let i = 0; i < chunkPaths.length; i += 1) {
       const chunkName = `${String(i).padStart(4, '0')}.part`;
-      await uploadFileObject(`${latestPrefix}/${chunkName}`, chunkPaths[i], 'application/octet-stream');
-      await uploadFileObject(`${backupPrefix}/${chunkName}`, chunkPaths[i], 'application/octet-stream');
+      await uploadFileObject(
+        `${latestPrefix}/${chunkName}`,
+        chunkPaths[i],
+        'application/octet-stream'
+      );
+      await uploadFileObject(
+        `${backupPrefix}/${chunkName}`,
+        chunkPaths[i],
+        'application/octet-stream'
+      );
     }
 
     const manifest: ChunkedBackupManifest = {
@@ -209,7 +213,11 @@ const uploadChunkedDatabase = async (
 
     const manifestJson = JSON.stringify(manifest, null, 2);
     await uploadObject('latest/manifest.json', manifestJson, 'application/json');
-    await uploadObject(`backups/tcg-prices-${runDate}/manifest.json`, manifestJson, 'application/json');
+    await uploadObject(
+      `backups/tcg-prices-${runDate}/manifest.json`,
+      manifestJson,
+      'application/json'
+    );
 
     const metadata = {
       runDate,
@@ -237,7 +245,9 @@ const uploadChunkedDatabase = async (
   }
 };
 
-const restoreFromChunkedManifest = async (manifest: ChunkedBackupManifest): Promise<CloudRestoreResult> => {
+const restoreFromChunkedManifest = async (
+  manifest: ChunkedBackupManifest
+): Promise<CloudRestoreResult> => {
   const dbPath = getDatabasePath();
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'tcgtracker-restore-'));
   const gzipPath = path.join(tempRoot, 'database.db.gz');
@@ -248,7 +258,11 @@ const restoreFromChunkedManifest = async (manifest: ChunkedBackupManifest): Prom
       for (let i = 0; i < manifest.chunkCount; i += 1) {
         const chunkName = `${String(i).padStart(4, '0')}.part`;
         const chunkKey = `${manifest.prefix}${chunkName}`;
-        logger.info('Downloading cloud chunk', { chunkKey, index: i + 1, total: manifest.chunkCount });
+        logger.info('Downloading cloud chunk', {
+          chunkKey,
+          index: i + 1,
+          total: manifest.chunkCount,
+        });
         const chunk = await downloadObject(chunkKey);
         fs.writeSync(gzipFd, chunk);
       }

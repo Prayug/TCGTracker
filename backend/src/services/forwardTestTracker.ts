@@ -69,13 +69,19 @@ function computeReturn(actual: number | null, currentPrice: number): number | nu
   return actual !== null && currentPrice > 0 ? (actual - currentPrice) / currentPrice : null;
 }
 
-function computeError(expected: number | null | undefined, actualReturn: number | null): number | null {
+function computeError(
+  expected: number | null | undefined,
+  actualReturn: number | null
+): number | null {
   return actualReturn !== null && expected != null ? Math.abs(expected - actualReturn) : null;
 }
 
-function computeDirection(expected: number | null | undefined, actualReturn: number | null): number | null {
+function computeDirection(
+  expected: number | null | undefined,
+  actualReturn: number | null
+): number | null {
   if (expected == null || actualReturn == null) return null;
-  return (expected > 0) === (actualReturn > 0) ? 1 : 0;
+  return expected > 0 === actualReturn > 0 ? 1 : 0;
 }
 
 /**
@@ -94,9 +100,9 @@ export function windowIsHit(
 
 export function resolveStatus(windows: Array<{ has: boolean; hit: boolean }>): string {
   // Resolve against the longest matured window only — never invent later windows.
-  const matured = windows.filter(w => w.has);
+  const matured = windows.filter((w) => w.has);
   if (matured.length === 0) return 'pending';
-  const hits = matured.filter(w => w.hit);
+  const hits = matured.filter((w) => w.hit);
   if (hits.length === matured.length) return 'hit';
   if (hits.length > 0) return 'partially_correct';
   return 'missed';
@@ -199,11 +205,24 @@ export async function updateActualResults(): Promise<{ updated: number }> {
       if (daysSince < 7) continue;
 
       const uid = pred.unique_identifier || null;
-      const actual7d = daysSince >= 7 ? await fetchActualPrice(pred.card_id, pred.prediction_date, 7, uid) : null;
-      const actual30d = daysSince >= 30 ? await fetchActualPrice(pred.card_id, pred.prediction_date, 30, uid) : null;
-      const actual90d = daysSince >= 90 ? await fetchActualPrice(pred.card_id, pred.prediction_date, 90, uid) : null;
-      const actual180d = daysSince >= 180 ? await fetchActualPrice(pred.card_id, pred.prediction_date, 180, uid) : null;
-      const actual365d = daysSince >= 365 ? await fetchActualPrice(pred.card_id, pred.prediction_date, 365, uid) : null;
+      const actual7d =
+        daysSince >= 7 ? await fetchActualPrice(pred.card_id, pred.prediction_date, 7, uid) : null;
+      const actual30d =
+        daysSince >= 30
+          ? await fetchActualPrice(pred.card_id, pred.prediction_date, 30, uid)
+          : null;
+      const actual90d =
+        daysSince >= 90
+          ? await fetchActualPrice(pred.card_id, pred.prediction_date, 90, uid)
+          : null;
+      const actual180d =
+        daysSince >= 180
+          ? await fetchActualPrice(pred.card_id, pred.prediction_date, 180, uid)
+          : null;
+      const actual365d =
+        daysSince >= 365
+          ? await fetchActualPrice(pred.card_id, pred.prediction_date, 365, uid)
+          : null;
 
       const currentPrice = pred.current_price || 0;
 
@@ -270,13 +289,26 @@ export async function updateActualResults(): Promise<{ updated: number }> {
              status = excluded.status`,
           [
             pred.id,
-            actual7d, actual30d, actual90d,
-            actual180d, actual365d,
-            actual7dReturn, actual30dReturn, actual90dReturn,
-            actual180dReturn, actual365dReturn,
-            error7d, error30d, error90d, error180d, error365d,
-            directionCorrect7d ?? 0, directionCorrect30d ?? 0, directionCorrect90d ?? 0,
-            directionCorrect180d ?? 0, directionCorrect365d ?? 0,
+            actual7d,
+            actual30d,
+            actual90d,
+            actual180d,
+            actual365d,
+            actual7dReturn,
+            actual30dReturn,
+            actual90dReturn,
+            actual180dReturn,
+            actual365dReturn,
+            error7d,
+            error30d,
+            error90d,
+            error180d,
+            error365d,
+            directionCorrect7d ?? 0,
+            directionCorrect30d ?? 0,
+            directionCorrect90d ?? 0,
+            directionCorrect180d ?? 0,
+            directionCorrect365d ?? 0,
             status,
           ],
           function (err) {
@@ -446,20 +478,22 @@ function trackingScopeSql(alias = 'cp'): string {
 export async function getForwardTestStatus(): Promise<ForwardTestStatus> {
   const db = getDb();
 
-  const latestRun: { id: number; prediction_date: string } | null = await new Promise((resolve, reject) => {
-    db.get(
-      `SELECT pr.id, (
+  const latestRun: { id: number; prediction_date: string } | null = await new Promise(
+    (resolve, reject) => {
+      db.get(
+        `SELECT pr.id, (
          SELECT prediction_date FROM card_predictions WHERE run_id = pr.id LIMIT 1
        ) AS prediction_date
        FROM prediction_runs pr
        ORDER BY pr.id DESC LIMIT 1`,
-      [],
-      (err, row: any) => {
-        if (err) return reject(err);
-        resolve(row ? { id: row.id, prediction_date: row.prediction_date } : null);
-      }
-    );
-  });
+        [],
+        (err, row: any) => {
+          if (err) return reject(err);
+          resolve(row ? { id: row.id, prediction_date: row.prediction_date } : null);
+        }
+      );
+    }
+  );
 
   const totalPredictions: number = await new Promise((resolve, reject) => {
     db.get(
@@ -513,7 +547,15 @@ export async function getForwardTestStatus(): Promise<ForwardTestStatus> {
   const getWindowStats = async (days: number): Promise<WindowAccuracy> => {
     const cols = WINDOW_COLS[days];
     if (!cols) {
-      return { pending: totalPredictions, hit: 0, missed: 0, accuracy: null, rankIC: null, meanBias: null, hitRate: null };
+      return {
+        pending: totalPredictions,
+        hit: 0,
+        missed: 0,
+        accuracy: null,
+        rankIC: null,
+        meanBias: null,
+        hitRate: null,
+      };
     }
 
     const stats: any = await new Promise((resolve, reject) => {
@@ -555,9 +597,10 @@ export async function getForwardTestStatus(): Promise<ForwardTestStatus> {
 
     // Skill metrics from a deterministic stride sample of resolved outcomes.
     const expectedCol = `expected_${days}d_return`;
-    const samples: Array<{ predicted: number; actual: number | null }> = await new Promise((resolve, reject) => {
-      db.all(
-        `SELECT cp.${expectedCol} AS predicted, pr.${days === 7 ? 'actual_7d_return' : days === 30 ? 'actual_30d_return' : days === 90 ? 'actual_90d_return' : days === 180 ? 'actual_180d_return' : 'actual_365d_return'} AS actual
+    const samples: Array<{ predicted: number; actual: number | null }> = await new Promise(
+      (resolve, reject) => {
+        db.all(
+          `SELECT cp.${expectedCol} AS predicted, pr.${days === 7 ? 'actual_7d_return' : days === 30 ? 'actual_30d_return' : days === 90 ? 'actual_90d_return' : days === 180 ? 'actual_180d_return' : 'actual_365d_return'} AS actual
          FROM prediction_results pr
          JOIN card_predictions cp ON cp.id = pr.prediction_id
          WHERE ${trackingScopeSql('cp')}
@@ -565,13 +608,19 @@ export async function getForwardTestStatus(): Promise<ForwardTestStatus> {
            AND cp.${expectedCol} IS NOT NULL
            AND pr.prediction_id % 20 = 0
          LIMIT 20000`,
-        [],
-        (err, rows: any[]) => {
-          if (err) return reject(err);
-          resolve((rows || []).map(r => ({ predicted: Number(r.predicted), actual: r.actual != null ? Number(r.actual) : null })));
-        }
-      );
-    });
+          [],
+          (err, rows: any[]) => {
+            if (err) return reject(err);
+            resolve(
+              (rows || []).map((r) => ({
+                predicted: Number(r.predicted),
+                actual: r.actual != null ? Number(r.actual) : null,
+              }))
+            );
+          }
+        );
+      }
+    );
 
     const metrics = computeValidationMetrics(samples);
 
@@ -586,9 +635,9 @@ export async function getForwardTestStatus(): Promise<ForwardTestStatus> {
     };
   };
 
-  const [_7d, _30d, _90d, _180d, _365d] = await Promise.all(
+  const [_7d, _30d, _90d, _180d, _365d] = (await Promise.all(
     WINDOW_DAYS.map((d) => getWindowStats(d))
-  ) as [
+  )) as [
     Awaited<ReturnType<typeof getWindowStats>>,
     Awaited<ReturnType<typeof getWindowStats>>,
     Awaited<ReturnType<typeof getWindowStats>>,
@@ -597,7 +646,15 @@ export async function getForwardTestStatus(): Promise<ForwardTestStatus> {
   ];
 
   const getCategoryStats = async (): Promise<CategoryAccuracy[]> => {
-    const categories = ['strong_buy', 'watch_dip', 'recovery', 'momentum', 'stagnant', 'avoid', 'downtrend'];
+    const categories = [
+      'strong_buy',
+      'watch_dip',
+      'recovery',
+      'momentum',
+      'stagnant',
+      'avoid',
+      'downtrend',
+    ];
     const results: CategoryAccuracy[] = [];
 
     for (const cat of categories) {
@@ -638,14 +695,16 @@ export async function getForwardTestStatus(): Promise<ForwardTestStatus> {
 
   const getPriceRangeStats = async () => {
     const getStatsForRange = (minPrice: number, maxPrice: number | null) => {
-      return new Promise<{ total: number; hit: number; accuracy: number | null }>((resolve, reject) => {
-        const priceClause = maxPrice !== null
-          ? 'AND cp.current_price >= ? AND cp.current_price < ?'
-          : 'AND cp.current_price >= ?';
-        const params = maxPrice !== null ? [minPrice, maxPrice] : [minPrice];
+      return new Promise<{ total: number; hit: number; accuracy: number | null }>(
+        (resolve, reject) => {
+          const priceClause =
+            maxPrice !== null
+              ? 'AND cp.current_price >= ? AND cp.current_price < ?'
+              : 'AND cp.current_price >= ?';
+          const params = maxPrice !== null ? [minPrice, maxPrice] : [minPrice];
 
-        db.get(
-          `SELECT
+          db.get(
+            `SELECT
             COUNT(*) as total,
             COUNT(CASE WHEN pr.status = 'hit' THEN 1 END) as hit,
             COUNT(CASE WHEN pr.status = 'missed' THEN 1 END) as missed,
@@ -654,16 +713,17 @@ export async function getForwardTestStatus(): Promise<ForwardTestStatus> {
           LEFT JOIN prediction_results pr ON pr.prediction_id = cp.id
           WHERE ${trackingScopeSql('cp')}
           ${priceClause}`,
-          params,
-          (err, row: any) => {
-            if (err) return reject(err);
-            const r = row || { total: 0, hit: 0, missed: 0, partial: 0 };
-            const resolved = r.hit + r.missed + r.partial;
-            const accuracy = resolved > 0 ? (r.hit + r.partial * 0.5) / resolved : null;
-            resolve({ total: r.total, hit: r.hit, accuracy });
-          }
-        );
-      });
+            params,
+            (err, row: any) => {
+              if (err) return reject(err);
+              const r = row || { total: 0, hit: 0, missed: 0, partial: 0 };
+              const resolved = r.hit + r.missed + r.partial;
+              const accuracy = resolved > 0 ? (r.hit + r.partial * 0.5) / resolved : null;
+              resolve({ total: r.total, hit: r.hit, accuracy });
+            }
+          );
+        }
+      );
     };
 
     const [under5, fiveToFifty, overFifty] = await Promise.all([

@@ -24,7 +24,9 @@ const dbPath = path.resolve(process.cwd(), process.env.DATABASE_PATH || './tcg-p
 async function main() {
   const sizeMb = (fs.statSync(dbPath).size / 1024 / 1024).toFixed(1);
   console.log(`Uploading ${dbPath} (${sizeMb} MB) to Supabase...`);
-  console.log('Compressing and uploading in <50 MB chunks (Supabase limit). This may take 15–30 minutes.');
+  console.log(
+    'Compressing and uploading in <50 MB chunks (Supabase limit). This may take 15–30 minutes.'
+  );
   const result = await uploadDatabaseFileToCloud(dbPath, runDate);
   console.log(JSON.stringify(result, null, 2));
   if (!result.uploaded) {

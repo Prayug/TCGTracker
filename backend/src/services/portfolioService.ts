@@ -114,7 +114,16 @@ export class PortfolioService {
 
     // Mirror open lot for P&L tracking (idempotent-ish: one open lot per collection upsert).
     if (purchasePrice != null && purchasePrice >= 0) {
-      await this.ensureOpenLot(userId, lastID, cardId, cardName, quantity, purchasePrice, purchaseDate, condition);
+      await this.ensureOpenLot(
+        userId,
+        lastID,
+        cardId,
+        cardName,
+        quantity,
+        purchasePrice,
+        purchaseDate,
+        condition
+      );
     }
 
     const row = await this.getItemById(lastID, userId);
@@ -154,7 +163,16 @@ export class PortfolioService {
       `INSERT INTO portfolio_lots
          (user_id, collection_id, card_id, card_name, quantity, cost_basis, acquired_at, condition)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [userId, collectionId, cardId, cardName, quantity, costBasis, acquiredAt ?? null, condition ?? null]
+      [
+        userId,
+        collectionId,
+        cardId,
+        cardName,
+        quantity,
+        costBasis,
+        acquiredAt ?? null,
+        condition ?? null,
+      ]
     );
   }
 

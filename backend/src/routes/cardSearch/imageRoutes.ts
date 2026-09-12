@@ -7,11 +7,7 @@ import {
   PokemonApiCard,
 } from '../../services/pokemonApiClient';
 import { generateUniqueIdentifier } from '../../services/cardIdentifier';
-import {
-  cardImageCache,
-  CACHE_TTL,
-  getCacheKey,
-} from '../../services/cardCache';
+import { cardImageCache, CACHE_TTL, getCacheKey } from '../../services/cardCache';
 import { getCardMappingImages } from '../../services/cardImageBackfillService';
 
 const router = Router();
@@ -61,14 +57,11 @@ function lookupSearchPokemonCache(
 ) {
   const cacheKey = getCacheKey(
     cardName,
-    typeof setId === 'string' && setId.trim().length > 0
-      ? setId
-      : (setName as string) || 'unknown',
+    typeof setId === 'string' && setId.trim().length > 0 ? setId : (setName as string) || 'unknown',
     cardNumber as string | undefined
   );
   const cached = cardImageCache.get(cacheKey);
-  const hit =
-    cached && Date.now() - cached.timestamp < CACHE_TTL ? cached : undefined;
+  const hit = cached && Date.now() - cached.timestamp < CACHE_TTL ? cached : undefined;
   return { cacheKey, hit };
 }
 
@@ -162,9 +155,9 @@ async function respondUncachedSearchPokemon(
   });
 
   if (!searchResult.card || !searchResult.card.images?.small || !searchResult.card.images?.large) {
-    res.status(404).json(
-      missingPokemonImageJson(searchResult, { cardName, setId, setName, cardNumber })
-    );
+    res
+      .status(404)
+      .json(missingPokemonImageJson(searchResult, { cardName, setId, setName, cardNumber }));
     return;
   }
 

@@ -85,10 +85,10 @@ export async function pruneOldPriceHistory(keepDays: number = MIN_PRICE_HISTORY_
     };
   }
 
-  const cutoff = await get<{ d: string }>(
-    `SELECT date(?, ?) AS d`,
-    [span.maxDate, `-${effectiveKeep} days`]
-  );
+  const cutoff = await get<{ d: string }>(`SELECT date(?, ?) AS d`, [
+    span.maxDate,
+    `-${effectiveKeep} days`,
+  ]);
   if (!cutoff?.d) return { deleted: 0, skippedReason: 'could not compute cutoff' };
 
   const result = await run(`DELETE FROM price_history WHERE date < ?`, [cutoff.d]);

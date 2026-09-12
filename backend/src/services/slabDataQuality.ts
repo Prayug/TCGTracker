@@ -29,7 +29,11 @@ function check(
 }
 
 export async function getSlabDataQuality(): Promise<DataQualityRunSummary> {
-  const series = await get<{ count: number; medianSpan: number | null; verifiedShare: number | null }>(
+  const series = await get<{
+    count: number;
+    medianSpan: number | null;
+    verifiedShare: number | null;
+  }>(
     `SELECT
        COUNT(*) AS count,
        (

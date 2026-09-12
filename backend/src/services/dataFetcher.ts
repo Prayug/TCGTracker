@@ -4,10 +4,7 @@ import { backupDatabaseToCloud } from './cloudBackupService';
 import { logger } from '../utils/logger';
 import { isSkippedDbJob, withDbJobLock } from '../utils/dbJobLock';
 import { syncCatalogData } from './catalogSync';
-import {
-  tcgdexMarketProvider,
-  tcgdexJaMarketProvider,
-} from './providers/tcgdexMarketProvider';
+import { tcgdexMarketProvider, tcgdexJaMarketProvider } from './providers/tcgdexMarketProvider';
 import { MarketPriceProvider, MarketPriceSnapshot } from './providers/contracts';
 import { canonicalFinishVariantKey, normalizeVariantKey } from '../utils/normalizeVariantKey';
 import { createPkmnPricesProvider, PkmnPricesMarketProvider } from './providers/pkmnPricesProvider';
@@ -43,7 +40,12 @@ class MultiSourceMarketProvider implements MarketPriceProvider {
     this.providers = providers;
   }
 
-  async getSnapshotForCard(cardId: string, cardName?: string, setId?: string, setName?: string): Promise<MarketPriceSnapshot | null> {
+  async getSnapshotForCard(
+    cardId: string,
+    cardName?: string,
+    setId?: string,
+    setName?: string
+  ): Promise<MarketPriceSnapshot | null> {
     for (const provider of this.providers) {
       try {
         const snapshot = await provider.getSnapshotForCard(cardId, cardName, setId, setName);
@@ -228,7 +230,12 @@ const createSyncRun = async (runType: string, runDate: string): Promise<number> 
 const finalizeSyncRun = async (
   runId: number,
   status: 'completed' | 'failed',
-  payload: { totalPricesProcessed?: number; groupsProcessed?: number; groupsFailed?: number; message?: string }
+  payload: {
+    totalPricesProcessed?: number;
+    groupsProcessed?: number;
+    groupsFailed?: number;
+    message?: string;
+  }
 ) => {
   const db = getDb();
   return new Promise<void>((resolve, reject) => {
@@ -363,7 +370,7 @@ const extractCatalogFallbackPoints = (
 
 const createDailySnapshot = async (date: string) => {
   const db = getDb();
-  
+
   return new Promise<void>((resolve, reject) => {
     // Calculate daily statistics
     const statsSql = `
@@ -374,7 +381,7 @@ const createDailySnapshot = async (date: string) => {
       FROM price_history 
       WHERE date = ?
     `;
-    
+
     db.get(statsSql, [date], (err, stats: any) => {
       if (err) {
         reject(err);
@@ -434,21 +441,25 @@ const createDailySnapshot = async (date: string) => {
               VALUES (?, ?, ?, ?, ?, ?, ?)
             `;
 
-            db.run(insertSnapshotSql, [
-              date,
-              stats?.totalCards || 0,
-              stats?.avgPrice || 0,
-              medianRow?.medianPrice ?? null,
-              stats?.totalVolume || 0,
-              JSON.stringify(gainers || []),
-              JSON.stringify(losers || [])
-            ], (err) => {
-              if (err) {
-                reject(err);
-              } else {
-                resolve();
+            db.run(
+              insertSnapshotSql,
+              [
+                date,
+                stats?.totalCards || 0,
+                stats?.avgPrice || 0,
+                medianRow?.medianPrice ?? null,
+                stats?.totalVolume || 0,
+                JSON.stringify(gainers || []),
+                JSON.stringify(losers || []),
+              ],
+              (err) => {
+                if (err) {
+                  reject(err);
+                } else {
+                  resolve();
+                }
               }
-            });
+            );
           });
         });
       });
@@ -463,7 +474,7 @@ export const deterministicProductId = (cardId: string, variantKey: string): numb
   const hash = crypto.createHash('sha256').update(input).digest();
   // Use first 4 bytes as a 32-bit unsigned integer
   // SHA-256 collision probability for N items is ~N^2 / 2^257, negligible for ~20k cards
-  return (hash.readUInt32BE(0) >>> 0) % 100000000 + 1;
+  return ((hash.readUInt32BE(0) >>> 0) % 100000000) + 1;
 };
 
 const snapshotFromPokemonCatalog = async (date: string) => {
@@ -506,24 +517,25 @@ const snapshotFromPokemonCatalog = async (date: string) => {
     await syncCatalogData();
   }
 
-  const refreshedRows = rows.length > 0
-    ? rows
-    : await new Promise<any[]>((resolve, reject) => {
-        db.all(
-          `SELECT cardId, cardName, setId, setName, cardNumber, tcgplayerProductId, tcgplayerPrices
+  const refreshedRows =
+    rows.length > 0
+      ? rows
+      : await new Promise<any[]>((resolve, reject) => {
+          db.all(
+            `SELECT cardId, cardName, setId, setName, cardNumber, tcgplayerProductId, tcgplayerPrices
            FROM catalog_cards
            WHERE tcgplayerPrices IS NOT NULL
            AND tcgplayerPrices <> ''`,
-          [],
-          (err, resultRows: any[]) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(resultRows || []);
+            [],
+            (err, resultRows: any[]) => {
+              if (err) {
+                reject(err);
+              } else {
+                resolve(resultRows || []);
+              }
             }
-          }
-        );
-      });
+          );
+        });
 
   const stmt = db.prepare(priceInsertSql);
   let inserted = 0;
@@ -580,7 +592,10 @@ const snapshotFromPokemonCatalog = async (date: string) => {
           : Number.NaN;
         const productId = Number.isFinite(parsedProductId)
           ? parsedProductId
-          : deterministicProductId(row.cardId || `${row.setId}-${row.cardNumber}-${row.cardName}`, variantKey);
+          : deterministicProductId(
+              row.cardId || `${row.setId}-${row.cardNumber}-${row.cardName}`,
+              variantKey
+            );
 
         await runStmt([
           productId,
@@ -657,7 +672,10 @@ const snapshotFromMarketProvider = async (
     }
   }
 
-  const resolveTrustedProductId = (row: CatalogCardRow, tcgdexProductId?: number): number | null => {
+  const resolveTrustedProductId = (
+    row: CatalogCardRow,
+    tcgdexProductId?: number
+  ): number | null => {
     // TCGCSV name+number+print-family is authoritative. Catalog/TCGdex often
     // store the main-set SKU on Trainer Gallery rows (Mimikyu V TG16 → #68).
     const fromTcgcsv = resolveProductIdFromOwners(
@@ -752,9 +770,7 @@ const snapshotFromMarketProvider = async (
     rows.slice(i * chunkSize, (i + 1) * chunkSize)
   );
 
-  const defaultSource =
-    options?.sourceOverride ||
-    (language === 'ja' ? 'tcgdex_ja' : 'tcgdex');
+  const defaultSource = options?.sourceOverride || (language === 'ja' ? 'tcgdex_ja' : 'tcgdex');
 
   const workerResults = await Promise.all(
     chunks.map(async (chunk): Promise<WorkerResult> => {
@@ -816,9 +832,7 @@ const snapshotFromMarketProvider = async (
               : undefined;
 
           const trustedForPoint = resolveTrustedProductId(row, tcgdexProductId);
-          const owners = tcgdexProductId
-            ? ownersByProductId.get(tcgdexProductId) || []
-            : [];
+          const owners = tcgdexProductId ? ownersByProductId.get(tcgdexProductId) || [] : [];
 
           // Reject TCGdex SKUs that belong to a different print family, or that
           // disagree with the TCGCSV SKU for this name/number/family. Stamping a
@@ -829,11 +843,7 @@ const snapshotFromMarketProvider = async (
           ) {
             continue;
           }
-          if (
-            trustedForPoint &&
-            tcgdexProductId &&
-            tcgdexProductId !== trustedForPoint
-          ) {
+          if (trustedForPoint && tcgdexProductId && tcgdexProductId !== trustedForPoint) {
             continue;
           }
           if (isSubsetCard && trustedForPoint && !tcgdexProductId) {
@@ -858,9 +868,7 @@ const snapshotFromMarketProvider = async (
             subTypeName: variantKey,
             productId,
             tcgplayerProductId:
-              trustedForPoint != null
-                ? String(trustedForPoint)
-                : row.tcgplayerProductId || null,
+              trustedForPoint != null ? String(trustedForPoint) : row.tcgplayerProductId || null,
             marketPrice: point.marketPrice,
             lowPrice: isValidPrice(point.lowPrice) ? point.lowPrice : undefined,
             highPrice: isValidPrice(point.highPrice) ? point.highPrice : undefined,
@@ -1039,7 +1047,8 @@ const snapshotJapaneseFromPriceCharting = async (
         variantKey,
         { language: 'ja', matchName: row.matchName || row.cardName }
       );
-      const productId = Number.parseInt(String(resolved.match.productId).replace(/\D/g, ''), 10) || 0;
+      const productId =
+        Number.parseInt(String(resolved.match.productId).replace(/\D/g, ''), 10) || 0;
 
       await new Promise<void>((resolve, reject) => {
         db.run(
@@ -1328,7 +1337,10 @@ const runPriceCatchUp = async () => {
   }
 
   const toFetch = datesNeedingFetch.slice(0, MAX_LIVE_FETCHES_PER_PASS);
-  logger.warn('Backfilling missed price updates', { dates: toFetch, remaining: datesNeedingFetch.length - toFetch.length });
+  logger.warn('Backfilling missed price updates', {
+    dates: toFetch,
+    remaining: datesNeedingFetch.length - toFetch.length,
+  });
 
   const results = [];
   for (const runDate of toFetch) {
@@ -1339,7 +1351,10 @@ const runPriceCatchUp = async () => {
     });
     results.push(result);
     if (result.skipped) {
-      logger.warn('Price backfill stopped early', { runDate, reason: (result as { reason?: string }).reason });
+      logger.warn('Price backfill stopped early', {
+        runDate,
+        reason: (result as { reason?: string }).reason,
+      });
       break;
     }
   }
@@ -1436,7 +1451,7 @@ const performPriceUpdate = async (runDate: string) => {
         error: (canonErr as Error).message,
       });
     }
-    
+
     logger.info('Creating daily market snapshot...');
     await createDailySnapshot(runDate);
     logger.info('Daily market snapshot created.');

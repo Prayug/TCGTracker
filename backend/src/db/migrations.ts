@@ -95,7 +95,7 @@ export const migrations: Migration[] = [
             logger.warn('Error dropping old price_alerts table', { error: dropErr });
             // Continue anyway - table might not exist
           }
-          
+
           // Create table with correct schema
           db.run(
             `CREATE TABLE IF NOT EXISTS price_alerts (
@@ -438,19 +438,34 @@ export const migrations: Migration[] = [
             PRIMARY KEY (productId, date, subTypeName, source)
           )`,
           (err) => {
-            if (err) { reject(err); return; }
+            if (err) {
+              reject(err);
+              return;
+            }
             db.run(
               `INSERT INTO price_history_old SELECT DISTINCT
                 productId, date, price, subTypeName, productName, groupName,
                 source, lowPrice, highPrice, marketPrice, volume, uniqueIdentifier
                FROM price_history`,
               (copyErr) => {
-                if (copyErr) { reject(copyErr); return; }
+                if (copyErr) {
+                  reject(copyErr);
+                  return;
+                }
                 db.run('DROP TABLE price_history', (dropErr) => {
-                  if (dropErr) { reject(dropErr); return; }
+                  if (dropErr) {
+                    reject(dropErr);
+                    return;
+                  }
                   db.run('ALTER TABLE price_history_old RENAME TO price_history', (renameErr) => {
-                    if (renameErr) { reject(renameErr); return; }
-                    db.run('CREATE INDEX IF NOT EXISTS idx_price_history_date ON price_history(date)', () => {});
+                    if (renameErr) {
+                      reject(renameErr);
+                      return;
+                    }
+                    db.run(
+                      'CREATE INDEX IF NOT EXISTS idx_price_history_date ON price_history(date)',
+                      () => {}
+                    );
                     resolve();
                   });
                 });
@@ -572,11 +587,21 @@ export const migrations: Migration[] = [
         PRIMARY KEY (catalogId, date, source)
       )`);
 
-      await run('CREATE INDEX IF NOT EXISTS idx_onepiece_catalog_name ON onepiece_catalog(cardName)');
-      await run('CREATE INDEX IF NOT EXISTS idx_onepiece_catalog_set ON onepiece_catalog(setId, setName)');
-      await run('CREATE INDEX IF NOT EXISTS idx_onepiece_catalog_card_set_id ON onepiece_catalog(cardSetId)');
-      await run('CREATE INDEX IF NOT EXISTS idx_onepiece_price_history_card ON onepiece_price_history(catalogId)');
-      await run('CREATE INDEX IF NOT EXISTS idx_onepiece_price_history_date ON onepiece_price_history(date)');
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_onepiece_catalog_name ON onepiece_catalog(cardName)'
+      );
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_onepiece_catalog_set ON onepiece_catalog(setId, setName)'
+      );
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_onepiece_catalog_card_set_id ON onepiece_catalog(cardSetId)'
+      );
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_onepiece_price_history_card ON onepiece_price_history(catalogId)'
+      );
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_onepiece_price_history_date ON onepiece_price_history(date)'
+      );
 
       logger.info('Rebuilt One Piece catalog tables with per-variant catalogId primary key');
     },
@@ -643,7 +668,9 @@ export const migrations: Migration[] = [
       await run('ALTER TABLE backtest_runs ADD COLUMN win_rate REAL');
       await run('ALTER TABLE backtest_runs ADD COLUMN profit_factor REAL');
 
-      logger.info('Added sharpe_ratio, max_drawdown, win_rate, profit_factor columns to backtest_runs');
+      logger.info(
+        'Added sharpe_ratio, max_drawdown, win_rate, profit_factor columns to backtest_runs'
+      );
     },
     down: async (db: Database) => {
       const run = (sql: string): Promise<void> =>
@@ -714,7 +741,9 @@ export const migrations: Migration[] = [
               reject(err);
               return;
             }
-            logger.info(`Backfilled rarity on ${this.changes} card_mappings rows from catalog_cards`);
+            logger.info(
+              `Backfilled rarity on ${this.changes} card_mappings rows from catalog_cards`
+            );
             resolve();
           }
         );
@@ -851,7 +880,9 @@ export const migrations: Migration[] = [
       `);
       await run('CREATE INDEX IF NOT EXISTS idx_grading_results_card ON grading_results(card_id)');
       await run('CREATE INDEX IF NOT EXISTS idx_grading_results_user ON grading_results(user_id)');
-      await run('CREATE INDEX IF NOT EXISTS idx_grading_results_created ON grading_results(created_at)');
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_grading_results_created ON grading_results(created_at)'
+      );
       logger.info('Created grading_results table');
     },
     down: async (db: Database) => {
@@ -960,7 +991,9 @@ export const migrations: Migration[] = [
         await run(sql);
       }
 
-      logger.info('Created calibration_samples/calibration_model tables and added backtest metrics columns');
+      logger.info(
+        'Created calibration_samples/calibration_model tables and added backtest metrics columns'
+      );
     },
     down: async (_db: Database) => {
       logger.info('Skipping calibration table rollback (SQLite limitation)');
@@ -1193,9 +1226,7 @@ export const migrations: Migration[] = [
         UNIQUE(user_id, card_id, list_type, game),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )`);
-      await run(
-        'CREATE INDEX IF NOT EXISTS idx_user_watchlists_user ON user_watchlists(user_id)'
-      );
+      await run('CREATE INDEX IF NOT EXISTS idx_user_watchlists_user ON user_watchlists(user_id)');
 
       // --- 9. Portfolio lots for P&L ---
       await run(`CREATE TABLE IF NOT EXISTS portfolio_lots (
@@ -1217,9 +1248,7 @@ export const migrations: Migration[] = [
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (collection_id) REFERENCES user_collections(id) ON DELETE SET NULL
       )`);
-      await run(
-        'CREATE INDEX IF NOT EXISTS idx_portfolio_lots_user ON portfolio_lots(user_id)'
-      );
+      await run('CREATE INDEX IF NOT EXISTS idx_portfolio_lots_user ON portfolio_lots(user_id)');
 
       // --- 10. Richer alerts ---
       if (!(await columnExists('price_alerts', 'alert_type'))) {
@@ -1323,7 +1352,9 @@ export const migrations: Migration[] = [
       if (!(await columnExists('population_cache', 'cardId'))) {
         await run('ALTER TABLE population_cache ADD COLUMN cardId TEXT');
       }
-      await run('CREATE INDEX IF NOT EXISTS idx_population_cache_cardId ON population_cache(cardId)');
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_population_cache_cardId ON population_cache(cardId)'
+      );
 
       // Nightly refresh queue: which cards users actually looked at.
       await run(`CREATE TABLE IF NOT EXISTS graded_refresh_queue (
@@ -1515,14 +1546,18 @@ export const migrations: Migration[] = [
           )
       `);
       await run(`DELETE FROM graded_prices WHERE cardId IN (SELECT cardId FROM _bad_slab_ids)`);
-      await run(`DELETE FROM graded_price_history WHERE cardId IN (SELECT cardId FROM _bad_slab_ids)`);
+      await run(
+        `DELETE FROM graded_price_history WHERE cardId IN (SELECT cardId FROM _bad_slab_ids)`
+      );
       await run(`DELETE FROM population_cache WHERE cardId IN (SELECT cardId FROM _bad_slab_ids)`);
       await run(
         `UPDATE graded_refresh_queue SET lastRefreshedAt = NULL WHERE cardId IN (SELECT cardId FROM _bad_slab_ids)`
       );
       await run(`DROP TABLE IF EXISTS _bad_slab_ids`);
 
-      logger.info('Migration 30: cleared unnumbered main-set SKUs mapped to subset/full-art slab products');
+      logger.info(
+        'Migration 30: cleared unnumbered main-set SKUs mapped to subset/full-art slab products'
+      );
     },
     down: async () => {
       // Data repair — nothing to roll back.
@@ -1644,8 +1679,12 @@ export const migrations: Migration[] = [
         )
       `);
       await run('CREATE INDEX IF NOT EXISTS idx_slab_predictions_run ON slab_predictions(run_id)');
-      await run('CREATE INDEX IF NOT EXISTS idx_slab_predictions_card ON slab_predictions(card_id)');
-      await run('CREATE INDEX IF NOT EXISTS idx_slab_predictions_cat ON slab_predictions(run_id, category)');
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_slab_predictions_card ON slab_predictions(card_id)'
+      );
+      await run(
+        'CREATE INDEX IF NOT EXISTS idx_slab_predictions_cat ON slab_predictions(run_id, category)'
+      );
     },
     down: async (db: Database) => {
       const run = (sql: string): Promise<void> =>
@@ -1787,15 +1826,11 @@ export const migrations: Migration[] = [
       await run(`UPDATE catalog_cards SET matchName = cardName WHERE matchName IS NULL`);
       await run(`UPDATE card_mappings SET matchName = cardName WHERE matchName IS NULL`);
 
-      await run(
-        'CREATE INDEX IF NOT EXISTS idx_catalog_cards_language ON catalog_cards(language)'
-      );
+      await run('CREATE INDEX IF NOT EXISTS idx_catalog_cards_language ON catalog_cards(language)');
       await run(
         'CREATE INDEX IF NOT EXISTS idx_catalog_cards_match_name ON catalog_cards(matchName)'
       );
-      await run(
-        'CREATE INDEX IF NOT EXISTS idx_card_mappings_language ON card_mappings(language)'
-      );
+      await run('CREATE INDEX IF NOT EXISTS idx_card_mappings_language ON card_mappings(language)');
 
       // Rebuild pc_set_mappings with language as part of the primary key.
       await run(`CREATE TABLE IF NOT EXISTS pc_set_mappings_v2 (
@@ -2026,14 +2061,12 @@ export const migrations: Migration[] = [
           db.run(sql, params, (err) => (err ? reject(err) : resolve()));
         });
 
-      const {
-        setLooksLikeSubsetPrint,
-        numberLooksSecretRare,
-      } = await import('../utils/setPrintFamily');
-      const {
-        productIdConflictsWithPrintFamily,
-        resolveProductIdFromOwners,
-      } = await import('../utils/productIdGuard');
+      const { setLooksLikeSubsetPrint, numberLooksSecretRare } = await import(
+        '../utils/setPrintFamily'
+      );
+      const { productIdConflictsWithPrintFamily, resolveProductIdFromOwners } = await import(
+        '../utils/productIdGuard'
+      );
 
       type MappingRow = {
         cardId: string;
@@ -2050,7 +2083,10 @@ export const migrations: Migration[] = [
          FROM card_mappings`
       );
 
-      const ownersByProductId = new Map<number, Array<{ cardId: string; setName: string | null; cardNumber: string | null }>>();
+      const ownersByProductId = new Map<
+        number,
+        Array<{ cardId: string; setName: string | null; cardNumber: string | null }>
+      >();
       const tcgcsvCandidates: Array<{
         cardId: string;
         cardName: string;
@@ -2081,14 +2117,12 @@ export const migrations: Migration[] = [
       let historyDeleted = 0;
 
       for (const m of mappings) {
-        const isSubset =
-          setLooksLikeSubsetPrint(m.setName) || numberLooksSecretRare(m.cardNumber);
+        const isSubset = setLooksLikeSubsetPrint(m.setName) || numberLooksSecretRare(m.cardNumber);
         if (!isSubset) continue;
 
         const owners = m.productId != null ? ownersByProductId.get(m.productId) || [] : [];
         const conflicts =
-          m.productId != null &&
-          productIdConflictsWithPrintFamily(m.productId, m.setName, owners);
+          m.productId != null && productIdConflictsWithPrintFamily(m.productId, m.setName, owners);
 
         const resolved = resolveProductIdFromOwners(
           m.cardName,
@@ -2101,9 +2135,7 @@ export const migrations: Migration[] = [
         const needsPidBackfill =
           resolved != null && resolved === m.productId && !m.tcgplayerProductId;
         const needsHistoryCleanup =
-          Boolean(m.uniqueIdentifier) &&
-          m.productId != null &&
-          (conflicts || needsRemap);
+          Boolean(m.uniqueIdentifier) && m.productId != null && (conflicts || needsRemap);
 
         if (!needsRemap && !needsPidBackfill && !needsHistoryCleanup) continue;
 
@@ -2276,7 +2308,9 @@ export const migrations: Migration[] = [
           [correctUid, oldUid, correctUid]
         );
         historyMoved += moved;
-        historyDropped += await run(`DELETE FROM price_history WHERE uniqueIdentifier = ?`, [oldUid]);
+        historyDropped += await run(`DELETE FROM price_history WHERE uniqueIdentifier = ?`, [
+          oldUid,
+        ]);
 
         await run(
           `UPDATE card_mappings
@@ -2425,7 +2459,6 @@ export const migrations: Migration[] = [
   },
 ];
 
-
 // Run pending migrations
 export const runMigrations = async (db: Database): Promise<void> => {
   try {
@@ -2457,13 +2490,10 @@ export const rollbackLastMigration = async (db: Database): Promise<void> => {
   try {
     const lastMigration: { id: number; name: string } | undefined = await new Promise(
       (resolve, reject) => {
-        db.get(
-          'SELECT id, name FROM migrations ORDER BY id DESC LIMIT 1',
-          (err, row: any) => {
-            if (err) reject(err);
-            else resolve(row);
-          }
-        );
+        db.get('SELECT id, name FROM migrations ORDER BY id DESC LIMIT 1', (err, row: any) => {
+          if (err) reject(err);
+          else resolve(row);
+        });
       }
     );
 
@@ -2493,4 +2523,3 @@ export const rollbackLastMigration = async (db: Database): Promise<void> => {
     throw error;
   }
 };
-

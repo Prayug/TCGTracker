@@ -50,10 +50,7 @@ describe('buildMatchNameFromDex', () => {
 });
 
 describe('Japanese PriceCharting search fixture', () => {
-  const searchHtml = fs.readFileSync(
-    path.join(__dirname, 'fixtures', 'pcSearch.html'),
-    'utf8'
-  );
+  const searchHtml = fs.readFileSync(path.join(__dirname, 'fixtures', 'pcSearch.html'), 'utf8');
 
   it('can accept JP 151 Charizard EX via English matchName', () => {
     const rows = parseSearchRows(searchHtml);

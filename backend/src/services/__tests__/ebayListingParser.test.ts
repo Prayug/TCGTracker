@@ -35,9 +35,7 @@ describe('parseEbayListingTitle', () => {
   });
 
   it('parses a raw alt-art with a fraction number', () => {
-    const parsed = parseEbayListingTitle(
-      'Pokemon Umbreon VMAX Alt Art 215/203 Evolving Skies NM'
-    );
+    const parsed = parseEbayListingTitle('Pokemon Umbreon VMAX Alt Art 215/203 Evolving Skies NM');
     expect(parsed.isGraded).toBe(false);
     expect(parsed.cardNumber).toBe('215/203');
     expect(parsed.collectorNumber).toBe('215');
@@ -66,9 +64,7 @@ describe('parseEbayListingTitle', () => {
     expect(parseEbayListingTitle('One Piece OP09-118 Monkey D Luffy JPN ver').language).toBe('ja');
     expect(parseEbayListingTitle('OP09-118 Luffy JAP version').language).toBe('ja');
     expect(parseEbayListingTitle('ワンピース OP09-118 ルフィ').language).toBe('ja');
-    expect(
-      parseEbayListingTitle('【PSA10】モンキー・D・ルフィ OP09-118').language
-    ).toBe('ja');
+    expect(parseEbayListingTitle('【PSA10】モンキー・D・ルフィ OP09-118').language).toBe('ja');
   });
 
   it('detects JP glued to a One Piece card number', () => {
@@ -76,9 +72,7 @@ describe('parseEbayListingTitle', () => {
   });
 
   it('detects Asian English One Piece listings', () => {
-    expect(parseEbayListingTitle('One Piece OP09-118 Luffy Asian English').language).toBe(
-      'other'
-    );
+    expect(parseEbayListingTitle('One Piece OP09-118 Luffy Asian English').language).toBe('other');
     expect(parseEbayListingTitle('OP09-118 Luffy AE ver PSA 10').language).toBe('other');
   });
 
@@ -110,9 +104,7 @@ describe('risk flags', () => {
 
 describe('listing match against canonical cards', () => {
   it('matches the English Evolving Skies printing', () => {
-    const parsed = parseEbayListingTitle(
-      'Pokemon Umbreon VMAX Alt Art 215/203 Evolving Skies NM'
-    );
+    const parsed = parseEbayListingTitle('Pokemon Umbreon VMAX Alt Art 215/203 Evolving Skies NM');
     const match = scoreListingAgainstCard(
       'Pokemon Umbreon VMAX Alt Art 215/203 Evolving Skies NM',
       parsed,
@@ -182,8 +174,7 @@ describe('One Piece listings vs English comps', () => {
   });
 
   it('still matches unlabeled English-market OP listings', () => {
-    const title =
-      'One Piece OP09-118 Monkey D Luffy Alternate Art Emperors in the New World';
+    const title = 'One Piece OP09-118 Monkey D Luffy Alternate Art Emperors in the New World';
     const parsed = parseEbayListingTitle(title);
     expect(parsed.language).toBe('unknown');
     expect(scoreListingAgainstCard(title, parsed, luffyEn)).not.toBeNull();

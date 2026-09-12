@@ -129,7 +129,7 @@ function parseExternalSignals(raw: string): string {
   if (humanSignals.length === 0) return '';
 
   const top = humanSignals.slice(0, 4);
-  return `External factors to consider:\n${top.map(s => `- ${s}`).join('\n')}`;
+  return `External factors to consider:\n${top.map((s) => `- ${s}`).join('\n')}`;
 }
 
 async function callGroqApi(prompt: string): Promise<string> {
@@ -149,7 +149,8 @@ async function callGroqApi(prompt: string): Promise<string> {
       messages: [
         {
           role: 'system',
-          content: 'You are a friendly Pokemon TCG market analyst. Write concise, plain-language explanations that collectors and investors can understand. Avoid jargon. Reference specific factors that affect price.',
+          content:
+            'You are a friendly Pokemon TCG market analyst. Write concise, plain-language explanations that collectors and investors can understand. Avoid jargon. Reference specific factors that affect price.',
         },
         {
           role: 'user',

@@ -6,21 +6,21 @@ import { logger } from '../utils/logger';
   try {
     logger.info('🔧 Initializing database...');
     initializeDatabase();
-    
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
     const db = getDb();
-    
+
     logger.info('🔧 Running migrations...');
     await runMigrations(db);
-    
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
     logger.info('✅ Database ready!\n');
-    
+
     // Sample 20 cards that would be processed
     logger.info('📋 Sample of cards that would be processed:\n');
-    
+
     const cards: any[] = await new Promise((resolve) => {
       const sql = `
         SELECT 
@@ -47,7 +47,7 @@ import { logger } from '../utils/logger';
         ORDER BY RANDOM()
         LIMIT 20
       `;
-      
+
       db.all(sql, [], (err, rows) => {
         if (err) {
           logger.error('Error fetching sample cards', { error: err });
@@ -57,16 +57,16 @@ import { logger } from '../utils/logger';
         }
       });
     });
-    
+
     cards.forEach((card: any, index: number) => {
       logger.info(`${index + 1}. ${card.cardName} (#${card.cardNumber})`);
       logger.info(`   Set: ${card.setName} (ID: ${card.setId})`);
       logger.info(`   Rarity: ${card.rarity || 'N/A'}\n`);
     });
-    
+
     // Check what set IDs we have
     logger.info('\n📊 Top 10 sets by card count:\n');
-    
+
     const sets: any[] = await new Promise((resolve) => {
       const sql = `
         SELECT 
@@ -79,7 +79,7 @@ import { logger } from '../utils/logger';
         ORDER BY count DESC
         LIMIT 10
       `;
-      
+
       db.all(sql, [], (err, rows) => {
         if (err) {
           logger.error('Error fetching sets', { error: err });
@@ -89,15 +89,14 @@ import { logger } from '../utils/logger';
         }
       });
     });
-    
+
     sets.forEach((set: any, index: number) => {
       logger.info(`${index + 1}. ${set.setName} (${set.setId}) - ${set.count} cards`);
     });
-    
+
     process.exit(0);
   } catch (error) {
     logger.error('Fatal error', { error });
     process.exit(1);
   }
 })();
-

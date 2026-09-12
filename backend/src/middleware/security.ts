@@ -61,4 +61,3 @@ export const corsMiddleware = () => {
     optionsSuccessStatus: 200,
   });
 };
-

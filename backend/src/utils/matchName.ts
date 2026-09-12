@@ -22,7 +22,13 @@ export const buildMatchNameFromDex = (
   if (!suffixPart) return base;
 
   // Modern TCG often prints "ex" (lowercase); older eras use "EX".
-  if (suffixPart === 'EX' || suffixPart === 'GX' || suffixPart === 'V' || suffixPart === 'VMAX' || suffixPart === 'VSTAR') {
+  if (
+    suffixPart === 'EX' ||
+    suffixPart === 'GX' ||
+    suffixPart === 'V' ||
+    suffixPart === 'VMAX' ||
+    suffixPart === 'VSTAR'
+  ) {
     return `${base} ${suffixPart}`;
   }
   if (/^ex$/i.test(suffixPart)) return `${base} ex`;

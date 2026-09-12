@@ -52,7 +52,9 @@ const CATALOG_CACHE_TTL_MS = 60 * 60 * 1000;
 let cachedCatalog: { fetchedAt: number; cards: OPTCGCardResponse[] } | null = null;
 
 export async function fetchOptcgJson<T>(path: string): Promise<T> {
-  const url = path.startsWith('http') ? path : `${BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+  const url = path.startsWith('http')
+    ? path
+    : `${BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
   const response = await fetch(url, {
     headers: { Accept: 'application/json' },
   });
@@ -68,7 +70,7 @@ const normalizeDonCard = (raw: OPTCGDonResponse): OPTCGCardResponse => ({
   inventory_price: raw.inventory_price,
   market_price: raw.market_price,
   card_name: raw.card_name,
-  set_name: "Don!! Cards",
+  set_name: 'Don!! Cards',
   card_text: raw.card_text || '',
   set_id: 'DON',
   rarity: raw.rarity || 'DON!!',
@@ -99,7 +101,11 @@ const dedupeCards = (cards: OPTCGCardResponse[]): OPTCGCardResponse[] => {
  * booster sets + starter decks + promos + Don!! cards (~5,300+ rows).
  */
 export async function getAllOptcgCards(forceRefresh = false): Promise<OPTCGCardResponse[]> {
-  if (!forceRefresh && cachedCatalog && Date.now() - cachedCatalog.fetchedAt < CATALOG_CACHE_TTL_MS) {
+  if (
+    !forceRefresh &&
+    cachedCatalog &&
+    Date.now() - cachedCatalog.fetchedAt < CATALOG_CACHE_TTL_MS
+  ) {
     return cachedCatalog.cards;
   }
 

@@ -1,5 +1,15 @@
-import { calendarDaysBetween, minSpanDaysForPeriod, productIdsMatch, seriesHasSingleProduct } from '../slabTopMovers';
-import { cliffPctForPeriod, isGradualMove, isIsolatedEndpointSpike, minPointsForPeriod } from '../topMoversQuality';
+import {
+  calendarDaysBetween,
+  minSpanDaysForPeriod,
+  productIdsMatch,
+  seriesHasSingleProduct,
+} from '../slabTopMovers';
+import {
+  cliffPctForPeriod,
+  isGradualMove,
+  isIsolatedEndpointSpike,
+  minPointsForPeriod,
+} from '../topMoversQuality';
 
 describe('slab top movers windows', () => {
   it('counts calendar days between ISO dates', () => {
@@ -23,12 +33,7 @@ describe('slab mover quality', () => {
 
   it('rejects a remap onto a different PriceCharting product', () => {
     expect(productIdsMatch('886492', '886381')).toBe(false);
-    expect(
-      seriesHasSingleProduct([
-        { productId: '886492' },
-        { productId: '886381' },
-      ])
-    ).toBe(false);
+    expect(seriesHasSingleProduct([{ productId: '886492' }, { productId: '886381' }])).toBe(false);
   });
 
   it('rejects the Wobbuffet reverse-to-unlimited 98% cliff on a 24h two-point series', () => {

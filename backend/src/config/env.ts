@@ -132,4 +132,3 @@ export const env = {
   isProduction: parsedEnv.data.NODE_ENV === 'production',
   isTest: parsedEnv.data.NODE_ENV === 'test',
 };
-

@@ -11,17 +11,17 @@ import { SetCalendarScraper } from './setCalendarScraper';
  * Card name matching keywords for fuzzy matching signals to cards.
  */
 const CARD_NAME_PATTERNS: Record<string, string[]> = {
-  'charizard': ['charizard'],
-  'pikachu': ['pikachu'],
-  'mew': ['mew'],
-  'lugia': ['lugia'],
-  'umbreon': ['umbreon'],
-  'espeon': ['espeon'],
-  'rayquaza': ['rayquaza'],
-  'arceus': ['arceus'],
-  'giratina': ['giratina'],
-  'palkia': ['palkia'],
-  'darkrai': ['darkrai'],
+  charizard: ['charizard'],
+  pikachu: ['pikachu'],
+  mew: ['mew'],
+  lugia: ['lugia'],
+  umbreon: ['umbreon'],
+  espeon: ['espeon'],
+  rayquaza: ['rayquaza'],
+  arceus: ['arceus'],
+  giratina: ['giratina'],
+  palkia: ['palkia'],
+  darkrai: ['darkrai'],
 };
 
 /**
@@ -46,7 +46,7 @@ async function matchSignalToCard(
            END
          LIMIT 1`,
         [`%${normalizedName}%`, normalizedName, `${normalizedName}%`],
-        (err, r) => err ? reject(err) : resolve(r || [])
+        (err, r) => (err ? reject(err) : resolve(r || []))
       );
     });
     if (rows.length > 0) {
@@ -64,7 +64,7 @@ async function matchSignalToCard(
          ORDER BY cardName ASC
          LIMIT 1`,
         [`%${normalizedSet}%`],
-        (err, r) => err ? reject(err) : resolve(r || [])
+        (err, r) => (err ? reject(err) : resolve(r || []))
       );
     });
     if (rows.length > 0) {
@@ -151,22 +151,26 @@ export async function runSignalScrape(): Promise<ScrapeResult> {
   for (const signal of uniqueSignals) {
     try {
       await new Promise<void>((resolve, reject) => {
-        db.run(insertStmt, [
-          signal.cardId || null,
-          signal.sourceUrl,
-          signal.sourceType,
-          signal.title,
-          signal.summary,
-          Math.round(signal.sentiment * 100), // store as integer [-100, 100]
-          Math.round(signal.relevance * 100),
-          signal.riskType || null,
-          signal.expiresAt || null,
-          signal.setName || null,
-          signal.cardName || null,
-        ], function (err) {
-          if (err) reject(err);
-          else resolve();
-        });
+        db.run(
+          insertStmt,
+          [
+            signal.cardId || null,
+            signal.sourceUrl,
+            signal.sourceType,
+            signal.title,
+            signal.summary,
+            Math.round(signal.sentiment * 100), // store as integer [-100, 100]
+            Math.round(signal.relevance * 100),
+            signal.riskType || null,
+            signal.expiresAt || null,
+            signal.setName || null,
+            signal.cardName || null,
+          ],
+          function (err) {
+            if (err) reject(err);
+            else resolve();
+          }
+        );
       });
       stored++;
     } catch (err) {

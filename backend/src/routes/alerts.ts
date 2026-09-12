@@ -14,7 +14,13 @@ const createAlertSchema = z.object({
     targetPrice: z.number().nonnegative().optional().default(0),
     condition: z.enum(['above', 'below']).optional().default('above'),
     alertType: z
-      .enum(['price_threshold', 'percent_change', 'volume_drop', 'category_change', 'graded_premium'])
+      .enum([
+        'price_threshold',
+        'percent_change',
+        'volume_drop',
+        'category_change',
+        'graded_premium',
+      ])
       .optional()
       .default('price_threshold'),
     thresholdPct: z.number().optional(),
@@ -89,24 +95,37 @@ export const createAlertsRouter = (alertService: AlertService) => {
    *       401:
    *         description: Unauthorized
    */
-  router.post('/', authenticate, validate(createAlertSchema), async (req: AuthRequest, res: Response) => {
-    try {
-      const { cardId, cardName, targetPrice, condition, alertType, thresholdPct, baselinePrice, metadata } =
-        req.body;
-      const alert = await alertService.createAlert(
-        req.user!.id,
-        cardId,
-        cardName,
-        targetPrice ?? 0,
-        condition ?? 'above',
-        { alertType, thresholdPct, baselinePrice, metadata }
-      );
-      res.status(201).json({ alert });
-    } catch (error: any) {
-      logger.error('Alerts route error', { error: error.message });
-      res.status(500).json({ error: 'An internal error occurred' });
+  router.post(
+    '/',
+    authenticate,
+    validate(createAlertSchema),
+    async (req: AuthRequest, res: Response) => {
+      try {
+        const {
+          cardId,
+          cardName,
+          targetPrice,
+          condition,
+          alertType,
+          thresholdPct,
+          baselinePrice,
+          metadata,
+        } = req.body;
+        const alert = await alertService.createAlert(
+          req.user!.id,
+          cardId,
+          cardName,
+          targetPrice ?? 0,
+          condition ?? 'above',
+          { alertType, thresholdPct, baselinePrice, metadata }
+        );
+        res.status(201).json({ alert });
+      } catch (error: any) {
+        logger.error('Alerts route error', { error: error.message });
+        res.status(500).json({ error: 'An internal error occurred' });
+      }
     }
-  });
+  );
 
   /**
    * @swagger
@@ -182,11 +201,10 @@ export const createAlertsRouter = (alertService: AlertService) => {
         res.json({ message: 'Alert status updated successfully' });
       } catch (error: any) {
         logger.error('Alerts route error', { error: error.message });
-      res.status(500).json({ error: 'An internal error occurred' });
+        res.status(500).json({ error: 'An internal error occurred' });
       }
     }
   );
 
   return router;
 };
-

@@ -50,30 +50,62 @@ describe('parseSearchRows', () => {
 });
 
 describe('strict product matching', () => {
-  const pikachu = { productId: '11816194', url: 'x', title: 'Pikachu ex #276', setName: 'Pokemon Ascended Heroes' };
-  const decoy173 = { productId: '5809554', url: 'y', title: 'Pikachu #173', setName: 'Pokemon Scarlet & Violet 151' };
+  const pikachu = {
+    productId: '11816194',
+    url: 'x',
+    title: 'Pikachu ex #276',
+    setName: 'Pokemon Ascended Heroes',
+  };
+  const decoy173 = {
+    productId: '5809554',
+    url: 'y',
+    title: 'Pikachu #173',
+    setName: 'Pokemon Scarlet & Violet 151',
+  };
 
   it('accepts the correct card: name + set + number all match', () => {
-    const score = scoreCandidate(pikachu, { cardName: 'Pikachu ex', setName: 'Ascended Heroes', cardNumber: '276' });
+    const score = scoreCandidate(pikachu, {
+      cardName: 'Pikachu ex',
+      setName: 'Ascended Heroes',
+      cardNumber: '276',
+    });
     expect(score).toBe(135);
-    expect(isAcceptableMatch(pikachu, { cardName: 'Pikachu ex', setName: 'Ascended Heroes', cardNumber: '276' })).toBe(true);
+    expect(
+      isAcceptableMatch(pikachu, {
+        cardName: 'Pikachu ex',
+        setName: 'Ascended Heroes',
+        cardNumber: '276',
+      })
+    ).toBe(true);
   });
 
   it('rejects a card whose number does not match', () => {
     expect(
-      isAcceptableMatch(decoy173, { cardName: 'Pikachu ex', setName: 'Scarlet & Violet 151', cardNumber: '276' })
+      isAcceptableMatch(decoy173, {
+        cardName: 'Pikachu ex',
+        setName: 'Scarlet & Violet 151',
+        cardNumber: '276',
+      })
     ).toBe(false);
   });
 
   it('rejects a card whose set does not match', () => {
     expect(
-      isAcceptableMatch(pikachu, { cardName: 'Pikachu ex', setName: 'Surging Sparks', cardNumber: '276' })
+      isAcceptableMatch(pikachu, {
+        cardName: 'Pikachu ex',
+        setName: 'Surging Sparks',
+        cardNumber: '276',
+      })
     ).toBe(false);
   });
 
   it('rejects when the name does not appear in the title', () => {
     expect(
-      isAcceptableMatch(decoy173, { cardName: 'Zapdos ex', setName: 'Scarlet & Violet 151', cardNumber: '173' })
+      isAcceptableMatch(decoy173, {
+        cardName: 'Zapdos ex',
+        setName: 'Scarlet & Violet 151',
+        cardNumber: '173',
+      })
     ).toBe(false);
   });
 
@@ -81,9 +113,9 @@ describe('strict product matching', () => {
     expect(
       isAcceptableMatch(decoy173, { cardName: 'Pikachu', setName: 'Scarlet & Violet 151' })
     ).toBe(true);
-    expect(
-      isAcceptableMatch(decoy173, { cardName: 'Pikachu', setName: 'Surging Sparks' })
-    ).toBe(false);
+    expect(isAcceptableMatch(decoy173, { cardName: 'Pikachu', setName: 'Surging Sparks' })).toBe(
+      false
+    );
   });
 
   it('rejects substring number collisions (base #34 vs full art #114)', () => {
@@ -122,7 +154,7 @@ describe('strict product matching', () => {
     ).toBe(true);
   });
 
-  it('accepts promo cards matched to PriceCharting\'s generic Pokemon Promo console', () => {
+  it("accepts promo cards matched to PriceCharting's generic Pokemon Promo console", () => {
     const promo = {
       productId: '844608',
       url: 'x',
@@ -183,7 +215,9 @@ describe('print-family matching when collector number is missing', () => {
   });
 
   it('does not award a number bonus when the collector number is unknown', () => {
-    expect(scoreCandidate(regularGx, { cardName: 'Charizard GX', setName: 'Hidden Fates' })).toBe(115);
+    expect(scoreCandidate(regularGx, { cardName: 'Charizard GX', setName: 'Hidden Fates' })).toBe(
+      115
+    );
     expect(
       scoreCandidate(regularGx, {
         cardName: 'Charizard GX',
@@ -230,7 +264,9 @@ describe('parsePopData', () => {
   it('rejects truncated/invalid arrays', () => {
     const bad = parsePopData('<html><body>VGPC.pop_data = {"psa":[1,2,3]};</body></html>');
     expect(bad.psaPop).toBeNull();
-    const nan = parsePopData('<html><body>VGPC.pop_data = {"psa":[0,0,0,0,0,0,0,0,0,"x"]};</body></html>');
+    const nan = parsePopData(
+      '<html><body>VGPC.pop_data = {"psa":[0,0,0,0,0,0,0,0,0,"x"]};</body></html>'
+    );
     expect(nan.psaPop).toBeNull();
     expect(parsePopData('<html></html>').psaPop).toBeNull();
   });
@@ -274,7 +310,14 @@ describe('parseFullPrices', () => {
         '</body></html>'
     );
     expect(dash).toEqual([
-      { grader: 'psa', grade: '10', price: null, soldListings: 0, lastSoldDate: null, lastSoldPrice: null },
+      {
+        grader: 'psa',
+        grade: '10',
+        price: null,
+        soldListings: 0,
+        lastSoldDate: null,
+        lastSoldPrice: null,
+      },
     ]);
   });
 
@@ -294,15 +337,11 @@ describe('PriceCharting slugs keep ampersands', () => {
   });
 
   it('slugifies Scarlet & Violet console names with &', () => {
-    expect(consoleSlug('Pokemon Scarlet & Violet 151')).toBe(
-      'pokemon-scarlet-&-violet-151'
-    );
+    expect(consoleSlug('Pokemon Scarlet & Violet 151')).toBe('pokemon-scarlet-&-violet-151');
   });
 
   it('builds the PriceCharting product URL Tag Team pages actually use', () => {
-    expect(
-      buildDirectProductUrl('Pokemon Team Up', 'Magikarp & Wailord-GX', '161')
-    ).toBe(
+    expect(buildDirectProductUrl('Pokemon Team Up', 'Magikarp & Wailord-GX', '161')).toBe(
       'https://www.pricecharting.com/game/pokemon-team-up/magikarp-&-wailord-gx-161'
     );
   });
@@ -320,29 +359,18 @@ describe('PriceCharting slugs keep ampersands', () => {
       "https://www.pricecharting.com/game/pokemon-team-rocket-returns/rocket's-wobbuffet-reverse-holo-47"
     );
     expect(
-      buildDirectProductUrl(
-        'Pokemon Team Rocket Returns',
-        "Rocket's Wobbuffet",
-        '47',
-        'normal'
-      )
-    ).toBe(
-      "https://www.pricecharting.com/game/pokemon-team-rocket-returns/rocket's-wobbuffet-47"
-    );
+      buildDirectProductUrl('Pokemon Team Rocket Returns', "Rocket's Wobbuffet", '47', 'normal')
+    ).toBe("https://www.pricecharting.com/game/pokemon-team-rocket-returns/rocket's-wobbuffet-47");
   });
 });
 
 describe('HTML entity decoding for match verification', () => {
   it('decodes &amp; so Tag Team titles match our card names', () => {
-    expect(decodeHtmlEntities('Magikarp &amp; Wailord GX #161')).toBe(
-      'Magikarp & Wailord GX #161'
-    );
+    expect(decodeHtmlEntities('Magikarp &amp; Wailord GX #161')).toBe('Magikarp & Wailord GX #161');
     expect(normalize('Magikarp &amp; Wailord GX #161')).toBe('magikarpwailordgx161');
     expect(normalize('Magikarp & Wailord-GX')).toBe('magikarpwailordgx');
     expect(
-      normalize('Magikarp &amp; Wailord GX #161').includes(
-        normalize('Magikarp & Wailord-GX')
-      )
+      normalize('Magikarp &amp; Wailord GX #161').includes(normalize('Magikarp & Wailord-GX'))
     ).toBe(true);
   });
 
@@ -370,7 +398,9 @@ describe('HTML entity decoding for match verification', () => {
 describe('titleIncludesSet', () => {
   it('requires set tokens in the listing title', () => {
     expect(titleIncludesSet('Charizard Base Set 2 #4 PSA 10', 'Base Set 2')).toBe(true);
-    expect(titleIncludesSet('Charizard ex 199/165 SV 151 SIR PSA 10', 'Obsidian Flames')).toBe(false);
+    expect(titleIncludesSet('Charizard ex 199/165 SV 151 SIR PSA 10', 'Obsidian Flames')).toBe(
+      false
+    );
     expect(titleIncludesSet('2008 Stormfront Holo Charizard #103 PSA 10', 'Stormfront')).toBe(true);
   });
 });

@@ -30,7 +30,9 @@ export class SetCodeService {
       if (this.catalogSetIds.size === 0) {
         await this.loadCatalogSetIds();
       }
-      logger.debug('SetCodeService already initialized with ' + this.dynamicSetMap.size + ' mappings');
+      logger.debug(
+        'SetCodeService already initialized with ' + this.dynamicSetMap.size + ' mappings'
+      );
       return;
     }
 
@@ -55,7 +57,7 @@ export class SetCodeService {
     try {
       logger.info('Loading Pokemon TCG sets from API...');
       const allSets = await pokemonApiClient.getSets(1000);
-      
+
       if (allSets.length === 0) {
         logger.error('❌ Pokemon TCG API returned 0 sets! This will cause image loading issues.');
         throw new Error('Pokemon TCG API returned no sets');
@@ -71,15 +73,17 @@ export class SetCodeService {
 
       this.initialized = true;
       this.lastRefresh = Date.now();
-      logger.info(`✅ Loaded ${allSets.length} sets, created ${this.dynamicSetMap.size} mappings from Pokemon TCG API`);
-      
+      logger.info(
+        `✅ Loaded ${allSets.length} sets, created ${this.dynamicSetMap.size} mappings from Pokemon TCG API`
+      );
+
       // Log first 10 mappings for debugging
       const sampleMappings = Array.from(this.dynamicSetMap.entries()).slice(0, 10);
       logger.info(`Sample mappings: ${JSON.stringify(sampleMappings)}`);
     } catch (error) {
-      logger.error('❌ Failed to load sets from Pokemon TCG API', { 
+      logger.error('❌ Failed to load sets from Pokemon TCG API', {
         error: (error as Error).message,
-        stack: (error as Error).stack
+        stack: (error as Error).stack,
       });
       const localFallbackCount = await this.loadSetsFromLocalCatalog();
       if (localFallbackCount > 0) {
@@ -100,9 +104,7 @@ export class SetCodeService {
     return (
       this.setById.get(setId) ||
       this.setById.get(setId.toLowerCase()) ||
-      [...this.setById.values()].find(
-        (set) => set.id.toLowerCase() === setId.toLowerCase()
-      )
+      [...this.setById.values()].find((set) => set.id.toLowerCase() === setId.toLowerCase())
     );
   }
 
@@ -179,9 +181,10 @@ export class SetCodeService {
 
   private async loadSetsFromLocalCatalog(): Promise<number> {
     const db = getDb();
-    const localSets = await new Promise<Array<{ setId: string; setName: string }>>((resolve, reject) => {
-      db.all(
-        `SELECT DISTINCT setId, setName
+    const localSets = await new Promise<Array<{ setId: string; setName: string }>>(
+      (resolve, reject) => {
+        db.all(
+          `SELECT DISTINCT setId, setName
          FROM catalog_cards
          WHERE setId IS NOT NULL AND setId <> ''
            AND setName IS NOT NULL AND setName <> ''
@@ -190,13 +193,14 @@ export class SetCodeService {
          FROM card_mappings
          WHERE setId IS NOT NULL AND setId <> ''
            AND setName IS NOT NULL AND setName <> ''`,
-        [],
-        (err, rows: any[]) => {
-          if (err) reject(err);
-          else resolve((rows || []) as Array<{ setId: string; setName: string }>);
-        }
-      );
-    }).catch((err) => {
+          [],
+          (err, rows: any[]) => {
+            if (err) reject(err);
+            else resolve((rows || []) as Array<{ setId: string; setName: string }>);
+          }
+        );
+      }
+    ).catch((err) => {
       logger.error('Failed to load local set mappings', { error: (err as Error).message });
       return [];
     });
@@ -281,9 +285,7 @@ export class SetCodeService {
       return resolved;
     }
 
-    logger.debug(
-      `No catalog/API set mapping for "${setId}"${setName ? ` (${setName})` : ''}`
-    );
+    logger.debug(`No catalog/API set mapping for "${setId}"${setName ? ` (${setName})` : ''}`);
     return null;
   }
 
@@ -341,8 +343,10 @@ export class SetCodeService {
     }
 
     const imageUrl = `https://images.pokemontcg.io/${normalizedSet}/${normalizedCardNumber}.png`;
-    logger.debug(`Built deterministic image URL: ${imageUrl} (from setId: ${setId}, cardNumber: ${cardNumber} -> normalized: ${normalizedCardNumber})`);
-    
+    logger.debug(
+      `Built deterministic image URL: ${imageUrl} (from setId: ${setId}, cardNumber: ${cardNumber} -> normalized: ${normalizedCardNumber})`
+    );
+
     return {
       small: imageUrl,
       large: imageUrl, // Use same URL for both

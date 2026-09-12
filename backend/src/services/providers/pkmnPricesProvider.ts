@@ -49,19 +49,19 @@ function mapSetIdToSearchPattern(setId: string, setName: string): string {
   // PkmnPrices uses set names like "ME: Ascended Heroes" for Mega Evolution sets
   // The PokemonTCG API uses IDs like "me2pt5"
   const setPatterns: Record<string, string> = {
-    'me1': 'ME: Mega Evolution',
-    'me2': 'ME: Phantasmal Flames',
-    'me2pt5': 'ME: Ascended Heroes',
-    'me3': 'ME: Perfect Order',
-    'me4': 'ME: Chaos Rising',
-    'me5': 'ME: Pitch Black',
-    'sv8pt5': 'SV: Prismatic Evolutions',
-    'sv8': 'SV: Surging Sparks',
-    'sv7': 'SV: Paldean Fates',
-    'sv6': 'SV: Obsidian Flames',
-    'sv5': 'SV: 151',
-    'sv4': 'SV: Paldea Evolved',
-    'sv3': 'SV: Scarlet & Violet',
+    me1: 'ME: Mega Evolution',
+    me2: 'ME: Phantasmal Flames',
+    me2pt5: 'ME: Ascended Heroes',
+    me3: 'ME: Perfect Order',
+    me4: 'ME: Chaos Rising',
+    me5: 'ME: Pitch Black',
+    sv8pt5: 'SV: Prismatic Evolutions',
+    sv8: 'SV: Surging Sparks',
+    sv7: 'SV: Paldean Fates',
+    sv6: 'SV: Obsidian Flames',
+    sv5: 'SV: 151',
+    sv4: 'SV: Paldea Evolved',
+    sv3: 'SV: Scarlet & Violet',
   };
 
   return setPatterns[setId] || setName;
@@ -97,7 +97,7 @@ export class PkmnPricesMarketProvider implements MarketPriceProvider {
     try {
       const response = await fetch(url, {
         headers: {
-          'Accept': 'application/json',
+          Accept: 'application/json',
           'X-API-Key': this.config.apiKey,
         },
         signal: controller.signal,
@@ -111,7 +111,11 @@ export class PkmnPricesMarketProvider implements MarketPriceProvider {
   /**
    * Search for a card by name and set to find the PkmnPrices card ID.
    */
-  private async searchCard(cardName: string, setId: string, setName: string): Promise<number | null> {
+  private async searchCard(
+    cardName: string,
+    setId: string,
+    setName: string
+  ): Promise<number | null> {
     const cacheKey = `${cardName}:${setId}`;
     if (this.cardIdCache.has(cacheKey)) {
       return this.cardIdCache.get(cacheKey)!;
@@ -136,7 +140,7 @@ export class PkmnPricesMarketProvider implements MarketPriceProvider {
         return null;
       }
 
-      const result = await response.json() as PkmnPricesSearchResult;
+      const result = (await response.json()) as PkmnPricesSearchResult;
 
       if (!result.data || result.data.length === 0) {
         return null;
@@ -144,7 +148,7 @@ export class PkmnPricesMarketProvider implements MarketPriceProvider {
 
       // Find the best match - prefer exact name match
       const exactMatch = result.data.find(
-        card => card.name.toLowerCase() === cardName.toLowerCase()
+        (card) => card.name.toLowerCase() === cardName.toLowerCase()
       );
       const bestMatch = exactMatch || result.data[0];
 
@@ -181,7 +185,7 @@ export class PkmnPricesMarketProvider implements MarketPriceProvider {
         throw new Error(`PkmnPrices card fetch failed (${response.status})`);
       }
 
-      return await response.json() as PkmnPricesCard;
+      return (await response.json()) as PkmnPricesCard;
     } catch (error) {
       if ((error as Error).name === 'AbortError') {
         return null;
@@ -190,7 +194,12 @@ export class PkmnPricesMarketProvider implements MarketPriceProvider {
     }
   }
 
-  async getSnapshotForCard(cardId: string, cardName?: string, setId?: string, setName?: string): Promise<MarketPriceSnapshot | null> {
+  async getSnapshotForCard(
+    cardId: string,
+    cardName?: string,
+    setId?: string,
+    setName?: string
+  ): Promise<MarketPriceSnapshot | null> {
     if (!this.enabled) {
       return null;
     }
@@ -217,8 +226,8 @@ export class PkmnPricesMarketProvider implements MarketPriceProvider {
 
       // Step 3: Convert to MarketPriceSnapshot format
       const points = card.prices
-        .filter(price => price.source === 'tcgplayer' && price.market_price > 0)
-        .map(price => {
+        .filter((price) => price.source === 'tcgplayer' && price.market_price > 0)
+        .map((price) => {
           const variantKey = normalizeVariantKey(price.variant || 'normal');
           return {
             variantKey,
@@ -230,7 +239,7 @@ export class PkmnPricesMarketProvider implements MarketPriceProvider {
             volume: undefined,
           };
         })
-        .filter(point => point.marketPrice > 0);
+        .filter((point) => point.marketPrice > 0);
 
       if (points.length === 0) {
         return null;

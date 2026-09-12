@@ -64,7 +64,8 @@ export class SetCalendarScraper implements SignalScraper {
 
         const text = $(el).text().replace(/\s+/g, ' ').trim();
         if (text.length < 20 || text.length > 500) return;
-        if (!/scarlet|violet|tcg|trading card|expansion|collection|elite trainer/i.test(text)) return;
+        if (!/scarlet|violet|tcg|trading card|expansion|collection|elite trainer/i.test(text))
+          return;
 
         const releaseDate = parseTextDate(text);
         if (!releaseDate) return;

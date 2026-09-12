@@ -113,7 +113,10 @@ export function parseRawCardCondition(input: {
   return pack('unknown', 'default');
 }
 
-function pack(condition: RawCardCondition, source: ParsedRawCondition['source']): ParsedRawCondition {
+function pack(
+  condition: RawCardCondition,
+  source: ParsedRawCondition['source']
+): ParsedRawCondition {
   return {
     condition,
     label: RAW_CONDITION_LABELS[condition],

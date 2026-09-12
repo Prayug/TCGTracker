@@ -170,23 +170,28 @@ export const createAuthRouter = (authService: AuthService) => {
     }
   });
 
-  router.put('/update', authenticate, validate(updateUserSchema), async (req: AuthRequest, res: Response) => {
-    try {
-      const updates = req.body;
-      const user = await authService.updateUser(req.user!.id, updates);
-      if (updates.email && !user.email_verified) {
-        clearAuthCookie(res);
-        return res.json({
-          user,
-          requiresVerification: true,
-          message: 'Email updated. Please verify the new address before signing in again.',
-        });
+  router.put(
+    '/update',
+    authenticate,
+    validate(updateUserSchema),
+    async (req: AuthRequest, res: Response) => {
+      try {
+        const updates = req.body;
+        const user = await authService.updateUser(req.user!.id, updates);
+        if (updates.email && !user.email_verified) {
+          clearAuthCookie(res);
+          return res.json({
+            user,
+            requiresVerification: true,
+            message: 'Email updated. Please verify the new address before signing in again.',
+          });
+        }
+        res.json({ user });
+      } catch (error: any) {
+        res.status(400).json({ error: error.message });
       }
-      res.json({ user });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
     }
-  });
+  );
 
   router.post(
     '/change-password',

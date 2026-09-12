@@ -89,17 +89,11 @@ export async function getHorizonSupportStatus(force = false): Promise<HorizonSup
   return cachedStatus;
 }
 
-export function isHorizonSupported(
-  status: HorizonSupportStatus,
-  days: HorizonDays
-): boolean {
+export function isHorizonSupported(status: HorizonSupportStatus, days: HorizonDays): boolean {
   return status.supported.includes(days);
 }
 
-export function isHorizonExperimental(
-  status: HorizonSupportStatus,
-  days: HorizonDays
-): boolean {
+export function isHorizonExperimental(status: HorizonSupportStatus, days: HorizonDays): boolean {
   return status.experimental.includes(days);
 }
 
@@ -112,15 +106,17 @@ export function windowToHorizonDays(window: PredictionWindow): HorizonDays {
  * Null out expected returns / bands for horizons the DB cannot honestly support.
  * Experimental horizons are kept but callers should surface the flag.
  */
-export function applyHorizonHonesty<T extends {
-  expected7dReturn?: number | null;
-  expected30dReturn?: number | null;
-  expected90dReturn?: number | null;
-  expected180dReturn?: number | null;
-  expected365dReturn?: number | null;
-  predicted180d?: { low: number; mid: number; high: number } | null;
-  predicted365d?: { low: number; mid: number; high: number } | null;
-}>(prediction: T, status: HorizonSupportStatus): T & { horizonSupport?: HorizonSupportStatus } {
+export function applyHorizonHonesty<
+  T extends {
+    expected7dReturn?: number | null;
+    expected30dReturn?: number | null;
+    expected90dReturn?: number | null;
+    expected180dReturn?: number | null;
+    expected365dReturn?: number | null;
+    predicted180d?: { low: number; mid: number; high: number } | null;
+    predicted365d?: { low: number; mid: number; high: number } | null;
+  },
+>(prediction: T, status: HorizonSupportStatus): T & { horizonSupport?: HorizonSupportStatus } {
   const out = { ...prediction, horizonSupport: status };
   if (status.unsupported.includes(180)) {
     out.expected180dReturn = null;

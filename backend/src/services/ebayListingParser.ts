@@ -52,12 +52,24 @@ const RISK_PATTERNS: Array<{ re: RegExp; flag: DealRiskFlag }> = [
   { re: /\b(proxy|proxies|fake|counterfeit|bootleg)\b/i, flag: 'possible_proxy_card' },
   { re: /\b(custom|handmade|altered art|fan[\s-]?art)\b/i, flag: 'possible_custom_card' },
   { re: /\b(reproduction|replica)\b/i, flag: 'possible_authenticity_issue' },
-  { re: /\b(digital|code\s*card|ptcgo|ptcgl|tcg\s*live|online\s*code)\b/i, flag: 'possible_digital_item' },
+  {
+    re: /\b(digital|code\s*card|ptcgo|ptcgl|tcg\s*live|online\s*code)\b/i,
+    flag: 'possible_digital_item',
+  },
   { re: /\bempty\s*(box|case|tin)\b|\bno\s+cards?\b/i, flag: 'possible_empty_box' },
   { re: /\b(case\s*only|slab\s*only|holder\s*only)\b/i, flag: 'possible_case_only' },
-  { re: /\b(lot\s+of|lots?\s+of|\d+\s*x\s*\d|\bbundle\b|wholesale\s+lot)\b/i, flag: 'possible_lot' },
-  { re: /\b(booster\s*pack|sealed\s+pack|\betb\b|elite\s+trainer|booster\s*box)\b/i, flag: 'possible_pack' },
-  { re: /\b(damaged|creased|heavily\s+played|\bhp\b|water\s+damage|bent|torn)\b/i, flag: 'possible_damaged' },
+  {
+    re: /\b(lot\s+of|lots?\s+of|\d+\s*x\s*\d|\bbundle\b|wholesale\s+lot)\b/i,
+    flag: 'possible_lot',
+  },
+  {
+    re: /\b(booster\s*pack|sealed\s+pack|\betb\b|elite\s+trainer|booster\s*box)\b/i,
+    flag: 'possible_pack',
+  },
+  {
+    re: /\b(damaged|creased|heavily\s+played|\bhp\b|water\s+damage|bent|torn)\b/i,
+    flag: 'possible_damaged',
+  },
 ];
 
 const JP_SIGNAL_RE =

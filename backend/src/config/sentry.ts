@@ -8,9 +8,7 @@ export const initSentry = () => {
       dsn: env.sentry.dsn,
       environment: env.sentry.environment,
       tracesSampleRate: 0.2,
-      integrations: [
-        new Sentry.Integrations.Http({ tracing: true }),
-      ],
+      integrations: [new Sentry.Integrations.Http({ tracing: true })],
     });
 
     logger.info('Sentry initialized for backend error tracking');
@@ -18,4 +16,3 @@ export const initSentry = () => {
 };
 
 export { Sentry };
-

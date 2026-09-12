@@ -89,11 +89,7 @@ export const stripOpNameDecorators = (name?: string | null): string =>
     .trim();
 
 const hayOf = (...parts: Array<string | null | undefined>): string =>
-  parts
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
-    .replace(/[_./]/g, ' ');
+  parts.filter(Boolean).join(' ').toLowerCase().replace(/[_./]/g, ' ');
 
 /**
  * Anniversary / tournament reprints that share a collector number with a
@@ -174,10 +170,7 @@ export const expectedOpPrintFamily = (input: {
 };
 
 /** Print family from a PriceCharting title / URL. */
-export const detectOpPrintFamily = (
-  title?: string | null,
-  url?: string | null
-): OpPrintFamily => {
+export const detectOpPrintFamily = (title?: string | null, url?: string | null): OpPrintFamily => {
   const hay = hayOf(title, url);
   const special = detectOpSpecialReprintFamily(hay);
   if (special) return special;
@@ -185,20 +178,14 @@ export const detectOpPrintFamily = (
   if (/\bmanga\b/.test(hay)) return 'manga';
   if (/\bwanted\b/.test(hay)) return 'wanted';
   if (/treasure[\s-]*rare/.test(hay) || /\[tr\]/.test(hay)) return 'tr';
-  if (
-    /alt[\s-]*art/.test(hay) ||
-    /alternate[\s-]*art/.test(hay) ||
-    /\bparallel\b/.test(hay)
-  ) {
+  if (/alt[\s-]*art/.test(hay) || /alternate[\s-]*art/.test(hay) || /\bparallel\b/.test(hay)) {
     return 'parallel';
   }
   return 'standard';
 };
 
-export const opPrintFamiliesMatch = (
-  expected: OpPrintFamily,
-  detected: OpPrintFamily
-): boolean => expected === detected;
+export const opPrintFamiliesMatch = (expected: OpPrintFamily, detected: OpPrintFamily): boolean =>
+  expected === detected;
 
 export const opFamilySearchTerms = (family: OpPrintFamily): string => {
   switch (family) {

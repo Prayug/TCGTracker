@@ -7,15 +7,13 @@ import {
 
 describe('resolveListingPrice', () => {
   it('keeps a coherent market quote', () => {
-    expect(
-      resolveListingPrice({ market: 3998.99, mid: 4999.98, low: 1650, high: 6504.97 })
-    ).toBe(3998.99);
+    expect(resolveListingPrice({ market: 3998.99, mid: 4999.98, low: 1650, high: 6504.97 })).toBe(
+      3998.99
+    );
   });
 
   it('rejects junk market far below low and falls back to mid', () => {
-    expect(
-      resolveListingPrice({ market: 19.99, mid: 7583, low: 6165.99, high: 9000 })
-    ).toBe(7583);
+    expect(resolveListingPrice({ market: 19.99, mid: 7583, low: 6165.99, high: 9000 })).toBe(7583);
   });
 
   it('uses mid when market is missing', () => {
@@ -23,15 +21,15 @@ describe('resolveListingPrice', () => {
   });
 
   it('prefers sane market over ask-wall mid', () => {
-    expect(
-      resolveListingPrice({ market: 1150, mid: 19999.99, low: 749.99, high: 21999.99 })
-    ).toBe(1150);
+    expect(resolveListingPrice({ market: 1150, mid: 19999.99, low: 749.99, high: 21999.99 })).toBe(
+      1150
+    );
   });
 
   it('skips ask-wall mid and falls back to low when market is missing', () => {
-    expect(
-      resolveListingPrice({ market: null, mid: 19999.99, low: 749.99, high: 21999.99 })
-    ).toBe(749.99);
+    expect(resolveListingPrice({ market: null, mid: 19999.99, low: 749.99, high: 21999.99 })).toBe(
+      749.99
+    );
   });
 
   it('averages low/high only when the band is tight', () => {

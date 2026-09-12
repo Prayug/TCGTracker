@@ -114,7 +114,13 @@ describe('investmentSignalEnrichment', () => {
   it('detects market confirmation from price metrics', () => {
     expect(
       hasMarketConfirmation(
-        { price7dPct: 5, price30dPct: null, volumeChangePct: null, liquidityTier: null, liquidityLabel: null },
+        {
+          price7dPct: 5,
+          price30dPct: null,
+          volumeChangePct: null,
+          liquidityTier: null,
+          liquidityLabel: null,
+        },
         []
       )
     ).toBe(true);

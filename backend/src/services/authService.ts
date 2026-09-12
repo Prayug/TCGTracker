@@ -53,11 +53,9 @@ function get<T>(db: Database, sql: string, params: unknown[] = []): Promise<T | 
 }
 
 function signToken(user: { id: number; email: string; username: string }): string {
-  return jwt.sign(
-    { id: user.id, email: user.email, username: user.username },
-    env.jwt.secret,
-    { expiresIn: env.jwt.expiresIn } as SignOptions
-  );
+  return jwt.sign({ id: user.id, email: user.email, username: user.username }, env.jwt.secret, {
+    expiresIn: env.jwt.expiresIn,
+  } as SignOptions);
 }
 
 function buildVerificationLink(token: string): string {
@@ -167,7 +165,11 @@ export class AuthService {
     return { emailSent, verifyUrl };
   }
 
-  async register(username: string, email: string, password: string): Promise<{
+  async register(
+    username: string,
+    email: string,
+    password: string
+  ): Promise<{
     user: PublicUser;
     requiresVerification: true;
     emailSent: boolean;
@@ -209,7 +211,10 @@ export class AuthService {
     };
   }
 
-  async login(email: string, password: string): Promise<{
+  async login(
+    email: string,
+    password: string
+  ): Promise<{
     user: PublicUser;
     token: string;
   }> {

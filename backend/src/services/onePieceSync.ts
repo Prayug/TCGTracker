@@ -78,76 +78,76 @@ export const syncOnePieceData = async (): Promise<SyncOnePieceResult> => {
   const result = await withDbJobLock(
     'onepiece_sync',
     async () => {
-    const runDate = getRunDateEst();
-    let cardsUpserted = 0;
-    let pricesRecorded = 0;
+      const runDate = getRunDateEst();
+      let cardsUpserted = 0;
+      let pricesRecorded = 0;
 
-    const db = getDb();
-    logger.info('One Piece sync: fetching full catalog (sets + ST + promos + Don!!)...');
-    const rawCards = await getAllOptcgCards(true);
-    logger.info(`One Piece sync: ${rawCards.length} cards fetched from OPTCG`);
+      const db = getDb();
+      logger.info('One Piece sync: fetching full catalog (sets + ST + promos + Don!!)...');
+      const rawCards = await getAllOptcgCards(true);
+      logger.info(`One Piece sync: ${rawCards.length} cards fetched from OPTCG`);
 
-    await new Promise<void>((resolve, reject) => {
-      db.serialize(() => {
-        db.run('BEGIN TRANSACTION');
-        const catalogStmt = db.prepare(upsertCatalogCardSql);
-        const priceStmt = db.prepare(upsertPriceHistorySql);
+      await new Promise<void>((resolve, reject) => {
+        db.serialize(() => {
+          db.run('BEGIN TRANSACTION');
+          const catalogStmt = db.prepare(upsertCatalogCardSql);
+          const priceStmt = db.prepare(upsertPriceHistorySql);
 
-        try {
-          for (const raw of rawCards) {
-            const card = mapRawToCatalogFields(raw);
-            catalogStmt.run([
-              card.catalogId,
-              card.cardSetId,
-              card.cardImageId,
-              card.cardName,
-              card.setId,
-              card.setName,
-              card.rarity,
-              card.cardColor,
-              card.cardType,
-              card.cardCost,
-              card.cardPower,
-              card.counterAmount,
-              card.life,
-              card.subTypes,
-              card.attribute,
-              card.cardText,
-              card.imageUrl,
-              card.marketPrice,
-              card.inventoryPrice,
-            ]);
-            cardsUpserted += 1;
+          try {
+            for (const raw of rawCards) {
+              const card = mapRawToCatalogFields(raw);
+              catalogStmt.run([
+                card.catalogId,
+                card.cardSetId,
+                card.cardImageId,
+                card.cardName,
+                card.setId,
+                card.setName,
+                card.rarity,
+                card.cardColor,
+                card.cardType,
+                card.cardCost,
+                card.cardPower,
+                card.counterAmount,
+                card.life,
+                card.subTypes,
+                card.attribute,
+                card.cardText,
+                card.imageUrl,
+                card.marketPrice,
+                card.inventoryPrice,
+              ]);
+              cardsUpserted += 1;
 
-            if (card.marketPrice != null || card.inventoryPrice != null) {
-              priceStmt.run([card.catalogId, runDate, card.marketPrice, card.inventoryPrice]);
-              pricesRecorded += 1;
+              if (card.marketPrice != null || card.inventoryPrice != null) {
+                priceStmt.run([card.catalogId, runDate, card.marketPrice, card.inventoryPrice]);
+                pricesRecorded += 1;
+              }
             }
+
+            catalogStmt.finalize();
+            priceStmt.finalize();
+            db.run('COMMIT', (commitErr) => {
+              if (commitErr) reject(commitErr);
+              else resolve();
+            });
+          } catch (err) {
+            catalogStmt.finalize();
+            priceStmt.finalize();
+            db.run('ROLLBACK', () => reject(err));
           }
-
-          catalogStmt.finalize();
-          priceStmt.finalize();
-          db.run('COMMIT', (commitErr) => {
-            if (commitErr) reject(commitErr);
-            else resolve();
-          });
-        } catch (err) {
-          catalogStmt.finalize();
-          priceStmt.finalize();
-          db.run('ROLLBACK', () => reject(err));
-        }
+        });
       });
-    });
 
-    await runDb(
-      db,
-      `INSERT INTO sync_runs (runType, runDate, status, totalPricesProcessed, message, completedAt)
+      await runDb(
+        db,
+        `INSERT INTO sync_runs (runType, runDate, status, totalPricesProcessed, message, completedAt)
        VALUES ('onepiece_sync', ?, 'completed', ?, ?, datetime('now'))`,
-      [runDate, pricesRecorded, `Full catalog: ${cardsUpserted} cards`]
-    );
+        [runDate, pricesRecorded, `Full catalog: ${cardsUpserted} cards`]
+      );
 
-    logger.info('One Piece sync completed', { cardsUpserted, pricesRecorded, runDate });
-    return { setsProcessed: 1, cardsUpserted, pricesRecorded, runDate };
+      logger.info('One Piece sync completed', { cardsUpserted, pricesRecorded, runDate });
+      return { setsProcessed: 1, cardsUpserted, pricesRecorded, runDate };
     },
     { skipIfBusy: true }
   );

@@ -92,7 +92,7 @@ export function computeHitRate(
     const error = Math.abs(s.predicted - actual);
     // Reward only predictions that were directionally right AND close enough
     // relative to the actual move. Near-zero predictions on flat cards don't count.
-    const sameDirection = (s.predicted > 0) === (actual > 0);
+    const sameDirection = s.predicted > 0 === actual > 0;
     const target = Math.max(Math.abs(actual), minMove);
     if (sameDirection && error < thresholdFactor * target) hits++;
   }
@@ -100,18 +100,18 @@ export function computeHitRate(
 }
 
 export function computeDirectionalAccuracy(samples: Sample[]): number | null {
-  const valid = samples.filter(
-    (s) => s.actual !== null && s.actual !== 0 && s.predicted !== 0
-  );
+  const valid = samples.filter((s) => s.actual !== null && s.actual !== 0 && s.predicted !== 0);
   if (valid.length === 0) return null;
-  const correct = valid.filter((s) => (s.predicted > 0) === ((s.actual as number) > 0)).length;
+  const correct = valid.filter((s) => s.predicted > 0 === (s.actual as number) > 0).length;
   return correct / valid.length;
 }
 
 export function computeMae(samples: Sample[]): number | null {
   const valid = samples.filter((s) => s.actual !== null);
   if (valid.length === 0) return null;
-  return valid.reduce((sum, s) => sum + Math.abs(s.predicted - (s.actual as number)), 0) / valid.length;
+  return (
+    valid.reduce((sum, s) => sum + Math.abs(s.predicted - (s.actual as number)), 0) / valid.length
+  );
 }
 
 export function computeBias(samples: Sample[]): number | null {

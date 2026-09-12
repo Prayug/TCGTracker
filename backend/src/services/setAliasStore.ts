@@ -60,7 +60,10 @@ export async function syncSetIdAliases(): Promise<number> {
   return upserted;
 }
 
-export async function getCatalogSetIdsForSource(sourceSetId: string, setName?: string): Promise<string[]> {
+export async function getCatalogSetIdsForSource(
+  sourceSetId: string,
+  setName?: string
+): Promise<string[]> {
   const rows = await dbAll<{ catalogSetId: string }>(
     `SELECT catalogSetId FROM set_id_aliases WHERE sourceSetId = ?`,
     [sourceSetId]

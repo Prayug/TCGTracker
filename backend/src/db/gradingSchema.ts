@@ -43,13 +43,21 @@ export interface GradingResultDTO {
     details: string;
     deviations: { leftRight: number; topBottom: number };
     defects: string[];
-    crops?: Array<{ label: string; image: string; location?: { x: number; y: number; width: number; height: number } }>;
+    crops?: Array<{
+      label: string;
+      image: string;
+      location?: { x: number; y: number; width: number; height: number };
+    }>;
   };
   corners: {
     score: number | null;
     details: string;
     defects: string[];
-    crops?: Array<{ label: string; image: string; location?: { x: number; y: number; width: number; height: number } }>;
+    crops?: Array<{
+      label: string;
+      image: string;
+      location?: { x: number; y: number; width: number; height: number };
+    }>;
     deviations?: Record<string, unknown>;
     withheld?: boolean;
     withheldReason?: string;
@@ -63,7 +71,11 @@ export interface GradingResultDTO {
     score: number | null;
     details: string;
     defects: string[];
-    crops?: Array<{ label: string; image: string; location?: { x: number; y: number; width: number; height: number } }>;
+    crops?: Array<{
+      label: string;
+      image: string;
+      location?: { x: number; y: number; width: number; height: number };
+    }>;
     deviations?: Record<string, unknown>;
     withheld?: boolean;
     withheldReason?: string;
@@ -77,7 +89,11 @@ export interface GradingResultDTO {
     score: number | null;
     details: string;
     defects: string[];
-    crops?: Array<{ label: string; image: string; location?: { x: number; y: number; width: number; height: number } }>;
+    crops?: Array<{
+      label: string;
+      image: string;
+      location?: { x: number; y: number; width: number; height: number };
+    }>;
     withheld?: boolean;
     withheldReason?: string;
     confidence?: number;
@@ -144,20 +160,14 @@ export function rowToGradingResult(row: GradingResultRow): GradingResultDTO {
     surface?: string[];
   }>(row.defects, {});
 
-  const deviations = parseJson<Record<string, unknown>>(
-    row.deviations,
-    { leftRight: 0, topBottom: 0 }
-  );
+  const deviations = parseJson<Record<string, unknown>>(row.deviations, {
+    leftRight: 0,
+    topBottom: 0,
+  });
 
-  const defectRegions = parseJson<GradingResultDTO['defectRegions']>(
-    row.defect_regions,
-    undefined
-  );
+  const defectRegions = parseJson<GradingResultDTO['defectRegions']>(row.defect_regions, undefined);
 
-  const fullResult = parseJson<Record<string, unknown> | null>(
-    row.full_result,
-    null
-  );
+  const fullResult = parseJson<Record<string, unknown> | null>(row.full_result, null);
 
   // If fullResult has front/back structure, use it
   const front = fullResult?.front as Record<string, unknown> | undefined;
@@ -178,7 +188,7 @@ export function rowToGradingResult(row: GradingResultRow): GradingResultDTO {
       score: (frontCentering?.score as number) ?? row.centering_score,
       details: (frontCentering?.details as string) || row.centering_details || '',
       deviations: (frontCentering?.deviations as { leftRight: number; topBottom: number }) ||
-        deviations as { leftRight: number; topBottom: number } || { leftRight: 0, topBottom: 0 },
+        (deviations as { leftRight: number; topBottom: number }) || { leftRight: 0, topBottom: 0 },
       defects: (frontCentering?.defects as string[]) || defects.centering || [],
       crops: frontCentering?.crops as GradingResultDTO['centering']['crops'],
     },

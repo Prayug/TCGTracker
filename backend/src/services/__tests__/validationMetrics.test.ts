@@ -36,11 +36,11 @@ describe('validation metrics', () => {
   it('hit rate only rewards directionally-correct predictions with small relative error', () => {
     const samples: Sample[] = [
       // direction correct, error small relative to move -> hit
-      { predicted: 0.10, actual: 0.08 },
+      { predicted: 0.1, actual: 0.08 },
       // direction correct but error large relative to move -> miss
-      { predicted: 0.30, actual: 0.05 },
+      { predicted: 0.3, actual: 0.05 },
       // wrong direction -> miss
-      { predicted: -0.05, actual: 0.20 },
+      { predicted: -0.05, actual: 0.2 },
       // tiny actual move with small error: needs |error| < 0.5 * max(|actual|, 3%) -> error 0.01 < 0.015 -> hit
       { predicted: 0.02, actual: 0.01 },
       // near-zero prediction on a big move: error 0.05 vs target 0.025 -> miss
@@ -72,7 +72,7 @@ describe('validation metrics', () => {
 
   it('bias is the median signed difference (positive = overprediction)', () => {
     const samples: Sample[] = [
-      { predicted: 0.10, actual: 0.02 },
+      { predicted: 0.1, actual: 0.02 },
       { predicted: 0.08, actual: 0.05 },
       { predicted: 0.06, actual: 0.04 },
       { predicted: 0.09, actual: 0.01 },
