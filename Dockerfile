@@ -18,16 +18,20 @@ ENV VITE_CARD_SCANNER_API_URL=$VITE_CARD_SCANNER_API_URL
 ENV VITE_ENABLE_AUTH=$VITE_ENABLE_AUTH
 ENV VITE_ENABLE_ANALYTICS=$VITE_ENABLE_ANALYTICS
 ENV VITE_GA_TRACKING_ID=$VITE_GA_TRACKING_ID
-ENV NODE_ENV=production
+# Do not set NODE_ENV=production before npm ci — that omits devDependencies
+# (vite, @types/node, etc.) while `tsc -b` still needs them for the build.
 
-# Copy package files
+# Copy package manifests + local file: dependency before install
 COPY package*.json ./
-RUN npm ci --ignore-scripts
+COPY packages/shared/package*.json ./packages/shared/
+COPY packages/shared ./packages/shared
+# Install full build toolchain (typescript, vite, @types/*), not production-only
+RUN npm ci --include=dev --ignore-scripts
 
 # Copy source code
 COPY . .
 
-# Build the application
+# Build the application (Vite sets production mode via `vite build`)
 RUN npm run build
 
 # Production stage
