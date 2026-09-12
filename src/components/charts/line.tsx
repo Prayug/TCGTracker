@@ -1,45 +1,36 @@
-"use client";
+'use client';
 
-import { curveNatural } from "@visx/curve";
-import { LinePath } from "@visx/shape";
+import { curveNatural } from '@visx/curve';
+import { LinePath } from '@visx/shape';
 
 // CurveFactory type - simplified version compatible with visx
 // biome-ignore lint/suspicious/noExplicitAny: d3 curve factory type
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type CurveFactory = any;
 
-import {
-  type RefObject,
-  useCallback,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { chartCssVars, useChartStable, useYScale } from "./chart-context";
-import type { LoadingStyle } from "./chart-phase";
+import { type RefObject, useCallback, useId, useMemo, useRef, useState } from 'react';
+import { chartCssVars, useChartStable, useYScale } from './chart-context';
+import type { LoadingStyle } from './chart-phase';
 import {
   type FadeEdges,
   fadeGradientStops,
   resolveFadeSides,
   viewportFadeGradientAttrs,
-} from "./fade-edges";
+} from './fade-edges';
 import {
   type LineLoadingPulseMode,
   LineLoadingPulseStroke,
   resolveLineLoadingPulseMode,
-} from "./line-loading-pulse";
-import { LINE_LOADING_LOOP_PAUSE_MS } from "./line-loading-timing";
-import { LineLoadingSweep } from "./loading-sweep";
-import {
-  resolveDashTailBounds,
-  usePathStrokeMetrics,
-} from "./path-stroke-utils";
-import { SeriesDashTailOverlay } from "./series-dash-tail-overlay";
-import { SeriesHighlightLayer } from "./series-highlight-layer";
-import { SeriesHoverDim } from "./series-hover-dim";
-import { SeriesMarkers } from "./series-markers";
-import type { SeriesPointMarkerStyle } from "./series-point-marker";
-import { useAnimatedSeriesPath } from "./use-animated-series-path";
+} from './line-loading-pulse';
+import { LINE_LOADING_LOOP_PAUSE_MS } from './line-loading-timing';
+import { LineLoadingSweep } from './loading-sweep';
+import { resolveDashTailBounds, usePathStrokeMetrics } from './path-stroke-utils';
+import { SeriesDashTailOverlay } from './series-dash-tail-overlay';
+import { SeriesHighlightLayer } from './series-highlight-layer';
+import { SeriesHoverDim } from './series-hover-dim';
+import { SeriesMarkers } from './series-markers';
+import type { SeriesPointMarkerStyle } from './series-point-marker';
+import { useAnimatedSeriesPath } from './use-animated-series-path';
 
 export interface LineProps {
   /** Key in data to use for y values */
@@ -110,7 +101,7 @@ function LineSeriesStroke({
   animatedPathD: string;
   curve: CurveFactory;
   getY: (datum: Record<string, unknown>) => number;
-  pathRef: RefObject<SVGPathElement | null>;
+  pathRef: RefObject<SVGPathElement>;
   renderData: Record<string, unknown>[];
   strokeWidth: number;
   useDataTransitionPath: boolean;
@@ -170,8 +161,7 @@ function LineLoadingOverlays({
   showLoadingPulse: boolean;
   strokeWidth: number;
 }) {
-  const sweepLoading =
-    showLoadingPulse && innerWidth > 0 && loadingStyle === "sweep";
+  const sweepLoading = showLoadingPulse && innerWidth > 0 && loadingStyle === 'sweep';
   const pulseLoading = showLoadingPulse && innerWidth > 0 && !sweepLoading;
 
   return (
@@ -180,7 +170,7 @@ function LineLoadingOverlays({
         <LineLoadingSweep
           curve={curve}
           key="loading-sweep"
-          mode={pulseMode ?? "loop"}
+          mode={pulseMode ?? 'loop'}
           onTransitionComplete={handleLoadingPulseComplete}
           stroke={loadingStroke}
           strokeOpacity={loadingStrokeOpacity}
@@ -215,13 +205,13 @@ export function Line({
   showMarkers = false,
   markers,
   dashFromIndex,
-  dashArray = "6,4",
+  dashArray = '6,4',
   loading,
   loadingStroke = chartCssVars.foreground,
   loadingStrokeOpacity = 0.5,
   loadingPulseMode,
   onLoadingPulseCycleComplete,
-  loadingStyle = "pulse",
+  loadingStyle = 'pulse',
 }: LineProps) {
   // Stable slice only: hover state lives inside `<SeriesHoverDim>` and
   // `<SeriesHighlightLayer>` so this component (and its expensive
@@ -242,7 +232,7 @@ export function Line({
     yDomainTweenDuration,
   } = useChartStable();
   const yScale = useYScale(yAxisId);
-  const useDataTransitionPath = animate && chartPhase === "ready";
+  const useDataTransitionPath = animate && chartPhase === 'ready';
   const { pathD: animatedPathD } = useAnimatedSeriesPath({
     chartPhase,
     curve,
@@ -258,16 +248,14 @@ export function Line({
 
   const phasePulseMode = resolveLineLoadingPulseMode(chartPhase);
   const pulseMode =
-    loading === false
-      ? null
-      : (loadingPulseMode ?? (loading === true ? "loop" : phasePulseMode));
+    loading === false ? null : (loadingPulseMode ?? (loading === true ? 'loop' : phasePulseMode));
   const showLoadingPulse = pulseMode != null;
   const [pulseEpoch, setPulseEpoch] = useState(0);
   const effectiveShowHighlight = showHighlight && !showLoadingPulse;
 
   const handleLoadingPulseComplete = useCallback(() => {
     onLoadingPulseCycleComplete?.();
-    if (pulseMode === "loop") {
+    if (pulseMode === 'loop') {
       window.setTimeout(() => {
         setPulseEpoch((epoch) => epoch + 1);
       }, LINE_LOADING_LOOP_PAUSE_MS);
@@ -296,7 +284,7 @@ export function Line({
   const getY = useCallback(
     (d: Record<string, unknown>) => {
       const value = d[dataKey];
-      return typeof value === "number" ? (yScale(value) ?? 0) : 0;
+      return typeof value === 'number' ? (yScale(value) ?? 0) : 0;
     },
     [dataKey, yScale]
   );
@@ -306,10 +294,8 @@ export function Line({
   const lineStroke = fadeSides.any ? `url(#${gradientId})` : stroke;
   const fadeStops = fadeSides.any ? fadeGradientStops(fadeSides) : null;
   const showSeriesStroke =
-    chartPhase === "revealing" ||
-    chartPhase === "ready" ||
-    chartPhase === "exitingReady";
-  let visibleStroke = "transparent";
+    chartPhase === 'revealing' || chartPhase === 'ready' || chartPhase === 'exitingReady';
+  let visibleStroke = 'transparent';
   if (showSeriesStroke && !hasDashTail) {
     visibleStroke = lineStroke;
   }
@@ -318,10 +304,7 @@ export function Line({
     <>
       {fadeStops ? (
         <defs>
-          <linearGradient
-            id={gradientId}
-            {...viewportFadeGradientAttrs(innerWidth)}
-          >
+          <linearGradient id={gradientId} {...viewportFadeGradientAttrs(innerWidth)}>
             {fadeStops.map((stop) => (
               <stop
                 key={stop.offset}
@@ -333,11 +316,7 @@ export function Line({
         </defs>
       ) : null}
 
-      <SeriesHoverDim
-        dimOpacity={0.3}
-        enabled={effectiveShowHighlight}
-        seriesIndex={seriesIndex}
-      >
+      <SeriesHoverDim dimOpacity={0.3} enabled={effectiveShowHighlight} seriesIndex={seriesIndex}>
         <LineSeriesStroke
           animatedPathD={animatedPathD}
           curve={curve}
@@ -401,6 +380,6 @@ export function Line({
   );
 }
 
-Line.displayName = "Line";
+Line.displayName = 'Line';
 
 export default Line;

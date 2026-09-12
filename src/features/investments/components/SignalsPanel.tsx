@@ -455,6 +455,7 @@ interface Props {
   sort: SignalSort;
   onSortChange: (sort: SignalSort) => void;
   lastUpdated?: Date | null;
+  error?: string | null;
 }
 
 /** Market intelligence feed — enriched signals with metrics, scoring, and drill-down. */
@@ -467,6 +468,7 @@ export function SignalsPanel({
   onDirectionChange,
   sort,
   onSortChange,
+  error,
 }: Props) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const totalCount = data ? Object.values(data.byCategory).reduce((s, n) => s + n, 0) : 0;
@@ -539,6 +541,11 @@ export function SignalsPanel({
 
       {loading ? (
         <PanelLoading />
+      ) : error ? (
+        <EmptyState
+          message={`Unable to load signals: ${error}. The backend may be unavailable.`}
+          isError
+        />
       ) : !data || (actionable.length === 0 && emerging.length === 0) ? (
         <EmptyState message="No signals match your filters. Try broadening signal type or source, or run the signal scraper to populate the feed." />
       ) : (

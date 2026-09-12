@@ -16,6 +16,7 @@ interface Props {
   onDaysChange: (days: 7 | 30 | 90) => void;
   direction: MoverDirection | 'all';
   onDirectionChange: (direction: MoverDirection | 'all') => void;
+  error?: string | null;
 }
 
 const DAY_OPTIONS: (7 | 30 | 90)[] = [7, 30, 90];
@@ -33,6 +34,7 @@ export function SlabMoversPanel({
   onDaysChange,
   direction,
   onDirectionChange,
+  error,
 }: Props) {
   return (
     <div className="space-y-4">
@@ -73,6 +75,11 @@ export function SlabMoversPanel({
 
       {loading ? (
         <PanelLoading />
+      ) : error ? (
+        <EmptyState
+          message={`Unable to load movers: ${error}. The backend may be unavailable.`}
+          isError
+        />
       ) : !data || data.rows.length === 0 ? (
         <EmptyState message="No slab movers found for this window. Movers need at least 3 history points and a $5 or 8% move." />
       ) : (

@@ -128,6 +128,7 @@ export function InvestmentsPage() {
             loading={opportunitiesLoading}
             minScore={minScore}
             onMinScoreChange={setMinScore}
+            error={error}
           />
         )}
         {activeTab === 'movers' && (
@@ -138,9 +139,12 @@ export function InvestmentsPage() {
             onDaysChange={setMoversDays}
             direction={moversDirection}
             onDirectionChange={setMoversDirection}
+            error={error}
           />
         )}
-        {activeTab === 'buyouts' && <BuyoutScannerPanel data={buyouts} loading={buyoutsLoading} />}
+        {activeTab === 'buyouts' && (
+          <BuyoutScannerPanel data={buyouts} loading={buyoutsLoading} error={error} />
+        )}
         {activeTab === 'similar' && (
           <SimilarSlabsPanel
             data={similar}
@@ -148,6 +152,7 @@ export function InvestmentsPage() {
             anchorIds={anchorIds}
             onAnchorIdsChange={setAnchorIds}
             slabLots={slabLots}
+            error={error}
           />
         )}
         {activeTab === 'signals' && (
@@ -160,6 +165,7 @@ export function InvestmentsPage() {
             onDirectionChange={setSignalDirection}
             sort={signalSort}
             onSortChange={setSignalSort}
+            error={error}
           />
         )}
       </motion.div>
