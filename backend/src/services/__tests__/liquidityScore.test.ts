@@ -1,4 +1,3 @@
-import { describe, expect, it } from 'vitest';
 import { scoreLiquidity, filterByMinLiquidity } from '../liquidityScore';
 
 describe('scoreLiquidity', () => {
