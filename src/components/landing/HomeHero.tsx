@@ -45,10 +45,10 @@ export function HomeHero() {
     offset: ['start start', 'end start'],
   });
 
-  const panelY = useTransform(scrollYProgress, [0, 0.55], ['42%', '8%']);
-  const panelScale = useTransform(scrollYProgress, [0, 0.55], [0.92, 1]);
-  const titleOpacity = useTransform(scrollYProgress, [0, 0.35, 0.55], [1, 0.55, 0.15]);
-  const titleY = useTransform(scrollYProgress, [0, 0.55], [0, -48]);
+  const panelY = useTransform(scrollYProgress, [0, 0.55], ['4%', '-6%']);
+  const panelScale = useTransform(scrollYProgress, [0, 0.55], [0.96, 1.02]);
+  const titleOpacity = useTransform(scrollYProgress, [0, 0.3, 0.55], [1, 0.4, 0.08]);
+  const titleY = useTransform(scrollYProgress, [0, 0.55], [0, -64]);
   const glowOpacity = useTransform(scrollYProgress, [0, 0.4], [0.55, 1]);
 
   return (
@@ -86,7 +86,7 @@ export function HomeHero() {
         {/* Pinned brand stage */}
         <motion.div
           style={reduced ? undefined : { opacity: titleOpacity, y: titleY }}
-          className="relative z-10 mx-auto flex max-w-3xl flex-col items-center px-6 pb-[38vh] pt-16 text-center sm:px-8 sm:pb-[42vh]"
+          className="relative z-10 mx-auto flex max-w-3xl flex-col items-center px-6 pb-[32vh] pt-12 text-center sm:px-8 sm:pb-[34vh] sm:pt-14"
         >
           <p className="font-display text-[clamp(3.25rem,11vw,7rem)] font-semibold leading-[0.9] tracking-[-0.035em] text-ink-primary">
             TCG Tracker
