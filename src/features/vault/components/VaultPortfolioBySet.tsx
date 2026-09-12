@@ -46,8 +46,7 @@ export function buildSetPortfolioRows(vaultCards: VaultCard[]): SetPortfolioRow[
 
   for (const row of bySet.values()) {
     row.profit = row.marketValue - row.purchaseValue;
-    row.profitPct =
-      row.purchaseValue > 0 ? (row.profit / row.purchaseValue) * 100 : 0;
+    row.profitPct = row.purchaseValue > 0 ? (row.profit / row.purchaseValue) * 100 : 0;
   }
 
   return [...bySet.values()].sort((a, b) => b.marketValue - a.marketValue);
@@ -92,7 +91,9 @@ export const VaultPortfolioBySet: React.FC<VaultPortfolioBySetProps> = ({
                     {row.setName}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-right tabular-nums text-ink-secondary">{row.cardCount}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-ink-secondary">
+                  {row.cardCount}
+                </td>
                 <td className="px-4 py-3 text-right tabular-nums text-ink-secondary">
                   {formatCurrency(row.purchaseValue)}
                 </td>

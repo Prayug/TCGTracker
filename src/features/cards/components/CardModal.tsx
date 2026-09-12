@@ -16,7 +16,7 @@ export const CardModal: React.FC<CardModalProps> = ({ card, isOpen, onClose }) =
   const formattedDate = new Date(card.set.releaseDate).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
-    day: 'numeric'
+    day: 'numeric',
   });
 
   return (

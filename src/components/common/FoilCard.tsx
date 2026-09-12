@@ -27,10 +27,8 @@ export const FoilCard: React.FC<FoilCardProps> = ({
       const y = (e.clientY - rect.top) / rect.height;
       const tiltX = (y - 0.5) * -16;
       const tiltY = (x - 0.5) * 16;
-      cardRef.current!.style.transform =
-        `perspective(800px) rotateX(${tiltX}deg) rotateY(${tiltY}deg) scale3d(1.03,1.03,1.03)`;
-      cardRef.current!.style.boxShadow =
-        `0 0 20px var(--ring-accent), ${(x - 0.5) * 20}px ${(y - 0.5) * 20}px 30px rgba(0,0,0,0.3)`;
+      cardRef.current!.style.transform = `perspective(800px) rotateX(${tiltX}deg) rotateY(${tiltY}deg) scale3d(1.03,1.03,1.03)`;
+      cardRef.current!.style.boxShadow = `0 0 20px var(--ring-accent), ${(x - 0.5) * 20}px ${(y - 0.5) * 20}px 30px rgba(0,0,0,0.3)`;
     });
   }, []);
 

@@ -29,7 +29,15 @@ describe('packIdentityStats', () => {
 
 describe('getPullTheme', () => {
   const base = {
-    pack: { id: 'p', name: 'Gold Pack', tier: 'gold', price: 500, averageValue: 500, cardsPerPack: 1, valueRanges: [] },
+    pack: {
+      id: 'p',
+      name: 'Gold Pack',
+      tier: 'gold',
+      price: 500,
+      averageValue: 500,
+      cardsPerPack: 1,
+      valueRanges: [],
+    },
     cards: [],
     totalValue: 800,
     profit: 300,
@@ -49,7 +57,9 @@ describe('getPullTheme', () => {
   });
 
   it('uses cyan accents for CGC slabs', () => {
-    expect(getPullTheme({ ...base, pullKind: 'slab', grader: 'CGC', grade: '10' }).kind).toBe('cgc');
+    expect(getPullTheme({ ...base, pullKind: 'slab', grader: 'CGC', grade: '10' }).kind).toBe(
+      'cgc'
+    );
   });
 });
 

@@ -66,25 +66,29 @@ export const usePokemonCards = (): UsePokemonCardsReturn => {
     }
   }, [searchQuery, loadCards]);
 
-  const filteredCards = useMemo(() => cards.filter(card => {
-    if (filterBy === 'all') return true;
-    if (!card.investmentData) return false;
+  const filteredCards = useMemo(
+    () =>
+      cards.filter((card) => {
+        if (filterBy === 'all') return true;
+        if (!card.investmentData) return false;
 
-    switch (filterBy) {
-      case 'undervalued':
-        return card.investmentData.marketAnalysis.isUndervalued;
-      case 'overvalued':
-        return card.investmentData.marketAnalysis.isOvervalued;
-      case 'low-pop':
-        return card.investmentData.psaData.popReport.lowPop;
-      case 'high-return':
-        return card.investmentData.psaData.returnRate > 60;
-      case 'bullish':
-        return card.investmentData.marketAnalysis.trend === 'BULLISH';
-      default:
-        return true;
-    }
-  }), [cards, filterBy]);
+        switch (filterBy) {
+          case 'undervalued':
+            return card.investmentData.marketAnalysis.isUndervalued;
+          case 'overvalued':
+            return card.investmentData.marketAnalysis.isOvervalued;
+          case 'low-pop':
+            return card.investmentData.psaData.popReport.lowPop;
+          case 'high-return':
+            return card.investmentData.psaData.returnRate > 60;
+          case 'bullish':
+            return card.investmentData.marketAnalysis.trend === 'BULLISH';
+          default:
+            return true;
+        }
+      }),
+    [cards, filterBy]
+  );
 
   const sortedCards = useMemo(() => sortCards(filteredCards, sortBy), [filteredCards, sortBy]);
 
@@ -104,6 +108,6 @@ export const usePokemonCards = (): UsePokemonCardsReturn => {
     setSearchQuery,
     setSortBy,
     setFilterBy,
-    refetch
+    refetch,
   };
 };

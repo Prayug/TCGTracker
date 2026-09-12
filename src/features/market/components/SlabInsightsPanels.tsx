@@ -1,13 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import {
-  BookMarked,
-  Droplets,
-  Loader2,
-  Plus,
-  Scale,
-  Trash2,
-  Waves,
-} from 'lucide-react';
+import { BookMarked, Droplets, Loader2, Plus, Scale, Trash2, Waves } from 'lucide-react';
 import {
   CrackRegradeRow,
   fetchCrackRegrade,
@@ -103,9 +95,7 @@ export const PopRegimePanel: React.FC = () => {
               setName={row.setName}
               chip={
                 row.regime !== 'neutral' ? (
-                  <StatusChip
-                    tone={row.regime === 'scarcity_breaking' ? 'loss' : 'gain'}
-                  >
+                  <StatusChip tone={row.regime === 'scarcity_breaking' ? 'loss' : 'gain'}>
                     {row.regime === 'scarcity_breaking' ? 'Breaking' : 'Tightening'}
                   </StatusChip>
                 ) : undefined
@@ -171,7 +161,9 @@ export const GradeLadderPanel: React.FC = () => {
             const path = row.steps
               .filter((s) => s.price != null)
               .map((s) =>
-                s.grade === 'raw' ? `Raw ${formatCurrency(s.price!)}` : `${s.grade} ${formatCurrency(s.price!)}`
+                s.grade === 'raw'
+                  ? `Raw ${formatCurrency(s.price!)}`
+                  : `${s.grade} ${formatCurrency(s.price!)}`
               )
               .join(' → ');
             return (
@@ -180,9 +172,7 @@ export const GradeLadderPanel: React.FC = () => {
                 name={row.cardName || row.cardId}
                 setName={row.setName}
                 chip={
-                  row.psa9Mispriced ? (
-                    <StatusChip tone="amber">9 misprice</StatusChip>
-                  ) : undefined
+                  row.psa9Mispriced ? <StatusChip tone="amber">9 misprice</StatusChip> : undefined
                 }
                 primary={
                   row.expectedNet != null ? (
@@ -195,19 +185,12 @@ export const GradeLadderPanel: React.FC = () => {
                   )
                 }
                 primaryTone={
-                  row.expectedNet == null
-                    ? 'default'
-                    : row.expectedNet >= 0
-                      ? 'gain'
-                      : 'loss'
+                  row.expectedNet == null ? 'default' : row.expectedNet >= 0 ? 'gain' : 'loss'
                 }
                 secondary={
-                  path ||
-                  (row.gemRatePct != null ? `Gem ${row.gemRatePct.toFixed(0)}%` : undefined)
+                  path || (row.gemRatePct != null ? `Gem ${row.gemRatePct.toFixed(0)}%` : undefined)
                 }
-                onClick={() =>
-                  openStubCard(openCard, { ...row, rawPrice: row.rawPrice })
-                }
+                onClick={() => openStubCard(openCard, { ...row, rawPrice: row.rawPrice })}
               />
             );
           })}
@@ -281,8 +264,7 @@ export const CrackRegradePanel: React.FC = () => {
               primaryTone={row.crackEV >= 0 ? 'gain' : 'loss'}
               secondary={
                 <>
-                  {row.altGrader} {formatCurrency(row.altPrice)} → PSA{' '}
-                  {formatCurrency(row.psa10)}
+                  {row.altGrader} {formatCurrency(row.altPrice)} → PSA {formatCurrency(row.psa10)}
                 </>
               }
               onClick={() => openStubCard(openCard, row)}
@@ -506,8 +488,7 @@ export const SlabBookPanel: React.FC = () => {
           {lots.map((lot) => {
             const mark = marks[lot.id];
             const mtm = mark?.price ?? null;
-            const pnl =
-              mtm != null ? (mtm - lot.purchasePrice) * lot.quantity : null;
+            const pnl = mtm != null ? (mtm - lot.purchasePrice) * lot.quantity : null;
             return (
               <div key={lot.id} className="flex items-center gap-1">
                 <div className="min-w-0 flex-1">
@@ -528,9 +509,7 @@ export const SlabBookPanel: React.FC = () => {
                     secondary={
                       <>
                         Cost {formatCurrency(lot.purchasePrice)}
-                        {pnl != null
-                          ? ` · ${pnl >= 0 ? '+' : ''}${formatCurrency(pnl)}`
-                          : ''}
+                        {pnl != null ? ` · ${pnl >= 0 ? '+' : ''}${formatCurrency(pnl)}` : ''}
                       </>
                     }
                     onClick={() =>

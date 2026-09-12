@@ -82,10 +82,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({
     [chartData]
   );
 
-  const yDomain = useMemo(
-    () => computePriceChartDomain(series.map((p) => p.price)),
-    [series]
-  );
+  const yDomain = useMemo(() => computePriceChartDomain(series.map((p) => p.price)), [series]);
 
   if (series.length === 0) {
     return (

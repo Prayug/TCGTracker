@@ -5,15 +5,12 @@ interface ParticleFieldProps {
   className?: string;
 }
 
-export const ParticleField: React.FC<ParticleFieldProps> = ({
-  count = 16,
-  className = '',
-}) => {
+export const ParticleField: React.FC<ParticleFieldProps> = ({ count = 16, className = '' }) => {
   const particles = useMemo(() => {
     return Array.from({ length: count }, (_, i) => ({
       id: i,
       size: 6 + (i % 5) * 3,
-      left: ((i * 6.3 + 17) % 100),
+      left: (i * 6.3 + 17) % 100,
       delay: i * 1.6,
       duration: 20 + (i % 6) * 3,
       opacity: 0.25 + (i % 5) * 0.08,

@@ -107,10 +107,7 @@ function CategoryCard({
                 {defects.length > 0 && (
                   <div className="mb-2 space-y-1">
                     {defects.map((d, i) => (
-                      <div
-                        key={i}
-                        className="flex items-start gap-1.5 text-xs text-ink-secondary"
-                      >
+                      <div key={i} className="flex items-start gap-1.5 text-xs text-ink-secondary">
                         <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-amber-400/70" />
                         {d}
                       </div>
@@ -205,12 +202,7 @@ export const DefectEvidence: React.FC<DefectEvidenceProps> = ({ regions, defects
       </div>
       <div className="space-y-2">
         {(['centering', 'corners', 'edges', 'surface'] as const).map((cat) => (
-          <CategoryCard
-            key={cat}
-            category={cat}
-            regions={grouped[cat]}
-            defects={defectMap[cat]}
-          />
+          <CategoryCard key={cat} category={cat} regions={grouped[cat]} defects={defectMap[cat]} />
         ))}
       </div>
     </div>

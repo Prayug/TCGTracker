@@ -27,9 +27,7 @@ export const PortfolioSnapshot: React.FC<PortfolioSnapshotProps> = ({
         label="Market value"
         value={formatCurrency(stats.currentValue)}
         subValue={
-          stats.totalValue > 0
-            ? `Cost ${formatCurrency(stats.totalValue)}`
-            : 'No cards in vault'
+          stats.totalValue > 0 ? `Cost ${formatCurrency(stats.totalValue)}` : 'No cards in vault'
         }
         trend="neutral"
         size="hero"

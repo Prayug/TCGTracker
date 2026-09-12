@@ -101,10 +101,12 @@ class PriceTrackingService {
   replaceTrackedFromRemote(items: WatchlistSyncItem[]): void {
     const mapped: TrackedCard[] = items.map((item) => {
       const game: Game = item.game === 'onepiece' ? 'onepiece' : 'pokemon';
-      const card = (item.card as TrackableCard | undefined) ?? ({
-        id: item.cardId,
-        name: item.cardName,
-      } as TrackableCard);
+      const card =
+        (item.card as TrackableCard | undefined) ??
+        ({
+          id: item.cardId,
+          name: item.cardName,
+        } as TrackableCard);
       const initialPrice = item.initialPrice ?? getCardPrice(card);
       const addedAt = item.addedAt ?? new Date().toISOString();
       return {

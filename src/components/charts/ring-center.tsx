@@ -1,18 +1,18 @@
-"use client";
+'use client';
 
-import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
+import type { ReactNode } from 'react';
+import { cn } from '@/lib/utils';
 import {
   chartCenterContainerClassName,
   chartCenterLabelClassName,
   chartCenterValueClassName,
-} from "./chart-center-typography";
+} from './chart-center-typography';
 import {
   ChartStatFlow,
   type ChartStatFlowFormat,
   defaultChartStatFlowFormat,
-} from "./chart-stat-flow";
-import { useRingHover, useRingStable } from "./ring-context";
+} from './chart-stat-flow';
+import { useRingHover, useRingStable } from './ring-context';
 
 export interface RingCenterProps {
   /** Label shown below the value. Default: "Total" when not hovering */
@@ -49,10 +49,10 @@ export interface RingCenterProps {
  * on top of the SVG rings.
  */
 export function RingCenter({
-  defaultLabel = "Total",
+  defaultLabel = 'Total',
   formatOptions = defaultChartStatFlowFormat,
   children,
-  className = "",
+  className = '',
   valueClassName = chartCenterValueClassName,
   labelClassName = chartCenterLabelClassName,
   prefix,
@@ -73,11 +73,7 @@ export function RingCenter({
   if (children && hoveredData) {
     return (
       <div
-        className={cn(
-          chartCenterContainerClassName,
-          "flex items-center justify-center",
-          className
-        )}
+        className={cn(chartCenterContainerClassName, 'flex items-center justify-center', className)}
         style={{ width: centerSize, height: centerSize }}
       >
         {children({
@@ -96,7 +92,7 @@ export function RingCenter({
     <div
       className={cn(
         chartCenterContainerClassName,
-        "flex flex-col items-center justify-center text-center",
+        'flex flex-col items-center justify-center text-center',
         className
       )}
       style={{ width: centerSize, height: centerSize }}
@@ -114,6 +110,6 @@ export function RingCenter({
   );
 }
 
-RingCenter.displayName = "RingCenter";
+RingCenter.displayName = 'RingCenter';
 
 export default RingCenter;

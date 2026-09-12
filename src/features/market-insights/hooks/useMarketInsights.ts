@@ -37,7 +37,7 @@ function defaultFiltersForGame(isOnePiece: boolean): PredictionFilters {
     maxPrice: 10000,
     minConfidence: 30,
     rarities: [...AVAILABLE_RARITIES],
-    eras: [...AVAILABLE_ERAS.map(e => e.id)],
+    eras: [...AVAILABLE_ERAS.map((e) => e.id)],
     releaseDateFrom: undefined,
     releaseDateTo: undefined,
   };
@@ -56,7 +56,7 @@ export function useMarketInsights(options?: {
   const api = options?.api ?? marketInsightsApi;
   const { isOnePiece: gameIsOnePiece, game } = useGame();
   const isOnePiece = options?.forcePokemon ? false : gameIsOnePiece;
-  const apiGame = isOnePiece ? 'onepiece' as const : 'pokemon' as const;
+  const apiGame = isOnePiece ? ('onepiece' as const) : ('pokemon' as const);
 
   const DEFAULT_FILTERS = useMemo(
     () => options?.defaultFilters ?? defaultFiltersForGame(isOnePiece),
@@ -90,7 +90,9 @@ export function useMarketInsights(options?: {
   const [predictionWindow, setPredictionWindow] = useState<PredictionWindow>(
     options?.defaultWindow ?? '90d'
   );
-  const [filters, setFilters] = useState<PredictionFilters>(() => options?.defaultFilters ?? defaultFiltersForGame(false));
+  const [filters, setFilters] = useState<PredictionFilters>(
+    () => options?.defaultFilters ?? defaultFiltersForGame(false)
+  );
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortField>('return');
   const [sortOrder, setSortOrder] = useState<SortDirection>('desc');
@@ -117,52 +119,61 @@ export function useMarketInsights(options?: {
     setCategoryFilter('all');
   }, [isOnePiece, game, DEFAULT_FILTERS]);
 
-  const loadPredictions = useCallback(async (signal?: AbortSignal) => {
-    setPredictionsLoading(true);
-    setPredictionsError(null);
-    try {
-      const res = await api.getPredictions({
-        limit: 500,
-        window: predictionWindow,
-        filters,
-        search: searchQuery || undefined,
-        sortBy,
-        sortOrder,
-        category: categoryFilter !== 'all' ? categoryFilter : undefined,
-        game: apiGame,
-      }, { signal });
-      if (signal?.aborted) return;
-      setPredictions(res.data);
-      if (res.horizonSupport) setHorizonSupport(res.horizonSupport);
-      setWindowExperimental(Boolean(res.experimental));
-    } catch (err: unknown) {
-      if (signal?.aborted || isAbortError(err)) return;
-      const message = formatApiError(err, 'Failed to load predictions');
-      console.error('Failed to load predictions:', message, err);
-      setPredictionsError(message || 'Failed to load predictions');
-      setPredictions([]);
-    } finally {
-      if (!signal?.aborted) setPredictionsLoading(false);
-    }
-  }, [predictionWindow, filters, searchQuery, sortBy, sortOrder, categoryFilter, apiGame, api]);
+  const loadPredictions = useCallback(
+    async (signal?: AbortSignal) => {
+      setPredictionsLoading(true);
+      setPredictionsError(null);
+      try {
+        const res = await api.getPredictions(
+          {
+            limit: 500,
+            window: predictionWindow,
+            filters,
+            search: searchQuery || undefined,
+            sortBy,
+            sortOrder,
+            category: categoryFilter !== 'all' ? categoryFilter : undefined,
+            game: apiGame,
+          },
+          { signal }
+        );
+        if (signal?.aborted) return;
+        setPredictions(res.data);
+        if (res.horizonSupport) setHorizonSupport(res.horizonSupport);
+        setWindowExperimental(Boolean(res.experimental));
+      } catch (err: unknown) {
+        if (signal?.aborted || isAbortError(err)) return;
+        const message = formatApiError(err, 'Failed to load predictions');
+        console.error('Failed to load predictions:', message, err);
+        setPredictionsError(message || 'Failed to load predictions');
+        setPredictions([]);
+      } finally {
+        if (!signal?.aborted) setPredictionsLoading(false);
+      }
+    },
+    [predictionWindow, filters, searchQuery, sortBy, sortOrder, categoryFilter, apiGame, api]
+  );
 
-  const loadOverview = useCallback(async (signal?: AbortSignal) => {
-    setOverviewLoading(true);
-    setOverviewError(null);
-    try {
-      const data = await api.getOverview({ signal, game: apiGame });
-      if (signal?.aborted) return;
-      setOverview(data);
-    } catch (err: unknown) {
-      if (signal?.aborted || isAbortError(err)) return;
-      const message = formatApiError(err, 'Failed to load overview');
-      console.error('Failed to load overview:', message, err);
-      setOverviewError(message || 'Failed to load overview');
-      setOverview(null);
-    } finally {
-      if (!signal?.aborted) setOverviewLoading(false);
-    }
-  }, [apiGame, api]);
+  const loadOverview = useCallback(
+    async (signal?: AbortSignal) => {
+      setOverviewLoading(true);
+      setOverviewError(null);
+      try {
+        const data = await api.getOverview({ signal, game: apiGame });
+        if (signal?.aborted) return;
+        setOverview(data);
+      } catch (err: unknown) {
+        if (signal?.aborted || isAbortError(err)) return;
+        const message = formatApiError(err, 'Failed to load overview');
+        console.error('Failed to load overview:', message, err);
+        setOverviewError(message || 'Failed to load overview');
+        setOverview(null);
+      } finally {
+        if (!signal?.aborted) setOverviewLoading(false);
+      }
+    },
+    [apiGame, api]
+  );
 
   const loadBackendData = useCallback(async () => {
     const [btData, ftStatus] = await Promise.all([
@@ -173,25 +184,28 @@ export function useMarketInsights(options?: {
     setForwardStatus(ftStatus);
   }, [api]);
 
-  const loadModelHealth = useCallback(async (signal?: AbortSignal) => {
-    setHealthLoading(true);
-    setHealthError(null);
-    try {
-      const [calRes, dqRes] = await Promise.all([
-        api.getCalibrationStatus({ signal }),
-        api.getDataQuality({ signal }),
-      ]);
-      if (signal?.aborted) return;
-      setCalibration(calRes.data ?? []);
-      setDataQuality(dqRes);
-    } catch (err: unknown) {
-      if (signal?.aborted || isAbortError(err)) return;
-      const message = formatApiError(err, 'Failed to load model health');
-      setHealthError(message || 'Failed to load model health');
-    } finally {
-      if (!signal?.aborted) setHealthLoading(false);
-    }
-  }, [api]);
+  const loadModelHealth = useCallback(
+    async (signal?: AbortSignal) => {
+      setHealthLoading(true);
+      setHealthError(null);
+      try {
+        const [calRes, dqRes] = await Promise.all([
+          api.getCalibrationStatus({ signal }),
+          api.getDataQuality({ signal }),
+        ]);
+        if (signal?.aborted) return;
+        setCalibration(calRes.data ?? []);
+        setDataQuality(dqRes);
+      } catch (err: unknown) {
+        if (signal?.aborted || isAbortError(err)) return;
+        const message = formatApiError(err, 'Failed to load model health');
+        setHealthError(message || 'Failed to load model health');
+      } finally {
+        if (!signal?.aborted) setHealthLoading(false);
+      }
+    },
+    [api]
+  );
 
   useEffect(() => {
     if (activeTab !== 'overview') return;
@@ -246,12 +260,15 @@ export function useMarketInsights(options?: {
     setCategoryFilter('all');
   }, [DEFAULT_FILTERS]);
 
-  const handleSetPredictionWindow = useCallback((window: PredictionWindow) => {
-    if (horizonSupport?.unsupported.includes(windowToDays(window) as 7 | 30 | 90 | 180 | 365)) {
-      return;
-    }
-    setPredictionWindow(window);
-  }, [horizonSupport]);
+  const handleSetPredictionWindow = useCallback(
+    (window: PredictionWindow) => {
+      if (horizonSupport?.unsupported.includes(windowToDays(window) as 7 | 30 | 90 | 180 | 365)) {
+        return;
+      }
+      setPredictionWindow(window);
+    },
+    [horizonSupport]
+  );
 
   const handleRunPredictions = async () => {
     setRunningPrediction(true);
@@ -310,31 +327,61 @@ export function useMarketInsights(options?: {
     }
   };
 
-  const windowStatus = useCallback((window: PredictionWindow) => {
-    const days = windowToDays(window) as 7 | 30 | 90 | 180 | 365;
-    if (!horizonSupport) return 'unknown' as const;
-    if (horizonSupport.unsupported.includes(days)) return 'unsupported' as const;
-    if (horizonSupport.experimental.includes(days)) return 'experimental' as const;
-    return 'supported' as const;
-  }, [horizonSupport]);
+  const windowStatus = useCallback(
+    (window: PredictionWindow) => {
+      const days = windowToDays(window) as 7 | 30 | 90 | 180 | 365;
+      if (!horizonSupport) return 'unknown' as const;
+      if (horizonSupport.unsupported.includes(days)) return 'unsupported' as const;
+      if (horizonSupport.experimental.includes(days)) return 'experimental' as const;
+      return 'supported' as const;
+    },
+    [horizonSupport]
+  );
 
   return {
-    activeTab, setActiveTab,
-    predictions, predictionsLoading, predictionsError,
-    overview, overviewLoading, overviewError,
-    backtestResults, forwardStatus,
-    calibration, dataQuality, healthLoading, healthError, loadModelHealth,
-    horizonSupport, windowExperimental, windowStatus,
-    runningPrediction, runningBacktest, refreshingForward,
-    predictionWindow, setPredictionWindow: handleSetPredictionWindow,
-    filters, searchQuery, setSearchQuery,
-    sortBy, setSortBy, sortOrder, setSortOrder,
-    categoryFilter, setCategoryFilter,
-    backtestDate, setBacktestDate,
+    activeTab,
+    setActiveTab,
+    predictions,
+    predictionsLoading,
+    predictionsError,
+    overview,
+    overviewLoading,
+    overviewError,
+    backtestResults,
+    forwardStatus,
+    calibration,
+    dataQuality,
+    healthLoading,
+    healthError,
+    loadModelHealth,
+    horizonSupport,
+    windowExperimental,
+    windowStatus,
+    runningPrediction,
+    runningBacktest,
+    refreshingForward,
+    predictionWindow,
+    setPredictionWindow: handleSetPredictionWindow,
+    filters,
+    searchQuery,
+    setSearchQuery,
+    sortBy,
+    setSortBy,
+    sortOrder,
+    setSortOrder,
+    categoryFilter,
+    setCategoryFilter,
+    backtestDate,
+    setBacktestDate,
     message,
-    handleApplyFilters, handleResetFilters,
-    handleRunPredictions, handleRunBacktest, handleRefreshForwardTest,
-    loadPredictions, loadOverview, showMessage,
+    handleApplyFilters,
+    handleResetFilters,
+    handleRunPredictions,
+    handleRunBacktest,
+    handleRefreshForwardTest,
+    loadPredictions,
+    loadOverview,
+    showMessage,
     DEFAULT_FILTERS,
     isOnePiece,
   };

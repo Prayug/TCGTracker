@@ -88,8 +88,7 @@ export const PackRevealStage: React.FC<PackRevealStageProps> = ({
       ? 'silhouette'
       : phase;
 
-  const headline =
-    visualPhase === 'mystery' ? 'revealing...' : theme?.hitLabel ?? 'CARD PULLED';
+  const headline = visualPhase === 'mystery' ? 'revealing...' : (theme?.hitLabel ?? 'CARD PULLED');
 
   const cardMotion =
     visualPhase === 'focus'

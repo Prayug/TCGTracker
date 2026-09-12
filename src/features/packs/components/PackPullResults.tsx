@@ -33,13 +33,17 @@ function SummaryBand({
       />
       <div className="grid grid-cols-3 divide-x divide-border-subtle/80">
         <div className="px-3 py-2.5 sm:px-4">
-          <p className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">Pull value</p>
+          <p className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">
+            Pull value
+          </p>
           <p className="mt-0.5 text-lg font-bold tabular-nums leading-none text-ink-primary sm:text-xl">
             {formatCurrency(value)}
           </p>
         </div>
         <div className="px-3 py-2.5 sm:px-4">
-          <p className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">Pack cost</p>
+          <p className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">
+            Pack cost
+          </p>
           <p className="mt-0.5 text-lg font-bold tabular-nums leading-none text-ink-secondary sm:text-xl">
             {formatCurrency(cost)}
           </p>
@@ -88,7 +92,9 @@ export const PackPullResults: React.FC<PackPullResultsProps> = ({ packPull, rari
         <div
           className={cn(
             'relative grid h-full min-h-0 grid-cols-1 items-center gap-6 rounded-2xl border border-border-subtle/60 bg-surface-inset/30 p-4 sm:p-6',
-            isSlab ? 'sm:grid-cols-2 sm:gap-8' : 'mx-auto max-w-3xl sm:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] sm:gap-8'
+            isSlab
+              ? 'sm:grid-cols-2 sm:gap-8'
+              : 'mx-auto max-w-3xl sm:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] sm:gap-8'
           )}
         >
           <div className="flex h-full min-h-[14rem] items-center justify-center sm:min-h-0">
@@ -122,11 +128,21 @@ export const PackPullResults: React.FC<PackPullResultsProps> = ({ packPull, rari
 
           <div className="flex min-h-0 flex-col justify-center gap-4">
             <div className="flex items-center gap-3">
-              <span className={cn('h-px flex-1 bg-gradient-to-r from-current/40 to-transparent', theme.accent)} />
+              <span
+                className={cn(
+                  'h-px flex-1 bg-gradient-to-r from-current/40 to-transparent',
+                  theme.accent
+                )}
+              />
               <p className={cn('text-[11px] font-bold uppercase tracking-[0.24em]', theme.accent)}>
                 {theme.resultEyebrow}
               </p>
-              <span className={cn('h-px flex-1 bg-gradient-to-l from-current/40 to-transparent', theme.accent)} />
+              <span
+                className={cn(
+                  'h-px flex-1 bg-gradient-to-l from-current/40 to-transparent',
+                  theme.accent
+                )}
+              />
             </div>
 
             <div>
@@ -143,9 +159,7 @@ export const PackPullResults: React.FC<PackPullResultsProps> = ({ packPull, rari
               <div
                 className={cn(
                   'rounded-xl border px-4 py-3 backdrop-blur-sm',
-                  isWin
-                    ? 'border-gain/25 bg-gain/5'
-                    : 'border-border-subtle bg-surface-overlay/40'
+                  isWin ? 'border-gain/25 bg-gain/5' : 'border-border-subtle bg-surface-overlay/40'
                 )}
               >
                 <p className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">

@@ -127,7 +127,7 @@ export interface ApiResponse<T> {
   totalCount?: number;
 }
 
-export type SortOption = 
+export type SortOption =
   | 'price-high'
   | 'price-low'
   | 'name-asc'
@@ -143,7 +143,13 @@ export type SortOption =
   | 'undervalued'
   | 'trend-bullish';
 
-export type FilterOption = 'all' | 'undervalued' | 'overvalued' | 'low-pop' | 'high-return' | 'bullish';
+export type FilterOption =
+  | 'all'
+  | 'undervalued'
+  | 'overvalued'
+  | 'low-pop'
+  | 'high-return'
+  | 'bullish';
 
 export interface RealData {
   psaData: PSAData | null;
@@ -164,7 +170,13 @@ export interface VaultCard {
   gradingResult?: import('./grading').GradingResult;
 }
 
-export type CardCondition = 'raw' | 'near-mint' | 'lightly-played' | 'moderately-played' | 'heavily-played' | 'damaged';
+export type CardCondition =
+  | 'raw'
+  | 'near-mint'
+  | 'lightly-played'
+  | 'moderately-played'
+  | 'heavily-played'
+  | 'damaged';
 
 export interface VaultStats {
   totalCards: number;

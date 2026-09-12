@@ -17,7 +17,7 @@ export const ShockwaveRipple: React.FC<{
   useEffect(() => {
     const mats = cleanupRefs.current;
     return () => {
-      mats.forEach(m => m?.dispose());
+      mats.forEach((m) => m?.dispose());
     };
   }, []);
 
@@ -47,7 +47,9 @@ const ShockwaveRippleRing: React.FC<{
 
   useEffect(() => {
     const mat = matRef.current;
-    return () => { mat?.dispose(); };
+    return () => {
+      mat?.dispose();
+    };
   }, []);
 
   useFrame(() => {
@@ -57,7 +59,10 @@ const ShockwaveRippleRing: React.FC<{
     if (!ring || !mat) return;
 
     const age = t - ripStart - delay;
-    if (age < 0 || age > 0.8) { ring.visible = false; return; }
+    if (age < 0 || age > 0.8) {
+      ring.visible = false;
+      return;
+    }
     ring.visible = true;
 
     const prog = easeOutCubic(age / 0.8);
@@ -133,7 +138,10 @@ const ShockwaveRing: React.FC<{
     if (!ring || !mat) return;
 
     const age = t - ripStart - delay;
-    if (age < 0 || age > 1.2) { ring.visible = false; return; }
+    if (age < 0 || age > 1.2) {
+      ring.visible = false;
+      return;
+    }
     ring.visible = true;
     const prog = easeOutCubic(age / 1.2);
     ring.scale.setScalar(0.2 + prog * 5);

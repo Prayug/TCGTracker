@@ -8,7 +8,11 @@ interface ErrorMessageProps {
 
 export const ErrorMessage: React.FC<ErrorMessageProps> = ({ message, onRetry }) => {
   return (
-    <div className="flex flex-col items-center justify-center py-20 text-center" role="alert" aria-live="assertive">
+    <div
+      className="flex flex-col items-center justify-center py-20 text-center"
+      role="alert"
+      aria-live="assertive"
+    >
       <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-xl border border-loss/30 bg-loss-muted">
         <AlertCircle className="h-7 w-7 text-loss" aria-hidden="true" />
       </div>

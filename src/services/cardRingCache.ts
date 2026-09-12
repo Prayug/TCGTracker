@@ -31,27 +31,27 @@ function isValidEntry(value: unknown): value is RingCacheEntry {
 
 /** Slim card payload — only what the 3D ring needs (keeps localStorage small). */
 export function toRingCachedCards(cards: PokemonCard[]): RingCachedCard[] {
-  return cards
-    .map((card) => {
-      const small = card.images?.small || card.images?.large;
-      if (!card.id || !card.set?.id || !small) return null;
-      return {
-        id: card.id,
-        name: card.name,
-        marketPrice: card.marketPrice,
-        images: {
-          small,
-          large: card.images?.large || small,
-        },
-        set: {
-          id: card.set.id,
-          name: card.set.name,
-          releaseDate: card.set.releaseDate,
-          total: card.set.total ?? 0,
-        },
-      } satisfies RingCachedCard;
-    })
-    .filter((c): c is RingCachedCard => c !== null);
+  const result: RingCachedCard[] = [];
+  for (const card of cards) {
+    const small = card.images?.small || card.images?.large;
+    if (!card.id || !card.set?.id || !small) continue;
+    result.push({
+      id: card.id,
+      name: card.name,
+      marketPrice: card.marketPrice,
+      images: {
+        small,
+        large: card.images?.large || small,
+      },
+      set: {
+        id: card.set.id,
+        name: card.set.name,
+        releaseDate: card.set.releaseDate,
+        total: card.set.total ?? 0,
+      },
+    });
+  }
+  return result;
 }
 
 export function asPokemonCards(cards: RingCachedCard[]): PokemonCard[] {

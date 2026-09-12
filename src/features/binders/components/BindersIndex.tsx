@@ -10,10 +10,20 @@ import type { Binder } from '../types';
 
 export const BindersIndex: React.FC = () => {
   const {
-    loading, error, plan, binders, constraintOptions,
-    listBinders, createBinderWithPlan, deleteBinder,
-    commitToVault, commitToWishlist, saving,
-    fetchConstraints, generatePlan, clearError,
+    loading,
+    error,
+    plan,
+    binders,
+    constraintOptions,
+    listBinders,
+    createBinderWithPlan,
+    deleteBinder,
+    commitToVault,
+    commitToWishlist,
+    saving,
+    fetchConstraints,
+    generatePlan,
+    clearError,
   } = useBinderPlanner();
   const { showToast } = useToast();
   const [showPlanner, setShowPlanner] = useState(false);
@@ -90,11 +100,7 @@ export const BindersIndex: React.FC = () => {
 
           {plan && plan.filledSlots > 0 && (
             <div className="mt-6 border-t border-border-subtle pt-6">
-              <BinderPlanReview
-                plan={plan}
-                onSave={handleSavePlan}
-                saving={saving}
-              />
+              <BinderPlanReview plan={plan} onSave={handleSavePlan} saving={saving} />
             </div>
           )}
         </div>
@@ -112,14 +118,12 @@ export const BindersIndex: React.FC = () => {
             <BookOpen className="h-7 w-7 text-accent" />
           </div>
           <p className="font-display text-base font-semibold text-ink-primary">No binders yet</p>
-          <p className="mt-1 text-sm text-ink-muted">
-            Create a binder to plan your next 3x3 page
-          </p>
+          <p className="mt-1 text-sm text-ink-muted">Create a binder to plan your next 3x3 page</p>
         </div>
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {binders.map(binder => (
+        {binders.map((binder) => (
           <BinderCard
             key={binder.id}
             binder={binder}
@@ -156,7 +160,7 @@ const BinderCard: React.FC<BinderCardProps> = ({
   onCommitToVault,
   onCommitToWishlist,
 }) => {
-  const filledSlots = binder.slots.filter(s => s.cardId).length;
+  const filledSlots = binder.slots.filter((s) => s.cardId).length;
   const totalSlots = binder.pages * binder.slotsPerPage;
   const cost = binder.totalCostCents ?? 0;
 
@@ -212,7 +216,9 @@ const BinderCard: React.FC<BinderCardProps> = ({
       </div>
 
       <div className="flex items-center justify-between text-xs text-ink-muted">
-        <span>{filledSlots}/{totalSlots} slots</span>
+        <span>
+          {filledSlots}/{totalSlots} slots
+        </span>
         {cost > 0 && <span>${(cost / 100).toFixed(2)}</span>}
       </div>
 

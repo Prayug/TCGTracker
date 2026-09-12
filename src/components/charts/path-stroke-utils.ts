@@ -1,4 +1,4 @@
-import { type RefObject, useEffect, useState } from "react";
+import { type RefObject, useEffect, useState } from 'react';
 
 export function findPathLengthAtX(
   path: SVGPathElement | null,
@@ -51,12 +51,10 @@ export function usePathStrokeMetrics(
     if (!path) {
       return;
     }
-    const d = path.getAttribute("d");
+    const d = path.getAttribute('d');
     const len = d ? path.getTotalLength() : 0;
     setMetrics((prev) =>
-      prev.pathD === d && prev.pathLength === len
-        ? prev
-        : { pathD: d, pathLength: len }
+      prev.pathD === d && prev.pathLength === len ? prev : { pathD: d, pathLength: len }
     );
   }, deps);
 
@@ -67,11 +65,7 @@ export function resolveDashTailBounds(
   dashFromIndex: number | undefined,
   dataLength: number
 ): boolean {
-  return (
-    dashFromIndex != null &&
-    dashFromIndex >= 0 &&
-    dashFromIndex < dataLength - 1
-  );
+  return dashFromIndex != null && dashFromIndex >= 0 && dashFromIndex < dataLength - 1;
 }
 
 export function resolveDashStartX(

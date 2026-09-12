@@ -659,11 +659,13 @@ export class PriceHistoryApi {
     try {
       const fetchHistory = async (variantToUse?: string) => {
         const params = new URLSearchParams({
-          cardId: card.id,
           cardName: card.name,
           setName: card.set.name,
           setId: card.set.id,
         });
+        if (card.id) {
+          params.set('cardId', card.id);
+        }
         if (variantToUse) {
           params.append('variant', variantToUse);
         }

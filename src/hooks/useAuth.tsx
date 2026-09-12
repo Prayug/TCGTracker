@@ -1,4 +1,12 @@
-import { useState, useEffect, createContext, useContext, useCallback, useMemo, type ReactNode } from 'react';
+import {
+  useState,
+  useEffect,
+  createContext,
+  useContext,
+  useCallback,
+  useMemo,
+  type ReactNode,
+} from 'react';
 import { authService, User, AuthResponse } from '../services/authService';
 import {
   saveGuestSnapshot,

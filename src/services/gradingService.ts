@@ -146,8 +146,9 @@ function hasLegacyScores(result: GradingResult): boolean {
 /** Normalize legacy TAG scores in-place for display */
 function normalizeLegacyResult(result: GradingResult): GradingResult {
   if (!hasLegacyScores(result)) return result;
-  const divisor = result.centering?.score > 100 ? 100 : 25;
-  const norm = (v: number | undefined) =>
+  const centeringScore = result.centering?.score;
+  const divisor = centeringScore != null && centeringScore > 100 ? 100 : 25;
+  const norm = (v: number | null | undefined): number =>
     v != null && v > 10 ? Math.round((v / divisor) * 10) / 10 : (v ?? 0);
   return {
     ...result,

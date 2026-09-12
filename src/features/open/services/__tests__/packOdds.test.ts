@@ -328,7 +328,7 @@ describe('buildOddsRows', () => {
     expect(labels).toContain('Manga / Super Alt Art');
     expect(labels).toContain('DON!!');
     const manga = rows.find((r) => r.label === 'Manga / Super Alt Art')!;
-    expect(manga.perPack).toBeCloseTo(1 / (5 * 24 * BOXES_PER_CASE) * 100, 5);
+    expect(manga.perPack).toBeCloseTo((1 / (5 * 24 * BOXES_PER_CASE)) * 100, 5);
     const common = rows.find((r) => r.label === 'Common')!;
     expect(common.perBox).toContain('7');
   });

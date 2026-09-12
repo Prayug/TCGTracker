@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { ParentSize } from "@visx/responsive";
-import type { Transition } from "motion/react";
+import { ParentSize } from '@visx/responsive';
+import type { Transition } from 'motion/react';
 import {
   Children,
   type CSSProperties,
@@ -12,19 +12,19 @@ import {
   useMemo,
   useRef,
   useState,
-} from "react";
-import { cn } from "@/lib/utils";
-import type { LineConfig, Margin } from "./chart-context";
-import { ChartLoadingLabel } from "./chart-loading-label";
+} from 'react';
+import { cn } from '@/lib/utils';
+import type { LineConfig, Margin } from './chart-context';
+import { ChartLoadingLabel } from './chart-loading-label';
 import {
   type ChartPhase,
   type ChartStatus,
   DEFAULT_CHART_STATUS,
   DEFAULT_Y_DOMAIN_TWEEN_MS,
   resolveRestingChartPhase,
-} from "./chart-phase";
-import { Line, type LineProps } from "./line";
-import { TimeSeriesChartInner } from "./time-series-chart-shell";
+} from './chart-phase';
+import { Line, type LineProps } from './line';
+import { TimeSeriesChartInner } from './time-series-chart-shell';
 
 export interface LineChartProps {
   /** Data array - each item should have a date field and numeric values */
@@ -71,40 +71,35 @@ const DEFAULT_MARGIN: Margin = { top: 40, right: 40, bottom: 40, left: 40 };
 
 /** Series renderers that carry a dataKey but must not drive the shared y-domain. */
 const LINE_DOMAIN_EXCLUDED_NAMES = new Set([
-  "ProfitLossLine",
-  "LineSeriesTerminalMarker",
-  "Area",
-  "SeriesBar",
-  "Scatter",
-  "Candlestick",
-  "Bar",
-  "PatternArea",
+  'ProfitLossLine',
+  'LineSeriesTerminalMarker',
+  'Area',
+  'SeriesBar',
+  'Scatter',
+  'Candlestick',
+  'Bar',
+  'PatternArea',
 ]);
 
 function getChildComponentName(child: ReactElement) {
   const childType = child.type as { displayName?: string; name?: string };
-  return typeof child.type === "function"
-    ? childType.displayName || childType.name || ""
-    : "";
+  return typeof child.type === 'function' ? childType.displayName || childType.name || '' : '';
 }
 
-function registersLineDomain(
-  child: ReactElement,
-  props: LineProps | undefined
-) {
+function registersLineDomain(child: ReactElement, props: LineProps | undefined) {
   if (!props?.dataKey) {
     return false;
   }
 
   const componentName = getChildComponentName(child);
-  if (componentName === "Line" || child.type === Line) {
+  if (componentName === 'Line' || child.type === Line) {
     return true;
   }
   if (LINE_DOMAIN_EXCLUDED_NAMES.has(componentName)) {
     return false;
   }
   // MDX / duplicate bundle instances may not share the same `Line` reference.
-  return typeof props.dataKey === "string" && props.dataKey.length > 0;
+  return typeof props.dataKey === 'string' && props.dataKey.length > 0;
 }
 
 function extractLineConfigs(children: ReactNode): LineConfig[] {
@@ -121,7 +116,7 @@ function extractLineConfigs(children: ReactNode): LineConfig[] {
       if (registersLineDomain(child, props) && props?.dataKey) {
         configs.push({
           dataKey: props.dataKey,
-          stroke: props.stroke || "var(--chart-line-primary)",
+          stroke: props.stroke || 'var(--chart-line-primary)',
           strokeWidth: props.strokeWidth || 2.5,
           yAxisId: props.yAxisId,
         });
@@ -217,14 +212,14 @@ function ChartInner({
 
 export function LineChart({
   data,
-  xDataKey = "date",
+  xDataKey = 'date',
   margin: marginProp,
   animationDuration = 1100,
   animationEasing,
   enterTransition,
   revealSignature,
-  aspectRatio = "2 / 1",
-  className = "",
+  aspectRatio = '2 / 1',
+  className = '',
   status = DEFAULT_CHART_STATUS,
   loadingLabel,
   yDomainTweenDuration = DEFAULT_Y_DOMAIN_TWEEN_MS,
@@ -239,9 +234,7 @@ export function LineChart({
 }: LineChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const margin = { ...DEFAULT_MARGIN, ...marginProp };
-  const [chartPhase, setChartPhase] = useState<ChartPhase>(() =>
-    resolveRestingChartPhase(status)
-  );
+  const [chartPhase, setChartPhase] = useState<ChartPhase>(() => resolveRestingChartPhase(status));
   const handlePhaseChange = useCallback(
     (phase: ChartPhase) => {
       setChartPhase(phase);
@@ -252,19 +245,19 @@ export function LineChart({
 
   const showLoadingLabel = Boolean(
     loadingLabel?.trim() &&
-      (chartPhase === "loading" ||
-        chartPhase === "exiting" ||
-        chartPhase === "gridTweenReady" ||
-        chartPhase === "revealingLoading")
+      (chartPhase === 'loading' ||
+        chartPhase === 'exiting' ||
+        chartPhase === 'gridTweenReady' ||
+        chartPhase === 'revealingLoading')
   );
 
   return (
     <div
-      className={cn("relative w-full", className)}
+      className={cn('relative w-full', className)}
       ref={containerRef}
       style={{
         ...(aspectRatio ? { aspectRatio } : undefined),
-        touchAction: "none",
+        touchAction: 'none',
         ...style,
       }}
     >
@@ -296,15 +289,12 @@ export function LineChart({
         )}
       </ParentSize>
       {showLoadingLabel ? (
-        <ChartLoadingLabel
-          exiting={chartPhase !== "loading"}
-          text={loadingLabel}
-        />
+        <ChartLoadingLabel exiting={chartPhase !== 'loading'} text={loadingLabel} />
       ) : null}
     </div>
   );
 }
 
-export { Line, type LineProps } from "./line";
+export { Line, type LineProps } from './line';
 
 export default LineChart;
