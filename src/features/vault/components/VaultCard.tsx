@@ -55,7 +55,13 @@ function shortCondition(condition: string): string {
 function displayCardName(name: string, number?: string): string {
   if (!number) return name;
   const trimmed = name
-    .replace(new RegExp(`\\s*[-–]\\s*${number.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:/\\d+)?\\s*$`, 'i'), '')
+    .replace(
+      new RegExp(
+        `\\s*[-–]\\s*${number.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:/\\d+)?\\s*$`,
+        'i'
+      ),
+      ''
+    )
     .trim();
   return trimmed || name;
 }
@@ -140,9 +146,7 @@ export const VaultCard: React.FC<VaultCardProps> = ({
       const lots = await fetchLots(true);
       const cardId = rawCard.id;
       const matches = lots.filter((l) => l.card_id === cardId);
-      const byCondition = matches.find(
-        (l) => (l.condition || 'raw') === (condition || 'raw')
-      );
+      const byCondition = matches.find((l) => (l.condition || 'raw') === (condition || 'raw'));
       setMatchedLot(byCondition ?? matches[0] ?? null);
     } catch {
       setSellError('Could not load open lots from the server.');
@@ -208,7 +212,12 @@ export const VaultCard: React.FC<VaultCardProps> = ({
             }}
             aria-label={`Select ${title}`}
           >
-            <input type="checkbox" checked={selected} readOnly className="h-4 w-4 cursor-pointer accent-[var(--accent)]" />
+            <input
+              type="checkbox"
+              checked={selected}
+              readOnly
+              className="h-4 w-4 cursor-pointer accent-[var(--accent)]"
+            />
           </button>
           <button
             type="button"
@@ -365,9 +374,7 @@ export const VaultCard: React.FC<VaultCardProps> = ({
           </div>
           <p className="mt-0.5 truncate text-[11px] leading-tight text-ink-muted">
             {card.set?.name}
-            {card.number ? (
-              <span className="font-mono"> · #{card.number}</span>
-            ) : null}
+            {card.number ? <span className="font-mono"> · #{card.number}</span> : null}
           </p>
         </button>
 
@@ -399,9 +406,7 @@ export const VaultCard: React.FC<VaultCardProps> = ({
           <p className="text-[13px] tabular-nums text-ink-secondary">
             {formatCurrency(totalPurchaseValue)}
           </p>
-          {assumed ? (
-            <p className="text-[10px] text-amber-400/90">At market</p>
-          ) : null}
+          {assumed ? <p className="text-[10px] text-amber-400/90">At market</p> : null}
         </div>
 
         <p className="hidden text-right text-[13px] font-medium tabular-nums text-ink-primary sm:block">
@@ -589,16 +594,10 @@ function SellLotModal({
             value={salePrice}
             onChange={(e) => setSalePrice(e.target.value)}
             className="input h-10 tabular-nums"
-            autoFocus
           />
         </label>
         {estPnl != null ? (
-          <p
-            className={cn(
-              'mt-2 text-sm tabular-nums',
-              estPnl >= 0 ? 'text-gain' : 'text-loss'
-            )}
-          >
+          <p className={cn('mt-2 text-sm tabular-nums', estPnl >= 0 ? 'text-gain' : 'text-loss')}>
             Est. realized P/L: {formatCurrency(estPnl, { signed: true })}
           </p>
         ) : null}
@@ -673,7 +672,10 @@ function EditPanel({
           />
         </div>
         <div>
-          <label htmlFor={`vault-paid-${vaultCardId}`} className="mb-1 block text-xs text-ink-muted">
+          <label
+            htmlFor={`vault-paid-${vaultCardId}`}
+            className="mb-1 block text-xs text-ink-muted"
+          >
             Paid / card
           </label>
           <input
@@ -687,7 +689,10 @@ function EditPanel({
           />
         </div>
         <div>
-          <label htmlFor={`vault-notes-${vaultCardId}`} className="mb-1 block text-xs text-ink-muted">
+          <label
+            htmlFor={`vault-notes-${vaultCardId}`}
+            className="mb-1 block text-xs text-ink-muted"
+          >
             Notes
           </label>
           <input
