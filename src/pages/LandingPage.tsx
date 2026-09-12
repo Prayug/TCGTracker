@@ -1,7 +1,6 @@
 import { Suspense } from 'react';
 import { motion } from 'motion/react';
 import { HomeHero } from '@/components/landing/HomeHero';
-import { QuickActions } from '@/components/landing/QuickActions';
 import { MarketSnapshot } from '@/components/common/MarketSnapshot';
 import { TopMovers } from '@/components/common/TopMovers';
 import { SlabTopMovers } from '@/components/common/SlabTopMovers';
@@ -18,10 +17,6 @@ export function LandingPage() {
       >
         <HomeHero />
       </Suspense>
-
-      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-        <QuickActions />
-      </div>
 
       <section
         id="market-pulse"

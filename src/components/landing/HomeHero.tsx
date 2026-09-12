@@ -1,8 +1,14 @@
+/**
+ * Adapted from 21st.dev — Scroll Over Hero (Ruixen UI)
+ * https://21st.dev/@ruixen.ui/components/scroll-over-hero
+ *
+ * Pinned brand stage; specimen panel rises and overlaps on scroll.
+ * Foil Gallery tokens — champagne metal, museum void — no mint / purple / binder desk.
+ */
 import { Link } from 'react-router-dom';
-import { ArrowDown, ArrowUpRight, Package } from 'lucide-react';
-import { motion } from 'motion/react';
-import { BentoCell, BentoGrid } from '@/components/blocks/hero-gallery-scroll-animation';
-import { usePrefersReducedMotion } from '@/hooks/useMotionPreferences';
+import { motion, useScroll, useTransform, useReducedMotion } from 'motion/react';
+import { useRef } from 'react';
+import { ArrowDown, ArrowUpRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function scrollToMarketPulse(e?: { preventDefault?: () => void }) {
@@ -10,114 +16,155 @@ export function scrollToMarketPulse(e?: { preventDefault?: () => void }) {
   document.getElementById('market-pulse')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-/** Specimen cards — Pokémon TCG CDN (public art). */
 const SPECIMENS = [
-  'https://images.pokemontcg.io/swsh12pt5/160_hires.png',
-  'https://images.pokemontcg.io/swsh7/215_hires.png',
-  'https://images.pokemontcg.io/swsh9/18_hires.png',
-  'https://images.pokemontcg.io/swsh10/174_hires.png',
-  'https://images.pokemontcg.io/swsh11/TG30_hires.png',
-];
+  {
+    src: 'https://images.pokemontcg.io/swsh7/215_hires.png',
+    alt: 'Umbreon VMAX',
+    className: 'left-[8%] top-[12%] w-[38%] -rotate-[8deg] sm:left-[12%] sm:w-[32%]',
+    z: 1,
+  },
+  {
+    src: 'https://images.pokemontcg.io/swsh12pt5/160_hires.png',
+    alt: 'Pikachu VMAX',
+    className: 'left-1/2 top-[4%] w-[42%] -translate-x-1/2 sm:w-[34%]',
+    z: 3,
+  },
+  {
+    src: 'https://images.pokemontcg.io/swsh9/18_hires.png',
+    alt: 'Charizard VSTAR',
+    className: 'right-[8%] top-[14%] w-[38%] rotate-[7deg] sm:right-[12%] sm:w-[32%]',
+    z: 2,
+  },
+] as const;
 
-/**
- * Premium home hero — adapted from 21st.dev Hero Gallery Scroll (Systaliko).
- * Full-bleed specimen bento + brand-first copy. No mint SaaS chrome.
- */
 export function HomeHero() {
-  const reduced = usePrefersReducedMotion();
+  const reduced = useReducedMotion();
+  const ref = useRef<HTMLElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ['start start', 'end start'],
+  });
+
+  const panelY = useTransform(scrollYProgress, [0, 0.55], ['42%', '8%']);
+  const panelScale = useTransform(scrollYProgress, [0, 0.55], [0.92, 1]);
+  const titleOpacity = useTransform(scrollYProgress, [0, 0.35, 0.55], [1, 0.55, 0.15]);
+  const titleY = useTransform(scrollYProgress, [0, 0.55], [0, -48]);
+  const glowOpacity = useTransform(scrollYProgress, [0, 0.4], [0.55, 1]);
 
   return (
     <section
+      ref={ref}
       aria-label="Welcome"
-      className="relative min-h-[min(92dvh,52rem)] overflow-hidden border-b border-border-subtle"
+      className={cn(
+        'relative isolate border-b border-border-subtle',
+        reduced ? 'min-h-[min(92dvh,48rem)]' : 'h-[185vh]'
+      )}
     >
-      {/* Gallery atmosphere */}
       <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_18%,rgba(255,236,210,0.08),transparent_42%),radial-gradient(ellipse_at_80%_60%,rgba(168,180,192,0.05),transparent_40%)]"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.035]"
-        style={{
-          backgroundImage:
-            'linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)',
-          backgroundSize: '64px 64px',
-        }}
-      />
-
-      <div className="relative z-10 mx-auto grid min-h-[min(92dvh,52rem)] max-w-7xl items-center gap-10 px-5 py-14 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-12 lg:px-10">
+        className={cn(
+          'relative flex w-full flex-col items-center justify-center overflow-hidden',
+          reduced ? 'min-h-[min(92dvh,48rem)]' : 'sticky top-0 h-dvh'
+        )}
+      >
+        {/* Gallery key light */}
         <motion.div
-          initial={reduced ? false : { opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-          className="relative z-20 max-w-xl"
+          aria-hidden
+          style={reduced ? undefined : { opacity: glowOpacity }}
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_28%,rgba(255,232,200,0.11),transparent_46%),radial-gradient(ellipse_at_50%_100%,rgba(168,180,192,0.06),transparent_42%)]"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.04]"
+          style={{
+            backgroundImage:
+              'linear-gradient(rgba(255,255,255,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.07) 1px, transparent 1px)',
+            backgroundSize: '72px 72px',
+            maskImage: 'radial-gradient(ellipse at 50% 40%, black 20%, transparent 70%)',
+          }}
+        />
+
+        {/* Pinned brand stage */}
+        <motion.div
+          style={reduced ? undefined : { opacity: titleOpacity, y: titleY }}
+          className="relative z-10 mx-auto flex max-w-3xl flex-col items-center px-6 pb-[38vh] pt-16 text-center sm:px-8 sm:pb-[42vh]"
         >
-          <p className="font-display text-[clamp(2.75rem,7vw,4.5rem)] font-semibold leading-[0.95] tracking-[-0.03em] text-ink-primary">
+          <p className="font-display text-[clamp(3.25rem,11vw,7rem)] font-semibold leading-[0.9] tracking-[-0.035em] text-ink-primary">
             TCG Tracker
           </p>
-          <h1 className="mt-5 max-w-[18ch] font-sans text-[clamp(1.35rem,2.6vw,1.85rem)] font-medium leading-snug tracking-tight text-ink-secondary">
-            Live prices and a quiet vault for serious collectors.
+          <h1 className="mt-6 max-w-[22ch] text-balance text-[clamp(1.05rem,2.2vw,1.35rem)] font-medium leading-snug tracking-tight text-ink-secondary">
+            The market mark for cards you actually own.
           </h1>
-          <p className="mt-4 max-w-md text-sm leading-relaxed text-ink-muted sm:text-[0.95rem]">
-            Market marks, graded comps, and holdings — presented like specimens, not a dashboard.
+          <p className="mt-3 max-w-md text-sm leading-relaxed text-ink-muted">
+            Live prices in a quiet vault — specimens first, spreadsheet never.
           </p>
-          <div className="mt-8 flex flex-wrap items-center gap-3">
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link
               to="/vault"
-              className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-md bg-accent px-6 text-sm font-semibold text-primary-foreground transition-colors duration-200 hover:bg-accent-hover"
+              className="inline-flex h-11 cursor-pointer items-center rounded-md bg-accent px-7 text-sm font-semibold text-primary-foreground transition-colors hover:bg-accent-hover"
             >
               Open vault
             </Link>
             <Link
               to="/browse"
-              className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-md border border-border-strong bg-transparent px-5 text-sm font-semibold text-ink-primary transition-colors hover:border-accent/50 hover:text-accent"
+              className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-md border border-border-strong px-5 text-sm font-semibold text-ink-primary transition-colors hover:border-accent/45 hover:text-accent"
             >
-              Browse catalog
+              Browse
               <ArrowUpRight className="h-4 w-4" />
             </Link>
-            <button
-              type="button"
-              onClick={scrollToMarketPulse}
-              className="inline-flex cursor-pointer items-center gap-1.5 text-sm font-medium text-ink-muted transition-colors hover:text-foil"
-            >
-              Today&apos;s market
-              <ArrowDown className="h-3.5 w-3.5" />
-            </button>
           </div>
-          <Link
-            to="/packs"
-            className="mt-6 inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-ink-muted transition-colors hover:text-accent"
+          <button
+            type="button"
+            onClick={scrollToMarketPulse}
+            className="mt-8 inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium uppercase tracking-[0.16em] text-ink-muted transition-colors hover:text-foil"
           >
-            <Package className="h-3.5 w-3.5" />
-            Pack simulator
-          </Link>
+            Market today
+            <ArrowDown className="h-3.5 w-3.5" />
+          </button>
         </motion.div>
 
-        <div className={cn('relative h-[min(58vh,28rem)] w-full lg:h-[min(70vh,34rem)]')}>
-          <BentoGrid variant="default" className="h-full p-0">
-            {SPECIMENS.map((src, index) => (
-              <BentoCell
-                key={src}
-                className="overflow-hidden rounded-md border border-white/[0.06] bg-surface-raised shadow-[0_20px_50px_rgba(0,0,0,0.45)]"
+        {/* Rising specimen panel — overlaps brand on scroll */}
+        <motion.div
+          style={
+            reduced
+              ? undefined
+              : {
+                  y: panelY,
+                  scale: panelScale,
+                }
+          }
+          className={cn(
+            'pointer-events-none absolute inset-x-0 bottom-0 z-20 mx-auto h-[min(58vh,28rem)] w-full max-w-5xl px-4 sm:px-8',
+            reduced && 'relative mt-2 h-[min(48vh,24rem)]'
+          )}
+        >
+          <div className="relative h-full w-full">
+            {SPECIMENS.map((card) => (
+              <div
+                key={card.src}
+                className={cn('absolute aspect-[5/7]', card.className)}
+                style={{ zIndex: card.z }}
               >
-                <motion.img
-                  src={src}
-                  alt=""
-                  initial={reduced ? false : { opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.65, delay: 0.08 * index, ease: [0.16, 1, 0.3, 1] }}
-                  className="size-full object-cover object-center"
-                  loading={index === 0 ? 'eager' : 'lazy'}
-                />
-              </BentoCell>
+                <div className="h-full w-full overflow-hidden rounded-[10px] border border-white/10 bg-surface-raised shadow-[0_28px_80px_rgba(0,0,0,0.65)]">
+                  <img
+                    src={card.src}
+                    alt={card.alt}
+                    className="h-full w-full object-cover"
+                    draggable={false}
+                    loading="eager"
+                  />
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 bg-[linear-gradient(125deg,transparent_30%,rgba(255,255,255,0.14)_48%,transparent_62%)] mix-blend-soft-light"
+                  />
+                </div>
+              </div>
             ))}
-          </BentoGrid>
+          </div>
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_40%,rgba(7,7,8,0.55)_100%)]"
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[var(--surface-base)] to-transparent"
           />
-        </div>
+        </motion.div>
       </div>
     </section>
   );
