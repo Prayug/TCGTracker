@@ -110,10 +110,16 @@ export function CardThumb({
   );
 }
 
-export function EmptyState({ message }: { message: string }) {
+export function EmptyState({ message, isError }: { message: string; isError?: boolean }) {
   return (
-    <div className="flex h-40 items-center justify-center rounded-xl border border-border-default bg-surface-raised">
-      <p className="max-w-md px-6 text-center text-sm text-ink-muted">{message}</p>
+    <div
+      className={`flex h-40 items-center justify-center rounded-xl border ${isError ? 'border-red-500/30 bg-red-500/5' : 'border-border-default bg-surface-raised'}`}
+    >
+      <p
+        className={`max-w-md px-6 text-center text-sm ${isError ? 'text-red-400' : 'text-ink-muted'}`}
+      >
+        {message}
+      </p>
     </div>
   );
 }

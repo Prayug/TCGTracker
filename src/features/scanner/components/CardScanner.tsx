@@ -1,7 +1,15 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  Camera, Upload, X, AlertCircle, CheckCircle, RefreshCw, Scan,
-  ChevronRight, Smartphone, Database,
+  Camera,
+  Upload,
+  X,
+  AlertCircle,
+  CheckCircle,
+  RefreshCw,
+  Scan,
+  ChevronRight,
+  Smartphone,
+  Database,
 } from 'lucide-react';
 import {
   scanCardFromFile,
@@ -27,7 +35,9 @@ function ConfidenceBadge({ value }: { value: number }) {
         ? 'text-amber-300 bg-amber-500/10 border-amber-500/30'
         : 'text-loss bg-loss/10 border-loss/30';
   return (
-    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold tabular-nums ${color}`}>
+    <span
+      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold tabular-nums ${color}`}
+    >
       {pct}% match
     </span>
   );
@@ -67,20 +77,28 @@ function ScanResultSheet({ result }: { result: ScanResult }) {
         )}
         <dl className="grid flex-1 grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-border-subtle bg-surface-inset p-3">
           <div>
-            <dt className="mb-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-muted">Name</dt>
+            <dt className="mb-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-muted">
+              Name
+            </dt>
             <dd className="text-sm font-semibold text-ink-primary">{name}</dd>
           </div>
           <div>
-            <dt className="mb-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-muted">Set</dt>
+            <dt className="mb-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-muted">
+              Set
+            </dt>
             <dd className="text-sm font-semibold text-ink-primary">{set}</dd>
           </div>
           <div>
-            <dt className="mb-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-muted">Number</dt>
+            <dt className="mb-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-muted">
+              Number
+            </dt>
             <dd className="text-sm font-semibold tabular-nums text-ink-primary">{number || '—'}</dd>
           </div>
           {id && (
             <div>
-              <dt className="mb-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-muted">ID</dt>
+              <dt className="mb-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-muted">
+                ID
+              </dt>
               <dd className="truncate text-sm font-mono text-ink-secondary">{id}</dd>
             </div>
           )}
@@ -151,7 +169,7 @@ export function CardScanner() {
   useEffect(() => () => stopCamera(), []);
 
   const stopCamera = () => {
-    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
     setIsCameraActive(false);
@@ -201,66 +219,72 @@ export function CardScanner() {
     setError(message);
   }, []);
 
-  const processBase64 = useCallback(async (base64: string) => {
-    setIsScanning(true);
-    setScanResult(null);
-    setError(null);
-    try {
-      // Re-encode so phone relay payloads are valid JPEGs (avoids Pillow
-      // "broken data stream when reading image file" on truncated frames).
-      const normalized = await compressImageDataUrl(base64, { maxSide: 1600, quality: 0.88 });
-      setPreviewUrl(normalized);
-      const result = await scanCardFromBase64(normalized);
-      setScanResult(result);
-      if (result.success) markOnboardingStep('scan');
-      if (!result.success) {
-        applyScanFailure(result.message ?? result.error ?? 'Failed to identify card');
+  const processBase64 = useCallback(
+    async (base64: string) => {
+      setIsScanning(true);
+      setScanResult(null);
+      setError(null);
+      try {
+        // Re-encode so phone relay payloads are valid JPEGs (avoids Pillow
+        // "broken data stream when reading image file" on truncated frames).
+        const normalized = await compressImageDataUrl(base64, { maxSide: 1600, quality: 0.88 });
+        setPreviewUrl(normalized);
+        const result = await scanCardFromBase64(normalized);
+        setScanResult(result);
+        if (result.success) markOnboardingStep('scan');
+        if (!result.success) {
+          applyScanFailure(result.message ?? result.error ?? 'Failed to identify card');
+        }
+      } catch (e) {
+        const message = e instanceof Error ? e.message : 'Scan failed. Please try again.';
+        if (isReferenceDbError(message)) {
+          setReferenceReady(false);
+          setReferenceError(message);
+        } else if (/broken data stream|decode|corrupt|empty/i.test(message)) {
+          setError('Photo was incomplete or corrupted. Retake with Phone camera and try again.');
+        } else {
+          setError(message);
+        }
+      } finally {
+        setIsScanning(false);
       }
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Scan failed. Please try again.';
-      if (isReferenceDbError(message)) {
-        setReferenceReady(false);
-        setReferenceError(message);
-      } else if (/broken data stream|decode|corrupt|empty/i.test(message)) {
-        setError('Photo was incomplete or corrupted. Retake with Phone camera and try again.');
-      } else {
-        setError(message);
-      }
-    } finally {
-      setIsScanning(false);
-    }
-  }, [applyScanFailure]);
+    },
+    [applyScanFailure]
+  );
 
-  const processFile = useCallback(async (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      setError('Please upload an image file (JPG, PNG, WebP, etc.)');
-      return;
-    }
-    const url = URL.createObjectURL(file);
-    setPreviewUrl(url);
-    setIsScanning(true);
-    setScanResult(null);
-    setError(null);
+  const processFile = useCallback(
+    async (file: File) => {
+      if (!file.type.startsWith('image/')) {
+        setError('Please upload an image file (JPG, PNG, WebP, etc.)');
+        return;
+      }
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
+      setIsScanning(true);
+      setScanResult(null);
+      setError(null);
 
-    try {
-      const result = await scanCardFromFile(file);
-      setScanResult(result);
-      if (result.success) markOnboardingStep('scan');
-      if (!result.success) {
-        applyScanFailure(result.message ?? result.error ?? 'Failed to identify card');
+      try {
+        const result = await scanCardFromFile(file);
+        setScanResult(result);
+        if (result.success) markOnboardingStep('scan');
+        if (!result.success) {
+          applyScanFailure(result.message ?? result.error ?? 'Failed to identify card');
+        }
+      } catch (e) {
+        const message = e instanceof Error ? e.message : 'Scan failed. Please try again.';
+        if (isReferenceDbError(message)) {
+          setReferenceReady(false);
+          setReferenceError(message);
+        } else {
+          setError(message);
+        }
+      } finally {
+        setIsScanning(false);
       }
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Scan failed. Please try again.';
-      if (isReferenceDbError(message)) {
-        setReferenceReady(false);
-        setReferenceError(message);
-      } else {
-        setError(message);
-      }
-    } finally {
-      setIsScanning(false);
-    }
-  }, [applyScanFailure]);
+    },
+    [applyScanFailure]
+  );
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -327,35 +351,42 @@ export function CardScanner() {
           <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-2xl border border-amber-500/25 bg-amber-500/10">
             <Camera className="h-10 w-10 text-amber-300/80" />
           </div>
-          <h2 className="text-xl font-semibold text-ink-primary">Scanner warming up…</h2>
+          <h2 className="text-xl font-semibold text-ink-primary">Scanner unavailable</h2>
           <p className="mx-auto mt-2 max-w-md text-sm text-ink-muted">
-            We&apos;re trying to reach the recognition service on port 5001. Start the Python backend
-            locally, or wait — we&apos;ll retry automatically.
+            The card recognition service isn&apos;t running. This feature requires a local Python
+            backend that processes card images — it&apos;s not available on the hosted demo.
           </p>
 
-          <div className="mx-auto mt-6 max-w-xs">
-            <div className="mb-1 flex justify-between text-[10px] uppercase tracking-wider text-ink-muted">
-              <span>Auto-retry</span>
-              <span>{retryProgress}%</span>
+          {retryProgress < 100 && (
+            <div className="mx-auto mt-6 max-w-xs">
+              <div className="mb-1 flex justify-between text-[10px] uppercase tracking-wider text-ink-muted">
+                <span>Auto-retry</span>
+                <span>{retryProgress}%</span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full bg-accent/70 transition-all duration-500"
+                  style={{ width: `${retryProgress}%` }}
+                />
+              </div>
             </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-              <div
-                className="h-full rounded-full bg-accent/70 transition-all duration-500"
-                style={{ width: `${retryProgress}%` }}
-              />
-            </div>
-          </div>
+          )}
 
-          <div className="mt-6 rounded-lg border border-border-subtle bg-black/40 p-4 text-left font-mono text-xs">
-            <p className="mb-2 text-ink-muted"># Start the scanner backend</p>
-            <p className="text-emerald-400">cd card-scanner-backend</p>
-            <p className="text-emerald-400">pip install -r requirements.txt</p>
-            <p className="text-emerald-400">python app.py</p>
-          </div>
+          <details className="mx-auto mt-6 max-w-md text-left">
+            <summary className="cursor-pointer text-sm font-medium text-ink-secondary hover:text-ink-primary">
+              Running locally? Start the backend ↓
+            </summary>
+            <div className="mt-3 rounded-lg border border-border-subtle bg-black/40 p-4 font-mono text-xs">
+              <p className="mb-2 text-ink-muted"># Start the scanner backend</p>
+              <p className="text-emerald-400">cd card-scanner-backend</p>
+              <p className="text-emerald-400">pip install -r requirements.txt</p>
+              <p className="text-emerald-400">python app.py</p>
+            </div>
+          </details>
 
           <button type="button" onClick={recheckBackend} className="btn-primary mt-6">
             <RefreshCw className="h-4 w-4" />
-            Retry now
+            Check again
           </button>
         </div>
       </div>
@@ -380,8 +411,9 @@ export function CardScanner() {
           </div>
           <h2 className="text-xl font-semibold text-ink-primary">Reference database not ready</h2>
           <p className="mx-auto mt-2 max-w-md text-sm text-ink-muted">
-            The scanner backend is online, but the Pokémon card reference database is missing or empty.
-            Recognition won&apos;t work until you build it locally — this is expected in local/dev setups.
+            The scanner backend is online, but the Pokémon card reference database is missing or
+            empty. Recognition won&apos;t work until you build it locally — this is expected in
+            local/dev setups.
           </p>
           {referenceError && (
             <p className="mx-auto mt-3 max-w-md rounded-lg border border-border-subtle bg-surface-inset px-3 py-2 text-left text-xs text-ink-secondary">
@@ -390,14 +422,19 @@ export function CardScanner() {
           )}
 
           <div className="mt-6 rounded-lg border border-border-subtle bg-black/40 p-4 text-left font-mono text-xs">
-            <p className="mb-2 text-ink-muted"># Optional — build reference DB (30–60 min, needs pokemontcg.io API key)</p>
+            <p className="mb-2 text-ink-muted">
+              # Optional — build reference DB (30–60 min, needs pokemontcg.io API key)
+            </p>
             <p className="text-emerald-400">cd card-scanner-backend</p>
             <p className="text-emerald-400">python build_reference.py</p>
-            <p className="mt-2 text-ink-muted"># See SETUP_REFERENCE.md and CURRENT_STATUS.md for details</p>
+            <p className="mt-2 text-ink-muted">
+              # See SETUP_REFERENCE.md and CURRENT_STATUS.md for details
+            </p>
           </div>
 
           <p className="mx-auto mt-4 max-w-md text-xs text-ink-muted">
-            You can still develop the scanner UI without the reference DB. Real identification starts after the build.
+            You can still develop the scanner UI without the reference DB. Real identification
+            starts after the build.
           </p>
 
           <button type="button" onClick={recheckBackend} className="btn-primary mt-6">
@@ -439,7 +476,9 @@ export function CardScanner() {
               <Camera className="h-5 w-5 text-accent" />
             </div>
             <h3 className="mb-1 font-semibold text-ink-primary">Camera scan</h3>
-            <p className="text-sm text-ink-muted">Use your device camera to scan a physical card in real time.</p>
+            <p className="text-sm text-ink-muted">
+              Use your device camera to scan a physical card in real time.
+            </p>
             <div className="mt-3 flex items-center gap-1 text-xs font-medium text-accent">
               <span>Open camera</span>
               <ChevronRight className="h-3.5 w-3.5" />
@@ -471,7 +510,9 @@ export function CardScanner() {
               <Upload className="h-5 w-5 text-accent" />
             </div>
             <h3 className="mb-1 font-semibold text-ink-primary">Upload image</h3>
-            <p className="text-sm text-ink-muted">Upload a photo from your device or drag and drop.</p>
+            <p className="text-sm text-ink-muted">
+              Upload a photo from your device or drag and drop.
+            </p>
             <div className="mt-3 flex items-center gap-1 text-xs font-medium text-accent">
               <span>Choose file</span>
               <ChevronRight className="h-3.5 w-3.5" />
@@ -612,8 +653,19 @@ export function CardScanner() {
           <div className="p-5 space-y-4">
             {/* Drop zone */}
             <div
+              role="button"
+              tabIndex={0}
               onClick={() => fileInputRef.current?.click()}
-              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  fileInputRef.current?.click();
+                }
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
               onDragLeave={() => setIsDragging(false)}
               onDrop={handleDrop}
               className={`relative cursor-pointer rounded-xl border-2 border-dashed p-10 text-center transition-colors ${

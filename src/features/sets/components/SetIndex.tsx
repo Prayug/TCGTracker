@@ -41,7 +41,11 @@ function SetCard({
 
   if (isPokemon) {
     const pokemonSet = set as PokemonSet;
-    completion = setTrackerService.getCompletionForSet(pokemonSet.id, pokemonSet.name, pokemonSet.total);
+    completion = setTrackerService.getCompletionForSet(
+      pokemonSet.id,
+      pokemonSet.name,
+      pokemonSet.total
+    );
     year = formatReleaseYear(pokemonSet.releaseDate);
   }
 
@@ -94,29 +98,41 @@ export const SetIndex: React.FC<SetIndexProps> = ({ onSelectSet }) => {
   const [pinnedOnly, setPinnedOnly] = useState(false);
   const [, setPinTick] = useState(0);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        if (isPokemon) {
-          const data = await setTrackerService.getSets();
-          if (!cancelled) setSets(data);
-        } else if (isOnePiece) {
-          const data = await onePieceApi.getSets();
-          if (!cancelled) setSets(data);
-        }
-      } catch (e) {
-        if (!cancelled) setError((e as Error).message);
-      } finally {
-        if (!cancelled) setIsLoading(false);
+  const loadSets = React.useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      if (isPokemon) {
+        const data = await setTrackerService.getSets();
+        setSets(data);
+      } else if (isOnePiece) {
+        const data = await onePieceApi.getSets();
+        setSets(data);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    } catch (e) {
+      const msg = (e as Error).message;
+      // Make backend errors more user-friendly
+      if (msg.includes('502') || msg.includes('503') || msg.includes('504')) {
+        setError(
+          'The set catalog backend is temporarily unavailable. This may be a network issue — please try again.'
+        );
+      } else if (
+        msg.includes('fetch') ||
+        msg.includes('network') ||
+        msg.includes('Failed to fetch')
+      ) {
+        setError('Unable to reach the server. Check your connection and try again.');
+      } else {
+        setError(msg);
+      }
+    } finally {
+      setIsLoading(false);
+    }
   }, [isPokemon, isOnePiece]);
+
+  useEffect(() => {
+    loadSets();
+  }, [loadSets]);
 
   const filtered = useMemo(() => {
     let list = sets;
@@ -160,7 +176,7 @@ export const SetIndex: React.FC<SetIndexProps> = ({ onSelectSet }) => {
   }
 
   if (error) {
-    return <ErrorMessage message={error} onRetry={() => window.location.reload()} />;
+    return <ErrorMessage message={error} onRetry={loadSets} />;
   }
 
   if (sets.length === 0) {
@@ -168,7 +184,11 @@ export const SetIndex: React.FC<SetIndexProps> = ({ onSelectSet }) => {
       <PageEmptyState
         icon={Layers}
         title="No sets in catalog"
-        message={isPokemon ? 'Run catalog sync on the backend to populate set checklists.' : 'Loading One Piece sets...'}
+        message={
+          isPokemon
+            ? 'Run catalog sync on the backend to populate set checklists.'
+            : 'Loading One Piece sets...'
+        }
       />
     );
   }
@@ -218,7 +238,10 @@ export const SetIndex: React.FC<SetIndexProps> = ({ onSelectSet }) => {
       {showGrouped ? (
         <div className="space-y-8">
           {grouped.map((group) => (
-            <section key={group.era} className="relative space-y-3 border-l-2 border-border-default pl-5">
+            <section
+              key={group.era}
+              className="relative space-y-3 border-l-2 border-border-default pl-5"
+            >
               <div className="sticky top-[4.25rem] z-10 -ml-5 flex items-center gap-3 bg-surface-base/95 py-2 pl-5 ">
                 <span
                   className="absolute -left-[5px] h-2 w-2 rounded-full bg-accent"
@@ -227,7 +250,9 @@ export const SetIndex: React.FC<SetIndexProps> = ({ onSelectSet }) => {
                 <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-secondary">
                   {group.label}
                 </h2>
-                <span className="text-xs tabular-nums text-ink-muted">{group.sets.length} sets</span>
+                <span className="text-xs tabular-nums text-ink-muted">
+                  {group.sets.length} sets
+                </span>
               </div>
               <div className="stagger-children grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {group.sets.map((set) => (

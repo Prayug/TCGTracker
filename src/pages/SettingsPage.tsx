@@ -11,16 +11,8 @@ import { syncUserDataOnLogin } from '../services/userDataSyncService';
 type AuthMode = 'login' | 'register';
 
 export function SettingsPage() {
-  const {
-    user,
-    isAuthenticated,
-    isLoading,
-    login,
-    register,
-    logout,
-    refreshUser,
-    openAuthModal,
-  } = useAuth();
+  const { user, isAuthenticated, isLoading, login, register, logout, refreshUser, openAuthModal } =
+    useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -78,9 +70,11 @@ export function SettingsPage() {
         navigate('/settings', { replace: true });
       } else {
         const result = await register(username.trim(), email.trim(), password);
-        showToast(result.message, result.emailSent ? 'success' : 'info');
-        setPassword('');
-        openAuthModal('register');
+        if (result.requiresVerification) {
+          showToast(result.message, result.emailSent ? 'success' : 'info');
+          setPassword('');
+          openAuthModal('register');
+        }
       }
     } catch (err: unknown) {
       const message =

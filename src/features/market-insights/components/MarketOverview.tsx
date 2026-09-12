@@ -1,4 +1,4 @@
-import { TrendingUp, TrendingDown, Minus, Brain, Target, BarChart3 } from 'lucide-react';
+import { TrendingUp, TrendingDown, Brain, Target, BarChart3 } from 'lucide-react';
 import { MarketOverview as MarketOverviewType } from '../types';
 import { CategoryDonutChart } from './charts/CategoryDonutChart';
 import { ConfidenceDistribution } from './charts/ConfidenceDistribution';
@@ -7,17 +7,6 @@ interface Props {
   data: MarketOverviewType | null;
   loading: boolean;
   error: string | null;
-}
-
-function DirectionIcon({ direction }: { direction: string }) {
-  switch (direction) {
-    case 'bullish':
-      return <TrendingUp className="h-5 w-5 text-emerald-400" />;
-    case 'bearish':
-      return <TrendingDown className="h-5 w-5 text-red-400" />;
-    default:
-      return <Minus className="h-5 w-5 text-ink-muted" />;
-  }
 }
 
 function DirectionLabel({ direction }: { direction: string }) {
@@ -41,10 +30,24 @@ export function MarketOverview({ data, loading, error }: Props) {
   }
 
   if (error || !data) {
+    const isBackendError =
+      typeof error === 'string' &&
+      (error.includes('503') ||
+        error.includes('502') ||
+        error.includes('fetch') ||
+        error.includes('network') ||
+        error.includes('Backend'));
     return (
-      <div className="flex h-64 items-center justify-center rounded-xl border border-dashed border-border-default">
-        <p className="text-sm text-ink-muted">
-          {typeof error === 'string' ? error : 'No overview data available. Run predictions first.'}
+      <div className="flex h-64 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border-default px-4 text-center">
+        <p className="text-sm font-medium text-ink-secondary">
+          {isBackendError ? 'Market Insights unavailable' : 'No overview data available'}
+        </p>
+        <p className="max-w-sm text-xs text-ink-muted">
+          {isBackendError
+            ? 'The prediction backend is not running. This feature requires backend services that are not available on the hosted demo.'
+            : typeof error === 'string'
+              ? error
+              : 'Run predictions to generate market overview data.'}
         </p>
       </div>
     );
@@ -90,16 +93,18 @@ export function MarketOverview({ data, loading, error }: Props) {
           Realized market benchmark (from prediction history):{' '}
           {data.marketBenchmark30d != null && (
             <span className="font-mono text-ink-secondary">
-              30d {data.marketBenchmark30d >= 0 ? '+' : ''}{(data.marketBenchmark30d * 100).toFixed(1)}%
+              30d {data.marketBenchmark30d >= 0 ? '+' : ''}
+              {(data.marketBenchmark30d * 100).toFixed(1)}%
             </span>
           )}
           {data.marketBenchmark30d != null && data.marketBenchmark90d != null && ' · '}
           {data.marketBenchmark90d != null && (
             <span className="font-mono text-ink-secondary">
-              90d {data.marketBenchmark90d >= 0 ? '+' : ''}{(data.marketBenchmark90d * 100).toFixed(1)}%
+              90d {data.marketBenchmark90d >= 0 ? '+' : ''}
+              {(data.marketBenchmark90d * 100).toFixed(1)}%
             </span>
-          )}
-          {' '}— predictions are benchmarked against these.
+          )}{' '}
+          — predictions are benchmarked against these.
         </p>
       )}
 

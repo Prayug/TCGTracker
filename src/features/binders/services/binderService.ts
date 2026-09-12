@@ -15,12 +15,23 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     ...getAuthHeaders(),
     ...(options?.headers as Record<string, string>),
   };
-  const res = await fetch(`${API()}${path}`, {
-    ...options,
-    headers,
-    credentials: 'include',
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API()}${path}`, {
+      ...options,
+      headers,
+      credentials: 'include',
+    });
+  } catch {
+    throw new Error('Unable to reach the server. Check your connection and try again.');
+  }
   if (!res.ok) {
+    // Provide user-friendly messages for common backend errors
+    if (res.status === 502 || res.status === 503 || res.status === 504) {
+      throw new Error(
+        'The binder service is temporarily unavailable. Please try again in a moment.'
+      );
+    }
     const body = await res.text().catch(() => '');
     throw new Error(`API ${res.status}: ${body.slice(0, 200)}`);
   }
@@ -69,7 +80,13 @@ export const binderService = {
     themeDescription?: string;
     budgetCents?: number;
     constraintsJson?: string;
-    slots?: { pageNumber: number; slotPosition: number; cardId: string; cardSnapshot?: string; marketPriceCents?: number }[];
+    slots?: {
+      pageNumber: number;
+      slotPosition: number;
+      cardId: string;
+      cardSnapshot?: string;
+      marketPriceCents?: number;
+    }[];
   }): Promise<Binder> {
     const res = await request<{ binder: Binder }>('/api/binders', {
       method: 'POST',
@@ -91,23 +108,31 @@ export const binderService = {
   },
 
   async commitToVault(id: number): Promise<number> {
-    const res = await request<{ cardsAdded: number }>(`/api/binders/${id}/commit/vault`, { method: 'POST' });
+    const res = await request<{ cardsAdded: number }>(`/api/binders/${id}/commit/vault`, {
+      method: 'POST',
+    });
     return res.cardsAdded;
   },
 
-  async commitToWishlist(id: number): Promise<{ cardId: string; cardSnapshot: any; marketPrice: number | null }[]> {
-    const res = await request<{ cards: { cardId: string; cardSnapshot: any; marketPrice: number | null }[] }>(
-      `/api/binders/${id}/commit/wishlist`, { method: 'POST' }
-    );
+  async commitToWishlist(
+    id: number
+  ): Promise<{ cardId: string; cardSnapshot: unknown; marketPrice: number | null }[]> {
+    const res = await request<{
+      cards: { cardId: string; cardSnapshot: unknown; marketPrice: number | null }[];
+    }>(`/api/binders/${id}/commit/wishlist`, { method: 'POST' });
     return res.cards;
   },
 
-  async updateSlot(binderId: number, slotId: number, data: {
-    cardId?: string;
-    cardSnapshot?: string;
-    marketPriceCents?: number;
-    notes?: string;
-  }): Promise<Binder> {
+  async updateSlot(
+    binderId: number,
+    slotId: number,
+    data: {
+      cardId?: string;
+      cardSnapshot?: string;
+      marketPriceCents?: number;
+      notes?: string;
+    }
+  ): Promise<Binder> {
     const res = await request<{ binder: Binder }>(`/api/binders/${binderId}/slots/${slotId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
