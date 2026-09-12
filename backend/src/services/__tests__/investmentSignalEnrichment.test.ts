@@ -8,6 +8,7 @@ import {
   hasMarketConfirmation,
   mapSignalCategory,
   resolveSignalEntity,
+  sourceThumbnailUrl,
 } from '../investmentSignalEnrichment';
 
 describe('investmentSignalEnrichment', () => {
@@ -120,7 +121,6 @@ describe('investmentSignalEnrichment', () => {
   });
 
   it('builds youtube thumbnail url from watch link', () => {
-    const { sourceThumbnailUrl } = require('../investmentSignalEnrichment');
     expect(sourceThumbnailUrl('https://youtube.com/watch?v=dQw4w9WgXcQ')).toContain('dQw4w9WgXcQ');
   });
 });

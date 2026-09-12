@@ -1250,7 +1250,7 @@ export function computeCalibratedConfidence(params: {
     uncertaintyPenalty = clamp(monthlyVolatility * 0.5 * 100 * 0.35, 0, 35);
   }
 
-  let confidenceScore = Math.max(10, Math.min(95, Math.round(baseConfidence - uncertaintyPenalty)));
+  const confidenceScore = Math.max(10, Math.min(95, Math.round(baseConfidence - uncertaintyPenalty)));
   return confidenceScore;
 }
 

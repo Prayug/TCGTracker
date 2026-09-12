@@ -1,6 +1,7 @@
 import { guessConsoleName } from '../priceChartingResolver';
 import { buildMatchNameFromDex, resolveMatchName } from '../../utils/matchName';
 import { isAcceptableMatch, parseSearchRows } from '../priceChartingClient';
+import { queryContainsCjk } from '../../utils/scriptDetection';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -77,8 +78,6 @@ describe('Japanese PriceCharting search fixture', () => {
 });
 
 describe('queryContainsCjk', () => {
-  const { queryContainsCjk } = require('../../utils/scriptDetection');
-
   it('detects katakana Pikachu', () => {
     expect(queryContainsCjk('ピカチュウ')).toBe(true);
   });

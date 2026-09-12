@@ -178,7 +178,7 @@ export async function runBacktest(
 ): Promise<BacktestResult> {
   const db = getDb();
 
-  let cards: any[] = await new Promise((resolve, reject) => {
+  const cards: any[] = await new Promise((resolve, reject) => {
     // Rarity falls back to catalog_cards — card_mappings often has blank rarity,
     // and without a resolved rarity isRarityInvestmentWorthy() rejects every card.
     let sql = `SELECT cm.cardId, cm.cardName, cm.setId, cm.setName, cm.cardNumber,

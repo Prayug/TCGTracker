@@ -211,7 +211,7 @@ export function createCaptureSession(mode: CaptureMode): CaptureSession {
 
 export function getCaptureSession(id: string): CaptureSession | null {
   purgeExpired();
-  let session = sessions.get(id) || loadPersistedSession(id);
+  const session = sessions.get(id) || loadPersistedSession(id);
   if (!session) return null;
   if (session.expiresAt <= Date.now()) {
     session.status = 'expired';

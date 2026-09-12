@@ -176,27 +176,22 @@ export class AuthService {
   }> {
     const hash = await bcrypt.hash(password, env.bcrypt.rounds);
 
-    let userId: number;
-    try {
-      userId = await new Promise<number>((resolve, reject) => {
-        this.db.run(
-          `INSERT INTO users (username, email, password_hash, email_verified)
-           VALUES (?, ?, ?, 0)`,
-          [username, email, hash],
-          function (this: { lastID: number }, err: Error | null) {
-            if (err) {
-              if (err.message.includes('UNIQUE constraint failed')) {
-                return reject(new Error('Username or email already exists'));
-              }
-              return reject(err);
+    const userId = await new Promise<number>((resolve, reject) => {
+      this.db.run(
+        `INSERT INTO users (username, email, password_hash, email_verified)
+         VALUES (?, ?, ?, 0)`,
+        [username, email, hash],
+        function (this: { lastID: number }, err: Error | null) {
+          if (err) {
+            if (err.message.includes('UNIQUE constraint failed')) {
+              return reject(new Error('Username or email already exists'));
             }
-            resolve(this.lastID);
+            return reject(err);
           }
-        );
-      });
-    } catch (err) {
-      throw err;
-    }
+          resolve(this.lastID);
+        }
+      );
+    });
 
     const token = await this.issueVerificationToken(userId);
     const { emailSent, verifyUrl } = await this.sendVerificationEmail(email, username, token);

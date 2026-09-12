@@ -3,6 +3,7 @@
  * signal cards with market metrics, scoring, and human-readable interpretation.
  */
 
+import { getDb } from '../db/database';
 import { scoreLiquidity, type LiquidityTier } from './liquidityScore';
 import {
   applyBulkAndEconomicScoring,
@@ -22,11 +23,6 @@ function computeChange(
   const changePct = prev > 0 ? round2(((current - prev) / prev) * 100) : 0;
   return { changeAbs, changePct };
 }
-
-const getDb = () => {
-  const { getDb: db } = require('../db/database') as typeof import('../db/database');
-  return db();
-};
 
 const all = <T>(sql: string, params: unknown[] = []): Promise<T[]> =>
   new Promise((resolve, reject) => {

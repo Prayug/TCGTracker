@@ -109,7 +109,7 @@ export async function runSignalScrape(): Promise<ScrapeResult> {
     new SetCalendarScraper(),
   ];
 
-  let allSignals: ScrapedSignal[] = [];
+  const allSignals: ScrapedSignal[] = [];
   const errors: string[] = [];
 
   // Run scrapers sequentially to respect rate limits

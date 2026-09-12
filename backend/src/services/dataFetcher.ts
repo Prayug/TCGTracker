@@ -886,8 +886,8 @@ const snapshotFromMarketProvider = async (
   );
 
   const collected = workerResults.flatMap((r) => r.entries);
-  let cardsProcessed = workerResults.reduce((s, r) => s + r.cardsProcessed, 0);
-  let cardsFailed = workerResults.reduce((s, r) => s + r.cardsFailed, 0);
+  const cardsProcessed = workerResults.reduce((s, r) => s + r.cardsProcessed, 0);
+  const cardsFailed = workerResults.reduce((s, r) => s + r.cardsFailed, 0);
 
   const runPriceStmt = (params: unknown[]): Promise<void> =>
     new Promise((resolve, reject) => {

@@ -108,7 +108,7 @@ const detectOpSpecialReprintFamily = (hay: string): OpPrintFamily | null => {
     /1st[\s-]*anniversary/.test(hay) ||
     /english\s+version\s+1st\s+anniversary/.test(hay) ||
     /\[anniversary\]/.test(hay) ||
-    /(?:^|[\s\-])anniversary(?:[\s\-]|$)/.test(hay)
+    /(?:^|[\s-])anniversary(?:[\s-]|$)/.test(hay)
   ) {
     return 'anniversary';
   }

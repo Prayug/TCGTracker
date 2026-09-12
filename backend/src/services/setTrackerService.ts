@@ -78,7 +78,7 @@ export interface SetCardDto {
 
 /** True for reverse / reverse-holo finishes (TCGPlayer + mapping key variants). */
 export const isReverseFinish = (subTypeName: string, variantKey: string): boolean => {
-  const combined = `${subTypeName} ${variantKey}`.toLowerCase().replace(/[\s_\-]/g, '');
+  const combined = `${subTypeName} ${variantKey}`.toLowerCase().replace(/[\s_-]/g, '');
   return combined.includes('reverseholo');
 };
 

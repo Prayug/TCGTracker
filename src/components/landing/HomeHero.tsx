@@ -133,8 +133,8 @@ export function HomeHero() {
                 }
           }
           className={cn(
-            'pointer-events-none absolute inset-x-0 bottom-0 z-20 mx-auto h-[min(58vh,28rem)] w-full max-w-5xl px-4 sm:px-8',
-            reduced && 'relative mt-2 h-[min(48vh,24rem)]'
+            'pointer-events-none absolute inset-x-0 bottom-0 z-20 mx-auto h-[min(64vh,32rem)] w-full max-w-5xl px-4 sm:px-8',
+            reduced && 'relative mt-2 h-[min(52vh,26rem)]'
           )}
         >
           <div className="relative h-full w-full">
