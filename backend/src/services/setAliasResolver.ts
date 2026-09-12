@@ -83,7 +83,9 @@ export const resolveSetSearchKeys = async (
   return { setIds: [...setIds], setNames: [...setNames] };
 };
 
-export const buildSetMappingWhereClause = (keys: SetSearchKeys): { sql: string; params: unknown[] } => {
+export const buildSetMappingWhereClause = (
+  keys: SetSearchKeys
+): { sql: string; params: unknown[] } => {
   const params: unknown[] = [];
   const parts: string[] = [];
 

@@ -25,7 +25,9 @@ export const CardCarousel: React.FC<CardCarouselProps> = ({ onCardClick }) => {
       if (mounted) setLoading(false);
     };
     load();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const getPrice = useCallback((card: PokemonCard) => {
@@ -50,7 +52,9 @@ export const CardCarousel: React.FC<CardCarouselProps> = ({ onCardClick }) => {
     return (
       <div className="flex flex-col items-center gap-3 py-12">
         <TrendingUp className="h-8 w-8" style={{ color: 'var(--ink-muted)' }} />
-        <p className="text-sm" style={{ color: 'var(--ink-muted)' }}>Market data loading...</p>
+        <p className="text-sm" style={{ color: 'var(--ink-muted)' }}>
+          Market data loading...
+        </p>
       </div>
     );
   }

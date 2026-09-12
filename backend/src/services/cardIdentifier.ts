@@ -26,8 +26,7 @@ export interface UniqueIdentifierOptions {
   matchName?: string;
 }
 
-const normalizeAsciiKey = (value: string): string =>
-  value.toLowerCase().replace(/[^a-z0-9]/g, '');
+const normalizeAsciiKey = (value: string): string => value.toLowerCase().replace(/[^a-z0-9]/g, '');
 
 /**
  * Generates a unique identifier for a card based on its properties.
@@ -42,10 +41,7 @@ export const generateUniqueIdentifier = (
   options?: UniqueIdentifierOptions
 ): string => {
   const language = (options?.language || 'en').toLowerCase();
-  const nameForKey =
-    language === 'ja' && options?.matchName?.trim()
-      ? options.matchName
-      : cardName;
+  const nameForKey = language === 'ja' && options?.matchName?.trim() ? options.matchName : cardName;
   const normalizedName = normalizeAsciiKey(nameForKey);
   const normalizedSetId = setId.toLowerCase().replace(/[^a-z0-9]/g, '');
   const normalizedCardNumber = cardNumber ? cardNumber.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
@@ -221,7 +217,7 @@ export const findCardByDetails = async (
   if (productId) {
     const row = await dbGet(
       `SELECT * FROM card_mappings WHERE tcgplayerProductId = ?
-       ${langFilter ? 'AND COALESCE(language, \'en\') = ?' : ''}
+       ${langFilter ? "AND COALESCE(language, 'en') = ?" : ''}
        ORDER BY
          CASE WHEN ? IS NOT NULL AND REPLACE(LOWER(COALESCE(variantKey, 'normal')), ' ', '') = ? THEN 0 ELSE 1 END,
          CASE WHEN ? IS NOT NULL AND REPLACE(LOWER(COALESCE(cardNumber, '')), '-', '') = ? THEN 0 ELSE 1 END,
@@ -294,10 +290,7 @@ export const findCardByDetails = async (
   if (langFilter) lenientParams.push(langFilter);
   if (normalizedVariantKey) lenientParams.push(normalizedVariantKey);
 
-  const lenientRow = await dbGet(
-    `${lenientSql} ORDER BY ${orderClause([])}`,
-    lenientParams
-  );
+  const lenientRow = await dbGet(`${lenientSql} ORDER BY ${orderClause([])}`, lenientParams);
   if (lenientRow) return lenientRow as CardIdentifier;
 
   // Strategy 3: Fuzzy match (case-insensitive LIKE)

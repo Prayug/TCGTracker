@@ -164,7 +164,7 @@ export const ONE_PIECE_SET_CONFIGS: OnePieceSetOddsConfig[] = [
     releaseDate: '2025-08-22',
   },
   {
-    ...base('OP-13', "Carrying on His Will", ['OP-13', 'OP13']),
+    ...base('OP-13', 'Carrying on His Will', ['OP-13', 'OP13']),
     spPerCase: 2,
     trPerCase: 1,
     mangaPerCases: 5,
@@ -316,7 +316,8 @@ export function buildOddsRows(cfg: OnePieceSetOddsConfig, pools: RarityPoolMeta)
       perPack: pct(cfg.aaPerBox / box),
       perBox: `~${cfg.aaPerBox} per box`,
       perCase: `~${Math.round(cfg.aaPerBox * BOXES_PER_CASE)} per case`,
-      note: pools.count > 0 ? 'Non-leader parallels.' : 'No parallel cards in catalog for this set.',
+      note:
+        pools.count > 0 ? 'Non-leader parallels.' : 'No parallel cards in catalog for this set.',
     },
     {
       label: 'Leader Alternate Art',
@@ -361,7 +362,10 @@ export function buildOddsRows(cfg: OnePieceSetOddsConfig, pools: RarityPoolMeta)
       perPack: pct(perPack),
       perBox: `≈1 in ${oneIn(perPack) || '—'} packs`,
       perCase: `≈1 in ${cfg.mangaPerCases} cases`,
-      note: pools.count > 0 ? 'Includes "(Super Alternate Art)" / "(Manga)".' : 'No manga cards in catalog for this set yet.',
+      note:
+        pools.count > 0
+          ? 'Includes "(Super Alternate Art)" / "(Manga)".'
+          : 'No manga cards in catalog for this set yet.',
     });
   }
   if (cfg.saaPerBoxes > 0) {

@@ -107,10 +107,7 @@ export function seriesKey(cardId: string, variantKey: string): string {
 }
 
 /** Unknown product ids are compatible; two known ids must match. */
-export function productIdsMatch(
-  a?: string | number | null,
-  b?: string | number | null
-): boolean {
+export function productIdsMatch(a?: string | number | null, b?: string | number | null): boolean {
   if (a == null || b == null || a === '' || b === '') return true;
   return String(a) === String(b);
 }
@@ -127,10 +124,7 @@ export function seriesHasSingleProduct(
   return ids.size <= 1;
 }
 
-export async function getSlabTopMovers(
-  days: number,
-  limit: number
-): Promise<SlabTopMoversResult> {
+export async function getSlabTopMovers(days: number, limit: number): Promise<SlabTopMoversResult> {
   const cacheKey = `v2:${days}:${limit}`;
   const cached = cache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
@@ -309,10 +303,7 @@ export async function getSlabTopMovers(
     .sort((a, b) => a.changePercent - b.changePercent)
     .slice(0, limit);
 
-  const [gainers, losers] = await Promise.all([
-    enrichMovers(gainerRank),
-    enrichMovers(loserRank),
-  ]);
+  const [gainers, losers] = await Promise.all([enrichMovers(gainerRank), enrichMovers(loserRank)]);
 
   const payload: SlabTopMoversResult = {
     date: latestDate,
@@ -379,7 +370,8 @@ async function enrichMovers(
     const variantKey = r.variantKey || 'normal';
     const cat = catByKey.get(seriesKey(r.cardId, variantKey)) || catById.get(r.cardId);
     const imgs = mapById.get(r.cardId);
-    const imageSmall = cat?.imageSmall || imgs?.imageSmall || cat?.imageLarge || imgs?.imageLarge || null;
+    const imageSmall =
+      cat?.imageSmall || imgs?.imageSmall || cat?.imageLarge || imgs?.imageLarge || null;
     const imageLarge = cat?.imageLarge || imgs?.imageLarge || imageSmall;
     const productIdNum = Number.parseInt(String(r.productId || ''), 10);
     return {

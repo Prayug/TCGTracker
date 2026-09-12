@@ -1,8 +1,4 @@
-import {
-  CatalogCardSummary,
-  CatalogProvider,
-  CatalogSetSummary,
-} from './contracts';
+import { CatalogCardSummary, CatalogProvider, CatalogSetSummary } from './contracts';
 import { logger } from '../../utils/logger';
 import { resolveMatchName } from '../../utils/matchName';
 

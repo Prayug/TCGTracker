@@ -40,8 +40,7 @@ export const sortSetTrackerCards = (
     default:
       return sorted.sort(
         (a, b) =>
-          cardNumberSortKey(a.number) - cardNumberSortKey(b.number) ||
-          a.name.localeCompare(b.name)
+          cardNumberSortKey(a.number) - cardNumberSortKey(b.number) || a.name.localeCompare(b.name)
       );
   }
 };

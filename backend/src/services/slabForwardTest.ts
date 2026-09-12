@@ -15,12 +15,40 @@ const TRACKING_LOOKBACK_DAYS = 180;
 /** Slab quotes are sparser than raw — allow a wider match window around the target date. */
 const SLACK_DAYS = 14;
 
-const WINDOW_COLS: Record<number, { price: string; dir: string; expected: string; actual: string }> = {
-  7: { price: 'actual_7d_price', dir: 'direction_correct_7d', expected: 'expected_7d_return', actual: 'actual_7d_return' },
-  30: { price: 'actual_30d_price', dir: 'direction_correct_30d', expected: 'expected_30d_return', actual: 'actual_30d_return' },
-  90: { price: 'actual_90d_price', dir: 'direction_correct_90d', expected: 'expected_90d_return', actual: 'actual_90d_return' },
-  180: { price: 'actual_180d_price', dir: 'direction_correct_180d', expected: 'expected_180d_return', actual: 'actual_180d_return' },
-  365: { price: 'actual_365d_price', dir: 'direction_correct_365d', expected: 'expected_365d_return', actual: 'actual_365d_return' },
+const WINDOW_COLS: Record<
+  number,
+  { price: string; dir: string; expected: string; actual: string }
+> = {
+  7: {
+    price: 'actual_7d_price',
+    dir: 'direction_correct_7d',
+    expected: 'expected_7d_return',
+    actual: 'actual_7d_return',
+  },
+  30: {
+    price: 'actual_30d_price',
+    dir: 'direction_correct_30d',
+    expected: 'expected_30d_return',
+    actual: 'actual_30d_return',
+  },
+  90: {
+    price: 'actual_90d_price',
+    dir: 'direction_correct_90d',
+    expected: 'expected_90d_return',
+    actual: 'actual_90d_return',
+  },
+  180: {
+    price: 'actual_180d_price',
+    dir: 'direction_correct_180d',
+    expected: 'expected_180d_return',
+    actual: 'actual_180d_return',
+  },
+  365: {
+    price: 'actual_365d_price',
+    dir: 'direction_correct_365d',
+    expected: 'expected_365d_return',
+    actual: 'actual_365d_return',
+  },
 };
 
 function all<T>(sql: string, params: unknown[] = []): Promise<T[]> {
@@ -56,20 +84,30 @@ function computeReturn(actual: number | null, currentPrice: number): number | nu
   return actual !== null && currentPrice > 0 ? (actual - currentPrice) / currentPrice : null;
 }
 
-function computeError(expected: number | null | undefined, actualReturn: number | null): number | null {
+function computeError(
+  expected: number | null | undefined,
+  actualReturn: number | null
+): number | null {
   return actualReturn !== null && expected != null ? Math.abs(expected - actualReturn) : null;
 }
 
-function computeDirection(expected: number | null | undefined, actualReturn: number | null): number | null {
+function computeDirection(
+  expected: number | null | undefined,
+  actualReturn: number | null
+): number | null {
   if (expected == null || actualReturn == null) return null;
-  return (expected > 0) === (actualReturn > 0) ? 1 : 0;
+  return expected > 0 === actualReturn > 0 ? 1 : 0;
 }
 
 function trackingScopeSql(alias: string): string {
   return `julianday('now') - julianday(${alias}.prediction_date) <= ${TRACKING_LOOKBACK_DAYS}`;
 }
 
-async function fetchActualSlabPrice(cardId: string, predictionDate: string, daysAhead: number): Promise<number | null> {
+async function fetchActualSlabPrice(
+  cardId: string,
+  predictionDate: string,
+  daysAhead: number
+): Promise<number | null> {
   const target = addDays(predictionDate, daysAhead);
   const earliest = addDays(target, -SLACK_DAYS);
   const latest = addDays(target, SLACK_DAYS);
@@ -109,11 +147,20 @@ export async function updateSlabActualResults(): Promise<{ updated: number }> {
       const daysSince = daysSincePrediction(pred.prediction_date);
       if (daysSince < 7) continue;
 
-      const actual7d = daysSince >= 7 ? await fetchActualSlabPrice(pred.card_id, pred.prediction_date, 7) : null;
-      const actual30d = daysSince >= 30 ? await fetchActualSlabPrice(pred.card_id, pred.prediction_date, 30) : null;
-      const actual90d = daysSince >= 90 ? await fetchActualSlabPrice(pred.card_id, pred.prediction_date, 90) : null;
-      const actual180d = daysSince >= 180 ? await fetchActualSlabPrice(pred.card_id, pred.prediction_date, 180) : null;
-      const actual365d = daysSince >= 365 ? await fetchActualSlabPrice(pred.card_id, pred.prediction_date, 365) : null;
+      const actual7d =
+        daysSince >= 7 ? await fetchActualSlabPrice(pred.card_id, pred.prediction_date, 7) : null;
+      const actual30d =
+        daysSince >= 30 ? await fetchActualSlabPrice(pred.card_id, pred.prediction_date, 30) : null;
+      const actual90d =
+        daysSince >= 90 ? await fetchActualSlabPrice(pred.card_id, pred.prediction_date, 90) : null;
+      const actual180d =
+        daysSince >= 180
+          ? await fetchActualSlabPrice(pred.card_id, pred.prediction_date, 180)
+          : null;
+      const actual365d =
+        daysSince >= 365
+          ? await fetchActualSlabPrice(pred.card_id, pred.prediction_date, 365)
+          : null;
 
       const currentPrice = pred.current_price || 0;
       const actual7dReturn = computeReturn(actual7d, currentPrice);
@@ -136,8 +183,14 @@ export async function updateSlabActualResults(): Promise<{ updated: number }> {
 
       const status = resolveStatus([
         { has: actual7d !== null, hit: windowIsHit(directionCorrect7d, error7d, actual7dReturn) },
-        { has: actual30d !== null, hit: windowIsHit(directionCorrect30d, error30d, actual30dReturn) },
-        { has: actual90d !== null, hit: windowIsHit(directionCorrect90d, error90d, actual90dReturn) },
+        {
+          has: actual30d !== null,
+          hit: windowIsHit(directionCorrect30d, error30d, actual30dReturn),
+        },
+        {
+          has: actual90d !== null,
+          hit: windowIsHit(directionCorrect90d, error90d, actual90dReturn),
+        },
       ]);
 
       await run(
@@ -174,11 +227,26 @@ export async function updateSlabActualResults(): Promise<{ updated: number }> {
            status = excluded.status`,
         [
           pred.id,
-          actual7d, actual30d, actual90d, actual180d, actual365d,
-          actual7dReturn, actual30dReturn, actual90dReturn, actual180dReturn, actual365dReturn,
-          error7d, error30d, error90d, error180d, error365d,
-          directionCorrect7d ?? 0, directionCorrect30d ?? 0, directionCorrect90d ?? 0,
-          directionCorrect180d ?? 0, directionCorrect365d ?? 0,
+          actual7d,
+          actual30d,
+          actual90d,
+          actual180d,
+          actual365d,
+          actual7dReturn,
+          actual30dReturn,
+          actual90dReturn,
+          actual180dReturn,
+          actual365dReturn,
+          error7d,
+          error30d,
+          error90d,
+          error180d,
+          error365d,
+          directionCorrect7d ?? 0,
+          directionCorrect30d ?? 0,
+          directionCorrect90d ?? 0,
+          directionCorrect180d ?? 0,
+          directionCorrect365d ?? 0,
           status,
         ]
       );
@@ -253,7 +321,10 @@ export async function getSlabForwardTestStatus(): Promise<ForwardTestStatus> {
        LIMIT 20000`
     );
     const metrics = computeValidationMetrics(
-      samples.map((r) => ({ predicted: Number(r.predicted), actual: r.actual != null ? Number(r.actual) : null }))
+      samples.map((r) => ({
+        predicted: Number(r.predicted),
+        actual: r.actual != null ? Number(r.actual) : null,
+      }))
     );
 
     return {
@@ -267,9 +338,19 @@ export async function getSlabForwardTestStatus(): Promise<ForwardTestStatus> {
     };
   };
 
-  const [_7d, _30d, _90d, _180d, _365d] = await Promise.all(WINDOW_DAYS.map((d) => getWindowStats(d)));
+  const [_7d, _30d, _90d, _180d, _365d] = await Promise.all(
+    WINDOW_DAYS.map((d) => getWindowStats(d))
+  );
 
-  const categories = ['strong_buy', 'watch_dip', 'recovery', 'momentum', 'stagnant', 'avoid', 'downtrend'];
+  const categories = [
+    'strong_buy',
+    'watch_dip',
+    'recovery',
+    'momentum',
+    'stagnant',
+    'avoid',
+    'downtrend',
+  ];
   const byCategory: CategoryAccuracy[] = [];
   for (const cat of categories) {
     const stats = await get<any>(

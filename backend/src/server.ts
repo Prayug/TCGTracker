@@ -12,16 +12,21 @@ export function startServer(app: Express): HttpServer {
     logger.info(`Price data updates scheduled daily at 2:00 AM EST`);
     logger.info(`API documentation available at http://${env.host}:${env.port}/api-docs`);
     logger.info(`Environment: ${env.nodeEnv}`);
-    void import('./services/ebayBrowseClient').then(({ probeEbayBrowseAuth, isEbayBrowseConfigured }) => {
-      if (!isEbayBrowseConfigured()) return;
-      void probeEbayBrowseAuth().then((probe) => {
-        if (probe.ok) {
-          logger.info('eBay Browse API authenticated', { sandbox: probe.sandbox });
-        } else {
-          logger.warn('eBay Browse API not usable yet', { sandbox: probe.sandbox, error: probe.error });
-        }
-      });
-    });
+    void import('./services/ebayBrowseClient').then(
+      ({ probeEbayBrowseAuth, isEbayBrowseConfigured }) => {
+        if (!isEbayBrowseConfigured()) return;
+        void probeEbayBrowseAuth().then((probe) => {
+          if (probe.ok) {
+            logger.info('eBay Browse API authenticated', { sandbox: probe.sandbox });
+          } else {
+            logger.warn('eBay Browse API not usable yet', {
+              sandbox: probe.sandbox,
+              error: probe.error,
+            });
+          }
+        });
+      }
+    );
   });
   return server;
 }

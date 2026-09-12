@@ -150,7 +150,9 @@ const syncWithProvider = async (
       cardsUpserted += inserted;
       setsProcessed += 1;
 
-      logger.info(`Catalog sync (${label}): ${set.id} → ${inserted} cards (${setsProcessed}/${sets.length})`);
+      logger.info(
+        `Catalog sync (${label}): ${set.id} → ${inserted} cards (${setsProcessed}/${sets.length})`
+      );
     } catch (error) {
       logger.warn(`Failed to sync set (${label}) ${set.name || set.id}`, {
         error: (error as Error).message,
@@ -164,9 +166,7 @@ const syncWithProvider = async (
 };
 
 /** Persist already-fetched JA catalog rows (e.g. live search hits). */
-export const upsertJapaneseCatalogCards = async (
-  cards: CatalogCardSummary[]
-): Promise<number> => {
+export const upsertJapaneseCatalogCards = async (cards: CatalogCardSummary[]): Promise<number> => {
   if (!cards.length) return 0;
   return upsertCards(cards);
 };
@@ -218,9 +218,7 @@ export const syncJapaneseCatalogData = async (
 ): Promise<SyncCatalogResult> => {
   // priorityOnly true → bootstrap list; false/large limit → full ranked catalog.
   const resolvedPriority =
-    options?.priorityOnly !== undefined
-      ? options.priorityOnly
-      : setLimit <= JA_SET_LIMIT;
+    options?.priorityOnly !== undefined ? options.priorityOnly : setLimit <= JA_SET_LIMIT;
 
   const cappedLimit = Math.min(
     Math.max(setLimit, 1),

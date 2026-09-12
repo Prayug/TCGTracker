@@ -85,12 +85,7 @@ export const createPortfolioRouter = (portfolioService: PortfolioService) => {
       if (!Number.isFinite(salePrice) || salePrice < 0) {
         return fail(res, 'salePrice is required', 400);
       }
-      const lot = await portfolioService.closeLot(
-        req.user!.id,
-        lotId,
-        salePrice,
-        req.body?.soldAt
-      );
+      const lot = await portfolioService.closeLot(req.user!.id, lotId, salePrice, req.body?.soldAt);
       if (!lot) return fail(res, 'Lot not found', 404);
       ok(res, { lot });
     } catch (error: any) {
@@ -98,46 +93,70 @@ export const createPortfolioRouter = (portfolioService: PortfolioService) => {
     }
   });
 
-  router.post('/sync', authenticate, validate(syncVaultSchema), async (req: AuthRequest, res: Response) => {
-    try {
-      const collection = await portfolioService.syncVault(req.user!.id, req.body.cards);
-      ok(res, { collection, synced: collection.length });
-    } catch (error: any) {
-      fail(res, error.message);
+  router.post(
+    '/sync',
+    authenticate,
+    validate(syncVaultSchema),
+    async (req: AuthRequest, res: Response) => {
+      try {
+        const collection = await portfolioService.syncVault(req.user!.id, req.body.cards);
+        ok(res, { collection, synced: collection.length });
+      } catch (error: any) {
+        fail(res, error.message);
+      }
     }
-  });
+  );
 
-  router.post('/', authenticate, validate(addToCollectionSchema), async (req: AuthRequest, res: Response) => {
-    try {
-      const { cardId, cardName, quantity, purchasePrice, purchaseDate, condition, notes, cardData, clientVaultId } =
-        req.body;
-      const item = await portfolioService.addToCollection(
-        req.user!.id,
-        cardId,
-        cardName,
-        quantity,
-        purchasePrice,
-        purchaseDate,
-        condition,
-        notes,
-        cardData,
-        clientVaultId
-      );
-      ok(res, { item }, 201);
-    } catch (error: any) {
-      fail(res, error.message);
+  router.post(
+    '/',
+    authenticate,
+    validate(addToCollectionSchema),
+    async (req: AuthRequest, res: Response) => {
+      try {
+        const {
+          cardId,
+          cardName,
+          quantity,
+          purchasePrice,
+          purchaseDate,
+          condition,
+          notes,
+          cardData,
+          clientVaultId,
+        } = req.body;
+        const item = await portfolioService.addToCollection(
+          req.user!.id,
+          cardId,
+          cardName,
+          quantity,
+          purchasePrice,
+          purchaseDate,
+          condition,
+          notes,
+          cardData,
+          clientVaultId
+        );
+        ok(res, { item }, 201);
+      } catch (error: any) {
+        fail(res, error.message);
+      }
     }
-  });
+  );
 
-  router.put('/:id', authenticate, validate(updateItemSchema), async (req: AuthRequest, res: Response) => {
-    try {
-      const itemId = parseInt(req.params.id, 10);
-      await portfolioService.updateItem(itemId, req.user!.id, req.body);
-      ok(res, { updated: true });
-    } catch (error: any) {
-      fail(res, error.message);
+  router.put(
+    '/:id',
+    authenticate,
+    validate(updateItemSchema),
+    async (req: AuthRequest, res: Response) => {
+      try {
+        const itemId = parseInt(req.params.id, 10);
+        await portfolioService.updateItem(itemId, req.user!.id, req.body);
+        ok(res, { updated: true });
+      } catch (error: any) {
+        fail(res, error.message);
+      }
     }
-  });
+  );
 
   router.delete('/:id', authenticate, async (req: AuthRequest, res: Response) => {
     try {

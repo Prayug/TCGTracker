@@ -35,73 +35,85 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
         getPremiumBorderClass(card.rarity),
       ].join(' ')}
     >
-      <div className="relative aspect-[63/88] overflow-hidden bg-surface-inset cursor-pointer" onClick={onClick}>
-          {imageUrl ? (
-            <img
-              src={imageUrl}
-              alt={`${card.name} card image`}
-              className="relative z-0 h-full w-full object-contain p-2.5 transition-transform duration-300 ease-out group-hover:scale-[1.03]"
-              loading="lazy"
-              decoding="async"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                if (card.images?.large && target.src !== card.images.large) {
-                  target.src = card.images.large;
-                } else {
-                  target.remove();
-                }
-              }}
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center px-4 text-center text-xs text-ink-muted">
-              No image available
-            </div>
-          )}
-
-          <div className="pc-card-hover-actions absolute bottom-2 left-2 right-2 z-20 grid grid-cols-3 gap-1.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onClick();
-              }}
-              className="inline-flex items-center justify-center gap-1 rounded-md border border-border-default bg-surface-overlay px-2 py-1 text-[11px] font-medium text-ink-primary hover:bg-surface-hover"
-            >
-              <Eye className="h-3.5 w-3.5" />
-              View
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (onAddToCollection) {
-                  onAddToCollection();
-                  return;
-                }
-                onClick();
-              }}
-              className="inline-flex items-center justify-center gap-1 rounded-md border border-border-default bg-surface-overlay px-2 py-1 text-[11px] font-medium text-ink-primary hover:bg-surface-hover"
-            >
-              <BookPlus className="h-3.5 w-3.5" />
-              Add
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (onViewPriceHistory) {
-                  onViewPriceHistory();
-                  return;
-                }
-                onClick();
-              }}
-              className="inline-flex items-center justify-center gap-1 rounded-md border border-border-default bg-surface-overlay px-2 py-1 text-[11px] font-medium text-ink-primary hover:bg-surface-hover"
-            >
-              <LineChart className="h-3.5 w-3.5" />
-              History
-            </button>
+      <div
+        className="relative aspect-[63/88] overflow-hidden bg-surface-inset cursor-pointer"
+        onClick={onClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onClick();
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        aria-label={`View ${card.name}`}
+      >
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={card.name}
+            className="relative z-0 h-full w-full object-contain p-2.5 transition-transform duration-300 ease-out group-hover:scale-[1.03]"
+            loading="lazy"
+            decoding="async"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              if (card.images?.large && target.src !== card.images.large) {
+                target.src = card.images.large;
+              } else {
+                target.remove();
+              }
+            }}
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center px-4 text-center text-xs text-ink-muted">
+            No image available
           </div>
+        )}
+
+        <div className="pc-card-hover-actions absolute bottom-2 left-2 right-2 z-20 grid grid-cols-3 gap-1.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClick();
+            }}
+            className="inline-flex items-center justify-center gap-1 rounded-md border border-border-default bg-surface-overlay px-2 py-1 text-[11px] font-medium text-ink-primary hover:bg-surface-hover"
+          >
+            <Eye className="h-3.5 w-3.5" />
+            View
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onAddToCollection) {
+                onAddToCollection();
+                return;
+              }
+              onClick();
+            }}
+            className="inline-flex items-center justify-center gap-1 rounded-md border border-border-default bg-surface-overlay px-2 py-1 text-[11px] font-medium text-ink-primary hover:bg-surface-hover"
+          >
+            <BookPlus className="h-3.5 w-3.5" />
+            Add
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onViewPriceHistory) {
+                onViewPriceHistory();
+                return;
+              }
+              onClick();
+            }}
+            className="inline-flex items-center justify-center gap-1 rounded-md border border-border-default bg-surface-overlay px-2 py-1 text-[11px] font-medium text-ink-primary hover:bg-surface-hover"
+          >
+            <LineChart className="h-3.5 w-3.5" />
+            History
+          </button>
         </div>
+      </div>
 
       <button
         type="button"
@@ -121,7 +133,10 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
               #{card.number || '—'}
             </span>
           </div>
-          <p className="pc-card-set truncate text-[clamp(0.6875rem,0.8vw,0.75rem)] text-ink-muted" title={card.set.name}>
+          <p
+            className="pc-card-set truncate text-[clamp(0.6875rem,0.8vw,0.75rem)] text-ink-muted"
+            title={card.set.name}
+          >
             {card.set.name || 'Unknown set'}
           </p>
 

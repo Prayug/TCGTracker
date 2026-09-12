@@ -1,15 +1,9 @@
-import { describe, expect, it } from 'vitest';
 import { estimatePsaGradingFee } from '../gradeWorthinessService';
 
 /**
  * Mirrors submit-vs-buy EV math used in slabInsightsService (unit-level, no DB).
  */
-function submitVsBuyEV(input: {
-  raw: number;
-  psa10: number;
-  psa9: number;
-  gemRatePct: number;
-}) {
+function submitVsBuyEV(input: { raw: number; psa10: number; psa9: number; gemRatePct: number }) {
   const fee = estimatePsaGradingFee(input.psa10).fee;
   const buyCost = input.psa10;
   const submitCost = input.raw + fee;

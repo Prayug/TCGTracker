@@ -2,6 +2,11 @@ import { useState, useCallback } from 'react';
 import type { Binder, BinderPlan, ConstraintOptions } from '../types';
 import { binderService, type PlanRequest } from '../services/binderService';
 
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return String(err ?? '');
+}
+
 export function useBinderPlanner() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -16,8 +21,8 @@ export function useBinderPlanner() {
       const options = await binderService.getConstraints();
       setConstraintOptions(options);
       return options;
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(errorMessage(err));
       return null;
     }
   }, []);
@@ -29,8 +34,8 @@ export function useBinderPlanner() {
       const result = await binderService.generatePlan(data);
       setPlan(result);
       return result;
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(errorMessage(err));
       return null;
     } finally {
       setLoading(false);
@@ -42,9 +47,9 @@ export function useBinderPlanner() {
       const result = await binderService.listBinders();
       setBinders(result);
       return result;
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Guests get 401 — keep empty list without blocking the planner.
-      const msg = String(err?.message || '');
+      const msg = errorMessage(err);
       if (!msg.includes('401') && !msg.includes('No token')) {
         setError(msg);
       }
@@ -52,51 +57,56 @@ export function useBinderPlanner() {
     }
   }, []);
 
-  const createBinderWithPlan = useCallback(async (name: string, planToSave?: BinderPlan) => {
-    const p = planToSave || plan;
-    if (!p) return null;
-    setSaving(true);
-    setError(null);
-    try {
-      const slots = p.slots.map((card, i) => ({
-        pageNumber: 1,
-        slotPosition: i,
-        cardId: card.cardId,
-        cardSnapshot: JSON.stringify(card),
-        marketPriceCents: card.marketPrice ? Math.round(card.marketPrice * 100) : undefined,
-      }));
+  const createBinderWithPlan = useCallback(
+    async (name: string, planToSave?: BinderPlan) => {
+      const p = planToSave || plan;
+      if (!p) return null;
+      setSaving(true);
+      setError(null);
+      try {
+        const slots = p.slots.map((card, i) => ({
+          pageNumber: 1,
+          slotPosition: i,
+          cardId: card.cardId,
+          cardSnapshot: JSON.stringify(card),
+          marketPriceCents: card.marketPrice ? Math.round(card.marketPrice * 100) : undefined,
+        }));
 
-      const binder = await binderService.createBinder({
-        name,
-        game: 'pokemon',
-        themeDescription: p.originalPrompt,
-        budgetCents: p.totalCost > 0 ? p.totalCost : undefined,
-        constraintsJson: JSON.stringify(p.constraints),
-        slots,
-      });
+        const binder = await binderService.createBinder({
+          name,
+          game: 'pokemon',
+          themeDescription: p.originalPrompt,
+          budgetCents: p.totalCost > 0 ? p.totalCost : undefined,
+          constraintsJson: JSON.stringify(p.constraints),
+          slots,
+        });
 
-      await listBinders();
-      return binder;
-    } catch (err: any) {
-      const msg = String(err?.message || '');
-      if (msg.includes('401') || msg.includes('No token')) {
-        setError('Sign in to save binders to your account. You can still generate plans as a guest.');
-      } else {
-        setError(msg);
+        await listBinders();
+        return binder;
+      } catch (err: unknown) {
+        const msg = errorMessage(err);
+        if (msg.includes('401') || msg.includes('No token')) {
+          setError(
+            'Sign in to save binders to your account. You can still generate plans as a guest.'
+          );
+        } else {
+          setError(msg);
+        }
+        return null;
+      } finally {
+        setSaving(false);
       }
-      return null;
-    } finally {
-      setSaving(false);
-    }
-  }, [plan, listBinders]);
+    },
+    [plan, listBinders]
+  );
 
   const deleteBinder = useCallback(async (id: number) => {
     try {
       await binderService.deleteBinder(id);
-      setBinders(prev => prev.filter(b => b.id !== id));
+      setBinders((prev) => prev.filter((b) => b.id !== id));
       return true;
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(errorMessage(err));
       return false;
     }
   }, []);
@@ -106,8 +116,8 @@ export function useBinderPlanner() {
     try {
       const count = await binderService.commitToVault(id);
       return count;
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(errorMessage(err));
       return 0;
     } finally {
       setCommitting(false);
@@ -119,8 +129,8 @@ export function useBinderPlanner() {
     try {
       const cards = await binderService.commitToWishlist(id);
       return cards;
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(errorMessage(err));
       return [];
     } finally {
       setCommitting(false);

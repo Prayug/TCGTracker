@@ -1,18 +1,16 @@
-import { describe, expect, it, vi, beforeEach, afterAll } from 'vitest';
-
 const OLD_ENV = process.env;
 
 beforeEach(() => {
-  vi.resetModules();
+  jest.resetModules();
   process.env = { ...OLD_ENV };
-  vi.spyOn(process, 'exit').mockImplementation((() => {}) as typeof process.exit);
-  vi.spyOn(console, 'error').mockImplementation(() => {});
-  vi.spyOn(console, 'warn').mockImplementation(() => {});
+  jest.spyOn(process, 'exit').mockImplementation((() => {}) as typeof process.exit);
+  jest.spyOn(console, 'error').mockImplementation(() => {});
+  jest.spyOn(console, 'warn').mockImplementation(() => {});
 });
 
 afterAll(() => {
   process.env = OLD_ENV;
-  vi.restoreAllMocks();
+  jest.restoreAllMocks();
 });
 
 describe('env validation', () => {

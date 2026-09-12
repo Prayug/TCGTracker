@@ -41,5 +41,4 @@ global.IntersectionObserver = class IntersectionObserver {
     return [];
   }
   unobserve() {}
-} as any;
-
+} as unknown as typeof IntersectionObserver;

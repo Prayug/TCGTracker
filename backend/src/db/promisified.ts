@@ -1,7 +1,10 @@
 import sqlite3 from 'sqlite3';
 import { getDb } from './database';
 
-export function dbRun(sql: string, params: unknown[] = []): Promise<{ lastID: number; changes: number }> {
+export function dbRun(
+  sql: string,
+  params: unknown[] = []
+): Promise<{ lastID: number; changes: number }> {
   const db = getDb();
   return new Promise((resolve, reject) => {
     db.run(sql, params, function (err) {

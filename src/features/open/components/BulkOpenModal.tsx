@@ -37,7 +37,9 @@ export const BulkOpenModal: React.FC<BulkOpenModalProps> = ({
       counts.set(h.rarity, (counts.get(h.rarity) ?? 0) + 1);
     }
     return [...counts.entries()]
-      .sort((a, b) => rarityRank(a[0] as PullCard['rarity']) - rarityRank(b[0] as PullCard['rarity']))
+      .sort(
+        (a, b) => rarityRank(a[0] as PullCard['rarity']) - rarityRank(b[0] as PullCard['rarity'])
+      )
       .map(([rarity, count]) => ({ rarity: rarity as PullCard['rarity'], count }));
   }, [session]);
 
@@ -108,13 +110,7 @@ export const BulkOpenModal: React.FC<BulkOpenModalProps> = ({
   );
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      size="pack"
-      footer={footer}
-      variant="stage"
-    >
+    <Modal isOpen={isOpen} onClose={onClose} size="pack" footer={footer} variant="stage">
       <div className="flex h-full flex-col">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
@@ -159,10 +155,7 @@ export const BulkOpenModal: React.FC<BulkOpenModalProps> = ({
             <Package className="h-4 w-4 text-gold" />
             <h4 className="text-sm font-bold text-ink-primary">
               Chase hits ({session.hits.length}
-              {stackedHits.length !== session.hits.length
-                ? ` · ${stackedHits.length} unique`
-                : ''}
-              )
+              {stackedHits.length !== session.hits.length ? ` · ${stackedHits.length} unique` : ''})
             </h4>
           </div>
           {stackedHits.length === 0 ? (

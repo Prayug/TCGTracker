@@ -46,9 +46,7 @@ export async function ensureDataQualityTable(): Promise<void> {
   await run(
     'CREATE INDEX IF NOT EXISTS idx_data_quality_checked ON data_quality_checks(checked_at)'
   );
-  await run(
-    'CREATE INDEX IF NOT EXISTS idx_data_quality_name ON data_quality_checks(check_name)'
-  );
+  await run('CREATE INDEX IF NOT EXISTS idx_data_quality_name ON data_quality_checks(check_name)');
 }
 
 async function count(sql: string, params: unknown[] = []): Promise<number> {
@@ -63,10 +61,9 @@ export async function runDataQualityChecks(): Promise<DataQualityRunSummary> {
   // 1. Null unique_identifier rate on latest prediction run
   const latestRun = await get<{ id: number }>('SELECT MAX(id) AS id FROM prediction_runs');
   if (latestRun?.id) {
-    const total = await count(
-      'SELECT COUNT(*) AS n FROM card_predictions WHERE run_id = ?',
-      [latestRun.id]
-    );
+    const total = await count('SELECT COUNT(*) AS n FROM card_predictions WHERE run_id = ?', [
+      latestRun.id,
+    ]);
     const nullUid = await count(
       `SELECT COUNT(*) AS n FROM card_predictions
        WHERE run_id = ? AND (unique_identifier IS NULL OR unique_identifier = '')`,

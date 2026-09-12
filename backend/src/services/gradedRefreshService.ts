@@ -106,7 +106,8 @@ export const recordGradedRequest = async (entry: {
   variant?: string;
 }): Promise<void> => {
   if (!entry.cardId || !entry.cardName) return;
-  const variantKey = (entry.variant || 'normal').toLowerCase().replace(/[^a-z0-9]/g, '') || 'normal';
+  const variantKey =
+    (entry.variant || 'normal').toLowerCase().replace(/[^a-z0-9]/g, '') || 'normal';
   try {
     await run(
       `INSERT INTO graded_refresh_queue (cardId, variantKey, cardName, setId, setName, cardNumber, lastRequestedAt)
@@ -252,7 +253,10 @@ const processCardWithBudget = async (
     await Promise.race([
       processCard(entry, result, delayMs, fetchListings),
       new Promise<never>((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error('card refresh timeout')), CARD_REFRESH_BUDGET_MS);
+        timeoutId = setTimeout(
+          () => reject(new Error('card refresh timeout')),
+          CARD_REFRESH_BUDGET_MS
+        );
       }),
     ]);
   } catch (error) {
@@ -370,12 +374,14 @@ export const runGradedRefresh = async (limit = 100): Promise<GradedRefreshResult
  * - Fast path: once a set's console name is learned, product pages are fetched
  *   directly (1 request/card) instead of search + page (2 requests/card).
  */
-export const runAllCardsRefresh = async (options: {
-  limit?: number;
-  maxDurationMs?: number;
-  delayMs?: number;
-  logEvery?: number;
-} = {}): Promise<GradedRefreshResult> => {
+export const runAllCardsRefresh = async (
+  options: {
+    limit?: number;
+    maxDurationMs?: number;
+    delayMs?: number;
+    logEvery?: number;
+  } = {}
+): Promise<GradedRefreshResult> => {
   // ~750ms/card ≈ 4.8k cards/hour; a long nightly window can cover most of the catalog.
   const { limit = 0, maxDurationMs = 0, delayMs = 750 } = options;
   const start = Date.now();

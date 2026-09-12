@@ -11,7 +11,11 @@ interface ScrollProgressBarProps {
 
 export const ScrollProgressBar: React.FC<ScrollProgressBarProps> = ({ scenes }) => {
   const { scrollYProgress } = useScroll();
-  const smoothProgress = useSpring(scrollYProgress, { stiffness: 100, damping: 30, restDelta: 0.001 });
+  const smoothProgress = useSpring(scrollYProgress, {
+    stiffness: 100,
+    damping: 30,
+    restDelta: 0.001,
+  });
 
   return (
     <nav
@@ -30,15 +34,14 @@ export const ScrollProgressBar: React.FC<ScrollProgressBarProps> = ({ scenes }) 
               className="absolute inset-0 rounded-md"
               style={{
                 backgroundColor: 'var(--accent-muted)',
-                opacity: smoothProgress.get() > index / scenes.length &&
-                  smoothProgress.get() < (index + 1) / scenes.length ? 1 : 0,
+                opacity:
+                  smoothProgress.get() > index / scenes.length &&
+                  smoothProgress.get() < (index + 1) / scenes.length
+                    ? 1
+                    : 0,
               }}
             />
-            <span
-              className="relative z-10 hidden whitespace-nowrap sm:inline"
-            >
-              {scene.label}
-            </span>
+            <span className="relative z-10 hidden whitespace-nowrap sm:inline">{scene.label}</span>
             <span
               className="relative z-10 h-1.5 w-1.5 rounded-full sm:hidden"
               style={{ backgroundColor: 'var(--accent)' }}

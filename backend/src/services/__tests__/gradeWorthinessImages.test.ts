@@ -1,4 +1,3 @@
-import { describe, expect, it } from 'vitest';
 import { normalizeName, normalizeSetKey } from '../gradeWorthinessService';
 
 describe('grade worthiness image name normalization', () => {

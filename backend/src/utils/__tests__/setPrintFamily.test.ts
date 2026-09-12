@@ -25,8 +25,8 @@ describe('setPrintFamily', () => {
   it('does not treat parent Hidden Fates as the Shiny Vault set', () => {
     expect(setsSharePrintFamily('Hidden Fates', 'Hidden Fates Shiny Vault')).toBe(false);
     expect(setsSharePrintFamily('Pokemon Hidden Fates', 'Hidden Fates')).toBe(true);
-    expect(
-      setsSharePrintFamily('Hidden Fates: Shiny Vault', 'Hidden Fates Shiny Vault')
-    ).toBe(true);
+    expect(setsSharePrintFamily('Hidden Fates: Shiny Vault', 'Hidden Fates Shiny Vault')).toBe(
+      true
+    );
   });
 });

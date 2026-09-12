@@ -49,8 +49,8 @@ export function ConfirmDialog({
         {confirmText ? (
           <div className="mt-4">
             <label htmlFor="confirm-type-text" className="mb-1.5 block text-xs text-ink-muted">
-              Type <span className="font-mono font-semibold text-ink-primary">{confirmText}</span> to
-              confirm
+              Type <span className="font-mono font-semibold text-ink-primary">{confirmText}</span>{' '}
+              to confirm
             </label>
             <input
               id="confirm-type-text"
@@ -59,7 +59,6 @@ export function ConfirmDialog({
               onChange={(e) => setTyped(e.target.value)}
               className="input h-9 w-full font-mono"
               autoComplete="off"
-              autoFocus
             />
           </div>
         ) : null}

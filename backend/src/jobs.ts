@@ -1,8 +1,5 @@
 import cron from 'node-cron';
-import {
-  updatePriceData,
-  recoverMissedPriceUpdates,
-} from './services/dataFetcher';
+import { updatePriceData, recoverMissedPriceUpdates } from './services/dataFetcher';
 import { syncCatalogData } from './services/catalogSync';
 import { syncOnePieceData } from './services/onePieceSync';
 import { backfillCardMappingImages } from './services/cardImageBackfillService';
@@ -16,7 +13,9 @@ async function runDailyPriceUpdate(alertService: AlertService): Promise<void> {
   try {
     const result = await updatePriceData();
     if (result.skipped) {
-      logger.warn('Daily price data update skipped', { reason: (result as { reason?: string }).reason });
+      logger.warn('Daily price data update skipped', {
+        reason: (result as { reason?: string }).reason,
+      });
       return;
     }
     logger.info('Daily price data update completed', result);
@@ -44,7 +43,9 @@ async function runPriceUpdateCatchUp(alertService: AlertService): Promise<void> 
   try {
     const result = await recoverMissedPriceUpdates();
     if (result.skipped) {
-      logger.info('Price update catch-up skipped', { reason: (result as { reason?: string }).reason });
+      logger.info('Price update catch-up skipped', {
+        reason: (result as { reason?: string }).reason,
+      });
       return;
     }
     logger.info('Price update catch-up completed', result);
@@ -63,10 +64,9 @@ async function runPriceUpdateCatchUp(alertService: AlertService): Promise<void> 
 
 async function runGradedHistoryCatchUp(): Promise<void> {
   try {
-    const {
-      snapshotAllGradedPricesToHistory,
-      backfillGradedHistoryFromCache,
-    } = await import('./services/gradedPriceService');
+    const { snapshotAllGradedPricesToHistory, backfillGradedHistoryFromCache } = await import(
+      './services/gradedPriceService'
+    );
     const { withDbJobLock } = await import('./utils/dbJobLock');
     await withDbJobLock(
       'graded-history-snapshot',
@@ -84,10 +84,9 @@ async function runGradedHistoryCatchUp(): Promise<void> {
 async function runGradedDataRefresh(): Promise<void> {
   logger.info('Running scheduled graded data refresh...');
   try {
-    const {
-      snapshotAllGradedPricesToHistory,
-      backfillGradedHistoryFromCache,
-    } = await import('./services/gradedPriceService');
+    const { snapshotAllGradedPricesToHistory, backfillGradedHistoryFromCache } = await import(
+      './services/gradedPriceService'
+    );
     const { runAllCardsRefresh } = await import('./services/gradedRefreshService');
 
     const snap = await snapshotAllGradedPricesToHistory();

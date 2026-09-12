@@ -1,9 +1,5 @@
 import { VaultCard } from '../../../types/pokemon';
-import {
-  effectiveCostBasis,
-  holdingMarketValue,
-  isAssumedCost,
-} from '../../../utils/vaultCost';
+import { effectiveCostBasis, holdingMarketValue, isAssumedCost } from '../../../utils/vaultCost';
 
 export type PerformancePeriod = '7d' | '30d' | 'ytd' | 'all';
 

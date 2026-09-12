@@ -391,10 +391,9 @@ interface ScanCacheRow {
 
 async function hydrateScanCache(key: string): Promise<CrawlState | null> {
   await ensureDealScanCacheTable();
-  const row = await dbGet<ScanCacheRow>(
-    'SELECT * FROM ebay_deal_scan_cache WHERE cache_key = ?',
-    [key]
-  );
+  const row = await dbGet<ScanCacheRow>('SELECT * FROM ebay_deal_scan_cache WHERE cache_key = ?', [
+    key,
+  ]);
   if (!row || Date.now() - row.updated_at > POOL_TTL_MS) return null;
   let items: Array<{ deal: DealCardPayload; seenAt: number }> = [];
   try {
@@ -543,7 +542,10 @@ async function loadPokemonRawCandidates(limit: number): Promise<CandidateCard[]>
 }
 
 async function loadPokemonGradedCandidates(limit: number): Promise<CandidateCard[]> {
-  if (pokemonGradedCandidateCache && Date.now() - pokemonGradedCandidateCache.at < CANDIDATE_CACHE_MS) {
+  if (
+    pokemonGradedCandidateCache &&
+    Date.now() - pokemonGradedCandidateCache.at < CANDIDATE_CACHE_MS
+  ) {
     return pokemonGradedCandidateCache.cards;
   }
   const rows = await dbAll<CandidateCard>(
@@ -612,7 +614,10 @@ async function loadPokemonCardTargets(cardId: string): Promise<CandidateCard[]> 
 
 const pokemonLookupMemo = new Map<string, Promise<CatalogCardRef[]>>();
 
-async function lookupPokemonByNumber(collectorNumber: string, language?: string | null): Promise<CatalogCardRef[]> {
+async function lookupPokemonByNumber(
+  collectorNumber: string,
+  language?: string | null
+): Promise<CatalogCardRef[]> {
   const normalized = normalizeCardNumber(collectorNumber);
   if (!normalized) return [];
   const lang = language && language !== 'unknown' ? language : null;
@@ -852,10 +857,7 @@ const scheduledStarts = new Map<string, ReturnType<typeof setTimeout>>();
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-function marketplaceQueryPlan(
-  game: DealGame,
-  listingType: DealListingTypeFilter
-): CrawlQuery[] {
+function marketplaceQueryPlan(game: DealGame, listingType: DealListingTypeFilter): CrawlQuery[] {
   const gameWord = game === 'onepiece' ? 'One Piece' : 'Pokemon';
   const plan: CrawlQuery[] = [];
   const includeBin = listingType !== 'auction';
@@ -892,7 +894,8 @@ function marketplaceQueryPlan(
     plan.push({
       query,
       sort: 'newlyListed',
-      buyingOptions: listingType === 'bin' ? 'FIXED_PRICE' : listingType === 'auction' ? 'AUCTION' : 'ALL',
+      buyingOptions:
+        listingType === 'bin' ? 'FIXED_PRICE' : listingType === 'auction' ? 'AUCTION' : 'ALL',
     });
   }
 
@@ -907,7 +910,9 @@ function marketplaceQueryPlan(
 
 async function cardWatchQueryPlan(game: DealGame, cardId: string): Promise<CrawlQuery[]> {
   const targets =
-    game === 'onepiece' ? await loadOnePieceCardTargets(cardId) : await loadPokemonCardTargets(cardId);
+    game === 'onepiece'
+      ? await loadOnePieceCardTargets(cardId)
+      : await loadPokemonCardTargets(cardId);
   const englishTargets = targets.filter(isEnglishCatalogCard);
   if (englishTargets.length === 0) return [];
   return englishTargets.map((card) => ({
@@ -1258,7 +1263,11 @@ async function resolveRawMarketUncached(card: CatalogCardRef): Promise<{
   volume: number | null;
 } | null> {
   if (card.uniqueIdentifier.includes('::')) {
-    const row = await dbGet<{ marketPrice: number | null; date: string | null; source: string | null }>(
+    const row = await dbGet<{
+      marketPrice: number | null;
+      date: string | null;
+      source: string | null;
+    }>(
       `SELECT marketPrice, date, source FROM onepiece_price_history
        WHERE catalogId = ? AND marketPrice > 0
        ORDER BY date DESC LIMIT 1`,
@@ -1550,7 +1559,7 @@ async function evaluateListing(
 
   const margin =
     listing.listingType === 'auction'
-      ? desiredAuctionMargin ?? defaultAuctionMargin(dealCondition)
+      ? (desiredAuctionMargin ?? defaultAuctionMargin(dealCondition))
       : null;
   const maxBid =
     listing.listingType === 'auction' && margin != null
@@ -1657,10 +1666,15 @@ function applyFilters(deals: DealCardPayload[], query: DealQuery): DealCardPaylo
     if (query.listingType === 'auction' && deal.listingType !== 'auction') return false;
     if (query.gradingCompany && deal.grader !== query.gradingCompany.toLowerCase()) return false;
     if (query.grade && (deal.grade || '').toLowerCase() !== query.grade.toLowerCase()) return false;
-    if (query.set && !deal.setName.toLowerCase().includes(query.set.toLowerCase()) && deal.setId !== query.set) {
+    if (
+      query.set &&
+      !deal.setName.toLowerCase().includes(query.set.toLowerCase()) &&
+      deal.setId !== query.set
+    ) {
       return false;
     }
-    if (query.rarity && (deal.rarity || '').toLowerCase() !== query.rarity.toLowerCase()) return false;
+    if (query.rarity && (deal.rarity || '').toLowerCase() !== query.rarity.toLowerCase())
+      return false;
     if (listingIsNonEnglish(deal.listingTitle)) return false;
     if ((deal.language || 'en') !== 'en') return false;
     if (query.language && deal.language !== query.language) return false;
@@ -1790,7 +1804,12 @@ async function getDealsUnsafe(query: DealQuery, userId?: number): Promise<DealsR
   );
   const reviewFeed = applyFilters(
     all.filter((d) => d.feed === 'review'),
-    { ...query, minDiscount: query.minDiscount ?? 0, minSavings: query.minSavings ?? 0, minMarketValue: query.minMarketValue ?? 0 }
+    {
+      ...query,
+      minDiscount: query.minDiscount ?? 0,
+      minSavings: query.minSavings ?? 0,
+      minMarketValue: query.minMarketValue ?? 0,
+    }
   );
   const uniqueDeals = query.cardId ? dealFeed : pickBestDealPerCard(dealFeed);
   const uniqueReview = query.cardId ? reviewFeed : pickBestDealPerCard(reviewFeed);
@@ -1971,7 +1990,11 @@ export async function unsaveDeal(userId: number, listingId: string): Promise<boo
   return result.changes > 0;
 }
 
-export async function dismissDeal(userId: number, listingId: string, game: DealGame): Promise<void> {
+export async function dismissDeal(
+  userId: number,
+  listingId: string,
+  game: DealGame
+): Promise<void> {
   await ensureSavedDealsTable();
   await dbRun(
     `INSERT INTO saved_ebay_deals (

@@ -60,9 +60,7 @@ export const VaultActivityFeed: React.FC<VaultActivityFeedProps> = ({ items }) =
                 </>
               ) : null}
             </p>
-            {item.detail ? (
-              <p className="mt-0.5 text-xs text-ink-muted">{item.detail}</p>
-            ) : null}
+            {item.detail ? <p className="mt-0.5 text-xs text-ink-muted">{item.detail}</p> : null}
           </div>
           <time
             dateTime={item.at}

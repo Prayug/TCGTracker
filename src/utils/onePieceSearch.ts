@@ -7,10 +7,7 @@ export interface OnePieceSearchableCard {
   subTypes?: string;
 }
 
-export function cardMatchesOnePieceQuery(
-  card: OnePieceSearchableCard,
-  query: string
-): boolean {
+export function cardMatchesOnePieceQuery(card: OnePieceSearchableCard, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (q.length < 2) return false;
 

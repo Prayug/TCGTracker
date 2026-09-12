@@ -101,5 +101,10 @@ export async function withDbJobLock<T>(
 }
 
 export function isSkippedDbJob<T>(result: T | SkippedDbJob): result is SkippedDbJob {
-  return typeof result === 'object' && result !== null && 'skipped' in result && (result as SkippedDbJob).skipped === true;
+  return (
+    typeof result === 'object' &&
+    result !== null &&
+    'skipped' in result &&
+    (result as SkippedDbJob).skipped === true
+  );
 }

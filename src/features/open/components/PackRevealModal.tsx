@@ -40,8 +40,7 @@ export const PackRevealModal: React.FC<PackRevealModalProps> = ({
   const revealOrder = useMemo(() => (pack ? fanCardsForPack(pack) : []), [pack]);
 
   const liveValue = useMemo(
-    () =>
-      flippedIndices.reduce((sum, i) => sum + (revealOrder[i]?.marketPrice ?? 0), 0),
+    () => flippedIndices.reduce((sum, i) => sum + (revealOrder[i]?.marketPrice ?? 0), 0),
     [flippedIndices, revealOrder]
   );
 
@@ -97,7 +96,11 @@ export const PackRevealModal: React.FC<PackRevealModalProps> = ({
           )}
         >
           {saved ? <Check className="h-4 w-4" /> : <BookPlus className="h-4 w-4" />}
-          {saved ? 'Saved to collection' : allFlipped ? 'Save to collection' : 'Flip cards to save…'}
+          {saved
+            ? 'Saved to collection'
+            : allFlipped
+              ? 'Save to collection'
+              : 'Flip cards to save…'}
         </button>
       </div>
     </div>
@@ -132,7 +135,10 @@ export const PackRevealModal: React.FC<PackRevealModalProps> = ({
             {hits.slice(0, 4).map((h, i) => (
               <span
                 key={`${h.id}-${i}`}
-                className={cn('rounded-full border px-2 py-0.5 text-[10px] font-bold', opRarityStyle(h.rarity).badge)}
+                className={cn(
+                  'rounded-full border px-2 py-0.5 text-[10px] font-bold',
+                  opRarityStyle(h.rarity).badge
+                )}
                 title={`${h.name} · ${OP_RARITY_LABELS[h.rarity]}`}
               >
                 {OP_RARITY_LABELS[h.rarity]}

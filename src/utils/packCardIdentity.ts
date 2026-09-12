@@ -29,8 +29,6 @@ export function packCardIdentity(card: {
     return `${setName}|${number}|${name}`;
   }
   return (
-    card.id ||
-    card.uniqueIdentifier ||
-    `${normalizePackToken(card.set?.id)}|${number}|${name}`
+    card.id || card.uniqueIdentifier || `${normalizePackToken(card.set?.id)}|${number}|${name}`
   );
 }

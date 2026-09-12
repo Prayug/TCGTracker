@@ -30,7 +30,9 @@ export type VaultOwnershipIndex = {
   entries: VaultCard[];
 };
 
-export function buildVaultOwnershipIndex(game: 'pokemon' | 'onepiece' = 'pokemon'): VaultOwnershipIndex {
+export function buildVaultOwnershipIndex(
+  game: 'pokemon' | 'onepiece' = 'pokemon'
+): VaultOwnershipIndex {
   const entries = vaultService.getVaultCards(game);
   const ids = new Set<string>();
   const bySetNumber = new Set<string>();

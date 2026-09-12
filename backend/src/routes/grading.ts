@@ -114,7 +114,7 @@ function normalizeCategory(
     const c = cat as Record<string, unknown>;
     const withheld = Boolean(c.withheld) || c.score == null;
     return {
-      score: withheld ? (c.score as number | null) ?? null : Number(c.score ?? fallbackScore),
+      score: withheld ? ((c.score as number | null) ?? null) : Number(c.score ?? fallbackScore),
       details: String(c.details ?? ''),
       deviations: (c.deviations as { leftRight: number; topBottom: number }) || {
         leftRight: 0,
@@ -126,7 +126,9 @@ function normalizeCategory(
       withheldReason: c.withheldReason ? String(c.withheldReason) : undefined,
       confidence: typeof c.confidence === 'number' ? c.confidence : undefined,
       confidenceBand: c.confidenceBand as GradingResultDTO['corners']['confidenceBand'],
-      detections: Array.isArray(c.detections) ? (c.detections as GradingResultDTO['corners']['detections']) : undefined,
+      detections: Array.isArray(c.detections)
+        ? (c.detections as GradingResultDTO['corners']['detections'])
+        : undefined,
       scoreLow: typeof c.scoreLow === 'number' ? c.scoreLow : undefined,
       scoreHigh: typeof c.scoreHigh === 'number' ? c.scoreHigh : undefined,
     } as GradingResultDTO['corners'];
@@ -228,7 +230,8 @@ router.get('/health', async (_req, res: Response) => {
       timeoutMs: 4_000,
     });
     const data = await upstream.json<{ status?: string; message?: string }>();
-    const okStatus = upstream.statusCode >= 200 && upstream.statusCode < 300 && data?.status === 'ok';
+    const okStatus =
+      upstream.statusCode >= 200 && upstream.statusCode < 300 && data?.status === 'ok';
     if (!okStatus) {
       return fail(res, data?.message || 'Scanner unhealthy', 502);
     }
@@ -238,7 +241,10 @@ router.get('/health', async (_req, res: Response) => {
       scannerUrl: SCANNER_URL,
     });
   } catch (error: any) {
-    logger.warn('Grading scanner health check failed', { error: error?.message, scannerUrl: SCANNER_URL });
+    logger.warn('Grading scanner health check failed', {
+      error: error?.message,
+      scannerUrl: SCANNER_URL,
+    });
     fail(res, error?.message || 'Scanner unreachable', 503);
   }
 });
@@ -250,8 +256,17 @@ router.post(
   async (req: AuthRequest, res: Response) => {
     try {
       await ensureTable();
-      const { image, backImage, cardId, cardName, game, rawPrice, imageUrl, extraFrames, scanMode } =
-        req.body;
+      const {
+        image,
+        backImage,
+        cardId,
+        cardName,
+        game,
+        rawPrice,
+        imageUrl,
+        extraFrames,
+        scanMode,
+      } = req.body;
 
       const python = await forwardToPython({
         image,
@@ -266,9 +281,11 @@ router.post(
 
       if (!python.success || !python.grading) {
         const status =
-          python.statusCode === 422 ? 422 : python.statusCode && python.statusCode >= 400
-            ? python.statusCode
-            : 502;
+          python.statusCode === 422
+            ? 422
+            : python.statusCode && python.statusCode >= 400
+              ? python.statusCode
+              : 502;
         return fail(res, python.error || 'Grading analysis failed', status, {
           code: python.code,
           retakeRecommended: python.retakeRecommended ?? status === 422,
@@ -315,7 +332,12 @@ router.post(
         python.grading.surface ?? (front as any)?.surface
       ) as GradingResultDTO['surface'];
 
-      if (centering.score == null && corners.score == null && edges.score == null && !surface.withheld) {
+      if (
+        centering.score == null &&
+        corners.score == null &&
+        edges.score == null &&
+        !surface.withheld
+      ) {
         return fail(res, 'Grading response missing category scores', 502);
       }
 
@@ -400,7 +422,9 @@ router.get('/history', optionalAuth, async (req: AuthRequest, res: Response) => 
     params.push(limit);
 
     const rows: GradingResultRow[] = await new Promise((resolve, reject) => {
-      db.all(sql, params, (err, r) => (err ? reject(err) : resolve((r as GradingResultRow[]) || [])));
+      db.all(sql, params, (err, r) =>
+        err ? reject(err) : resolve((r as GradingResultRow[]) || [])
+      );
     });
 
     ok(res, { history: rows.map(rowToGradingResult), count: rows.length });

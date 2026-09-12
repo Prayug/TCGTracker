@@ -44,7 +44,7 @@ export const BurstParticles: React.FC<{
     const vels: THREE.Vector3[] = [];
     const szs: number[] = [];
     const cols: THREE.Color[] = [];
-    const colorPool = theme.particleColors.map(c => new THREE.Color(c));
+    const colorPool = theme.particleColors.map((c) => new THREE.Color(c));
 
     for (let i = 0; i < count; i++) {
       const theta = Math.random() * Math.PI * 2;
@@ -53,27 +53,33 @@ export const BurstParticles: React.FC<{
 
       if (anim.particleShape === 'spark') {
         // Sparks: fast outward burst, gravity
-        vels.push(new THREE.Vector3(
-          Math.sin(phi) * Math.cos(theta) * speed,
-          Math.abs(Math.cos(phi)) * speed * 1.3,
-          Math.sin(phi) * Math.sin(theta) * speed * 0.6
-        ));
+        vels.push(
+          new THREE.Vector3(
+            Math.sin(phi) * Math.cos(theta) * speed,
+            Math.abs(Math.cos(phi)) * speed * 1.3,
+            Math.sin(phi) * Math.sin(theta) * speed * 0.6
+          )
+        );
         szs.push(0.03 + Math.random() * 0.04);
       } else if (anim.particleShape === 'confetti') {
         // Confetti: wider spread, moderate upward
-        vels.push(new THREE.Vector3(
-          Math.sin(phi) * Math.cos(theta) * speed * 0.8,
-          Math.abs(Math.cos(phi)) * speed * 0.9 + 1.0,
-          Math.sin(phi) * Math.sin(theta) * speed * 0.8
-        ));
+        vels.push(
+          new THREE.Vector3(
+            Math.sin(phi) * Math.cos(theta) * speed * 0.8,
+            Math.abs(Math.cos(phi)) * speed * 0.9 + 1.0,
+            Math.sin(phi) * Math.sin(theta) * speed * 0.8
+          )
+        );
         szs.push(0.06 + Math.random() * 0.08);
       } else {
         // Prismatic: rise upward, slower horizontal
-        vels.push(new THREE.Vector3(
-          Math.sin(phi) * Math.cos(theta) * speed * 0.5,
-          Math.abs(Math.cos(phi)) * speed * 1.5 + 2.0,
-          Math.sin(phi) * Math.sin(theta) * speed * 0.5
-        ));
+        vels.push(
+          new THREE.Vector3(
+            Math.sin(phi) * Math.cos(theta) * speed * 0.5,
+            Math.abs(Math.cos(phi)) * speed * 1.5 + 2.0,
+            Math.sin(phi) * Math.sin(theta) * speed * 0.5
+          )
+        );
         szs.push(0.04 + Math.random() * 0.07);
       }
 
@@ -87,9 +93,18 @@ export const BurstParticles: React.FC<{
     const baseGeo = new THREE.PlaneGeometry(1, 1);
     geo.index = baseGeo.index;
     geo.attributes = baseGeo.attributes;
-    geo.setAttribute('instancePosition', new THREE.InstancedBufferAttribute(new Float32Array(count * 3), 3));
-    geo.setAttribute('instanceSize', new THREE.InstancedBufferAttribute(new Float32Array(count), 1));
-    geo.setAttribute('instanceColor', new THREE.InstancedBufferAttribute(new Float32Array(count * 3), 3));
+    geo.setAttribute(
+      'instancePosition',
+      new THREE.InstancedBufferAttribute(new Float32Array(count * 3), 3)
+    );
+    geo.setAttribute(
+      'instanceSize',
+      new THREE.InstancedBufferAttribute(new Float32Array(count), 1)
+    );
+    geo.setAttribute(
+      'instanceColor',
+      new THREE.InstancedBufferAttribute(new Float32Array(count * 3), 3)
+    );
     return geo;
   }, [count]);
 
@@ -103,10 +118,13 @@ export const BurstParticles: React.FC<{
     });
   }, []);
 
-  useEffect(() => () => {
-    geometry.dispose();
-    material.dispose();
-  }, [geometry, material]);
+  useEffect(
+    () => () => {
+      geometry.dispose();
+      material.dispose();
+    },
+    [geometry, material]
+  );
 
   useFrame(() => {
     const t = timeRef.current;
@@ -115,7 +133,10 @@ export const BurstParticles: React.FC<{
 
     const ripStart = anim.orbitDuration + anim.zoomDuration;
     const life = (t - ripStart) / anim.particleLifetime;
-    if (life <= 0 || life >= 1) { mesh.visible = false; return; }
+    if (life <= 0 || life >= 1) {
+      mesh.visible = false;
+      return;
+    }
     mesh.visible = true;
 
     const dt = t - ripStart;

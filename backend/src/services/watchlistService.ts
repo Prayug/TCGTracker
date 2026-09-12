@@ -130,10 +130,7 @@ export class WatchlistService {
     return this.getForUser(userId);
   }
 
-  async upsert(
-    userId: number,
-    item: WatchlistSyncItem
-  ): Promise<WatchlistEntry> {
+  async upsert(userId: number, item: WatchlistSyncItem): Promise<WatchlistEntry> {
     await runDb(
       this.db,
       `INSERT INTO user_watchlists

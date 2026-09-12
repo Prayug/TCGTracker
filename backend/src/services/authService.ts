@@ -53,11 +53,9 @@ function get<T>(db: Database, sql: string, params: unknown[] = []): Promise<T | 
 }
 
 function signToken(user: { id: number; email: string; username: string }): string {
-  return jwt.sign(
-    { id: user.id, email: user.email, username: user.username },
-    env.jwt.secret,
-    { expiresIn: env.jwt.expiresIn } as SignOptions
-  );
+  return jwt.sign({ id: user.id, email: user.email, username: user.username }, env.jwt.secret, {
+    expiresIn: env.jwt.expiresIn,
+  } as SignOptions);
 }
 
 function buildVerificationLink(token: string): string {
@@ -167,7 +165,11 @@ export class AuthService {
     return { emailSent, verifyUrl };
   }
 
-  async register(username: string, email: string, password: string): Promise<{
+  async register(
+    username: string,
+    email: string,
+    password: string
+  ): Promise<{
     user: PublicUser;
     requiresVerification: true;
     emailSent: boolean;
@@ -176,27 +178,22 @@ export class AuthService {
   }> {
     const hash = await bcrypt.hash(password, env.bcrypt.rounds);
 
-    let userId: number;
-    try {
-      userId = await new Promise<number>((resolve, reject) => {
-        this.db.run(
-          `INSERT INTO users (username, email, password_hash, email_verified)
-           VALUES (?, ?, ?, 0)`,
-          [username, email, hash],
-          function (this: { lastID: number }, err: Error | null) {
-            if (err) {
-              if (err.message.includes('UNIQUE constraint failed')) {
-                return reject(new Error('Username or email already exists'));
-              }
-              return reject(err);
+    const userId = await new Promise<number>((resolve, reject) => {
+      this.db.run(
+        `INSERT INTO users (username, email, password_hash, email_verified)
+         VALUES (?, ?, ?, 0)`,
+        [username, email, hash],
+        function (this: { lastID: number }, err: Error | null) {
+          if (err) {
+            if (err.message.includes('UNIQUE constraint failed')) {
+              return reject(new Error('Username or email already exists'));
             }
-            resolve(this.lastID);
+            return reject(err);
           }
-        );
-      });
-    } catch (err) {
-      throw err;
-    }
+          resolve(this.lastID);
+        }
+      );
+    });
 
     const token = await this.issueVerificationToken(userId);
     const { emailSent, verifyUrl } = await this.sendVerificationEmail(email, username, token);
@@ -214,7 +211,10 @@ export class AuthService {
     };
   }
 
-  async login(email: string, password: string): Promise<{
+  async login(
+    email: string,
+    password: string
+  ): Promise<{
     user: PublicUser;
     token: string;
   }> {

@@ -60,9 +60,7 @@ export async function fetchRemoteVault(): Promise<VaultCard[]> {
     buildApiUrl('/api/portfolio')
   );
   const rows = response.data?.data?.collection ?? [];
-  return rows
-    .map(rowToVaultCard)
-    .filter((c): c is VaultCard => c !== null);
+  return rows.map(rowToVaultCard).filter((c): c is VaultCard => c !== null);
 }
 
 export async function pushVaultToRemote(cards: VaultCard[]): Promise<number> {

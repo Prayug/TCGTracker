@@ -7,7 +7,10 @@ export const LoadingSpinner: React.FC = () => {
       role="status"
       aria-live="polite"
     >
-      <div className="h-9 w-9 animate-spin rounded-full border-2 border-border-subtle border-t-accent" aria-hidden="true" />
+      <div
+        className="h-9 w-9 animate-spin rounded-full border-2 border-border-subtle border-t-accent"
+        aria-hidden="true"
+      />
       <p className="text-sm text-ink-muted">Loading&hellip;</p>
     </div>
   );
@@ -15,7 +18,10 @@ export const LoadingSpinner: React.FC = () => {
 
 export const LoadingSkeleton: React.FC = () => {
   return (
-    <div className="overflow-hidden rounded-xl border border-border-subtle bg-surface-raised shadow-card" aria-hidden="true">
+    <div
+      className="overflow-hidden rounded-xl border border-border-subtle bg-surface-raised shadow-card"
+      aria-hidden="true"
+    >
       <div className="skeleton aspect-[63/88]" />
       <div className="space-y-2 p-3.5">
         <div className="skeleton h-4 w-4/5 rounded" />

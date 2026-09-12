@@ -30,10 +30,10 @@ interface PokemonApiCard {
 
 /**
  * Image Populator Service
- * 
+ *
  * This service fetches card images from the Pokemon TCG API and stores them
  * in the database for cards that don't have images yet.
- * 
+ *
  * Usage:
  *   - Run manually: npm run populate-images
  *   - Or import and call: await populateCardImages()
@@ -67,14 +67,18 @@ class ImagePopulatorService {
       const batchSize = 100;
       for (let i = 0; i < cardsWithoutImages.length; i += batchSize) {
         const batch = cardsWithoutImages.slice(i, i + batchSize);
-        logger.info(`\n📦 Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(cardsWithoutImages.length / batchSize)}`);
+        logger.info(
+          `\n📦 Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(cardsWithoutImages.length / batchSize)}`
+        );
 
         for (const card of batch) {
           try {
             const result = await this.fetchAndStoreImage(card);
             if (result === 'success') {
               successCount++;
-              logger.info(`✅ [${successCount + failCount + skippedCount}/${cardsWithoutImages.length}] ${card.cardName} (#${card.cardNumber})`);
+              logger.info(
+                `✅ [${successCount + failCount + skippedCount}/${cardsWithoutImages.length}] ${card.cardName} (#${card.cardNumber})`
+              );
             } else if (result === 'skipped') {
               skippedCount++;
               // Don't log every skip - too verbose
@@ -89,14 +93,18 @@ class ImagePopulatorService {
             failCount++;
             // Only log first 10 failures
             if (failCount <= 10) {
-              logger.warn(`❌ [${successCount + failCount + skippedCount}/${cardsWithoutImages.length}] Failed: ${card.cardName} - ${(error as Error).message}`);
+              logger.warn(
+                `❌ [${successCount + failCount + skippedCount}/${cardsWithoutImages.length}] Failed: ${card.cardName} - ${(error as Error).message}`
+              );
             }
           }
         }
 
         // Shorter pause between batches
         if (i + batchSize < cardsWithoutImages.length) {
-          logger.info(`⏸️  Progress: ${successCount} success, ${skippedCount} skipped, ${failCount} failed`);
+          logger.info(
+            `⏸️  Progress: ${successCount} success, ${skippedCount} skipped, ${failCount} failed`
+          );
           await this.sleep(2000);
         }
       }
@@ -160,7 +168,7 @@ class ImagePopulatorService {
    */
   private async searchPokemonApi(card: CardRow): Promise<PokemonApiCard | null> {
     const headers: HeadersInit = {
-      'Accept': 'application/json',
+      Accept: 'application/json',
     };
     if (this.apiKey) {
       headers['X-Api-Key'] = this.apiKey;
@@ -216,14 +224,12 @@ class ImagePopulatorService {
    */
   private findBestMatch(apiCards: any[], card: CardRow): PokemonApiCard | null {
     // Exact name match
-    let exactMatches = apiCards.filter(
-      (c) => c.name.toLowerCase() === card.cardName.toLowerCase()
-    );
+    let exactMatches = apiCards.filter((c) => c.name.toLowerCase() === card.cardName.toLowerCase());
 
     if (exactMatches.length === 0) {
       // Fuzzy match
-      exactMatches = apiCards.filter(
-        (c) => c.name.toLowerCase().includes(card.cardName.toLowerCase())
+      exactMatches = apiCards.filter((c) =>
+        c.name.toLowerCase().includes(card.cardName.toLowerCase())
       );
     }
 
@@ -252,7 +258,10 @@ class ImagePopulatorService {
   private normalizeCardNumber(num: string): string {
     if (!num) return '';
     const beforeSlash = num.split('/')[0].trim();
-    return beforeSlash.toLowerCase().replace(/^0+/, '').replace(/[^a-z0-9]/g, '');
+    return beforeSlash
+      .toLowerCase()
+      .replace(/^0+/, '')
+      .replace(/[^a-z0-9]/g, '');
   }
 
   /**
@@ -303,7 +312,7 @@ class ImagePopulatorService {
 
     // First check if image columns exist
     const hasImageColumns = await new Promise<boolean>((resolve) => {
-      db.all("PRAGMA table_info(card_mappings)", [], (err, rows: any[]) => {
+      db.all('PRAGMA table_info(card_mappings)', [], (err, rows: any[]) => {
         if (err || !rows) {
           resolve(false);
         } else {
@@ -463,7 +472,7 @@ class ImagePopulatorService {
 
     // First check if image columns exist
     const hasImageColumns = await new Promise<boolean>((resolve) => {
-      db.all("PRAGMA table_info(card_mappings)", [], (err, rows: any[]) => {
+      db.all('PRAGMA table_info(card_mappings)', [], (err, rows: any[]) => {
         if (err || !rows) {
           resolve(false);
         } else {
@@ -549,23 +558,23 @@ if (require.main === module) {
       // Initialize database and run migrations first
       const { initializeDatabase } = await import('../db/database');
       const { runMigrations } = await import('../db/migrations');
-      
+
       logger.info('🔧 Initializing database...');
       initializeDatabase();
-      
+
       // Wait for database initialization to complete
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
       const db = getDb();
-      
+
       logger.info('🔧 Running migrations...');
       await runMigrations(db);
-      
+
       // Wait for migrations to complete
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
       logger.info('✅ Database ready!\n');
-      
+
       // First show stats
       const stats = await imagePopulatorService.getImageStats();
       logger.info('📊 Current Image Statistics:');
@@ -586,7 +595,9 @@ if (require.main === module) {
       const finalStats = await imagePopulatorService.getImageStats();
       logger.info('\n📊 Final Image Statistics:');
       logger.info(`   Total cards: ${finalStats.total}`);
-      logger.info(`   With images: ${finalStats.withImages} (${finalStats.percentage.toFixed(1)}%)`);
+      logger.info(
+        `   With images: ${finalStats.withImages} (${finalStats.percentage.toFixed(1)}%)`
+      );
       logger.info(`   Without images: ${finalStats.withoutImages}`);
 
       process.exit(0);
@@ -596,4 +607,3 @@ if (require.main === module) {
     }
   })();
 }
-

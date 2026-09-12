@@ -28,8 +28,7 @@ export const apiLimiter = rateLimit({
   // Phone QR capture polls every couple seconds from desktop + phone; don't
   // burn the global budget on that relay traffic. Deal reads poll while a
   // marketplace crawl is running and must not share the 100/15min bucket.
-  skip: (req) =>
-    isCaptureSessionsPath(req) || isEbayNotificationPath(req) || isDealsReadPath(req),
+  skip: (req) => isCaptureSessionsPath(req) || isEbayNotificationPath(req) || isDealsReadPath(req),
 });
 
 /** Generous limiter for phone↔desktop capture relay (poll + image upload). */
@@ -59,4 +58,3 @@ export const passwordChangeLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
-

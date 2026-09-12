@@ -13,9 +13,12 @@ class CacheService {
 
   constructor() {
     if (typeof window !== 'undefined') {
-      this.cleanupInterval = setInterval(() => {
-        this.clearExpired();
-      }, 2 * 60 * 1000);
+      this.cleanupInterval = setInterval(
+        () => {
+          this.clearExpired();
+        },
+        2 * 60 * 1000
+      );
     }
   }
 

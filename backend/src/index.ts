@@ -52,11 +52,7 @@ async function bootstrap() {
     const binderService = new BinderService(db);
     const watchlistService = new WatchlistService(db);
 
-    await Promise.all([
-      authService.init(),
-      alertService.init(),
-      watchlistService.ensureSchema(),
-    ]);
+    await Promise.all([authService.init(), alertService.init(), watchlistService.ensureSchema()]);
 
     registerRoutes(app, {
       authService,
@@ -88,7 +84,9 @@ async function bootstrap() {
         const result = await backfillCardMappingImages();
         logger.info('Startup image backfill completed', result);
       } catch (error) {
-        logger.warn('Startup image backfill failed (non-fatal)', { error: (error as Error).message });
+        logger.warn('Startup image backfill failed (non-fatal)', {
+          error: (error as Error).message,
+        });
       }
     })();
 
@@ -102,7 +100,9 @@ async function bootstrap() {
           logger.info('One Piece sync completed', result);
         }
       } catch (error) {
-        logger.warn('One Piece catalog check / sync failed (non-fatal)', { error: (error as Error).message });
+        logger.warn('One Piece catalog check / sync failed (non-fatal)', {
+          error: (error as Error).message,
+        });
       }
     })();
   } catch (error) {

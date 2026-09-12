@@ -11,4 +11,4 @@ export interface CardIdentifier {
   uniqueIdentifier: string;
   createdAt: string;
   updatedAt: string;
-} 
+}

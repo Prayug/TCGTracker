@@ -73,9 +73,7 @@ function liveJaCatalogRow(card: any) {
     imageSmall: card.imageSmall,
     imageLarge: card.imageLarge,
     tcgplayerProductId: card.tcgplayerProductId,
-    tcgplayerPrices: card.tcgplayerPrices
-      ? JSON.stringify(card.tcgplayerPrices)
-      : null,
+    tcgplayerPrices: card.tcgplayerPrices ? JSON.stringify(card.tcgplayerPrices) : null,
     language: 'ja',
     matchName: card.matchName,
     latestPrice: null,
@@ -142,21 +140,16 @@ async function buildLocalFallback(
   }
 
   if (catalogRows.length > 0) {
-    const cards = await enrichCardsWithInvestmentData(
-      mapCatalogRowsToPokemonCards(catalogRows)
-    );
+    const cards = await enrichCardsWithInvestmentData(mapCatalogRowsToPokemonCards(catalogRows));
     return localFallbackPayload(cards, limit, lang, 'catalog_database');
   }
 
-  const rows = await getLocalCardsForQuery(
-    sanitizedQuery,
-    normalizedSetId,
-    limit,
-    lang
-  ).catch((err) => {
-    logger.error('Local fallback query failed', err);
-    return [] as any[];
-  });
+  const rows = await getLocalCardsForQuery(sanitizedQuery, normalizedSetId, limit, lang).catch(
+    (err) => {
+      logger.error('Local fallback query failed', err);
+      return [] as any[];
+    }
+  );
   if (!rows || rows.length === 0) {
     return null;
   }
@@ -171,10 +164,10 @@ async function buildLocalFallback(
 router.get('/search', async (req, res) => {
   try {
     const { query, setId, limit = '100', language = 'en' } = req.query;
-    
+
     if (!query || typeof query !== 'string') {
-      return res.status(400).json({ 
-        error: 'Query parameter is required' 
+      return res.status(400).json({
+        error: 'Query parameter is required',
       });
     }
 
@@ -208,9 +201,9 @@ router.get('/search', async (req, res) => {
     });
   } catch (error) {
     logger.error('Error in card search:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Internal server error',
-      message: (error as Error).message 
+      message: (error as Error).message,
     });
   }
 });
@@ -220,8 +213,14 @@ router.get('/pokemon', async (req, res) => {
   let buildLocalFallbackResponse: (() => Promise<any | null>) | null = null;
 
   try {
-    const { query, setId, pageSize = '250', fetchAll = 'true', maxPages = '4', language = 'en' } =
-      req.query;
+    const {
+      query,
+      setId,
+      pageSize = '250',
+      fetchAll = 'true',
+      maxPages = '4',
+      language = 'en',
+    } = req.query;
 
     if (!query || typeof query !== 'string' || query.trim().length < 2) {
       return res.status(400).json({
@@ -233,7 +232,8 @@ router.get('/pokemon', async (req, res) => {
     const normalizedSetId =
       typeof setId === 'string' && setId.trim().length > 0 ? setId.trim() : undefined;
     // JA catalog searches can exceed the EN Pokemon-API pageSize cap (promos + variants).
-    const limitCap = queryContainsCjk(sanitizedQuery) || String(language).toLowerCase() === 'ja' ? 500 : 250;
+    const limitCap =
+      queryContainsCjk(sanitizedQuery) || String(language).toLowerCase() === 'ja' ? 500 : 250;
     const limit = Math.min(Math.max(parseInt(pageSize as string, 10) || 100, 1), limitCap);
     const shouldFetchAll = String(fetchAll).toLowerCase() !== 'false';
     const maxPagesToFetch = Math.min(Math.max(parseInt(maxPages as string, 10) || 4, 1), 10);

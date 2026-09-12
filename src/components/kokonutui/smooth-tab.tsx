@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * @author: @dorianbaffier
@@ -10,10 +10,10 @@
  * @github: https://github.com/kokonut-labs/kokonutui
  */
 
-import type { LucideIcon } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
-import * as React from "react";
-import { cn } from "@/lib/utils";
+import type { LucideIcon } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
+import * as React from 'react';
+import { cn } from '@/lib/utils';
 
 interface TabItem {
   id: string;
@@ -31,7 +31,7 @@ const WaveformPath = () => (
       x: [0, 10, 0],
       transition: {
         duration: 5,
-        ease: "linear",
+        ease: 'linear',
         repeat: Number.POSITIVE_INFINITY,
       },
     }}
@@ -80,7 +80,7 @@ function TabCardContent({
             animate={{ opacity: 0.1 }}
             className={`fill-${fillClass} stroke-${fillClass}`}
             initial={{ opacity: 0 }}
-            style={{ strokeWidth: 1, transform: "translateY(10px)" }}
+            style={{ strokeWidth: 1, transform: 'translateY(10px)' }}
             transition={{ duration: 0.5 }}
           >
             <WaveformPath />
@@ -103,28 +103,28 @@ function TabCardContent({
 
 const DEFAULT_TABS: TabItem[] = [
   {
-    id: "Models",
-    title: "Models",
-    description: "Choose the model you want to use",
-    color: "bg-blue-500 hover:bg-blue-600",
+    id: 'Models',
+    title: 'Models',
+    description: 'Choose the model you want to use',
+    color: 'bg-blue-500 hover:bg-blue-600',
   },
   {
-    id: "MCPs",
-    title: "MCPs",
-    description: "Choose the MCP you want to use",
-    color: "bg-purple-500 hover:bg-purple-600",
+    id: 'MCPs',
+    title: 'MCPs',
+    description: 'Choose the MCP you want to use',
+    color: 'bg-purple-500 hover:bg-purple-600',
   },
   {
-    id: "Agents",
-    title: "Agents",
-    description: "Choose the agent you want to use",
-    color: "bg-emerald-500 hover:bg-emerald-600",
+    id: 'Agents',
+    title: 'Agents',
+    description: 'Choose the agent you want to use',
+    color: 'bg-emerald-500 hover:bg-emerald-600',
   },
   {
-    id: "Users",
-    title: "Users",
-    description: "Choose the user you want to use",
-    color: "bg-amber-500 hover:bg-amber-600",
+    id: 'Users',
+    title: 'Users',
+    description: 'Choose the user you want to use',
+    color: 'bg-amber-500 hover:bg-amber-600',
   },
 ];
 
@@ -138,25 +138,25 @@ interface SmoothTabProps {
 
 const slideVariants = {
   enter: (direction: number) => ({
-    x: direction > 0 ? "100%" : "-100%",
+    x: direction > 0 ? '100%' : '-100%',
     opacity: 0,
-    filter: "blur(8px)",
+    filter: 'blur(8px)',
     scale: 0.95,
-    position: "absolute" as const,
+    position: 'absolute' as const,
   }),
   center: {
     x: 0,
     opacity: 1,
-    filter: "blur(0px)",
+    filter: 'blur(0px)',
     scale: 1,
-    position: "absolute" as const,
+    position: 'absolute' as const,
   },
   exit: (direction: number) => ({
-    x: direction < 0 ? "100%" : "-100%",
+    x: direction < 0 ? '100%' : '-100%',
     opacity: 0,
-    filter: "blur(8px)",
+    filter: 'blur(8px)',
     scale: 0.95,
-    position: "absolute" as const,
+    position: 'absolute' as const,
   }),
 };
 
@@ -169,7 +169,7 @@ export default function SmoothTab({
   items = DEFAULT_TABS,
   defaultTabId = DEFAULT_TABS[0].id,
   className,
-  activeColor = "bg-[#1F9CFE]",
+  activeColor = 'bg-[#1F9CFE]',
   onChange,
 }: SmoothTabProps) {
   const [selected, setSelected] = React.useState<string>(defaultTabId);
@@ -203,8 +203,8 @@ export default function SmoothTab({
     });
 
     // Update on resize
-    window.addEventListener("resize", updateDimensions);
-    return () => window.removeEventListener("resize", updateDimensions);
+    window.addEventListener('resize', updateDimensions);
+    return () => window.removeEventListener('resize', updateDimensions);
   }, [selected]);
 
   const handleTabClick = (tabId: string) => {
@@ -215,11 +215,8 @@ export default function SmoothTab({
     onChange?.(tabId);
   };
 
-  const handleKeyDown = (
-    e: React.KeyboardEvent<HTMLButtonElement>,
-    tabId: string
-  ) => {
-    if (e.key === "Enter" || e.key === " ") {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, tabId: string) => {
+    if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       handleTabClick(tabId);
     }
@@ -233,11 +230,7 @@ export default function SmoothTab({
       <div className="relative mb-4 flex-1">
         <div className="relative h-[200px] w-full rounded-lg border bg-card">
           <div className="absolute inset-0 overflow-hidden rounded-lg">
-            <AnimatePresence
-              custom={direction}
-              initial={false}
-              mode="popLayout"
-            >
+            <AnimatePresence custom={direction} initial={false} mode="popLayout">
               <motion.div
                 animate="center"
                 className="absolute inset-0 h-full w-full bg-card will-change-transform"
@@ -246,8 +239,8 @@ export default function SmoothTab({
                 initial="enter"
                 key={`card-${selected}`}
                 style={{
-                  backfaceVisibility: "hidden",
-                  WebkitBackfaceVisibility: "hidden",
+                  backfaceVisibility: 'hidden',
+                  WebkitBackfaceVisibility: 'hidden',
                 }}
                 transition={transition as any}
                 variants={slideVariants as any}
@@ -255,12 +248,9 @@ export default function SmoothTab({
                 {selectedItem?.cardContent ??
                   (selectedItem && (
                     <TabCardContent
-                      description={selectedItem.description ?? ""}
+                      description={selectedItem.description ?? ''}
                       fillClass={
-                        selectedItem.color
-                          .split(" ")
-                          .at(0)
-                          ?.replace("bg-", "") ?? "blue-500"
+                        selectedItem.color.split(' ').at(0)?.replace('bg-', '') ?? 'blue-500'
                       }
                       title={selectedItem.title}
                     />
@@ -275,10 +265,10 @@ export default function SmoothTab({
       <div
         aria-label="Smooth tabs"
         className={cn(
-          "relative mt-auto flex items-center justify-between gap-1 py-1",
-          "mx-auto w-[400px] bg-background",
-          "rounded-xl border",
-          "transition-all duration-200",
+          'relative mt-auto flex items-center justify-between gap-1 py-1',
+          'mx-auto w-[400px] bg-background',
+          'rounded-xl border',
+          'transition-all duration-200',
           className
         )}
         ref={containerRef}
@@ -291,14 +281,11 @@ export default function SmoothTab({
             x: dimensions.left + 4,
             opacity: 1,
           }}
-          className={cn(
-            "absolute z-[1] rounded-lg",
-            selectedItem?.color || activeColor
-          )}
+          className={cn('absolute z-[1] rounded-lg', selectedItem?.color || activeColor)}
           initial={false}
-          style={{ height: "calc(100% - 8px)", top: "4px" }}
+          style={{ height: 'calc(100% - 8px)', top: '4px' }}
           transition={{
-            type: "spring",
+            type: 'spring',
             stiffness: 400,
             damping: 30,
           }}
@@ -312,13 +299,13 @@ export default function SmoothTab({
                 aria-controls={`panel-${item.id}`}
                 aria-selected={isSelected}
                 className={cn(
-                  "relative flex items-center justify-center gap-0.5 rounded-lg px-2 py-1.5",
-                  "font-medium text-sm transition-all duration-300",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  "truncate",
+                  'relative flex items-center justify-center gap-0.5 rounded-lg px-2 py-1.5',
+                  'font-medium text-sm transition-all duration-300',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  'truncate',
                   isSelected
-                    ? "text-white"
-                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                    ? 'text-white'
+                    : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                 )}
                 id={`tab-${item.id}`}
                 key={item.id}

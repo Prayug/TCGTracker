@@ -78,20 +78,21 @@ describe('listing title filter', () => {
   });
 
   it('rejects lots, proxies, and the wrong number', () => {
-    expect(isPsa10ActiveListingTitle('Charizard GX Hidden Fates PSA 10 lot of 3', card)).toBe(false);
-    expect(isPsa10ActiveListingTitle('Charizard GX #9 Hidden Fates PSA 10 proxy', card)).toBe(false);
+    expect(isPsa10ActiveListingTitle('Charizard GX Hidden Fates PSA 10 lot of 3', card)).toBe(
+      false
+    );
+    expect(isPsa10ActiveListingTitle('Charizard GX #9 Hidden Fates PSA 10 proxy', card)).toBe(
+      false
+    );
     expect(
       isPsa10ActiveListingTitle('Charizard GX SV49 Hidden Fates Shiny Vault PSA 10', card)
     ).toBe(false);
   });
 
   it('rejects a PSA 10 of the same name/number from a different set', () => {
-    expect(
-      isPsa10ActiveListingTitle(
-        'PSA 10 Charizard GX Burning Shadows #9/147 Holo',
-        card
-      )
-    ).toBe(false);
+    expect(isPsa10ActiveListingTitle('PSA 10 Charizard GX Burning Shadows #9/147 Holo', card)).toBe(
+      false
+    );
   });
 });
 

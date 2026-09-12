@@ -28,22 +28,20 @@ describe('passesMoverThresholds', () => {
 
   it('accepts an 8%+ move even when the $ move is under $5', () => {
     // $20 → $22 = +10% but only +$2
-    expect(
-      passesMoverThresholds({ currentPrice: 22, prevPrice: 20, historyPoints: 3 })
-    ).toBe(true);
+    expect(passesMoverThresholds({ currentPrice: 22, prevPrice: 20, historyPoints: 3 })).toBe(true);
   });
 
   it('rejects sub-threshold moves', () => {
     // +$4 and +4% — under both gates
-    expect(
-      passesMoverThresholds({ currentPrice: 104, prevPrice: 100, historyPoints: 5 })
-    ).toBe(false);
+    expect(passesMoverThresholds({ currentPrice: 104, prevPrice: 100, historyPoints: 5 })).toBe(
+      false
+    );
   });
 
   it('rejects cards under the $20 floor', () => {
-    expect(
-      passesMoverThresholds({ currentPrice: 15, prevPrice: 10, historyPoints: 5 })
-    ).toBe(false);
+    expect(passesMoverThresholds({ currentPrice: 15, prevPrice: 10, historyPoints: 5 })).toBe(
+      false
+    );
   });
 
   it('rejects series with fewer than 3 history points', () => {

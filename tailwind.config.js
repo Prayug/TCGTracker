@@ -109,9 +109,9 @@ export default {
         popover: '0 8px 30px rgb(0 0 0 / 0.28)',
       },
       fontFamily: {
-        sans: ['"Jost"', 'system-ui', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
-        display: ['"Outfit"', '"Jost"', 'system-ui', 'sans-serif'],
+        sans: ['"Sora"', 'system-ui', 'sans-serif'],
+        mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
+        display: ['"Fraunces"', 'Georgia', 'serif'],
       },
       fontSize: {
         display: [

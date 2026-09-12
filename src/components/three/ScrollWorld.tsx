@@ -148,11 +148,23 @@ function FloorRings() {
     <group position={[0, -1.7, 0]} rotation={[-Math.PI / 2, 0, 0]}>
       <mesh ref={outer}>
         <ringGeometry args={[3.4, 4.2, 80]} />
-        <meshBasicMaterial color="#5bc4d4" transparent opacity={0.07} side={THREE.DoubleSide} depthWrite={false} />
+        <meshBasicMaterial
+          color="#5bc4d4"
+          transparent
+          opacity={0.07}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+        />
       </mesh>
       <mesh ref={inner}>
         <ringGeometry args={[2.1, 2.9, 80]} />
-        <meshBasicMaterial color="#6ee7b7" transparent opacity={0.08} side={THREE.DoubleSide} depthWrite={false} />
+        <meshBasicMaterial
+          color="#6ee7b7"
+          transparent
+          opacity={0.08}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+        />
       </mesh>
     </group>
   );

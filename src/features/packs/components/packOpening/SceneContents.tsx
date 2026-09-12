@@ -63,7 +63,13 @@ export const SceneContents: React.FC<PackOpeningSceneProps> = ({
 
   return (
     <>
-      <CameraRig timeRef={timeRef} baseZ={config.cameraZ} glamour={glamourLevel} tier={tier} cardRarities={cardRarities} />
+      <CameraRig
+        timeRef={timeRef}
+        baseZ={config.cameraZ}
+        glamour={glamourLevel}
+        tier={tier}
+        cardRarities={cardRarities}
+      />
       <EnvironmentScene tier={tier} glamourLevel={glamourLevel} timeRef={timeRef} />
 
       <ambientLight intensity={0.3 + (config.lightIntensity - 2.1) * 0.1} />
@@ -73,11 +79,13 @@ export const SceneContents: React.FC<PackOpeningSceneProps> = ({
 
       <PackMesh tier={tier} timeRef={timeRef} />
       <EnergyBuildup tier={tier} timeRef={timeRef} />
-      <OrbitEnergy tier={tier} timeRef={timeRef} count={anim.packBehavior === 'levitate' ? 24 : 12} />
+      <OrbitEnergy
+        tier={tier}
+        timeRef={timeRef}
+        count={anim.packBehavior === 'levitate' ? 24 : 12}
+      />
 
-      {anim.packBehavior === 'shatter' && (
-        <ShatterFragments tier={tier} timeRef={timeRef} />
-      )}
+      {anim.packBehavior === 'shatter' && <ShatterFragments tier={tier} timeRef={timeRef} />}
 
       <ShockwaveRings tier={tier} timeRef={timeRef} count={theme.shockwaveCount} />
       <ShockwaveRipple tier={tier} timeRef={timeRef} />

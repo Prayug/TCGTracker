@@ -78,7 +78,7 @@ export interface SetCardDto {
 
 /** True for reverse / reverse-holo finishes (TCGPlayer + mapping key variants). */
 export const isReverseFinish = (subTypeName: string, variantKey: string): boolean => {
-  const combined = `${subTypeName} ${variantKey}`.toLowerCase().replace(/[\s_\-]/g, '');
+  const combined = `${subTypeName} ${variantKey}`.toLowerCase().replace(/[\s_-]/g, '');
   return combined.includes('reverseholo');
 };
 
@@ -173,7 +173,11 @@ export const resolveSetMeta = async (
     const { setCodeService } = await import('./setCodeService');
     await setCodeService.initialize();
     const apiMeta = setCodeService.resolveApiSet(row.id, row.name);
-    const era = classifySetEra({ id: apiMeta?.id || row.id, name: row.name, series: apiMeta?.series });
+    const era = classifySetEra({
+      id: apiMeta?.id || row.id,
+      name: row.name,
+      series: apiMeta?.series,
+    });
     return {
       id: row.id,
       name: row.name,
@@ -195,7 +199,8 @@ const variantPriority = (
   variantKey: string
 ): number => {
   const r = (rarity || '').toLowerCase();
-  const wantsHolo = r.includes('holo') || r.includes('ultra') || r.includes('secret') || r.includes('illustration');
+  const wantsHolo =
+    r.includes('holo') || r.includes('ultra') || r.includes('secret') || r.includes('illustration');
   const sub = subTypeName.toLowerCase();
   const variant = variantKey.toLowerCase();
 
@@ -439,7 +444,8 @@ const resolvePriceForCatalogRow = (
       latestPrice = catalogBest.price;
       priceDate = null;
       priceSource = 'tcgplayer_catalog';
-      primaryIsReverse = !!catalogBest.variantKey && isReverseFinish(catalogBest.variantKey, catalogBest.variantKey);
+      primaryIsReverse =
+        !!catalogBest.variantKey && isReverseFinish(catalogBest.variantKey, catalogBest.variantKey);
     }
   }
 
@@ -533,12 +539,17 @@ export const rowToSetCardDto = (
   row: SetCatalogRow,
   setMeta: { id: string; name: string; releaseDate: string; total: number }
 ): SetCardDto => {
-  const fromSync = typeof row.latestPrice === 'number' && row.latestPrice > 0 ? row.latestPrice : null;
+  const fromSync =
+    typeof row.latestPrice === 'number' && row.latestPrice > 0 ? row.latestPrice : null;
   const fromCatalog = extractMarketPriceFromVariants(parsePrices(row.tcgplayerPrices));
   const marketPrice = fromSync ?? (fromCatalog !== null && fromCatalog > 0 ? fromCatalog : 0);
   const priceSource =
     row.priceSource ??
-    (fromSync !== null ? 'market_sync' : fromCatalog !== null && fromCatalog > 0 ? 'tcgplayer_catalog' : null);
+    (fromSync !== null
+      ? 'market_sync'
+      : fromCatalog !== null && fromCatalog > 0
+        ? 'tcgplayer_catalog'
+        : null);
 
   const reverseMarketPrice =
     typeof row.reversePrice === 'number' && row.reversePrice > 0 ? row.reversePrice : 0;
@@ -729,9 +740,7 @@ export const trimUnreliableSetValueHistory = <T extends SetValueHistoryRow>(
   const minCards = Math.ceil(peakPriced * SET_VALUE_HISTORY_MIN_COVERAGE);
   const minValue = peakValue * SET_VALUE_HISTORY_MIN_VALUE_RATIO;
 
-  const startIdx = history.findIndex(
-    (p) => p.cardsPriced >= minCards && p.setValue >= minValue
-  );
+  const startIdx = history.findIndex((p) => p.cardsPriced >= minCards && p.setValue >= minValue);
 
   if (startIdx <= 0) return startIdx === -1 ? [] : history;
   return history.slice(startIdx);
@@ -813,10 +822,7 @@ const pickBetterPriceForDate = (
   return existing;
 };
 
-const pickBetterReverseForDate = (
-  existing: number | undefined,
-  price: number
-): number => {
+const pickBetterReverseForDate = (existing: number | undefined, price: number): number => {
   if (existing === undefined || price > existing) return price;
   return existing;
 };
@@ -902,10 +908,7 @@ export const fetchSetValueHistory = async (
     if (!byCatalogCard.has(catalogId)) byCatalogCard.set(catalogId, new Map());
     const dateMap = byCatalogCard.get(catalogId)!;
     const existing = dateMap.get(row.date);
-    dateMap.set(
-      row.date,
-      pickBetterPriceForDate(existing, row.marketPrice, priority, isReverse)
-    );
+    dateMap.set(row.date, pickBetterPriceForDate(existing, row.marketPrice, priority, isReverse));
 
     if (isReverse) {
       if (!reverseByCatalogCard.has(catalogId)) reverseByCatalogCard.set(catalogId, new Map());

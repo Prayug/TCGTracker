@@ -72,7 +72,7 @@ async function main() {
   for (const s of getCalibrationStatus(models)) {
     logger.info(
       `Calibration ${s.horizon}d: samples=${s.sampleCount} bias=${s.bias} ` +
-      `marketMedian=${s.marketMedianReturn} builtAt=${s.builtAt}`
+        `marketMedian=${s.marketMedianReturn} builtAt=${s.builtAt}`
     );
   }
 

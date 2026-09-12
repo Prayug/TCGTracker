@@ -72,12 +72,13 @@ class CardWishlistService {
    */
   replaceWishlistFromRemote(items: WatchlistSyncItem[]): void {
     const mapped: WishlistItem[] = items.map((item) => {
-      const game: 'pokemon' | 'onepiece' =
-        item.game === 'onepiece' ? 'onepiece' : 'pokemon';
-      const card = (item.card as PokemonCard | OnePieceCard | undefined) ?? ({
-        id: item.cardId,
-        name: item.cardName,
-      } as PokemonCard);
+      const game: 'pokemon' | 'onepiece' = item.game === 'onepiece' ? 'onepiece' : 'pokemon';
+      const card =
+        (item.card as PokemonCard | OnePieceCard | undefined) ??
+        ({
+          id: item.cardId,
+          name: item.cardName,
+        } as PokemonCard);
       return {
         id: item.id || `wish-${item.cardId}`,
         card,
@@ -150,10 +151,7 @@ class CardWishlistService {
     this.save(items, game);
   }
 
-  toggle(
-    card: PokemonCard | OnePieceCard,
-    game: 'pokemon' | 'onepiece' = 'pokemon'
-  ): boolean {
+  toggle(card: PokemonCard | OnePieceCard, game: 'pokemon' | 'onepiece' = 'pokemon'): boolean {
     if (this.isWishlisted(card.id, game)) {
       this.remove(card.id, game);
       return false;

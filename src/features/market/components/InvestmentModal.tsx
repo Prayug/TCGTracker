@@ -30,6 +30,7 @@ import { GradedMultiPriceChart, gradedSeriesKey } from './GradedMultiPriceChart'
 import { GradedPriceCards } from './GradedPriceCards';
 import { headlineGradedPrice } from './gradedPriceDisplay';
 import { cn } from '@/lib/utils';
+import { HoloCard } from '@/components/ui/holo-card';
 
 interface InvestmentModalProps {
   card: PokemonCard | OnePieceCard | null;
@@ -510,46 +511,68 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
         bodyRef={scrollRef}
         header={compactBar}
       >
-        <div ref={heroRef} className="px-4 pb-6 pt-4 pr-12 sm:px-7 sm:pr-14 sm:pt-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
-            <img
-              src={card.images?.large || card.images?.small || ''}
-              alt=""
-              className="mx-auto aspect-[5/7] w-[min(10rem,40vw)] shrink-0 rounded-xl bg-surface-raised object-contain sm:mx-0 sm:w-[12.5rem]"
-              loading="lazy"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                if (card.images?.small && target.src !== card.images.small) {
-                  target.src = card.images.small;
-                }
-              }}
-            />
+        <div
+          ref={heroRef}
+          className="relative overflow-hidden px-4 pb-6 pt-4 pr-12 sm:px-7 sm:pr-14 sm:pt-5"
+        >
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_28%_20%,rgba(255,236,210,0.08),transparent_42%)]"
+          />
+          <div className="relative flex flex-col gap-5 sm:flex-row sm:items-start sm:gap-8">
+            <div className="mx-auto w-[min(11.5rem,42vw)] shrink-0 sm:mx-0 sm:w-[13rem]">
+              <HoloCard
+                imageUrl={card.images?.large || card.images?.small || ''}
+                imageAlt={card.name}
+                maxTilt={12}
+                aspect={0.716}
+              />
+            </div>
 
-            <div className="flex min-w-0 flex-1 flex-col text-center sm:text-left">
-              <h2 className="font-display text-xl font-semibold leading-tight tracking-tight text-ink-primary sm:text-[1.75rem]">
+            <div className="flex min-w-0 flex-1 flex-col text-center sm:pt-2 sm:text-left">
+              <p className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-ink-muted">
+                Accession
+              </p>
+              <h2 className="mt-2 font-display text-xl font-semibold leading-tight tracking-tight text-ink-primary sm:text-[1.85rem]">
                 {card.name}
               </h2>
-              <p className="mt-1 text-sm text-ink-muted sm:mt-2">
-                {card.set?.name}
-                {card.number ? ` · #${card.number}` : ''}
-              </p>
-              {card.rarity && <p className="mt-1 text-sm text-ink-muted">{card.rarity}</p>}
-              {isOnePiece &&
-                (() => {
-                  const op = card as OnePieceCard;
-                  const bits = [
-                    op.cardColor,
-                    op.cardType,
-                    op.cardCost ? `Cost ${op.cardCost}` : null,
-                    op.cardPower ? `Power ${op.cardPower}` : null,
-                  ].filter(Boolean);
-                  return bits.length ? (
-                    <p className="mt-1 text-sm text-ink-muted">{bits.join(' · ')}</p>
-                  ) : null;
-                })()}
+              <dl className="mt-3 space-y-1 text-sm text-ink-muted">
+                <div className="flex flex-wrap items-baseline justify-center gap-x-2 sm:justify-start">
+                  <dt className="font-mono text-[10px] uppercase tracking-[0.14em]">Set</dt>
+                  <dd>
+                    {card.set?.name}
+                    {card.number ? ` · #${card.number}` : ''}
+                  </dd>
+                </div>
+                {card.rarity ? (
+                  <div className="flex flex-wrap items-baseline justify-center gap-x-2 sm:justify-start">
+                    <dt className="font-mono text-[10px] uppercase tracking-[0.14em]">Print</dt>
+                    <dd>{card.rarity}</dd>
+                  </div>
+                ) : null}
+                {isOnePiece &&
+                  (() => {
+                    const op = card as OnePieceCard;
+                    const bits = [
+                      op.cardColor,
+                      op.cardType,
+                      op.cardCost ? `Cost ${op.cardCost}` : null,
+                      op.cardPower ? `Power ${op.cardPower}` : null,
+                    ].filter(Boolean);
+                    return bits.length ? (
+                      <div className="flex flex-wrap items-baseline justify-center gap-x-2 sm:justify-start">
+                        <dt className="font-mono text-[10px] uppercase tracking-[0.14em]">Meta</dt>
+                        <dd>{bits.join(' · ')}</dd>
+                      </div>
+                    ) : null;
+                  })()}
+              </dl>
 
-              <div className="mt-4 sm:mt-6">
-                <p className="font-mono text-3xl font-semibold tabular-nums tracking-tight text-ink-primary sm:text-4xl">
+              <div className="mt-5 sm:mt-7">
+                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-ink-muted">
+                  Market
+                </p>
+                <p className="mt-1 font-mono text-3xl font-semibold tabular-nums tracking-tight text-ink-primary sm:text-4xl">
                   {formatCurrency(actualCardPrice)}
                 </p>
                 {rangedHistory.length > 1 && (

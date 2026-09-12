@@ -21,36 +21,64 @@ export const PackMesh: React.FC<{
   const flashFired = useRef(false);
 
   const bodyMaterial = useMemo(
-    () => new THREE.MeshStandardMaterial({
-      color: colors.base, metalness: 0.75, roughness: 0.25, transparent: true,
-    }), [colors.base]
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: colors.base,
+        metalness: 0.75,
+        roughness: 0.25,
+        transparent: true,
+      }),
+    [colors.base]
   );
   const crimpMaterial = useMemo(
-    () => new THREE.MeshStandardMaterial({
-      color: colors.base, metalness: 0.85, roughness: 0.35, transparent: true,
-    }), [colors.base]
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: colors.base,
+        metalness: 0.85,
+        roughness: 0.35,
+        transparent: true,
+      }),
+    [colors.base]
   );
   const foilMaterial = useMemo(
     () => new HolographicMaterial({ tint: colors.base, intensity: 0.6 }),
     [colors.base]
   );
   const auraMaterial = useMemo(
-    () => new THREE.MeshBasicMaterial({
-      color: colors.glow, transparent: true, opacity: 0, side: THREE.DoubleSide,
-      depthWrite: false, blending: THREE.AdditiveBlending,
-    }), [colors.glow]
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: colors.glow,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    [colors.glow]
   );
   const flashMaterial = useMemo(
-    () => new THREE.MeshBasicMaterial({
-      color: theme.flashColor, transparent: true, opacity: 0,
-      side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending,
-    }), [theme.flashColor]
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: theme.flashColor,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    [theme.flashColor]
   );
 
-  useEffect(() => () => {
-    bodyMaterial.dispose(); crimpMaterial.dispose(); foilMaterial.dispose();
-    auraMaterial.dispose(); flashMaterial.dispose();
-  }, [bodyMaterial, crimpMaterial, foilMaterial, auraMaterial, flashMaterial]);
+  useEffect(
+    () => () => {
+      bodyMaterial.dispose();
+      crimpMaterial.dispose();
+      foilMaterial.dispose();
+      auraMaterial.dispose();
+      flashMaterial.dispose();
+    },
+    [bodyMaterial, crimpMaterial, foilMaterial, auraMaterial, flashMaterial]
+  );
 
   useFrame(() => {
     const t = timeRef.current;
@@ -172,9 +200,7 @@ export const PackMesh: React.FC<{
         }
         case 'explode': {
           // Gold: pack pulses/grows then vanishes
-          const pulse = rip < 0.6
-            ? 1 + Math.sin(rip * Math.PI * 8) * 0.15 * (1 - rip)
-            : 1;
+          const pulse = rip < 0.6 ? 1 + Math.sin(rip * Math.PI * 8) * 0.15 * (1 - rip) : 1;
           const explodePhase = clamp01((rip - 0.6) / 0.4);
           const shrink = 1 - easeOutCubic(explodePhase);
           group.scale.setScalar(pulse * Math.max(0.01, shrink));

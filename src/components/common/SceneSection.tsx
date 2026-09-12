@@ -21,11 +21,7 @@ export const SceneSection: React.FC<SceneSectionProps> = ({ children, className 
   const isInView = useInView(ref, { once: true, margin: '-15%' });
 
   return (
-    <section
-      id={id}
-      ref={ref}
-      className={`relative min-h-screen w-full ${className}`}
-    >
+    <section id={id} ref={ref} className={`relative min-h-screen w-full ${className}`}>
       <motion.div
         variants={sceneVariants}
         initial="hidden"

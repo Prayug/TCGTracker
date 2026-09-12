@@ -1,42 +1,55 @@
-# Multi-stage build for backend
+# Build from repository root:
+#   docker build -f backend/Dockerfile -t tcgtracker-backend .
+#
+# Context must include `backend/` and `packages/shared/` so
+# `file:../packages/shared` and `npm run build --prefix ../packages/shared` resolve.
+
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Install shared first (needs its own devDeps for `tsc`)
+COPY packages/shared/package.json packages/shared/package-lock.json ./packages/shared/
+WORKDIR /app/packages/shared
 RUN npm ci
 
-# Copy source code
-COPY . .
+# Install backend (links file:../packages/shared)
+WORKDIR /app
+COPY backend/package.json backend/package-lock.json ./backend/
+WORKDIR /app/backend
+RUN npm ci
 
-# Build TypeScript
+# Copy sources and compile shared + backend
+WORKDIR /app
+COPY packages/shared ./packages/shared
+COPY backend ./backend
+
+WORKDIR /app/backend
 RUN npm run build
 
-# Production stage
+# ---------------------------------------------------------------------------
 FROM node:20-alpine AS production
 
 WORKDIR /app
 
-# Copy package files and install production dependencies only
-COPY package*.json ./
-RUN npm ci --only=production
+# Runtime layout mirrors the monorepo so file:../packages/shared still resolves
+COPY packages/shared/package.json ./packages/shared/
+COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 
-# Copy built files from builder
-COPY --from=builder /app/dist ./dist
+COPY backend/package.json backend/package-lock.json ./backend/
+WORKDIR /app/backend
+RUN npm ci --omit=dev
 
-# Create directory for database
+COPY --from=builder /app/backend/dist ./dist
+
 RUN mkdir -p /app/data
 
-# Set environment variables
 ENV NODE_ENV=production
 ENV PORT=3001
 
 EXPOSE 3001
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
 CMD ["node", "dist/index.js"]
-

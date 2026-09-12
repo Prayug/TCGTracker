@@ -2,7 +2,16 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { HolographicMaterial } from '../../shaders/HolographicMaterial';
-import { CARD_FLIGHT, CARD_H, CARD_INTERVAL, CARD_W, cardStart, fanSlot, rarityRank, TIER_COLORS } from './tierConfig';
+import {
+  CARD_FLIGHT,
+  CARD_H,
+  CARD_INTERVAL,
+  CARD_W,
+  cardStart,
+  fanSlot,
+  rarityRank,
+  TIER_COLORS,
+} from './tierConfig';
 import { clamp01, easeOutBack, easeOutCubic, lerp } from './easing';
 
 export const RevealCard: React.FC<{
@@ -28,30 +37,94 @@ export const RevealCard: React.FC<{
     let cancelled = false;
     const loader = new THREE.TextureLoader();
     loader.setCrossOrigin('anonymous');
-    loader.load(imageUrl, (tex) => {
-      if (cancelled) { tex.dispose(); return; }
-      tex.colorSpace = THREE.SRGBColorSpace;
-      tex.anisotropy = 4;
-      setTexture(tex);
-    }, undefined, () => {});
-    return () => { cancelled = true; };
+    loader.load(
+      imageUrl,
+      (tex) => {
+        if (cancelled) {
+          tex.dispose();
+          return;
+        }
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.anisotropy = 4;
+        setTexture(tex);
+      },
+      undefined,
+      () => {}
+    );
+    return () => {
+      cancelled = true;
+    };
   }, [imageUrl]);
 
   // Rarity-specific reveal parameters
   const revealConfig = useMemo(() => {
     switch (rank) {
       case 0: // Common — simple fade-in
-        return { spinCount: 0, arcHeight: 0, arcX: 0, hasSpotlight: false, hasSparkles: false, hasAura: false, fadeIn: true, levitate: false };
+        return {
+          spinCount: 0,
+          arcHeight: 0,
+          arcX: 0,
+          hasSpotlight: false,
+          hasSparkles: false,
+          hasAura: false,
+          fadeIn: true,
+          levitate: false,
+        };
       case 1: // Uncommon — single flip
-        return { spinCount: 1, arcHeight: 0.3, arcX: 0.2, hasSpotlight: false, hasSparkles: false, hasAura: false, fadeIn: false, levitate: false };
+        return {
+          spinCount: 1,
+          arcHeight: 0.3,
+          arcX: 0.2,
+          hasSpotlight: false,
+          hasSparkles: false,
+          hasAura: false,
+          fadeIn: false,
+          levitate: false,
+        };
       case 2: // Holo — double spin + glow
-        return { spinCount: 2, arcHeight: 0.5, arcX: 0.3, hasSpotlight: false, hasSparkles: glamour === 'legendary' || glamour === 'god', hasAura: false, fadeIn: false, levitate: false };
+        return {
+          spinCount: 2,
+          arcHeight: 0.5,
+          arcX: 0.3,
+          hasSpotlight: false,
+          hasSparkles: glamour === 'legendary' || glamour === 'god',
+          hasAura: false,
+          fadeIn: false,
+          levitate: false,
+        };
       case 3: // Ultra — triple spin + spotlight + flash
-        return { spinCount: 3, arcHeight: 0.7, arcX: 0.4, hasSpotlight: true, hasSparkles: true, hasAura: false, fadeIn: false, levitate: false };
+        return {
+          spinCount: 3,
+          arcHeight: 0.7,
+          arcX: 0.4,
+          hasSpotlight: true,
+          hasSparkles: true,
+          hasAura: false,
+          fadeIn: false,
+          levitate: false,
+        };
       case 4: // Secret — levitate + bounce + aura + sparkles
-        return { spinCount: 4, arcHeight: 1.0, arcX: 0.5, hasSpotlight: true, hasSparkles: true, hasAura: true, fadeIn: false, levitate: true };
+        return {
+          spinCount: 4,
+          arcHeight: 1.0,
+          arcX: 0.5,
+          hasSpotlight: true,
+          hasSparkles: true,
+          hasAura: true,
+          fadeIn: false,
+          levitate: true,
+        };
       default:
-        return { spinCount: 1, arcHeight: 0.3, arcX: 0.2, hasSpotlight: false, hasSparkles: false, hasAura: false, fadeIn: false, levitate: false };
+        return {
+          spinCount: 1,
+          arcHeight: 0.3,
+          arcX: 0.2,
+          hasSpotlight: false,
+          hasSparkles: false,
+          hasAura: false,
+          fadeIn: false,
+          levitate: false,
+        };
     }
   }, [rank, glamour]);
 
@@ -66,10 +139,17 @@ export const RevealCard: React.FC<{
     []
   );
 
-  useEffect(() => { frontMaterial.setMap(texture); }, [texture, frontMaterial]);
-  useEffect(() => () => {
-    frontMaterial.dispose(); backMaterial.dispose(); texture?.dispose();
-  }, [frontMaterial, backMaterial, texture]);
+  useEffect(() => {
+    frontMaterial.setMap(texture);
+  }, [texture, frontMaterial]);
+  useEffect(
+    () => () => {
+      frontMaterial.dispose();
+      backMaterial.dispose();
+      texture?.dispose();
+    },
+    [frontMaterial, backMaterial, texture]
+  );
 
   const slot = useMemo(() => fanSlot(index, total), [index, total]);
 
@@ -101,7 +181,12 @@ export const RevealCard: React.FC<{
     });
   }, [revealConfig.hasAura, colors.glow]);
 
-  useEffect(() => () => { auraMaterial?.dispose(); }, [auraMaterial]);
+  useEffect(
+    () => () => {
+      auraMaterial?.dispose();
+    },
+    [auraMaterial]
+  );
 
   useFrame(() => {
     const t = timeRef.current;
@@ -161,7 +246,12 @@ export const RevealCard: React.FC<{
       group.rotation.y = currentRotation;
       group.rotation.z = lerp(0, slot.rotZ, clamp01(progress * 1.5));
 
-      const scale = progress < 0.4 ? lerp(0.3, 0.8, phase1) : progress < 0.7 ? 0.8 : lerp(0.8, 1, easeOutBack(phase3));
+      const scale =
+        progress < 0.4
+          ? lerp(0.3, 0.8, phase1)
+          : progress < 0.7
+            ? 0.8
+            : lerp(0.8, 1, easeOutBack(phase3));
       group.scale.setScalar(scale);
     } else {
       // Standard flip reveal (uncommon, holo, ultra)

@@ -11,11 +11,7 @@ import { calculateGradedValue } from '../../../services/gradingService';
 import { authService } from '../../../services/authService';
 import { fetchTopGradedPremiums, GradedSpreadRow } from '../../../services/gradedPricesApi';
 import { GradeWorthinessList } from './GradeWorthinessList';
-import {
-  CrossGraderArbPanel,
-  PremiumMoversPanel,
-  TopPremiumsPanel,
-} from './SlabMarketPanels';
+import { CrossGraderArbPanel, PremiumMoversPanel, TopPremiumsPanel } from './SlabMarketPanels';
 import {
   CrackRegradePanel,
   GradeLadderPanel,
@@ -25,10 +21,7 @@ import {
 import { FilterChip } from '../../../components/layout/PageShell';
 import { CardComparePanel } from './CardComparePanel';
 import { SlabInsightsPanel } from '../../market-insights/components/MarketInsightsPage';
-import {
-  priceTrackingService,
-  TrackedCard,
-} from '../../../services/priceTrackingService';
+import { priceTrackingService, TrackedCard } from '../../../services/priceTrackingService';
 import { markOnboardingStep } from '../../../components/common/OnboardingChecklist';
 
 type SlabTab = 'grade' | 'arb' | 'owned' | 'pulse' | 'insights';
@@ -126,11 +119,7 @@ export const PriceTrackingDashboard: React.FC = () => {
     const lastPrice =
       selectedCardForAlert.priceHistory[selectedCardForAlert.priceHistory.length - 1]?.price ??
       selectedCardForAlert.initialPrice;
-    const targetPrice = needsPrice
-      ? parseFloat(alertTarget)
-      : lastPrice > 0
-        ? lastPrice
-        : 0;
+    const targetPrice = needsPrice ? parseFloat(alertTarget) : lastPrice > 0 ? lastPrice : 0;
     const thresholdPct = needsPct ? parseFloat(alertThresholdPct) : undefined;
 
     await unifiedAlertService.createAlert(
@@ -314,7 +303,9 @@ export const PriceTrackingDashboard: React.FC = () => {
                         </p>
                       </div>
                       <div>
-                        <p className="text-[10px] uppercase tracking-wider text-ink-muted">Uplift</p>
+                        <p className="text-[10px] uppercase tracking-wider text-ink-muted">
+                          Uplift
+                        </p>
                         <p
                           className={`font-mono text-sm font-semibold tabular-nums ${
                             gradingUpliftTotal >= 0 ? 'text-gain' : 'text-loss'

@@ -22,7 +22,18 @@ import { matchesInvestmentFilter } from '../utils/browseInvestmentFilters';
 import { queryContainsCjk } from '../utils/scriptDetection';
 
 export type { AnyCard };
-export { isPokemonCard, isOnePieceCard, getCardPrice, getCardName, getCardImage, getCardSet, getCardRarity, getCardId, getCardReactKey, dedupeCards };
+export {
+  isPokemonCard,
+  isOnePieceCard,
+  getCardPrice,
+  getCardName,
+  getCardImage,
+  getCardSet,
+  getCardRarity,
+  getCardId,
+  getCardReactKey,
+  dedupeCards,
+};
 
 interface UseCardsReturn {
   cards: AnyCard[];

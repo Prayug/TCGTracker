@@ -144,7 +144,11 @@ function loadPersistedSession(id: string): CaptureSession | null {
 function purgeExpired(now = Date.now()): void {
   for (const [id, session] of sessions) {
     if (session.expiresAt <= now || session.status === 'consumed') {
-      if (session.status === 'consumed' && session.consumedAt && now - session.consumedAt > 60_000) {
+      if (
+        session.status === 'consumed' &&
+        session.consumedAt &&
+        now - session.consumedAt > 60_000
+      ) {
         sessions.delete(id);
         deletePersistedSession(id);
       } else if (session.expiresAt <= now) {
@@ -211,7 +215,7 @@ export function createCaptureSession(mode: CaptureMode): CaptureSession {
 
 export function getCaptureSession(id: string): CaptureSession | null {
   purgeExpired();
-  let session = sessions.get(id) || loadPersistedSession(id);
+  const session = sessions.get(id) || loadPersistedSession(id);
   if (!session) return null;
   if (session.expiresAt <= Date.now()) {
     session.status = 'expired';
@@ -266,9 +270,11 @@ export function uploadCaptureImage(
   return { session };
 }
 
-export function completeCaptureSession(
-  id: string
-): { session?: CaptureSession; error?: string; status?: number } {
+export function completeCaptureSession(id: string): {
+  session?: CaptureSession;
+  error?: string;
+  status?: number;
+} {
   const session = getCaptureSession(id);
   if (!session) return { error: 'Capture session not found or expired', status: 404 };
   if (session.status === 'consumed') {
@@ -283,9 +289,11 @@ export function completeCaptureSession(
   return { session };
 }
 
-export function consumeCaptureSession(
-  id: string
-): { session?: CaptureSession; error?: string; status?: number } {
+export function consumeCaptureSession(id: string): {
+  session?: CaptureSession;
+  error?: string;
+  status?: number;
+} {
   const session = getCaptureSession(id);
   if (!session) return { error: 'Capture session not found or expired', status: 404 };
   if (session.status === 'consumed') {

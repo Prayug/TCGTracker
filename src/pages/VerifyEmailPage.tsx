@@ -50,9 +50,7 @@ export function VerifyEmailPage() {
         {status === 'loading' && (
           <Loader2 className="mb-4 h-10 w-10 animate-spin text-accent" aria-hidden />
         )}
-        {status === 'success' && (
-          <CheckCircle2 className="mb-4 h-10 w-10 text-gain" aria-hidden />
-        )}
+        {status === 'success' && <CheckCircle2 className="mb-4 h-10 w-10 text-gain" aria-hidden />}
         {status === 'error' && <XCircle className="mb-4 h-10 w-10 text-loss" aria-hidden />}
 
         <p className="text-sm text-ink-secondary">{message}</p>

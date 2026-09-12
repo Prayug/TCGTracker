@@ -241,7 +241,11 @@ function mapSuggestedAction(action: string): 'BUY' | 'HOLD' | 'SELL' | 'WATCH' {
   return 'WATCH';
 }
 
-function computePriceChangesLocal(prices: number[]): { change30d: number; change90d: number; change1y: number } {
+function computePriceChangesLocal(prices: number[]): {
+  change30d: number;
+  change90d: number;
+  change1y: number;
+} {
   if (prices.length === 0) return { change30d: 0, change90d: 0, change1y: 0 };
   const current = prices[prices.length - 1];
   if (!current || current <= 0) return { change30d: 0, change90d: 0, change1y: 0 };
@@ -435,9 +439,7 @@ async function fetchLatestPredictions(cardIds: string[]): Promise<Map<string, Pr
 /**
  * Fetches price history for a batch of uniqueIdentifiers.
  */
-async function fetchPriceHistories(
-  identifiers: string[]
-): Promise<Map<string, PriceHistoryRow[]>> {
+async function fetchPriceHistories(identifiers: string[]): Promise<Map<string, PriceHistoryRow[]>> {
   const db = getDb();
   const map = new Map<string, PriceHistoryRow[]>();
 
@@ -455,21 +457,20 @@ async function fetchPriceHistories(
       marketPrice: number | null;
       lowPrice: number | null;
       highPrice: number | null;
-    }> =
-      await new Promise((resolve, reject) => {
-        db.all(
-          `SELECT uniqueIdentifier, date, price, marketPrice, lowPrice, highPrice
+    }> = await new Promise((resolve, reject) => {
+      db.all(
+        `SELECT uniqueIdentifier, date, price, marketPrice, lowPrice, highPrice
            FROM price_history
            WHERE uniqueIdentifier IN (${placeholders})
              AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
            ORDER BY date ASC`,
-          batch,
-          (err, rows: any[]) => {
-            if (err) return reject(err);
-            resolve(rows || []);
-          }
-        );
-      });
+        batch,
+        (err, rows: any[]) => {
+          if (err) return reject(err);
+          resolve(rows || []);
+        }
+      );
+    });
 
     for (const row of rows) {
       const existing = map.get(row.uniqueIdentifier) || [];
@@ -496,9 +497,7 @@ export async function enrichCardsWithInvestmentData<T extends { id?: string; car
   if (cards.length === 0) return cards;
 
   // Extract card IDs (PokemonCard uses `id`, local DB cards use `cardId`)
-  const cardIds = cards
-    .map(c => (c as any).id || (c as any).cardId)
-    .filter(Boolean) as string[];
+  const cardIds = cards.map((c) => (c as any).id || (c as any).cardId).filter(Boolean) as string[];
 
   if (cardIds.length === 0) return cards;
 
@@ -519,7 +518,7 @@ export async function enrichCardsWithInvestmentData<T extends { id?: string; car
     const populationLookups = await fetchPopulationLookups(cardIds);
 
     // 4. Enrich each card
-    return cards.map(card => {
+    return cards.map((card) => {
       const cardId = (card as any).id || (card as any).cardId;
       if (!cardId) return card;
 
@@ -534,7 +533,7 @@ export async function enrichCardsWithInvestmentData<T extends { id?: string; car
       if (!prediction && priceHistory.length === 0) return card;
 
       // Build marketAnalysis from prediction + price data
-      const prices = priceHistory.map(p => p.price).filter(p => p > 0);
+      const prices = priceHistory.map((p) => p.price).filter((p) => p > 0);
       const { change30d, change90d, change1y } = computePriceChangesLocal(prices);
       const volatility = computeVolatilityLocal(prices);
       const fairValue = computeFairValue(prices);
@@ -547,14 +546,15 @@ export async function enrichCardsWithInvestmentData<T extends { id?: string; car
       const pop = populationLookups.get(cardId);
       const grade10 = pop?.grade10 ?? null;
       const total = pop?.total ?? null;
-      const grade10Percentage = grade10 != null && total != null && total > 0
-        ? (grade10 / total) * 100
-        : 0;
-      const lowPop = grade10 != null && total != null && grade10 > 0 && grade10 < 500 && grade10Percentage < 5;
+      const grade10Percentage =
+        grade10 != null && total != null && total > 0 ? (grade10 / total) * 100 : 0;
+      const lowPop =
+        grade10 != null && total != null && grade10 > 0 && grade10 < 500 && grade10Percentage < 5;
       const psaFetchedAt = graded?.fetchedAt ?? pop?.fetchedAt ?? null;
-      const psaStale = psaFetchedAt != null
-        ? Date.now() - new Date(psaFetchedAt).getTime() > 12 * 60 * 60 * 1000
-        : false;
+      const psaStale =
+        psaFetchedAt != null
+          ? Date.now() - new Date(psaFetchedAt).getTime() > 12 * 60 * 60 * 1000
+          : false;
 
       const investmentData: EnrichedCard['investmentData'] = {
         psaData: {
@@ -580,7 +580,7 @@ export async function enrichCardsWithInvestmentData<T extends { id?: string; car
           fetchedAt: psaFetchedAt,
           stale: psaStale,
         },
-        priceHistory: priceHistory.map(p => ({ date: p.date, price: p.price })),
+        priceHistory: priceHistory.map((p) => ({ date: p.date, price: p.price })),
         marketAnalysis: {
           trend: mapReturnToTrend(expected30dReturn),
           volatility,

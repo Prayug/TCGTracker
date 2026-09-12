@@ -1,11 +1,6 @@
 import { getDb } from '../db/database';
 import { setCodeService } from './setCodeService';
-import {
-  classifySetEra,
-  getEraLabel,
-  resolveSetImages,
-  sortSetsForDisplay,
-} from '../utils/setEra';
+import { classifySetEra, getEraLabel, resolveSetImages, sortSetsForDisplay } from '../utils/setEra';
 
 export interface EnrichedPokemonSet {
   id: string;
@@ -73,9 +68,7 @@ export const getEnrichedSets = async (): Promise<EnrichedPokemonSet[]> => {
   for (const row of rows) {
     const apiMeta = setCodeService.resolveApiSet(row.id, row.name);
     const normalizedId =
-      apiMeta?.id ||
-      (await setCodeService.normalizeSetIdForImageUrl(row.id, row.name)) ||
-      row.id;
+      apiMeta?.id || (await setCodeService.normalizeSetIdForImageUrl(row.id, row.name)) || row.id;
     const series = apiMeta?.series || '';
     const era = classifySetEra({
       id: apiMeta?.id || row.id,
@@ -107,9 +100,7 @@ export const getEnrichedSets = async (): Promise<EnrichedPokemonSet[]> => {
   return sortSetsForDisplay([...deduped.values()]);
 };
 
-export const enrichSetById = async (
-  setId: string
-): Promise<EnrichedPokemonSet | null> => {
+export const enrichSetById = async (setId: string): Promise<EnrichedPokemonSet | null> => {
   await setCodeService.initialize();
 
   const row = await new Promise<RawSetRow | undefined>((resolve, reject) => {
@@ -133,9 +124,7 @@ export const enrichSetById = async (
 
   const apiMeta = setCodeService.resolveApiSet(row.id, row.name);
   const normalizedId =
-    apiMeta?.id ||
-    (await setCodeService.normalizeSetIdForImageUrl(row.id, row.name)) ||
-    row.id;
+    apiMeta?.id || (await setCodeService.normalizeSetIdForImageUrl(row.id, row.name)) || row.id;
   const series = apiMeta?.series || '';
   const era = classifySetEra({
     id: apiMeta?.id || row.id,
