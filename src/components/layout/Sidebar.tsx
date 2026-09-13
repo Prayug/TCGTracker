@@ -1,7 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
-  Album,
   ArrowLeftRight,
   Award,
   BookOpen,
@@ -9,54 +8,46 @@ import {
   Camera,
   Heart,
   Home,
-  Layers,
   LayoutGrid,
   LineChart,
   Percent,
-  Package,
   Settings,
   Swords,
   TrendingUp,
 } from 'lucide-react';
-import { useGame, GameType } from '../../contexts/GameContext';
+import { useGame, type GameType } from '../../contexts/GameContext';
 import { cn } from '@/lib/utils';
 
 const NAV_GROUPS: {
-  label: string;
+  label?: string;
   items: { to: string; label: string; icon: React.ElementType; end?: boolean }[];
 }[] = [
   {
-    label: 'Overview',
     items: [{ to: '/', label: 'Home', icon: Home, end: true }],
   },
   {
     label: 'Collection',
     items: [
       { to: '/browse', label: 'Browse', icon: LayoutGrid },
-      { to: '/binders', label: 'Binders', icon: Album },
       { to: '/vault', label: 'Vault', icon: BookOpen },
       { to: '/wishlist', label: 'Wishlist', icon: Heart },
       { to: '/trade', label: 'Trade', icon: ArrowLeftRight },
-      { to: '/sets', label: 'Sets', icon: Layers },
     ],
   },
   {
     label: 'Market',
     items: [
-      { to: '/prices', label: 'Slabs', icon: Layers },
-      { to: '/market-insights', label: 'Insights', icon: TrendingUp },
-      { to: '/investments', label: 'Investments', icon: LineChart },
+      { to: '/prices', label: 'Market', icon: TrendingUp },
       { to: '/deals', label: 'Deals', icon: Percent },
+      { to: '/market-insights', label: 'Insights', icon: LineChart },
     ],
   },
   {
     label: 'Tools',
     items: [
-      { to: '/open', label: 'Open Packs', icon: Boxes },
-      { to: '/packs', label: 'Pack Shop', icon: Package },
       { to: '/scanner', label: 'Scan', icon: Camera },
       { to: '/grading', label: 'Grade', icon: Award },
-      { to: '/settings', label: 'Settings', icon: Settings },
+      { to: '/packs', label: 'Open Packs', icon: Boxes },
     ],
   },
 ];
@@ -80,6 +71,9 @@ export const Sidebar: React.FC = () => {
       </div>
 
       <div className="px-3 pt-4 pb-2">
+        <p className="mb-1.5 px-1 text-[10px] font-medium uppercase tracking-[0.14em] text-ink-secondary">
+          Game
+        </p>
         <div className="flex rounded-md border border-border-subtle bg-surface-inset/60 p-0.5">
           {GAME_OPTIONS.map(({ value, label, icon: Icon }) => (
             <button
@@ -90,7 +84,7 @@ export const Sidebar: React.FC = () => {
                 'flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-[4px] px-2 py-1.5 text-xs font-medium transition-colors duration-200',
                 game === value
                   ? 'bg-accent/15 text-accent'
-                  : 'text-ink-muted hover:text-ink-secondary'
+                  : 'text-ink-secondary hover:text-ink-primary'
               )}
             >
               <Icon className="h-3.5 w-3.5" />
@@ -102,13 +96,15 @@ export const Sidebar: React.FC = () => {
 
       <nav aria-label="Primary" className="flex-1 overflow-y-auto px-3 py-3">
         {NAV_GROUPS.map((group, groupIndex) => (
-          <div key={group.label} className={cn(groupIndex > 0 && 'mt-5')}>
-            <p className="mb-1.5 px-2.5 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-ink-muted">
-              {group.label}
-            </p>
+          <div key={group.label ?? `group-${groupIndex}`} className={cn(groupIndex > 0 && 'mt-5')}>
+            {group.label ? (
+              <p className="mb-1.5 px-2.5 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-ink-secondary">
+                {group.label}
+              </p>
+            ) : null}
             <ul className="space-y-0.5">
               {group.items.map(({ to, label, icon: Icon, end }) => (
-                <li key={to}>
+                <li key={`${to}-${label}`}>
                   <NavLink
                     to={to}
                     end={end}
@@ -141,10 +137,21 @@ export const Sidebar: React.FC = () => {
         ))}
       </nav>
 
-      <div className="border-t border-border-subtle px-4 py-3">
-        <p className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-ink-muted">
-          Specimen market
-        </p>
+      <div className="border-t border-border-subtle px-3 py-3">
+        <NavLink
+          to="/settings"
+          className={({ isActive }) =>
+            cn(
+              'flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+              isActive
+                ? 'bg-accent/10 font-semibold text-accent'
+                : 'text-ink-secondary hover:bg-surface-hover hover:text-ink-primary'
+            )
+          }
+        >
+          <Settings className="h-4 w-4 shrink-0" aria-hidden="true" />
+          Settings
+        </NavLink>
       </div>
     </aside>
   );

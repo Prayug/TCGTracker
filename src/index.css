@@ -10,7 +10,7 @@
   [data-theme='dark'] {
     /* Foil Gallery — museum void + steel captioning (21st.dev premium stack) */
     --surface-inset: #070708;
-    --surface-base: #070708;
+    --surface-base: #090909;
     --surface-raised: #101014;
     --surface-overlay: #16161c;
     --surface-hover: #1c1c24;
@@ -21,9 +21,9 @@
     --surface-glass-border: rgba(232, 234, 237, 0.08);
     --surface-glass-blur: 18px;
 
-    --ink-primary: #e8eaed;
-    --ink-secondary: #9aa3ad;
-    --ink-muted: #6e7681;
+    --ink-primary: #f1f1ef;
+    --ink-secondary: #a3a3a0;
+    --ink-muted: #666664;
 
     /* Legacy neon aliases → gallery metal / P&L only */
     --neon-gold: #c4b49a;
@@ -38,7 +38,7 @@
     --foil: #a8b4c0;
     --foil-muted: rgba(168, 180, 192, 0.14);
 
-    --border-subtle: rgba(232, 234, 237, 0.05);
+    --border-subtle: #252525;
     --border-default: rgba(232, 234, 237, 0.09);
     --border-strong: rgba(232, 234, 237, 0.16);
     --border-neon: var(--accent);

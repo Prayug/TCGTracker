@@ -1,4 +1,4 @@
-import { Suspense, useMemo, useRef, type MutableRefObject } from 'react';
+import { Suspense, useRef, type MutableRefObject } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useTexture } from '@react-three/drei';
 import * as THREE from 'three';
@@ -86,58 +86,8 @@ function CardPlane({
   return (
     <mesh ref={mesh} position={position} rotation={[0, rotY, 0]} scale={scale}>
       <planeGeometry args={[CARD_W, CARD_H]} />
-      <meshStandardMaterial
-        map={texture}
-        roughness={0.28}
-        metalness={0.22}
-        envMapIntensity={1.15}
-        emissive="#1a1612"
-        emissiveIntensity={0.18}
-      />
+      <meshStandardMaterial map={texture} roughness={0.72} metalness={0.02} />
     </mesh>
-  );
-}
-
-function FoilParticles() {
-  const points = useRef<THREE.Points>(null);
-  const geometry = useMemo(() => {
-    const geo = new THREE.BufferGeometry();
-    const count = 140;
-    const arr = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const radius = 2.0 + Math.random() * 3.8;
-      arr[i * 3] = Math.cos(angle) * radius;
-      arr[i * 3 + 1] = (Math.random() - 0.5) * 5.2;
-      arr[i * 3 + 2] = Math.sin(angle) * radius;
-    }
-    geo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
-    return geo;
-  }, []);
-
-  useFrame((state) => {
-    if (!points.current) return;
-    const t = state.clock.elapsedTime;
-    points.current.rotation.y = t * 0.025;
-    const pos = points.current.geometry.attributes.position as THREE.BufferAttribute;
-    for (let i = 0; i < pos.count; i += 2) {
-      pos.setY(i, ((pos.getY(i) + 0.003) % 5.2) - 2.6);
-    }
-    pos.needsUpdate = true;
-  });
-
-  return (
-    <points ref={points} geometry={geometry}>
-      <pointsMaterial
-        size={0.03}
-        color="#e8d4b0"
-        transparent
-        opacity={0.42}
-        sizeAttenuation
-        depthWrite={false}
-        blending={THREE.AdditiveBlending}
-      />
-    </points>
   );
 }
 
@@ -216,7 +166,6 @@ function WorldRig({ progressRef }: { progressRef: MutableRefObject<number> }) {
           scale={card.scale}
         />
       ))}
-      <FoilParticles />
       <FloorRings />
     </group>
   );
@@ -237,21 +186,12 @@ export function ScrollWorld({
       camera={{ position: [0, 0.55, 7.15], fov: 34 }}
       gl={{ antialias: true, alpha: true, powerPreference: 'low-power' }}
     >
-      {/* Museum void + champagne / silver gallery lighting */}
-      <ambientLight intensity={0.48} color="#f3ebe0" />
-      <directionalLight position={[4.2, 5.5, 3]} intensity={1.55} color="#f5ead6" />
-      <directionalLight position={[-3.5, 2.5, -2]} intensity={0.65} color="#c5d0dc" />
-      <pointLight position={[-3.8, 1.8, 1.2]} intensity={70} color="#e4c9a0" distance={14} />
-      <pointLight position={[3.6, -0.6, 2]} intensity={48} color="#9eafc0" distance={12} />
-      <spotLight
-        position={[0, 6.5, 2]}
-        angle={0.58}
-        penumbra={0.85}
-        intensity={2.2}
-        color="#fff6e8"
-        castShadow={false}
-      />
-      <fog attach="fog" args={['#070708', 6.4, 13.2]} />
+      {/* Clean gallery lighting — matte cards, no foil sparkle */}
+      <ambientLight intensity={0.7} color="#e8e8e6" />
+      <directionalLight position={[3.5, 5, 2.5]} intensity={1.15} color="#f1f1ef" />
+      <directionalLight position={[-3, 2, -2]} intensity={0.45} color="#c8c8c4" />
+      <pointLight position={[0, 3, 2]} intensity={28} color="#d8d8d4" distance={12} />
+      <fog attach="fog" args={['#090909', 6.8, 13.5]} />
       <Suspense fallback={null}>
         <WorldRig progressRef={progressRef} />
       </Suspense>
