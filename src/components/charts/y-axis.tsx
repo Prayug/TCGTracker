@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { memo, useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
-import { cn } from "@/lib/utils";
-import { useChartStable, useYScale } from "./chart-context";
-import { resolveYAxisTickCount } from "./y-axis-ticks";
+import { memo, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { cn } from '@/lib/utils';
+import { useChartStable, useYScale } from './chart-context';
+import { resolveYAxisTickCount } from './y-axis-ticks';
 
 export interface YAxisProps {
   /** Number of tick marks. Default: 5 */
@@ -63,7 +63,7 @@ const YAxisInner = memo(function YAxisInner({
         >
           <span
             className={cn(
-              "w-full truncate pr-1 text-right font-mono text-[10px] tabular-nums text-ink-muted",
+              'w-full truncate pr-1 text-right font-mono text-[10px] tabular-nums text-ink-muted',
               className
             )}
           >
@@ -76,6 +76,6 @@ const YAxisInner = memo(function YAxisInner({
   );
 });
 
-YAxis.displayName = "YAxis";
+YAxis.displayName = 'YAxis';
 
 export default YAxis;

@@ -34,7 +34,11 @@ function rewriteCardImages<T extends { images?: { small?: string; large?: string
 class PokemonApiService {
   private pendingRequests = new Map<string, Promise<PokemonCard[]>>();
 
-  private async fetchBackend<T>(endpoint: string, params?: Record<string, string>, retries = 2): Promise<T> {
+  private async fetchBackend<T>(
+    endpoint: string,
+    params?: Record<string, string>,
+    retries = 2
+  ): Promise<T> {
     const url = new URL(buildApiUrl(endpoint));
     if (params) {
       Object.entries(params).forEach(([k, v]) => {
@@ -57,7 +61,7 @@ class PokemonApiService {
 
         if (!response.ok) {
           if ([429, 500, 502, 503, 504].includes(response.status) && attempt < retries) {
-            await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+            await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
             continue;
           }
           throw new Error(`API ${response.status}: ${response.statusText}`);
@@ -68,7 +72,7 @@ class PokemonApiService {
         clearTimeout(timeoutId);
         lastError = err as Error;
         if (attempt < retries) {
-          await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+          await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
           continue;
         }
         throw err;
@@ -82,7 +86,7 @@ class PokemonApiService {
     query?: string,
     setId?: string,
     pageSize = 250,
-    language: 'en' | 'ja' | 'all' = 'en',
+    language: 'en' | 'ja' | 'all' = 'en'
   ): Promise<PokemonCard[]> {
     const cacheKey = `cards_${query || 'all'}_${setId || 'all'}_${pageSize}_${language}`;
 
@@ -107,13 +111,18 @@ class PokemonApiService {
         }>('/api/cards/pokemon', {
           query: query.trim(),
           setId: setId || '',
-          pageSize: language === 'ja' || /[\u3040-\u30ff\u3400-\u9fff]/.test(query) ? '500' : pageSize.toString(),
+          pageSize:
+            language === 'ja' || /[\u3040-\u30ff\u3400-\u9fff]/.test(query)
+              ? '500'
+              : pageSize.toString(),
           fetchAll: volume === 'large' ? 'true' : 'false',
           maxPages: volume === 'large' ? '10' : '2',
           language,
         });
 
-        const cards = dedupeCards((response.data || []).filter((card) => card?.id)).map(rewriteCardImages);
+        const cards = dedupeCards((response.data || []).filter((card) => card?.id)).map(
+          rewriteCardImages
+        );
         cacheService.set(cacheKey, cards, 5 * 60 * 1000);
         return cards;
       } catch (err) {
@@ -150,10 +159,10 @@ class PokemonApiService {
     if (cached) return cached;
 
     try {
-      const response = await this.fetchBackend<{ data?: PokemonCard[] }>(
-        '/api/cards/search',
-        { query: id, limit: '20' }
-      );
+      const response = await this.fetchBackend<{ data?: PokemonCard[] }>('/api/cards/search', {
+        query: id,
+        limit: '20',
+      });
       const card = (response.data || []).find((entry) => entry.id === id) || null;
       if (!card) {
         return null;

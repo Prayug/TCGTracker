@@ -28,11 +28,6 @@ const MarketInsightsDashboard = lazy(() =>
     default: m.MarketInsightsPage,
   }))
 );
-const InvestmentsPage = lazy(() =>
-  import('./features/investments/components/InvestmentsPage').then((m) => ({
-    default: m.InvestmentsPage,
-  }))
-);
 const DealsPage = lazy(() =>
   import('./features/deals/components/DealsPage').then((m) => ({
     default: m.DealsPage,
@@ -40,9 +35,6 @@ const DealsPage = lazy(() =>
 );
 const VaultView = lazy(() =>
   import('./features/vault/components/VaultView').then((m) => ({ default: m.VaultView }))
-);
-const PackShop = lazy(() =>
-  import('./features/packs/components/PackShop').then((m) => ({ default: m.PackShop }))
 );
 const OpenPacksPage = lazy(() =>
   import('./features/open/components/OpenPacksPage').then((m) => ({ default: m.OpenPacksPage }))
@@ -69,9 +61,6 @@ const WishlistView = lazy(() =>
 );
 const TradePage = lazy(() =>
   import('./features/trade/components/TradePage').then((m) => ({ default: m.TradePage }))
-);
-const BindersIndex = lazy(() =>
-  import('./features/binders/components/BindersIndex').then((m) => ({ default: m.BindersIndex }))
 );
 const SettingsPage = lazy(() =>
   import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage }))
@@ -180,14 +169,7 @@ function AppRoutes() {
                   </ShellPage>
                 }
               />
-              <Route
-                path="/investments"
-                element={
-                  <ShellPage wide>
-                    <InvestmentsPage />
-                  </ShellPage>
-                }
-              />
+              <Route path="/investments" element={<Navigate to="/market-insights" replace />} />
               <Route
                 path="/deals"
                 element={
@@ -221,24 +203,10 @@ function AppRoutes() {
                   </ShellPage>
                 }
               />
-              <Route
-                path="/binders"
-                element={
-                  <ShellPage>
-                    <BindersIndex />
-                  </ShellPage>
-                }
-              />
-              <Route path="/sets" element={<SetsPage />} />
+              <Route path="/binders" element={<Navigate to="/vault?tab=binders" replace />} />
+              <Route path="/sets" element={<Navigate to="/browse?view=sets" replace />} />
               <Route path="/sets/:setId" element={<SetsPage />} />
-              <Route
-                path="/packs"
-                element={
-                  <ShellPage wide>
-                    <PackShop />
-                  </ShellPage>
-                }
-              />
+              <Route path="/packs" element={<Navigate to="/open?tab=shop" replace />} />
               <Route
                 path="/open"
                 element={

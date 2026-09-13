@@ -33,7 +33,9 @@ interface OPTCGCardResponse {
   card_image: string;
 }
 
-function buildCatalogId(raw: Pick<OPTCGCardResponse, 'set_id' | 'card_image_id' | 'card_name'>): string {
+function buildCatalogId(
+  raw: Pick<OPTCGCardResponse, 'set_id' | 'card_image_id' | 'card_name'>
+): string {
   return `${raw.set_id}::${raw.card_image_id}::${raw.card_name}`;
 }
 
@@ -66,7 +68,11 @@ function mapCard(raw: OPTCGCardResponse): OnePieceCard {
   };
 }
 
-async function fetchBackend<T>(endpoint: string, params?: Record<string, string>, retries = 2): Promise<T> {
+async function fetchBackend<T>(
+  endpoint: string,
+  params?: Record<string, string>,
+  retries = 2
+): Promise<T> {
   const url = new URL(buildApiUrl(endpoint));
   if (params) {
     Object.entries(params).forEach(([k, v]) => {
@@ -159,9 +165,14 @@ class OnePieceApiService {
       cacheService.set(cacheKey, cards, 15 * 60 * 1000);
       return cards;
     } catch (err) {
-      console.error(`Error fetching One Piece cards for set ${setId} from backend, trying OPTCG:`, err);
+      console.error(
+        `Error fetching One Piece cards for set ${setId} from backend, trying OPTCG:`,
+        err
+      );
       try {
-        const raw = await fetchOptcgFallback<OPTCGCardResponse[]>(`/sets/${encodeURIComponent(setId)}/`);
+        const raw = await fetchOptcgFallback<OPTCGCardResponse[]>(
+          `/sets/${encodeURIComponent(setId)}/`
+        );
         const cards = raw.map(mapCard);
         cacheService.set(cacheKey, cards, 15 * 60 * 1000);
         return cards;

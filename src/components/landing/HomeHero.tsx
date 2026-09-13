@@ -1,84 +1,163 @@
+/**
+ * Home hero — orbiting card ring.
+ * Full stage for logged-out users; compact banner for logged-in Home.
+ * Matte card art (no holo foil treatment).
+ */
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowDown, ArrowUpRight, Package } from 'lucide-react';
+import { ArrowDown, ArrowUpRight } from 'lucide-react';
+import { motion, useReducedMotion } from 'motion/react';
 import { ScrollWorld } from '@/components/three/ScrollWorld';
-import { usePrefersReducedMotion } from '@/hooks/useMotionPreferences';
+import { cn } from '@/lib/utils';
 
 export function scrollToMarketPulse(e?: { preventDefault?: () => void }) {
   e?.preventDefault?.();
   document.getElementById('market-pulse')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-/**
- * Compact product-home hero. The 3D card ring is ambient background art only —
- * page scroll is never hijacked, so market data is one flick away.
- */
-export function HomeHero() {
-  const reduced = usePrefersReducedMotion();
+const STATIC_RING = [
+  {
+    src: 'https://images.pokemontcg.io/swsh7/215_hires.png',
+    className: 'left-[4%] top-[18%] w-[22%] -rotate-[14deg] opacity-70',
+  },
+  {
+    src: 'https://images.pokemontcg.io/base1/4_hires.png',
+    className: 'left-[22%] top-[8%] w-[20%] -rotate-[4deg] opacity-55',
+  },
+  {
+    src: 'https://images.pokemontcg.io/sv8pt5/161_hires.png',
+    className: 'left-1/2 top-[4%] w-[24%] -translate-x-1/2 opacity-80',
+  },
+  {
+    src: 'https://images.pokemontcg.io/swsh7/218_hires.png',
+    className: 'right-[22%] top-[9%] w-[20%] rotate-[5deg] opacity-55',
+  },
+  {
+    src: 'https://images.pokemontcg.io/sv4pt5/232_hires.png',
+    className: 'right-[4%] top-[18%] w-[22%] rotate-[12deg] opacity-70',
+  },
+] as const;
+
+type HomeHeroProps = {
+  /** full = logged-out marketing hero; banner = compact strip for logged-in Home */
+  variant?: 'full' | 'banner';
+};
+
+export function HomeHero({ variant = 'full' }: HomeHeroProps) {
+  const reduced = useReducedMotion();
   const [ready, setReady] = useState(false);
-  // Static progress: WorldRig adds its own slow time-based rotation.
   const progressRef = useRef(0);
+  const isBanner = variant === 'banner';
 
   useEffect(() => {
     setReady(true);
   }, []);
 
+  const showRing = !reduced && ready;
+
   return (
     <section
-      aria-label="Welcome"
-      className="relative h-[clamp(24rem,58dvh,36rem)] overflow-hidden border-b border-border-subtle"
+      aria-label={isBanner ? 'Card gallery' : 'Welcome'}
+      className={cn(
+        'relative isolate overflow-hidden',
+        isBanner
+          ? 'h-[280px] border-b border-border-subtle sm:h-[300px]'
+          : 'min-h-[min(92dvh,54rem)] border-b border-border-subtle'
+      )}
     >
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_30%,rgba(110,231,183,0.05),transparent_50%)]" />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_42%,rgba(255,255,255,0.04),transparent_42%)]"
+      />
 
-      {!reduced && ready && (
-        <>
-          {/* r3f Canvas forces position:relative inline, so position via a wrapper */}
-          <div className="absolute inset-0">
-            <ScrollWorld progressRef={progressRef} />
-          </div>
-          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(12,17,24,0.55)_0%,rgba(12,17,24,0.35)_45%,rgba(12,17,24,0.85)_100%)]" />
-        </>
+      {showRing ? (
+        <div
+          className={cn('absolute inset-0', isBanner ? 'scale-110' : 'scale-[1.08] sm:scale-100')}
+        >
+          <ScrollWorld className="!absolute inset-0 h-full w-full" progressRef={progressRef} />
+        </div>
+      ) : (
+        <div aria-hidden className="pointer-events-none absolute inset-0">
+          {STATIC_RING.map((card) => (
+            <div key={card.src} className={cn('absolute aspect-[5/7]', card.className)}>
+              <div className="h-full w-full overflow-hidden rounded-md border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.55)]">
+                <img
+                  src={card.src}
+                  alt=""
+                  className="h-full w-full object-cover"
+                  draggable={false}
+                  loading="eager"
+                />
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
-      <div className="relative z-10 flex h-full flex-col justify-center px-5 sm:px-10 lg:px-14">
-        <div className="max-w-xl">
-          <p className="font-display text-xl font-bold tracking-tight text-ink-primary sm:text-2xl">
-            TCG<span className="text-accent">Tracker</span>
+      <div
+        aria-hidden
+        className={cn(
+          'pointer-events-none absolute inset-0',
+          isBanner
+            ? 'bg-[radial-gradient(ellipse_at_50%_50%,rgba(7,7,8,0.35)_0%,rgba(7,7,8,0.55)_100%)]'
+            : 'bg-[radial-gradient(ellipse_at_50%_48%,rgba(7,7,8,0.42)_0%,rgba(7,7,8,0.12)_34%,rgba(7,7,8,0.58)_72%,rgba(7,7,8,0.82)_100%)]'
+        )}
+      />
+
+      {isBanner ? (
+        <div className="relative z-10 flex h-full flex-col items-center justify-center px-6 text-center">
+          <p className="font-display text-2xl font-semibold tracking-[-0.02em] text-ink-primary sm:text-3xl">
+            TCG Tracker
           </p>
-          <h1 className="mt-3 font-display text-4xl font-bold leading-[1.05] tracking-tight text-ink-primary sm:text-5xl">
-            Rip packs. Grade cards.
-            <br />
-            <span className="text-gradient">Track the market.</span>
-          </h1>
-          <p className="mt-3 max-w-md text-sm leading-relaxed text-ink-secondary sm:text-base">
-            Live prices, your vault, pack rips and AI grading — for Pokemon and One Piece.
+          <p className="mt-2 max-w-md text-sm text-ink-secondary">
+            Live prices and market movement across the cards you own.
           </p>
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <Link
-              to="/packs"
-              className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-full bg-accent px-6 text-sm font-semibold text-primary-foreground shadow-glow-accent transition-all duration-200 hover:bg-accent-hover"
-            >
-              <Package className="h-4 w-4" />
-              Open packs
-            </Link>
-            <Link
-              to="/browse"
-              className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-border-default bg-surface-raised/70 px-6 text-sm font-semibold text-ink-primary backdrop-blur-md transition-colors hover:border-accent/40 hover:text-accent"
-            >
-              Browse catalog
-              <ArrowUpRight className="h-4 w-4" />
-            </Link>
+        </div>
+      ) : (
+        <div className="relative z-10 flex min-h-[min(92dvh,54rem)] flex-col items-center justify-center px-6 py-20 text-center sm:px-8">
+          <motion.div
+            initial={reduced ? false : { opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+            className="mx-auto flex max-w-2xl flex-col items-center"
+          >
+            <p className="font-display text-[clamp(3.5rem,12vw,7.5rem)] font-semibold leading-[0.88] tracking-[-0.04em] text-ink-primary drop-shadow-[0_2px_40px_rgba(0,0,0,0.55)]">
+              TCG Tracker
+            </p>
+            <h1 className="mt-6 max-w-[28ch] text-balance text-[clamp(1.1rem,2.4vw,1.45rem)] font-medium leading-snug tracking-tight text-ink-primary">
+              Know what your collection is worth.
+            </h1>
+            <p className="mt-3 max-w-lg text-sm leading-relaxed text-ink-secondary sm:text-[0.95rem]">
+              Live prices, market movement, and opportunities across the cards you own.
+            </p>
+
+            <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
+              <Link
+                to="/vault"
+                className="inline-flex h-11 cursor-pointer items-center rounded-md bg-accent px-8 text-sm font-semibold text-primary-foreground transition-colors hover:bg-accent-hover"
+              >
+                Open vault
+              </Link>
+              <Link
+                to="/browse"
+                className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-md border border-border-strong bg-[color-mix(in_srgb,var(--surface-base)_55%,transparent)] px-5 text-sm font-semibold text-ink-primary backdrop-blur-md transition-colors hover:border-accent/45 hover:text-accent"
+              >
+                Browse
+                <ArrowUpRight className="h-4 w-4" />
+              </Link>
+            </div>
+
             <button
               type="button"
               onClick={scrollToMarketPulse}
-              className="inline-flex cursor-pointer items-center gap-1.5 text-sm font-semibold text-foil transition-colors hover:text-accent"
+              className="mt-10 inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium uppercase tracking-[0.18em] text-ink-secondary transition-colors hover:text-ink-primary"
             >
-              See today's movers
-              <ArrowDown className="h-4 w-4" />
+              Market today
+              <ArrowDown className="h-3.5 w-3.5" />
             </button>
-          </div>
+          </motion.div>
         </div>
-      </div>
+      )}
     </section>
   );
 }

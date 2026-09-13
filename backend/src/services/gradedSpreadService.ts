@@ -158,9 +158,7 @@ export async function getGradedSpreadsForCard(
     });
   });
 
-  const psa10 = spreads.find(
-    (s) => s.grader.toUpperCase() === 'PSA' && String(s.grade) === '10'
-  );
+  const psa10 = spreads.find((s) => s.grader.toUpperCase() === 'PSA' && String(s.grade) === '10');
   const bestPremiumPct = spreads.reduce<number | null>((best, s) => {
     if (s.premiumPct == null) return best;
     if (best == null || s.premiumPct > best) return s.premiumPct;

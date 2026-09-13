@@ -24,7 +24,11 @@ import {
   computeLiquidityScore,
   computeDataQualityScore,
 } from './predictionEngine';
-import { CalibrationModel, getCalibrationModels, strongBuyThresholdForHorizon } from './returnCalibration';
+import {
+  CalibrationModel,
+  getCalibrationModels,
+  strongBuyThresholdForHorizon,
+} from './returnCalibration';
 import {
   BacktestCardResult,
   BacktestResult,
@@ -78,9 +82,8 @@ export async function runSlabBacktest(
 ): Promise<BacktestResult> {
   const models = calibrationModels ?? (await getCalibrationModels());
   const universe = await fetchSlabUniverse(SLAB_QUALITY_FILTER);
-  const cards = cardIds && cardIds.length > 0
-    ? universe.filter((c) => cardIds.includes(c.cardId))
-    : universe;
+  const cards =
+    cardIds && cardIds.length > 0 ? universe.filter((c) => cardIds.includes(c.cardId)) : universe;
 
   const cardResults: BacktestCardResult[] = [];
   let totalDirectionalCorrect = 0;
@@ -98,7 +101,11 @@ export async function runSlabBacktest(
 
       const currentPrice = getLatestPrice(priceHistory);
       if (!currentPrice || currentPrice <= 0) continue;
-      if (currentPrice < SLAB_QUALITY_FILTER.minPrice || currentPrice > SLAB_QUALITY_FILTER.maxPrice) continue;
+      if (
+        currentPrice < SLAB_QUALITY_FILTER.minPrice ||
+        currentPrice > SLAB_QUALITY_FILTER.maxPrice
+      )
+        continue;
       if (!hasMeaningfulPriceMovement(priceHistory, 3)) continue;
 
       const movingAverages = computeMovingAverages(priceHistory);
@@ -133,7 +140,7 @@ export async function runSlabBacktest(
       if (futurePrice && futurePrice > 0) {
         actualReturn = (futurePrice - currentPrice) / currentPrice;
         if (predictedReturn !== 0 && actualReturn !== 0) {
-          directionCorrect = (predictedReturn > 0) === (actualReturn > 0);
+          directionCorrect = predictedReturn > 0 === actualReturn > 0;
           if (directionCorrect) totalDirectionalCorrect++;
           totalDirectionalTests++;
         }
@@ -175,33 +182,40 @@ export async function runSlabBacktest(
   }
 
   const cardsTested = cardResults.length;
-  const directionalAccuracy = totalDirectionalTests > 0 ? totalDirectionalCorrect / totalDirectionalTests : null;
+  const directionalAccuracy =
+    totalDirectionalTests > 0 ? totalDirectionalCorrect / totalDirectionalTests : null;
   const mape = totalMapeCount > 0 ? totalMape / totalMapeCount : null;
 
   const top10 = [...cardResults]
     .filter((r) => r.actualReturn !== null)
     .sort((a, b) => b.predictedReturn - a.predictedReturn)
     .slice(0, 10);
-  const top10AvgReturn = top10.length > 0
-    ? top10.reduce((s, r) => s + (r.actualReturn as number), 0) / top10.length
-    : null;
+  const top10AvgReturn =
+    top10.length > 0
+      ? top10.reduce((s, r) => s + (r.actualReturn as number), 0) / top10.length
+      : null;
 
   const withActualReturns = cardResults.filter((r) => r.actualReturn !== null);
-  const marketAvgReturn = withActualReturns.length > 0
-    ? withActualReturns.reduce((s, r) => s + (r.actualReturn as number), 0) / withActualReturns.length
-    : null;
+  const marketAvgReturn =
+    withActualReturns.length > 0
+      ? withActualReturns.reduce((s, r) => s + (r.actualReturn as number), 0) /
+        withActualReturns.length
+      : null;
 
   const benchmark = computeMarketBenchmark(allHistories, windowDays);
 
   const strongBuyCards = cardResults.filter((r) => r.category === 'strong_buy');
-  const strongBuyFalsePositiveRate = strongBuyCards.length > 0
-    ? strongBuyCards.filter((r) => r.actualReturn !== null && r.actualReturn < 0).length / strongBuyCards.length
-    : null;
+  const strongBuyFalsePositiveRate =
+    strongBuyCards.length > 0
+      ? strongBuyCards.filter((r) => r.actualReturn !== null && r.actualReturn < 0).length /
+        strongBuyCards.length
+      : null;
 
   const avoidCards = cardResults.filter((r) => r.category === 'avoid' && r.actualReturn !== null);
-  const avoidAvgReturn = avoidCards.length > 0
-    ? avoidCards.reduce((s, r) => s + (r.actualReturn ?? 0), 0) / avoidCards.length
-    : null;
+  const avoidAvgReturn =
+    avoidCards.length > 0
+      ? avoidCards.reduce((s, r) => s + (r.actualReturn ?? 0), 0) / avoidCards.length
+      : null;
 
   const winRate = returns.length > 0 ? returns.filter((r) => r > 0).length / returns.length : null;
   const gains = returns.filter((r) => r > 0);
@@ -230,23 +244,33 @@ export async function runSlabBacktest(
   }
 
   const metrics = computeValidationMetrics(
-    withActualReturns.map((r) => ({ predicted: r.predictedReturn, actual: r.actualReturn as number }))
+    withActualReturns.map((r) => ({
+      predicted: r.predictedReturn,
+      actual: r.actualReturn as number,
+    }))
   );
   const baselineAvgReturn = marketAvgReturn;
-  const modelAlpha = top10AvgReturn !== null && baselineAvgReturn !== null
-    ? top10AvgReturn - baselineAvgReturn
-    : null;
+  const modelAlpha =
+    top10AvgReturn !== null && baselineAvgReturn !== null
+      ? top10AvgReturn - baselineAvgReturn
+      : null;
 
   const categories: PredictionCategory[] = [
-    'strong_buy', 'watch_dip', 'recovery', 'momentum', 'stagnant', 'avoid', 'downtrend',
+    'strong_buy',
+    'watch_dip',
+    'recovery',
+    'momentum',
+    'stagnant',
+    'avoid',
+    'downtrend',
   ];
   const categoryPerformance: CategoryPerformance[] = categories.map((cat) => {
     const catCards = cardResults.filter((r) => r.category === cat && r.actualReturn !== null);
     const count = catCards.length;
-    const avgReturn = count > 0 ? catCards.reduce((s, r) => s + (r.actualReturn ?? 0), 0) / count : 0;
-    const avgPredictedReturn = count > 0
-      ? catCards.reduce((s, r) => s + r.predictedReturn, 0) / count
-      : 0;
+    const avgReturn =
+      count > 0 ? catCards.reduce((s, r) => s + (r.actualReturn ?? 0), 0) / count : 0;
+    const avgPredictedReturn =
+      count > 0 ? catCards.reduce((s, r) => s + r.predictedReturn, 0) / count : 0;
     return { category: cat, count, avgReturn, avgPredictedReturn };
   });
 
@@ -325,38 +349,41 @@ export async function getSlabBacktestResults(): Promise<any[]> {
       [],
       (err, rows: any[]) => {
         if (err) return reject(err);
-        resolve((rows || []).map((r) => ({
-          id: r.id,
-          backtestDate: r.backtest_date,
-          windowDays: r.window_days,
-          cardsTested: r.cards_tested,
-          directionalAccuracy: r.directional_accuracy,
-          mape: r.mape,
-          top10AvgReturn: r.top10_avg_return,
-          marketAvgReturn: r.market_avg_return,
-          marketMedianReturn: r.market_median_return,
-          marketReturnStdDev: r.market_return_std_dev,
-          strongBuyFalsePositiveRate: r.strong_buy_false_positive_rate,
-          avoidAvgReturn: r.avoid_avg_return,
-          sharpeRatio: r.sharpe_ratio,
-          maxDrawdown: r.max_drawdown,
-          winRate: r.win_rate,
-          profitFactor: r.profit_factor,
-          rankIC: r.rank_ic ?? null,
-          meanBias: r.mean_bias ?? null,
-          hitRate: r.hit_rate ?? null,
-          baselineAvgReturn: r.baseline_avg_return ?? null,
-          modelAlpha: r.baseline_avg_return != null && r.top10_avg_return != null
-            ? r.top10_avg_return - r.baseline_avg_return
-            : null,
-          categoryPerformance: (() => {
-            try {
-              return r.category_performance ? JSON.parse(r.category_performance) : [];
-            } catch {
-              return [];
-            }
-          })(),
-        })));
+        resolve(
+          (rows || []).map((r) => ({
+            id: r.id,
+            backtestDate: r.backtest_date,
+            windowDays: r.window_days,
+            cardsTested: r.cards_tested,
+            directionalAccuracy: r.directional_accuracy,
+            mape: r.mape,
+            top10AvgReturn: r.top10_avg_return,
+            marketAvgReturn: r.market_avg_return,
+            marketMedianReturn: r.market_median_return,
+            marketReturnStdDev: r.market_return_std_dev,
+            strongBuyFalsePositiveRate: r.strong_buy_false_positive_rate,
+            avoidAvgReturn: r.avoid_avg_return,
+            sharpeRatio: r.sharpe_ratio,
+            maxDrawdown: r.max_drawdown,
+            winRate: r.win_rate,
+            profitFactor: r.profit_factor,
+            rankIC: r.rank_ic ?? null,
+            meanBias: r.mean_bias ?? null,
+            hitRate: r.hit_rate ?? null,
+            baselineAvgReturn: r.baseline_avg_return ?? null,
+            modelAlpha:
+              r.baseline_avg_return != null && r.top10_avg_return != null
+                ? r.top10_avg_return - r.baseline_avg_return
+                : null,
+            categoryPerformance: (() => {
+              try {
+                return r.category_performance ? JSON.parse(r.category_performance) : [];
+              } catch {
+                return [];
+              }
+            })(),
+          }))
+        );
       }
     );
   });

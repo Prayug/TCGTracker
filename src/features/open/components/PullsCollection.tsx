@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { BookOpen, Trash2 } from 'lucide-react';
 import { PullCard, SavedPull } from '../types';
-import { onePiecePackService, sortPullsBestFirst } from '../services/onePiecePackService';
+import { onePiecePackService, rarityRank } from '../services/onePiecePackService';
 import { PullCardView } from './PullCardView';
 import { opRarityStyle, OP_RARITY_LABELS } from './opRarityStyles';
 import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
@@ -37,7 +37,8 @@ export const PullsCollection: React.FC<PullsCollectionProps> = ({ refreshKey = 0
 
   const groups = useMemo(() => {
     const map = new Map<string, Group>();
-    for (const pull of sortPullsBestFirst(pulls)) {
+    const sorted = [...pulls].sort((a, b) => rarityRank(a.card.rarity) - rarityRank(b.card.rarity));
+    for (const pull of sorted) {
       const key = pull.code;
       if (!map.has(key)) {
         map.set(key, { code: pull.code, setName: pull.setName, pulls: [] });
@@ -85,8 +86,8 @@ export const PullsCollection: React.FC<PullsCollectionProps> = ({ refreshKey = 0
         <div>
           <p className="text-sm font-semibold text-ink-primary">No saved pulls yet</p>
           <p className="mt-1 max-w-sm text-xs text-ink-muted">
-            Open a pack or booster box, then save your pulls — they'll be kept in
-            your browser and grouped by set here.
+            Open a pack or booster box, then save your pulls — they'll be kept in your browser and
+            grouped by set here.
           </p>
         </div>
       </div>

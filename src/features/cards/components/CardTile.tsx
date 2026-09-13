@@ -48,78 +48,78 @@ export const CardTile: React.FC<CardTileProps> = ({
           }
         }}
       >
-          {imageUrl ? (
-            <img
-              src={imageUrl}
-              alt={card.name}
-              className="relative z-0 h-full w-full object-contain p-2.5 transition-transform duration-500 ease-out group-hover:scale-[1.1] group-hover:[transform:translateZ(12px)_scale(1.1)]"
-              loading="lazy"
-              decoding="async"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                if (card.images?.large && target.src !== card.images.large) {
-                  target.src = card.images.large;
-                } else if (target.src !== CARD_IMAGE_PLACEHOLDER) {
-                  target.src = CARD_IMAGE_PLACEHOLDER;
-                }
-              }}
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center px-4 text-center text-xs text-ink-muted">
-              No image available
-            </div>
-          )}
-
-          {'language' in card && card.language === 'ja' && (
-            <span className="absolute left-2 top-2 z-20 rounded-md border border-accent/30 bg-surface-overlay/90 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-accent">
-              JP
-            </span>
-          )}
-
-          <div className="absolute bottom-2 left-2 right-2 z-20 grid grid-cols-3 gap-1.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onClick();
-              }}
-              className="inline-flex items-center justify-center gap-1 rounded-md border border-border-default bg-surface-overlay px-2 py-1 text-[11px] font-medium text-ink-primary hover:bg-surface-hover"
-            >
-              <Eye className="h-3.5 w-3.5" />
-              View
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (onAddToCollection) {
-                  onAddToCollection();
-                  return;
-                }
-                onClick();
-              }}
-              className="inline-flex items-center justify-center gap-1 rounded-md border border-border-default bg-surface-overlay px-2 py-1 text-[11px] font-medium text-ink-primary hover:bg-surface-hover"
-            >
-              <BookPlus className="h-3.5 w-3.5" />
-              Add
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (onViewPriceHistory) {
-                  onViewPriceHistory();
-                  return;
-                }
-                onClick();
-              }}
-              className="inline-flex items-center justify-center gap-1 rounded-md border border-border-default bg-surface-overlay px-2 py-1 text-[11px] font-medium text-ink-primary hover:bg-surface-hover"
-            >
-              <LineChart className="h-3.5 w-3.5" />
-              History
-            </button>
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={card.name}
+            className="relative z-0 h-full w-full object-contain p-2.5 transition-transform duration-500 ease-out group-hover:scale-[1.1] group-hover:[transform:translateZ(12px)_scale(1.1)]"
+            loading="lazy"
+            decoding="async"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              if (card.images?.large && target.src !== card.images.large) {
+                target.src = card.images.large;
+              } else if (target.src !== CARD_IMAGE_PLACEHOLDER) {
+                target.src = CARD_IMAGE_PLACEHOLDER;
+              }
+            }}
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center px-4 text-center text-xs text-ink-muted">
+            No image available
           </div>
+        )}
+
+        {'language' in card && card.language === 'ja' && (
+          <span className="absolute left-2 top-2 z-20 rounded-md border border-accent/30 bg-surface-overlay/90 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-accent">
+            JP
+          </span>
+        )}
+
+        <div className="absolute bottom-2 left-2 right-2 z-20 grid grid-cols-3 gap-1.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClick();
+            }}
+            className="inline-flex items-center justify-center gap-1 rounded-md border border-border-default bg-surface-overlay px-2 py-1 text-[11px] font-medium text-ink-primary hover:bg-surface-hover"
+          >
+            <Eye className="h-3.5 w-3.5" />
+            View
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onAddToCollection) {
+                onAddToCollection();
+                return;
+              }
+              onClick();
+            }}
+            className="inline-flex items-center justify-center gap-1 rounded-md border border-border-default bg-surface-overlay px-2 py-1 text-[11px] font-medium text-ink-primary hover:bg-surface-hover"
+          >
+            <BookPlus className="h-3.5 w-3.5" />
+            Add
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onViewPriceHistory) {
+                onViewPriceHistory();
+                return;
+              }
+              onClick();
+            }}
+            className="inline-flex items-center justify-center gap-1 rounded-md border border-border-default bg-surface-overlay px-2 py-1 text-[11px] font-medium text-ink-primary hover:bg-surface-hover"
+          >
+            <LineChart className="h-3.5 w-3.5" />
+            History
+          </button>
         </div>
+      </div>
 
       <button
         type="button"

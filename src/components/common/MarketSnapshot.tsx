@@ -50,7 +50,14 @@ export function MarketSnapshot() {
 
   const { topGainer, topLoser, avgMove, moverCount } = data;
 
-  const stats: { key: string; label: string; value: string; detail?: string; tone: 'gain' | 'loss' | 'neutral'; icon: React.ElementType }[] = [];
+  const stats: {
+    key: string;
+    label: string;
+    value: string;
+    detail?: string;
+    tone: 'gain' | 'loss' | 'neutral';
+    icon: React.ElementType;
+  }[] = [];
   if (topGainer) {
     stats.push({
       key: 'gainer',
@@ -109,9 +116,7 @@ export function MarketSnapshot() {
           >
             {value}
           </span>
-          {detail ? (
-            <span className="truncate text-xs text-ink-secondary">{detail}</span>
-          ) : null}
+          {detail ? <span className="truncate text-xs text-ink-secondary">{detail}</span> : null}
         </div>
       ))}
     </div>

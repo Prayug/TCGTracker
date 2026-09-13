@@ -90,8 +90,7 @@ export interface DealScoreBreakdown {
   freshnessComponent: number;
 }
 
-const clamp = (n: number, min: number, max: number): number =>
-  Math.max(min, Math.min(max, n));
+const clamp = (n: number, min: number, max: number): number => Math.max(min, Math.min(max, n));
 
 export function calculateAllInCost(listingPrice: number, shipping: number): number {
   const price = Number(listingPrice);
@@ -115,7 +114,10 @@ export function calculateDealEconomics(
   const discountPercent = Math.round((discountAmount / market) * 10000) / 100;
   return {
     listingPrice: Math.round(Number(listingPrice) * 100) / 100,
-    shipping: Number.isFinite(Number(shipping)) && Number(shipping) > 0 ? Math.round(Number(shipping) * 100) / 100 : 0,
+    shipping:
+      Number.isFinite(Number(shipping)) && Number(shipping) > 0
+        ? Math.round(Number(shipping) * 100) / 100
+        : 0,
     allInCost,
     marketValue: Math.round(market * 100) / 100,
     discountAmount,
@@ -182,11 +184,9 @@ export function isUnusuallyLowPrice(discountPercent: number, condition: DealCond
  * 75%-off bulk common cannot outrank a $100 save on a liquid $500 card.
  */
 export function computeDealScore(input: DealScoreInput): DealScoreBreakdown {
-  const discountComponent =
-    Math.round(clamp(input.discountPercent / 40, 0, 1) * 40 * 10) / 10;
+  const discountComponent = Math.round(clamp(input.discountPercent / 40, 0, 1) * 40 * 10) / 10;
 
-  const savingsComponent =
-    Math.round(clamp(input.discountAmount / 200, 0, 1) * 25 * 10) / 10;
+  const savingsComponent = Math.round(clamp(input.discountAmount / 200, 0, 1) * 25 * 10) / 10;
 
   let marketValueComponent = 0;
   if (input.marketValue >= 10) {
@@ -194,12 +194,12 @@ export function computeDealScore(input: DealScoreInput): DealScoreBreakdown {
     marketValueComponent = Math.round(clamp(logSpan, 0, 1) * 15 * 10) / 10;
   }
 
-  const matchComponent =
-    Math.round(clamp(input.matchConfidence, 0, 1) * 15 * 10) / 10;
+  const matchComponent = Math.round(clamp(input.matchConfidence, 0, 1) * 15 * 10) / 10;
 
-  const liq = input.liquidityScore != null && Number.isFinite(input.liquidityScore)
-    ? input.liquidityScore
-    : 35;
+  const liq =
+    input.liquidityScore != null && Number.isFinite(input.liquidityScore)
+      ? input.liquidityScore
+      : 35;
   const liquidityComponent = Math.round(clamp(liq / 100, 0, 1) * 10 * 10) / 10;
 
   let freshnessComponent = 2.5;
@@ -317,12 +317,14 @@ export function isReliableMarketQuote(input: {
 }
 
 /** Keep the strongest listing per card / grade so the feed is not 4x Golbat. */
-export function pickBestDealPerCard<T extends {
-  cardId: string;
-  dealCondition: string;
-  gradeLabel: string;
-  dealScore: number;
-}>(deals: T[]): T[] {
+export function pickBestDealPerCard<
+  T extends {
+    cardId: string;
+    dealCondition: string;
+    gradeLabel: string;
+    dealScore: number;
+  },
+>(deals: T[]): T[] {
   const best = new Map<string, T>();
   for (const deal of deals) {
     const key = `${deal.cardId}|${deal.dealCondition}|${deal.gradeLabel}`;

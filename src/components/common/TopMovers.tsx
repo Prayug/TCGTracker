@@ -77,12 +77,16 @@ const moverKey = (e: TopMoverEntry): string =>
   e.uniqueIdentifier || `${e.cardId || 'prod'}-${e.subTypeName || e.productId}`;
 
 const toPokemonCard = (entry: TopMoverEntry): PokemonCard => {
-  let parsedPrices: Record<string, { market?: number; mid?: number; high?: number; low?: number }> | undefined;
+  let parsedPrices:
+    | Record<string, { market?: number; mid?: number; high?: number; low?: number }>
+    | undefined;
   try {
     if (entry.tcgplayerPrices) {
       parsedPrices = JSON.parse(entry.tcgplayerPrices);
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 
   const preferredVariant = toVariantKey(entry.subTypeName);
   if (!parsedPrices) parsedPrices = {};
@@ -191,7 +195,9 @@ export const TopMovers: React.FC<TopMoversProps> = ({ onCardClick }) => {
       }
     };
     load();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [period]);
 
   const switchPeriod = useCallback((newPeriod: Period) => {
@@ -209,7 +215,11 @@ export const TopMovers: React.FC<TopMoversProps> = ({ onCardClick }) => {
   );
 
   const gainers: MoverDisplay[] = useMemo(
-    () => sorted.filter((e) => e.changePercent > 0 && hasArt(e)).slice(0, 6).map(toDisplay),
+    () =>
+      sorted
+        .filter((e) => e.changePercent > 0 && hasArt(e))
+        .slice(0, 6)
+        .map(toDisplay),
     [sorted]
   );
 
@@ -223,11 +233,14 @@ export const TopMovers: React.FC<TopMoversProps> = ({ onCardClick }) => {
     [sorted]
   );
 
-  const handleCardClick = useCallback((entry: TopMoverEntry) => {
-    const card = toPokemonCard(entry);
-    if (onCardClick) onCardClick(card);
-    else openCard(card);
-  }, [onCardClick, openCard]);
+  const handleCardClick = useCallback(
+    (entry: TopMoverEntry) => {
+      const card = toPokemonCard(entry);
+      if (onCardClick) onCardClick(card);
+      else openCard(card);
+    },
+    [onCardClick, openCard]
+  );
 
   if (loading) {
     return (
@@ -275,16 +288,25 @@ export const TopMovers: React.FC<TopMoversProps> = ({ onCardClick }) => {
             loading="lazy"
           />
           <div className="space-y-1 p-2.5">
-            <p className="truncate text-[11px] font-medium leading-tight" style={{ color: 'var(--ink-primary)' }}>
+            <p
+              className="truncate text-[11px] font-medium leading-tight"
+              style={{ color: 'var(--ink-primary)' }}
+            >
               {productName}
             </p>
             {subtitle ? (
-              <p className="truncate text-[9px] leading-tight" style={{ color: 'var(--ink-muted)' }}>
+              <p
+                className="truncate text-[9px] leading-tight"
+                style={{ color: 'var(--ink-muted)' }}
+              >
                 {subtitle}
               </p>
             ) : null}
             <div className="flex items-baseline justify-between gap-1.5">
-              <span className="truncate font-mono text-[11px] tabular-nums" style={{ color: 'var(--ink-muted)' }}>
+              <span
+                className="truncate font-mono text-[11px] tabular-nums"
+                style={{ color: 'var(--ink-muted)' }}
+              >
                 {currentPrice > 0 ? formatCurrency(currentPrice) : '—'}
               </span>
               <span
@@ -292,7 +314,11 @@ export const TopMovers: React.FC<TopMoversProps> = ({ onCardClick }) => {
                   changePct >= 0 ? 'text-gain' : 'text-loss'
                 }`}
               >
-                {changePct >= 0 ? <ArrowUp className="h-3 w-3 shrink-0" /> : <ArrowDown className="h-3 w-3 shrink-0" />}
+                {changePct >= 0 ? (
+                  <ArrowUp className="h-3 w-3 shrink-0" />
+                ) : (
+                  <ArrowDown className="h-3 w-3 shrink-0" />
+                )}
                 {Number.isFinite(changePct) ? `${Math.abs(changePct).toFixed(1)}%` : '—'}
               </span>
             </div>
@@ -314,8 +340,11 @@ export const TopMovers: React.FC<TopMoversProps> = ({ onCardClick }) => {
           <h3 className="text-gradient text-lg font-display font-bold">Raw top movers</h3>
           <p className="text-xs font-medium" style={{ color: 'var(--ink-secondary)' }}>
             Avg move{' '}
-            <span className={`font-semibold tabular-nums ${avgMove >= 0 ? 'text-gain' : 'text-loss'}`}>
-              {avgMove >= 0 ? '+' : ''}{avgMove.toFixed(1)}%
+            <span
+              className={`font-semibold tabular-nums ${avgMove >= 0 ? 'text-gain' : 'text-loss'}`}
+            >
+              {avgMove >= 0 ? '+' : ''}
+              {avgMove.toFixed(1)}%
             </span>{' '}
             over {periodLabel} · {sorted.length} cards with price changes
           </p>

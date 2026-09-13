@@ -1,4 +1,4 @@
-import { Suspense, useMemo, useRef, type MutableRefObject } from 'react';
+import { Suspense, useRef, type MutableRefObject } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useTexture } from '@react-three/drei';
 import * as THREE from 'three';
@@ -7,8 +7,7 @@ import { SafeCanvas } from './SafeCanvas';
 
 /**
  * Visually verified chase / grail art only.
- * Do not add IDs without opening the image — set numbering is easy to get wrong
- * (e.g. dp5/96 is Recover Energy, xy2/29 is Floatzel).
+ * Do not add IDs without opening the image — set numbering is easy to get wrong.
  */
 const CARD_IMAGE_URLS = [
   'https://images.pokemontcg.io/base1/4_hires.png', // Base Set Charizard
@@ -35,23 +34,23 @@ const CARD_IMAGE_URLS = [
 
 const CARD_IMAGES = CARD_IMAGE_URLS.map((url) => proxyImageUrl(url)!);
 
-const CARD_W = 0.7;
+const CARD_W = 0.78;
 const CARD_H = CARD_W * (88 / 63);
-const RING_RADIUS = 3.4;
+const RING_RADIUS = 3.25;
 const CARD_COUNT = CARD_IMAGES.length;
 
-/** Strong size scatter so the ring feels composed, not uniform. */
-const SIZE_STEPS = [1.38, 0.78, 1.18, 0.92, 1.32, 0.7, 1.08, 0.86, 1.25, 0.74];
+/** Size scatter so the ring feels curated, not mechanical. */
+const SIZE_STEPS = [1.48, 0.82, 1.28, 0.95, 1.4, 0.74, 1.18, 0.9, 1.34, 0.78];
 
 const RING_POSITIONS = Array.from({ length: CARD_COUNT }, (_, i) => {
   const theta = (i / CARD_COUNT) * Math.PI * 2;
-  const radius = RING_RADIUS + (i % 4) * 0.28 + (i % 2) * 0.08;
+  const radius = RING_RADIUS + (i % 4) * 0.22 + (i % 2) * 0.06;
   return {
     x: Math.cos(theta) * radius,
     z: Math.sin(theta) * radius,
-    y: Math.sin(i * 1.9) * 0.55,
-    rotY: Math.PI / 2 - theta + (i % 2 === 0 ? 0.16 : -0.16),
-    phase: i * 1.3,
+    y: Math.sin(i * 1.7) * 0.42,
+    rotY: Math.PI / 2 - theta + (i % 2 === 0 ? 0.1 : -0.1),
+    phase: i * 1.15,
     scale: SIZE_STEPS[i % SIZE_STEPS.length],
   };
 });
@@ -79,58 +78,16 @@ function CardPlane({
   useFrame((state) => {
     if (!mesh.current) return;
     const t = state.clock.elapsedTime;
-    mesh.current.position.y = position[1] + Math.sin(t * 0.7 + phase) * 0.1;
-    mesh.current.rotation.z = Math.sin(t * 0.5 + phase) * 0.05;
+    mesh.current.position.y = position[1] + Math.sin(t * 0.55 + phase) * 0.09;
+    mesh.current.rotation.z = Math.sin(t * 0.4 + phase) * 0.04;
+    mesh.current.rotation.x = Math.sin(t * 0.28 + phase) * 0.03;
   });
 
   return (
     <mesh ref={mesh} position={position} rotation={[0, rotY, 0]} scale={scale}>
       <planeGeometry args={[CARD_W, CARD_H]} />
-      <meshStandardMaterial map={texture} roughness={0.38} metalness={0.12} />
+      <meshStandardMaterial map={texture} roughness={0.72} metalness={0.02} />
     </mesh>
-  );
-}
-
-function FoilParticles() {
-  const points = useRef<THREE.Points>(null);
-  const geometry = useMemo(() => {
-    const geo = new THREE.BufferGeometry();
-    const count = 110;
-    const arr = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const radius = 2.2 + Math.random() * 3.6;
-      arr[i * 3] = Math.cos(angle) * radius;
-      arr[i * 3 + 1] = (Math.random() - 0.5) * 5;
-      arr[i * 3 + 2] = Math.sin(angle) * radius;
-    }
-    geo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
-    return geo;
-  }, []);
-
-  useFrame((state) => {
-    if (!points.current) return;
-    const t = state.clock.elapsedTime;
-    points.current.rotation.y = t * 0.03;
-    const pos = points.current.geometry.attributes.position as THREE.BufferAttribute;
-    for (let i = 1; i < pos.count; i += 3) {
-      pos.setY(i, ((pos.getY(i) + 0.0025) % 5) - 2.5);
-    }
-    pos.needsUpdate = true;
-  });
-
-  return (
-    <points ref={points} geometry={geometry}>
-      <pointsMaterial
-        size={0.026}
-        color="#6ee7b7"
-        transparent
-        opacity={0.48}
-        sizeAttenuation
-        depthWrite={false}
-        blending={THREE.AdditiveBlending}
-      />
-    </points>
   );
 }
 
@@ -140,19 +97,31 @@ function FloorRings() {
 
   useFrame((state) => {
     const t = state.clock.elapsedTime;
-    if (outer.current) outer.current.rotation.z = -t * 0.04;
-    if (inner.current) inner.current.rotation.z = t * 0.06;
+    if (outer.current) outer.current.rotation.z = -t * 0.035;
+    if (inner.current) inner.current.rotation.z = t * 0.05;
   });
 
   return (
-    <group position={[0, -1.7, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+    <group position={[0, -1.85, 0]} rotation={[-Math.PI / 2, 0, 0]}>
       <mesh ref={outer}>
-        <ringGeometry args={[3.4, 4.2, 80]} />
-        <meshBasicMaterial color="#5bc4d4" transparent opacity={0.07} side={THREE.DoubleSide} depthWrite={false} />
+        <ringGeometry args={[3.5, 4.35, 96]} />
+        <meshBasicMaterial
+          color="#c4b49a"
+          transparent
+          opacity={0.09}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+        />
       </mesh>
       <mesh ref={inner}>
-        <ringGeometry args={[2.1, 2.9, 80]} />
-        <meshBasicMaterial color="#6ee7b7" transparent opacity={0.08} side={THREE.DoubleSide} depthWrite={false} />
+        <ringGeometry args={[2.15, 2.95, 96]} />
+        <meshBasicMaterial
+          color="#a8b4c0"
+          transparent
+          opacity={0.07}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+        />
       </mesh>
     </group>
   );
@@ -161,13 +130,14 @@ function FloorRings() {
 function CameraRig({ progressRef }: { progressRef: MutableRefObject<number> }) {
   useFrame((state) => {
     const loop = wrap01(progressRef.current);
+    const t = state.clock.elapsedTime;
     const cam = state.camera;
     cam.position.set(
-      Math.sin(loop * Math.PI * 2) * 0.45,
-      0.35 + Math.cos(loop * Math.PI * 2) * 0.18,
-      8.6 - loop * 0.35
+      Math.sin(loop * Math.PI * 2 + t * 0.02) * 0.48,
+      0.55 + Math.cos(loop * Math.PI * 2) * 0.14,
+      7.15 - Math.sin(t * 0.08) * 0.1
     );
-    cam.lookAt(0, 0.05, 0);
+    cam.lookAt(0, 0.12, 0);
   });
 
   return null;
@@ -179,29 +149,29 @@ function WorldRig({ progressRef }: { progressRef: MutableRefObject<number> }) {
 
   useFrame((state) => {
     if (!group.current) return;
-    const s = progressRef.current;
-    group.current.rotation.y = s * Math.PI * 2 + state.clock.elapsedTime * 0.04;
+    // Slow majestic spin + optional progress drive
+    group.current.rotation.y = progressRef.current * Math.PI * 2 + state.clock.elapsedTime * 0.048;
+    group.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.12) * 0.04;
   });
 
   return (
-    <group ref={group}>
+    <group ref={group} position={[0, 0.15, 0]}>
       {RING_POSITIONS.map((card, i) => (
-        <group key={i} position={[card.x, card.y, card.z]} rotation={[0, card.rotY, 0]}>
-          <CardPlane
-            texture={textures[i]}
-            position={[0, 0, 0]}
-            rotY={0}
-            phase={card.phase}
-            scale={card.scale}
-          />
-        </group>
+        <CardPlane
+          key={CARD_IMAGES[i]}
+          texture={textures[i]}
+          position={[card.x, card.y, card.z]}
+          rotY={card.rotY}
+          phase={card.phase}
+          scale={card.scale}
+        />
       ))}
-      <FoilParticles />
       <FloorRings />
     </group>
   );
 }
 
+/** Ambient orbiting chase-card ring for the home hero. */
 export function ScrollWorld({
   className,
   progressRef,
@@ -212,15 +182,16 @@ export function ScrollWorld({
   return (
     <SafeCanvas
       className={className}
-      dpr={[1, 1.25]}
-      camera={{ position: [0, 0.35, 8.6], fov: 38 }}
+      dpr={[1, 1.35]}
+      camera={{ position: [0, 0.55, 7.15], fov: 34 }}
       gl={{ antialias: true, alpha: true, powerPreference: 'low-power' }}
     >
-      <ambientLight intensity={0.65} />
-      <directionalLight position={[3, 4, 2]} intensity={1.1} color="#e8ecf2" />
-      <pointLight position={[-4, 2, -2]} intensity={40} color="#6ee7b7" />
-      <pointLight position={[4, -1, 1]} intensity={28} color="#5bc4d4" />
-      <fog attach="fog" args={['#0c1118', 6.5, 15]} />
+      {/* Clean gallery lighting — matte cards, no foil sparkle */}
+      <ambientLight intensity={0.7} color="#e8e8e6" />
+      <directionalLight position={[3.5, 5, 2.5]} intensity={1.15} color="#f1f1ef" />
+      <directionalLight position={[-3, 2, -2]} intensity={0.45} color="#c8c8c4" />
+      <pointLight position={[0, 3, 2]} intensity={28} color="#d8d8d4" distance={12} />
+      <fog attach="fog" args={['#090909', 6.8, 13.5]} />
       <Suspense fallback={null}>
         <WorldRig progressRef={progressRef} />
       </Suspense>

@@ -14,12 +14,8 @@ describe('classifySetEra promo mapping', () => {
   });
 
   it('maps promo-named sets without official ids via label cues', () => {
-    expect(
-      classifySetEra({ id: 'tcgcsv-1', name: 'SWSH - Black Star Promos' })
-    ).toBe('swsh');
-    expect(
-      classifySetEra({ id: 'tcgcsv-2', name: 'Scarlet & Violet Promos' })
-    ).toBe('sv');
+    expect(classifySetEra({ id: 'tcgcsv-1', name: 'SWSH - Black Star Promos' })).toBe('swsh');
+    expect(classifySetEra({ id: 'tcgcsv-2', name: 'Scarlet & Violet Promos' })).toBe('sv');
     expect(classifySetEra({ id: 'tcgcsv-3', name: 'SM Black Star Promos' })).toBe('sm');
   });
 

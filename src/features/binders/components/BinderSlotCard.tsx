@@ -23,19 +23,23 @@ export const BinderSlotCard: React.FC<BinderSlotCardProps> = ({
 
   if (empty) {
     return (
-      <div
+      <button
+        type="button"
         onClick={onClick}
+        aria-label="Add card to slot"
         className={`${sizeClasses} flex cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-border-subtle bg-surface-inset transition-colors hover:border-accent/50 hover:bg-surface-hover`}
       >
         <span className="text-3xl text-ink-muted">+</span>
-      </div>
+      </button>
     );
   }
 
   return (
-    <div
+    <button
+      type="button"
       onClick={onClick}
-      className={`group ${sizeClasses} relative cursor-pointer overflow-hidden rounded-lg border border-border-default bg-surface-raised transition-all duration-200 hover:border-accent/50 hover:shadow-lg`}
+      aria-label={cardName ? `Select ${cardName}` : 'Select card'}
+      className={`group ${sizeClasses} relative cursor-pointer overflow-hidden rounded-lg border border-border-default bg-surface-raised text-left transition-all duration-200 hover:border-accent/50 hover:shadow-lg`}
     >
       {imageUrl ? (
         <img
@@ -51,14 +55,10 @@ export const BinderSlotCard: React.FC<BinderSlotCardProps> = ({
       )}
 
       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2">
-        <p className="truncate text-xs font-semibold text-white drop-shadow-md">
-          {cardName}
-        </p>
+        <p className="truncate text-xs font-semibold text-white drop-shadow-md">{cardName}</p>
         <div className="mt-0.5 flex items-center justify-between">
           {rarity && (
-            <span className="text-[10px] font-medium text-gray-300 drop-shadow-md">
-              {rarity}
-            </span>
+            <span className="text-[10px] font-medium text-gray-300 drop-shadow-md">{rarity}</span>
           )}
           {price != null && (
             <span className="text-[10px] font-bold text-accent drop-shadow-md">
@@ -67,6 +67,6 @@ export const BinderSlotCard: React.FC<BinderSlotCardProps> = ({
           )}
         </div>
       </div>
-    </div>
+    </button>
   );
 };

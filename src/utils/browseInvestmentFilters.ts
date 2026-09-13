@@ -45,7 +45,11 @@ export function matchesInvestmentFilter(card: PokemonCard, filterBy: FilterOptio
       return isChase && price >= 20;
     case 'high-return':
       // Proxy: mid-tier cards with room to grade up (price band where PSA often pays)
-      return price >= 15 && price <= 120 && (isChase || rarity.includes('holo') || rarity.includes('rare'));
+      return (
+        price >= 15 &&
+        price <= 120 &&
+        (isChase || rarity.includes('holo') || rarity.includes('rare'))
+      );
     case 'bullish':
       return (
         (delta7 != null && delta7 >= 5) ||

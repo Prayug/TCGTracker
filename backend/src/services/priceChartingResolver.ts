@@ -15,7 +15,12 @@ import {
   ProductMatch,
   PriceChartingPageData,
 } from './priceChartingClient';
-import { guessOnePieceConsoleName, expectedOpPrintFamily, opFamilyAllowsSetMismatch, opSetNamesMatch } from './onePiecePriceCharting';
+import {
+  guessOnePieceConsoleName,
+  expectedOpPrintFamily,
+  opFamilyAllowsSetMismatch,
+  opSetNamesMatch,
+} from './onePiecePriceCharting';
 
 const queryAll = <T = any>(sql: string, params: unknown[] = []): Promise<T[]> =>
   new Promise((resolve, reject) => {
@@ -189,7 +194,10 @@ export const learnMatchName = async (
 ): Promise<void> => {
   if (!cardName || !productTitle || language !== 'ja') return;
   // PriceCharting titles look like "Charizard EX #201 Pokemon Japanese ..."
-  const title = productTitle.replace(/\s*#\d+.*$/i, '').replace(/\s+Pokemon\b.*$/i, '').trim();
+  const title = productTitle
+    .replace(/\s*#\d+.*$/i, '')
+    .replace(/\s+Pokemon\b.*$/i, '')
+    .trim();
   if (!title || !/^[a-z0-9]/i.test(title)) return;
   try {
     await run(
@@ -246,7 +254,10 @@ export const resolveProduct = async (
   ): boolean => {
     if (game !== 'onepiece') return true;
     const family = expectedOpPrintFamily(matchInput);
-    if (opFamilyAllowsSetMismatch(family) && !opSetNamesMatch(matchedSet || '', matchInput.setName || '')) {
+    if (
+      opFamilyAllowsSetMismatch(family) &&
+      !opSetNamesMatch(matchedSet || '', matchInput.setName || '')
+    ) {
       return false;
     }
     return true;

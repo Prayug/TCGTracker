@@ -106,10 +106,9 @@ export const BinderPlanReview: React.FC<BinderPlanReviewProps> = ({
             <div className="flex w-full items-center gap-2">
               <input
                 value={name}
-                onChange={e => setName(e.target.value)}
+                onChange={(e) => setName(e.target.value)}
                 placeholder="My Awesome Binder"
                 className="flex-1 rounded-lg border border-border-default bg-surface-inset px-3 py-2 text-sm text-ink-primary placeholder:text-ink-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                autoFocus
               />
               <button
                 onClick={handleSave}

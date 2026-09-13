@@ -16,6 +16,7 @@ import { PageHeader, PageShell } from '../components/layout/PageShell';
 import { markOnboardingStep } from '../components/common/OnboardingChecklist';
 import { cn } from '@/lib/utils';
 import { queryContainsCjk } from '../utils/scriptDetection';
+import { SetIndex } from '../features/sets/components/SetIndex';
 
 const DEFAULT_FILTERS: MarketplaceFilters = {
   setName: 'all',
@@ -31,6 +32,7 @@ export function BrowsePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const urlQuery = searchParams.get('q') ?? '';
   const urlLang = searchParams.get('lang');
+  const viewMode = searchParams.get('view') === 'sets' ? 'sets' : 'cards';
 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [cardViewMode, setCardViewMode] = useState<CardViewMode>('grid');
@@ -151,9 +153,12 @@ export function BrowsePage() {
   });
 
   const facetChips: { key: keyof MarketplaceFilters; label: string }[] = [];
-  if (marketplaceFilters.setName !== 'all') facetChips.push({ key: 'setName', label: marketplaceFilters.setName });
-  if (marketplaceFilters.rarity !== 'all') facetChips.push({ key: 'rarity', label: marketplaceFilters.rarity });
-  if (marketplaceFilters.cardType !== 'all') facetChips.push({ key: 'cardType', label: marketplaceFilters.cardType });
+  if (marketplaceFilters.setName !== 'all')
+    facetChips.push({ key: 'setName', label: marketplaceFilters.setName });
+  if (marketplaceFilters.rarity !== 'all')
+    facetChips.push({ key: 'rarity', label: marketplaceFilters.rarity });
+  if (marketplaceFilters.cardType !== 'all')
+    facetChips.push({ key: 'cardType', label: marketplaceFilters.cardType });
   if (marketplaceFilters.priceRange !== 'all')
     facetChips.push({ key: 'priceRange', label: `$${marketplaceFilters.priceRange}` });
 
@@ -163,101 +168,151 @@ export function BrowsePage() {
 
   return (
     <PageShell className="space-y-4">
-      <PageHeader
-        eyebrow="Marketplace"
-        title={`Browse ${gameLabel} cards`}
-        description="Filter by set, rarity, price, etc."
-      />
-
-      <SearchFilters
-        searchQuery={searchQuery}
-        onSearchChange={handleSearchChange}
-        sortBy={sortBy}
-        onSortChange={setSortBy}
-        filterBy={filterBy}
-        onFilterChange={setFilterBy}
-        isLoading={isLoading}
-        onOpenAdvancedFilters={() => setFiltersOpen((open) => !open)}
-        filtersOpen={filtersOpen}
-        activeFilterCount={countActiveMarketplaceFilters(marketplaceFilters)}
-        isOnePiece={isOnePiece}
-        resultCount={
-          !error && hasQuery && cardsWithMarketplaceFilters.length > 0
-            ? cardsWithMarketplaceFilters.length
-            : undefined
-        }
-        viewMode={cardViewMode}
-        onViewModeChange={setCardViewMode}
-        cardLanguage={cardLanguage}
-        onCardLanguageChange={isPokemon ? handleCardLanguageChange : undefined}
-      />
-
-      {facetChips.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {facetChips.map(({ key, label }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setMarketplaceFilters({ ...marketplaceFilters, [key]: 'all' })}
-              className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-surface-raised px-2.5 py-1 text-xs text-ink-secondary hover:text-ink-primary"
-            >
-              {label}
-              <span aria-hidden="true">×</span>
-              <span className="sr-only">Remove {label} filter</span>
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={handleResetBrowseState}
-            className="cursor-pointer px-2 py-1 text-xs text-ink-muted hover:text-ink-secondary"
-          >
-            Clear all
-          </button>
-        </div>
-      )}
-
-      <div
-        className={cn(
-          'grid min-w-0 gap-5',
-          filtersOpen && 'lg:grid-cols-[minmax(0,240px)_minmax(0,1fr)]'
-        )}
-      >
-        <FilterSidebar
-          filters={marketplaceFilters}
-          onFiltersChange={setMarketplaceFilters}
-          setOptions={cardSetOptions}
-          rarityOptions={rarityOptions}
-          typeOptions={typeOptions}
-          onReset={() => setMarketplaceFilters(DEFAULT_FILTERS)}
-          isOpen={filtersOpen}
-          onClose={() => setFiltersOpen(false)}
-          isOnePiece={isOnePiece}
-        />
-
-        <section className="min-w-0">
-          {error ? (
-            <ErrorMessage message={error} onRetry={refetch} />
-          ) : isLoading ? (
-            <LoadingGrid />
-          ) : showDiscovery ? (
-            <BrowseDiscovery isOnePiece={isOnePiece} onTrySearch={handleSearchChange} />
-          ) : cardsWithMarketplaceFilters.length > 0 ? (
-            <CardGrid
-              cards={cardsWithMarketplaceFilters as PokemonCard[]}
-              viewMode={cardViewMode}
-              onCardClick={(card) => openCard(card as PokemonCard)}
-              onAddToCollection={handleAddToCollection}
-              onViewPriceHistory={(card) => openCard(card as PokemonCard)}
-            />
-          ) : (
-            <EmptyState
-              hasSearchQuery={hasQuery}
-              onResetFilters={handleResetBrowseState}
-              onTrySearch={handleSearchChange}
-            />
+      <div className="mb-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            setSearchParams(
+              (prev) => {
+                const next = new URLSearchParams(prev);
+                next.delete('view');
+                return next;
+              },
+              { replace: true }
+            );
+          }}
+          className={cn(
+            'cursor-pointer rounded-md px-3 py-1.5 text-sm font-semibold transition-colors',
+            viewMode === 'cards'
+              ? 'bg-accent/15 text-accent'
+              : 'text-ink-secondary hover:text-ink-primary'
           )}
-        </section>
+        >
+          Cards
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setSearchParams(
+              (prev) => {
+                const next = new URLSearchParams(prev);
+                next.set('view', 'sets');
+                return next;
+              },
+              { replace: true }
+            );
+          }}
+          className={cn(
+            'cursor-pointer rounded-md px-3 py-1.5 text-sm font-semibold transition-colors',
+            viewMode === 'sets'
+              ? 'bg-accent/15 text-accent'
+              : 'text-ink-secondary hover:text-ink-primary'
+          )}
+        >
+          Sets
+        </button>
       </div>
+      {viewMode === 'sets' ? (
+        <SetIndex onSelectSet={(id: string) => navigate(`/sets/${id}`)} />
+      ) : (
+        <>
+          <PageHeader
+            eyebrow="Marketplace"
+            title={`Browse ${gameLabel} cards`}
+            description="Filter by set, rarity, price, etc."
+          />
+
+          <SearchFilters
+            searchQuery={searchQuery}
+            onSearchChange={handleSearchChange}
+            sortBy={sortBy}
+            onSortChange={setSortBy}
+            filterBy={filterBy}
+            onFilterChange={setFilterBy}
+            isLoading={isLoading}
+            onOpenAdvancedFilters={() => setFiltersOpen((open) => !open)}
+            filtersOpen={filtersOpen}
+            activeFilterCount={countActiveMarketplaceFilters(marketplaceFilters)}
+            isOnePiece={isOnePiece}
+            resultCount={
+              !error && hasQuery && cardsWithMarketplaceFilters.length > 0
+                ? cardsWithMarketplaceFilters.length
+                : undefined
+            }
+            viewMode={cardViewMode}
+            onViewModeChange={setCardViewMode}
+            cardLanguage={cardLanguage}
+            onCardLanguageChange={isPokemon ? handleCardLanguageChange : undefined}
+          />
+
+          {facetChips.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {facetChips.map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setMarketplaceFilters({ ...marketplaceFilters, [key]: 'all' })}
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-surface-raised px-2.5 py-1 text-xs text-ink-secondary hover:text-ink-primary"
+                >
+                  {label}
+                  <span aria-hidden="true">×</span>
+                  <span className="sr-only">Remove {label} filter</span>
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={handleResetBrowseState}
+                className="cursor-pointer px-2 py-1 text-xs text-ink-muted hover:text-ink-secondary"
+              >
+                Clear all
+              </button>
+            </div>
+          )}
+
+          <div
+            className={cn(
+              'grid min-w-0 gap-5',
+              filtersOpen && 'lg:grid-cols-[minmax(0,240px)_minmax(0,1fr)]'
+            )}
+          >
+            <FilterSidebar
+              filters={marketplaceFilters}
+              onFiltersChange={setMarketplaceFilters}
+              setOptions={cardSetOptions}
+              rarityOptions={rarityOptions}
+              typeOptions={typeOptions}
+              onReset={() => setMarketplaceFilters(DEFAULT_FILTERS)}
+              isOpen={filtersOpen}
+              onClose={() => setFiltersOpen(false)}
+              isOnePiece={isOnePiece}
+            />
+
+            <section className="min-w-0">
+              {error ? (
+                <ErrorMessage message={error} onRetry={refetch} />
+              ) : isLoading ? (
+                <LoadingGrid />
+              ) : showDiscovery ? (
+                <BrowseDiscovery isOnePiece={isOnePiece} onTrySearch={handleSearchChange} />
+              ) : cardsWithMarketplaceFilters.length > 0 ? (
+                <CardGrid
+                  cards={cardsWithMarketplaceFilters as PokemonCard[]}
+                  viewMode={cardViewMode}
+                  onCardClick={(card) => openCard(card as PokemonCard)}
+                  onAddToCollection={handleAddToCollection}
+                  onViewPriceHistory={(card) => openCard(card as PokemonCard)}
+                />
+              ) : (
+                <EmptyState
+                  hasSearchQuery={hasQuery}
+                  onResetFilters={handleResetBrowseState}
+                  onTrySearch={handleSearchChange}
+                />
+              )}
+            </section>
+          </div>
+        </>
+      )}
     </PageShell>
   );
 }

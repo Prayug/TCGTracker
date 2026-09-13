@@ -3,9 +3,13 @@ import { isSkippedDbJob, withDbJobLock } from '../dbJobLock';
 describe('withDbJobLock', () => {
   it('skips when another job is running', async () => {
     let release!: () => void;
-    const hung = withDbJobLock('held', () => new Promise<string>((resolve) => {
-      release = () => resolve('done');
-    }));
+    const hung = withDbJobLock(
+      'held',
+      () =>
+        new Promise<string>((resolve) => {
+          release = () => resolve('done');
+        })
+    );
 
     const skipped = await withDbJobLock('next', async () => 'nope', { skipIfBusy: true });
     expect(isSkippedDbJob(skipped)).toBe(true);

@@ -11,12 +11,7 @@ import { blendSlabMarketMark } from './slabMarketMark';
  * tags often fail the fee hurdle and are filtered out.
  */
 
-export type GradeWorthinessSort =
-  | 'score'
-  | 'netProfit'
-  | 'netRoi'
-  | 'gemEase'
-  | 'scarce';
+export type GradeWorthinessSort = 'score' | 'netProfit' | 'netRoi' | 'gemEase' | 'scarce';
 
 export interface GradeWorthinessRow {
   cardId: string;
@@ -120,8 +115,7 @@ export const PSA_FEE_CONTEXT: GradeWorthinessFeeContext = {
   grader: 'PSA',
   floorFee: 79.99,
   floorTier: 'Regular',
-  note:
-    'PSA Value Bulk / Value tiers paused — Regular ($79.99) is the current floor. Net profit is PSA 10 − raw − fee.',
+  note: 'PSA Value Bulk / Value tiers paused — Regular ($79.99) is the current floor. Net profit is PSA 10 − raw − fee.',
 };
 
 /**
@@ -171,11 +165,11 @@ const all = <T>(sql: string, params: unknown[] = []): Promise<T[]> =>
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 
 /** Export for unit tests. Scores after-fee net ROI × gem ease. */
-export function scoreCard(input: {
-  netRoiPct: number;
-  gemRatePct: number;
-  psa10Pop: number;
-}): { score: number; upliftScore: number; gemEaseScore: number } {
+export function scoreCard(input: { netRoiPct: number; gemRatePct: number; psa10Pop: number }): {
+  score: number;
+  upliftScore: number;
+  gemEaseScore: number;
+} {
   // Log net ROI: 50% ≈ 0.37, 200% ≈ 0.63, 1000% ≈ 0.87, 2000% ≈ 1.0
   const upliftNorm = clamp01(
     Math.log10(1 + Math.max(0, input.netRoiPct) / 100) / Math.log10(1 + 20)
@@ -201,9 +195,7 @@ function whyLine(row: {
   staleSold?: boolean;
 }): string {
   const bits: string[] = [];
-  bits.push(
-    `+$${row.netProfit.toFixed(0)} after $${row.gradingFee.toFixed(0)} ${row.gradingTier}`
-  );
+  bits.push(`+$${row.netProfit.toFixed(0)} after $${row.gradingFee.toFixed(0)} ${row.gradingTier}`);
   bits.push(`${row.netRoiPct.toFixed(0)}% net ROI`);
   bits.push(`${row.gemRatePct.toFixed(1)}% gem rate (${row.psa10Pop.toLocaleString()} PSA 10s)`);
   if (row.staleSold) {
@@ -410,8 +402,7 @@ export async function getGradeWorthinessLeaderboard(options?: {
 
     const gemRatePct = (psa10Pop / psaTotal) * 100;
     const multiple = psa10Price / rawPrice;
-    const breakEvenGemRatePct =
-      premium > 0 ? Math.min(100, (gradingFee / premium) * 100) : 100;
+    const breakEvenGemRatePct = premium > 0 ? Math.min(100, (gradingFee / premium) * 100) : 100;
     const { score, upliftScore, gemEaseScore } = scoreCard({
       netRoiPct,
       gemRatePct,
@@ -590,14 +581,8 @@ export const normalizeName = (value: string | null | undefined): string =>
 export const normalizeSetKey = (value: string | null | undefined): string => {
   let key = normalizeName(value);
   key = key
-    .replace(
-      /^(sm|swsh|sv|xy|bw|ex|dp|pl|hgss|me|ecard|base|neo|gym)\s+/,
-      ''
-    )
-    .replace(
-      /^(sun and moon|sword and shield|scarlet and violet|black and white)\s+/,
-      ''
-    )
+    .replace(/^(sm|swsh|sv|xy|bw|ex|dp|pl|hgss|me|ecard|base|neo|gym)\s+/, '')
+    .replace(/^(sun and moon|sword and shield|scarlet and violet|black and white)\s+/, '')
     .trim();
   return key;
 };
@@ -610,23 +595,45 @@ function resolveEra(setId: string | null, setName: string | null): string {
   const id = (setId || '').toLowerCase().trim();
   const seriesHint = (() => {
     // Promo set codes / Black Star labels → parent era series
-    if (id === 'svp' || /^svp\b/.test(name) || (name.includes('promo') && (name.includes('scarlet') || name.includes('violet')))) {
+    if (
+      id === 'svp' ||
+      /^svp\b/.test(name) ||
+      (name.includes('promo') && (name.includes('scarlet') || name.includes('violet')))
+    ) {
       return 'scarlet & violet';
     }
-    if (id === 'swshp' || /^swshp?\b/.test(name) || (name.includes('promo') && (name.includes('sword') || name.includes('shield') || name.includes('swsh')))) {
+    if (
+      id === 'swshp' ||
+      /^swshp?\b/.test(name) ||
+      (name.includes('promo') &&
+        (name.includes('sword') || name.includes('shield') || name.includes('swsh')))
+    ) {
       return 'sword & shield';
     }
-    if (id === 'smp' || /^smp\b/.test(name) || (name.includes('promo') && (name.includes('sun') || name.includes('moon') || /\bsm\b/.test(name)))) {
+    if (
+      id === 'smp' ||
+      /^smp\b/.test(name) ||
+      (name.includes('promo') &&
+        (name.includes('sun') || name.includes('moon') || /\bsm\b/.test(name)))
+    ) {
       return 'sun & moon';
     }
     if (id === 'xyp' || /^xyp\b/.test(name) || (name.includes('promo') && /\bxy\b/.test(name))) {
       return 'xy';
     }
-    if (id === 'bwp' || /^bwp\b/.test(name) || (name.includes('promo') && name.includes('black') && name.includes('white'))) {
+    if (
+      id === 'bwp' ||
+      /^bwp\b/.test(name) ||
+      (name.includes('promo') && name.includes('black') && name.includes('white'))
+    ) {
       return 'black & white';
     }
 
-    if (/^sm\b|^sm\s*-/.test(name) || name.includes('sun & moon') || name.includes('sun and moon')) {
+    if (
+      /^sm\b|^sm\s*-/.test(name) ||
+      name.includes('sun & moon') ||
+      name.includes('sun and moon')
+    ) {
       return 'sun & moon';
     }
     if (/^swsh\b|^swsh\s*-/.test(name) || name.includes('sword') || name.includes('shield')) {
@@ -638,7 +645,11 @@ function resolveEra(setId: string | null, setName: string | null): string {
     if (/^xy\b|^xy\s*-/.test(name) || name.includes(' xy') || name.startsWith('xy ')) {
       return 'xy';
     }
-    if (/^bw\b|^bw\s*-/.test(name) || name.includes('black & white') || name.includes('black and white')) {
+    if (
+      /^bw\b|^bw\s*-/.test(name) ||
+      name.includes('black & white') ||
+      name.includes('black and white')
+    ) {
       return 'black & white';
     }
     if (name.includes('heartgold') || name.includes('soulsilver') || /^hgss\b/.test(name)) {
@@ -744,9 +755,7 @@ async function fillMissingImages(rows: GradeWorthinessRow[]): Promise<void> {
 
       // Prefer number, then set family; never pick Shiny Vault art for the main set.
       const hit =
-        numberMatched ||
-        setMatched ||
-        (exactName.length === 1 ? exactName[0] : undefined);
+        numberMatched || setMatched || (exactName.length === 1 ? exactName[0] : undefined);
 
       if (hit?.imageSmall) {
         row.imageSmall = hit.imageSmall;

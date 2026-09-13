@@ -169,9 +169,7 @@ function SetPicker({
 
   const grouped = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const filtered = q
-      ? sets.filter((s) => s.setName.toLowerCase().includes(q))
-      : sets;
+    const filtered = q ? sets.filter((s) => s.setName.toLowerCase().includes(q)) : sets;
 
     const byEra = new Map<string, GradeWorthinessSetFacet[]>();
     for (const set of filtered) {
@@ -238,7 +236,6 @@ function SetPicker({
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-muted" />
               <input
-                autoFocus
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -309,10 +306,7 @@ function SetPicker({
 
 function CardThumb({ row, size = 'md' }: { row: GradeWorthinessRow; size?: 'md' | 'lg' }) {
   const src = proxyImageUrl(row.imageSmall ?? undefined);
-  const box =
-    size === 'lg'
-      ? 'h-[5.5rem] w-[4rem] sm:h-[6.5rem] sm:w-[4.75rem]'
-      : 'h-14 w-10';
+  const box = size === 'lg' ? 'h-[5.5rem] w-[4rem] sm:h-[6.5rem] sm:w-[4.75rem]' : 'h-14 w-10';
   const initials = (row.cardName || '?')
     .split(/\s+/)
     .slice(0, 2)
@@ -599,125 +593,125 @@ export const GradeWorthinessList: React.FC<GradeWorthinessListProps> = ({
       ) : (
         <div className="space-y-2.5">
           {!compact && (
-          <div
-            className="relative overflow-hidden rounded-2xl border border-border-default"
-            style={{ background: 'var(--gradient-chrome)' }}
-          >
             <div
-              className="pointer-events-none absolute inset-0"
-              style={{
-                background:
-                  'radial-gradient(ellipse 70% 80% at 100% 0%, rgba(110,231,183,0.12), transparent 55%)',
-              }}
-              aria-hidden
-            />
-            <div className="relative flex w-full gap-3 p-3 sm:gap-4 sm:p-3.5">
-              <button
-                type="button"
-                onClick={() => openCard(featured)}
-                className="contents cursor-pointer text-left"
-              >
-                <CardThumb row={featured} size="lg" />
-              </button>
-              <div className="min-w-0 flex-1">
+              className="relative overflow-hidden rounded-2xl border border-border-default"
+              style={{ background: 'var(--gradient-chrome)' }}
+            >
+              <div
+                className="pointer-events-none absolute inset-0"
+                style={{
+                  background:
+                    'radial-gradient(ellipse 70% 80% at 100% 0%, rgba(110,231,183,0.12), transparent 55%)',
+                }}
+                aria-hidden
+              />
+              <div className="relative flex w-full gap-3 p-3 sm:gap-4 sm:p-3.5">
                 <button
                   type="button"
                   onClick={() => openCard(featured)}
-                  className="w-full cursor-pointer text-left"
+                  className="contents cursor-pointer text-left"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <p className="font-display text-[10px] font-semibold uppercase tracking-[0.16em] text-foil">
-                          #{rows.findIndex((r) => r.cardId === featured.cardId) + 1} pick
-                        </p>
-                        <TrustCue
-                          verified={featured.verified}
-                          stale={featured.stale}
-                          ageHours={featured.ageHours}
-                        />
-                      </div>
-                      <p className="mt-0.5 truncate font-display text-base font-semibold tracking-tight text-ink-primary sm:text-lg">
-                        {featured.cardName || featured.cardId}
-                      </p>
-                      <p className="truncate text-xs text-ink-muted">
-                        {featured.setName || 'Unknown set'}
-                        {featured.cardNumber ? ` · #${featured.cardNumber}` : ''}
-                        <AskSoldCue row={featured} />
-                      </p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className="font-mono text-2xl font-bold tabular-nums leading-none text-gain sm:text-3xl">
-                        {formatCurrency(featured.netProfit, { signed: true })}
-                      </p>
-                      <p className="mt-1 font-mono text-[11px] tabular-nums text-ink-muted">
-                        {formatPercent(featured.netRoiPct, { signed: true })} ·{' '}
-                        {featured.gemRatePct.toFixed(1)}% gem
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    <div className="rounded-lg bg-surface-inset/80 px-2 py-1.5">
-                      <p className="text-[10px] uppercase tracking-wider text-ink-muted">
-                        PSA 10
-                      </p>
-                      <p className="font-mono text-xs font-semibold tabular-nums text-ink-primary">
-                        {formatCurrency(featured.psa10Price)}
-                      </p>
-                      {featured.listedLow != null && (featured.listedCount ?? 0) > 0 && (
-                        <p className="font-mono text-[10px] tabular-nums text-ink-muted">
-                          lowest listed {formatCurrency(featured.listedLow)}
-                        </p>
-                      )}
-                    </div>
-                    <div className="rounded-lg bg-surface-inset/80 px-2 py-1.5">
-                      <p className="text-[10px] uppercase tracking-wider text-ink-muted">Raw</p>
-                      <p className="font-mono text-xs font-semibold tabular-nums text-ink-primary">
-                        {formatCurrency(featured.rawPrice)}
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-surface-inset/80 px-2 py-1.5">
-                      <p className="text-[10px] uppercase tracking-wider text-ink-muted">
-                        Fee · {featured.gradingTier}
-                      </p>
-                      <p className="font-mono text-xs font-semibold tabular-nums text-ink-primary">
-                        {formatCurrency(featured.gradingFee)}
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-surface-inset/80 px-2 py-1.5">
-                      <p className="text-[10px] uppercase tracking-wider text-ink-muted">Gem</p>
-                      <p className="font-mono text-xs font-semibold tabular-nums text-ink-primary">
-                        {featured.gemRatePct.toFixed(1)}%
-                        <span className="ml-1 font-normal text-ink-muted">
-                          · {featured.psa10Pop.toLocaleString()} 10s
-                        </span>
-                      </p>
-                    </div>
-                  </div>
+                  <CardThumb row={featured} size="lg" />
                 </button>
-
-                {onAlertPremium && (
+                <div className="min-w-0 flex-1">
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAlertPremium({
-                        cardId: featured.cardId,
-                        cardName: featured.cardName || featured.cardId,
-                        premiumPct: featured.premiumPct,
-                        rawPrice: featured.rawPrice,
-                      });
-                    }}
-                    className="mt-2.5 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border-default bg-surface-inset px-2.5 py-1.5 text-[11px] font-medium text-ink-secondary transition-colors hover:border-accent/40 hover:text-accent"
+                    onClick={() => openCard(featured)}
+                    className="w-full cursor-pointer text-left"
                   >
-                    <Bell className="h-3.5 w-3.5" />
-                    Alert when PSA 10 premium drops
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <p className="font-display text-[10px] font-semibold uppercase tracking-[0.16em] text-foil">
+                            #{rows.findIndex((r) => r.cardId === featured.cardId) + 1} pick
+                          </p>
+                          <TrustCue
+                            verified={featured.verified}
+                            stale={featured.stale}
+                            ageHours={featured.ageHours}
+                          />
+                        </div>
+                        <p className="mt-0.5 truncate font-display text-base font-semibold tracking-tight text-ink-primary sm:text-lg">
+                          {featured.cardName || featured.cardId}
+                        </p>
+                        <p className="truncate text-xs text-ink-muted">
+                          {featured.setName || 'Unknown set'}
+                          {featured.cardNumber ? ` · #${featured.cardNumber}` : ''}
+                          <AskSoldCue row={featured} />
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="font-mono text-2xl font-bold tabular-nums leading-none text-gain sm:text-3xl">
+                          {formatCurrency(featured.netProfit, { signed: true })}
+                        </p>
+                        <p className="mt-1 font-mono text-[11px] tabular-nums text-ink-muted">
+                          {formatPercent(featured.netRoiPct, { signed: true })} ·{' '}
+                          {featured.gemRatePct.toFixed(1)}% gem
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      <div className="rounded-lg bg-surface-inset/80 px-2 py-1.5">
+                        <p className="text-[10px] uppercase tracking-wider text-ink-muted">
+                          PSA 10
+                        </p>
+                        <p className="font-mono text-xs font-semibold tabular-nums text-ink-primary">
+                          {formatCurrency(featured.psa10Price)}
+                        </p>
+                        {featured.listedLow != null && (featured.listedCount ?? 0) > 0 && (
+                          <p className="font-mono text-[10px] tabular-nums text-ink-muted">
+                            lowest listed {formatCurrency(featured.listedLow)}
+                          </p>
+                        )}
+                      </div>
+                      <div className="rounded-lg bg-surface-inset/80 px-2 py-1.5">
+                        <p className="text-[10px] uppercase tracking-wider text-ink-muted">Raw</p>
+                        <p className="font-mono text-xs font-semibold tabular-nums text-ink-primary">
+                          {formatCurrency(featured.rawPrice)}
+                        </p>
+                      </div>
+                      <div className="rounded-lg bg-surface-inset/80 px-2 py-1.5">
+                        <p className="text-[10px] uppercase tracking-wider text-ink-muted">
+                          Fee · {featured.gradingTier}
+                        </p>
+                        <p className="font-mono text-xs font-semibold tabular-nums text-ink-primary">
+                          {formatCurrency(featured.gradingFee)}
+                        </p>
+                      </div>
+                      <div className="rounded-lg bg-surface-inset/80 px-2 py-1.5">
+                        <p className="text-[10px] uppercase tracking-wider text-ink-muted">Gem</p>
+                        <p className="font-mono text-xs font-semibold tabular-nums text-ink-primary">
+                          {featured.gemRatePct.toFixed(1)}%
+                          <span className="ml-1 font-normal text-ink-muted">
+                            · {featured.psa10Pop.toLocaleString()} 10s
+                          </span>
+                        </p>
+                      </div>
+                    </div>
                   </button>
-                )}
+
+                  {onAlertPremium && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAlertPremium({
+                          cardId: featured.cardId,
+                          cardName: featured.cardName || featured.cardId,
+                          premiumPct: featured.premiumPct,
+                          rawPrice: featured.rawPrice,
+                        });
+                      }}
+                      className="mt-2.5 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border-default bg-surface-inset px-2.5 py-1.5 text-[11px] font-medium text-ink-secondary transition-colors hover:border-accent/40 hover:text-accent"
+                    >
+                      <Bell className="h-3.5 w-3.5" />
+                      Alert when PSA 10 premium drops
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
           )}
 
           <div className="space-y-0.5">
@@ -747,9 +741,7 @@ export const GradeWorthinessList: React.FC<GradeWorthinessListProps> = ({
                         <p className="truncate text-sm font-medium text-ink-primary">
                           {row.cardName || row.cardId}
                         </p>
-                        {row.stale && (
-                          <span className="text-[10px] text-ink-muted">stale</span>
-                        )}
+                        {row.stale && <span className="text-[10px] text-ink-muted">stale</span>}
                       </div>
                       <p className="truncate text-[11px] text-ink-muted">
                         {row.setName || 'Unknown set'}

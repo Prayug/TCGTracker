@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * @author: @dorianbaffier
@@ -10,18 +10,18 @@
  * @github: https://github.com/kokonut-labs/kokonutui
  */
 
-import { Fingerprint } from "lucide-react";
-import { motion } from "motion/react";
-import type * as React from "react";
+import { Fingerprint } from 'lucide-react';
+import { motion } from 'motion/react';
+import type * as React from 'react';
 function Image({
-  alt = "",
+  alt = '',
   fill: _fill,
   sizes: _sizes,
   ...props
 }: React.ImgHTMLAttributes<HTMLImageElement> & { fill?: boolean; sizes?: string }) {
   return <img alt={alt} {...props} />;
 }
-import { Button } from "@/components/ui/button";
+import { Button } from '@/components/ui/button';
 import {
   Drawer,
   DrawerClose,
@@ -31,7 +31,7 @@ import {
   DrawerHeader,
   DrawerTitle,
   DrawerTrigger,
-} from "@/components/ui/drawer";
+} from '@/components/ui/drawer';
 
 interface PriceTagProps {
   price: number;
@@ -45,17 +45,13 @@ function PriceTag({ price, discountedPrice }: PriceTagProps) {
         <span className="bg-gradient-to-br from-zinc-900 to-zinc-700 bg-clip-text font-bold text-4xl text-transparent dark:from-white dark:to-zinc-300">
           ${discountedPrice}
         </span>
-        <span className="text-lg text-zinc-400 line-through dark:text-zinc-500">
-          ${price}
-        </span>
+        <span className="text-lg text-zinc-400 line-through dark:text-zinc-500">${price}</span>
       </div>
       <div className="flex flex-col items-center gap-0.5">
         <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100">
           Lifetime access
         </span>
-        <span className="text-xs text-zinc-700 dark:text-zinc-300">
-          One-time payment
-        </span>
+        <span className="text-xs text-zinc-700 dark:text-zinc-300">One-time payment</span>
       </div>
     </div>
   );
@@ -74,11 +70,11 @@ interface DrawerDemoProps extends React.HTMLAttributes<HTMLDivElement> {
 
 const drawerVariants = {
   hidden: {
-    y: "100%",
+    y: '100%',
     opacity: 0,
     rotateX: 5,
     transition: {
-      type: "spring",
+      type: 'spring',
       stiffness: 300,
       damping: 30,
     },
@@ -88,7 +84,7 @@ const drawerVariants = {
     opacity: 1,
     rotateX: 0,
     transition: {
-      type: "spring",
+      type: 'spring',
       stiffness: 300,
       damping: 30,
       mass: 0.8,
@@ -103,7 +99,7 @@ const itemVariants = {
     y: 20,
     opacity: 0,
     transition: {
-      type: "spring",
+      type: 'spring',
       stiffness: 300,
       damping: 30,
     },
@@ -112,7 +108,7 @@ const itemVariants = {
     y: 0,
     opacity: 1,
     transition: {
-      type: "spring",
+      type: 'spring',
       stiffness: 300,
       damping: 30,
       mass: 0.8,
@@ -121,10 +117,10 @@ const itemVariants = {
 };
 
 export default function SmoothDrawer({
-  title = "KokonutUI - Pro",
-  description = "100+ collection of UI Components and templates built for React, Next.js, and Tailwind CSS. Spend no time on design and focus on shipping.",
-  primaryButtonText = "Buy Now",
-  secondaryButtonText = "Maybe Later",
+  title = 'KokonutUI - Pro',
+  description = '100+ collection of UI Components and templates built for React, Next.js, and Tailwind CSS. Spend no time on design and focus on shipping.',
+  primaryButtonText = 'Buy Now',
+  secondaryButtonText = 'Maybe Later',
   onSecondaryAction,
   price = 169,
   discountedPrice = 99,
@@ -151,9 +147,7 @@ export default function SmoothDrawer({
                     <Image alt="Logo" height={32} src="/logo.svg" width={32} />
                   </div>
                 </motion.div>
-                <motion.span variants={itemVariants as any}>
-                  {title}
-                </motion.span>
+                <motion.span variants={itemVariants as any}>{title}</motion.span>
               </DrawerTitle>
               <motion.div variants={itemVariants as any}>
                 <DrawerDescription className="text-sm text-zinc-600 leading-relaxed tracking-tighter dark:text-zinc-400">
@@ -179,11 +173,11 @@ export default function SmoothDrawer({
                     className="absolute inset-0 translate-x-[-200%] bg-gradient-to-r from-transparent via-white/20 to-transparent"
                     transition={{
                       duration: 1.5,
-                      ease: "easeInOut",
+                      ease: 'easeInOut',
                       repeat: 0,
                     }}
                     whileHover={{
-                      x: ["-200%", "200%"],
+                      x: ['-200%', '200%'],
                     }}
                   />
                   <motion.div
@@ -200,7 +194,7 @@ export default function SmoothDrawer({
                       }}
                       transition={{
                         duration: 2,
-                        ease: "easeInOut",
+                        ease: 'easeInOut',
                         repeat: Number.POSITIVE_INFINITY,
                         repeatDelay: 1,
                       }}
@@ -210,7 +204,17 @@ export default function SmoothDrawer({
                   </motion.div>
                 </a>
               </div>
-              <DrawerClose render={<Button className="h-11 w-full rounded-xl border-zinc-200 font-semibold text-sm tracking-tighter transition-colors hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-800/80" onClick={handleSecondaryClick} variant="outline" />}>{secondaryButtonText}</DrawerClose>
+              <DrawerClose
+                render={
+                  <Button
+                    className="h-11 w-full rounded-xl border-zinc-200 font-semibold text-sm tracking-tighter transition-colors hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-800/80"
+                    onClick={handleSecondaryClick}
+                    variant="outline"
+                  />
+                }
+              >
+                {secondaryButtonText}
+              </DrawerClose>
             </DrawerFooter>
           </motion.div>
         </motion.div>

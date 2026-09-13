@@ -1,4 +1,3 @@
-import { describe, expect, it } from 'vitest';
 import { estimatePsaGradingFee, scoreCard } from '../gradeWorthinessService';
 
 describe('PSA grading fee estimate', () => {

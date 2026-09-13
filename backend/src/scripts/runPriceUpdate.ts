@@ -11,8 +11,7 @@ import { logger } from '../utils/logger';
 
 const dateFlag = process.argv.indexOf('--date');
 const requested = dateFlag >= 0 ? process.argv[dateFlag + 1] : process.argv[2];
-const runDate =
-  requested && /^\d{4}-\d{2}-\d{2}$/.test(requested) ? requested : getRunDate();
+const runDate = requested && /^\d{4}-\d{2}-\d{2}$/.test(requested) ? requested : getRunDate();
 
 const main = async () => {
   await initializeDatabase();

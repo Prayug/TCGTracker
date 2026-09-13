@@ -27,9 +27,7 @@ export function trimUnreliableSetValueHistory<T extends SetValueHistoryRow>(
   const minCards = Math.ceil(peakPriced * MIN_COVERAGE);
   const minValue = peakValue * MIN_VALUE_RATIO;
 
-  const startIdx = history.findIndex(
-    (p) => p.cardsPriced >= minCards && p.setValue >= minValue
-  );
+  const startIdx = history.findIndex((p) => p.cardsPriced >= minCards && p.setValue >= minValue);
 
   if (startIdx <= 0) return startIdx === -1 ? [] : history;
   return history.slice(startIdx);

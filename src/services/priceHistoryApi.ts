@@ -18,6 +18,12 @@ interface PriceHistoryPoint {
   message?: string;
 }
 
+interface RollingAverage {
+  date?: string;
+  average?: number;
+  [key: string]: unknown;
+}
+
 interface CardPriceHistoryResponse {
   uniqueIdentifier: string;
   cardDetails: {
@@ -26,7 +32,7 @@ interface CardPriceHistoryResponse {
     cardNumber?: string;
   };
   priceHistory: PriceHistoryPoint[];
-  rollingAverages: any[];
+  rollingAverages: RollingAverage[];
 }
 
 interface CardMatchResponse {
@@ -37,7 +43,7 @@ interface CardMatchResponse {
     uniqueIdentifier?: string;
   };
   priceHistory: PriceHistoryPoint[];
-  rollingAverages: any[];
+  rollingAverages: RollingAverage[];
   message?: string;
   searchCriteria?: {
     cardName: string;
@@ -84,8 +90,12 @@ type TopMoversCacheEntry = {
   data: TopMoversResponse;
 };
 
-const isFreshTopMoversEntry = (entry: TopMoversCacheEntry | null | undefined): entry is TopMoversCacheEntry =>
-  Boolean(entry && entry.data && typeof entry.expiresAt === 'number' && entry.expiresAt > Date.now());
+const isFreshTopMoversEntry = (
+  entry: TopMoversCacheEntry | null | undefined
+): entry is TopMoversCacheEntry =>
+  Boolean(
+    entry && entry.data && typeof entry.expiresAt === 'number' && entry.expiresAt > Date.now()
+  );
 
 /**
  * Fetches top movers (biggest gainers/losers) over a given period
@@ -101,9 +111,14 @@ export class PriceHistoryApi {
     return `${days}:${limit}`;
   }
 
-  private static topMoversStorageKey(days: number, limit: number, kind: 'raw' | 'slab' = 'raw'): string {
+  private static topMoversStorageKey(
+    days: number,
+    limit: number,
+    kind: 'raw' | 'slab' = 'raw',
+    grader: string = 'PSA'
+  ): string {
     return kind === 'slab'
-      ? `tcgtracker:top-slab-movers:v2:${days}:${limit}`
+      ? `tcgtracker:top-slab-movers:v3:${grader}:${days}:${limit}`
       : `tcgtracker:top-movers:v3:${days}:${limit}`;
   }
 
@@ -190,13 +205,17 @@ export class PriceHistoryApi {
 
   private static slabMoversMemory = new Map<string, TopMoversCacheEntry>();
 
-  private static slabMoversCacheKey(days: number, limit: number): string {
-    return `slab:${days}:${limit}`;
+  private static slabMoversCacheKey(days: number, limit: number, grader: string = 'PSA'): string {
+    return `slab:${grader}:${days}:${limit}`;
   }
 
-  private static readSlabMoversStorage(days: number, limit: number): TopMoversCacheEntry | null {
+  private static readSlabMoversStorage(
+    days: number,
+    limit: number,
+    grader: string = 'PSA'
+  ): TopMoversCacheEntry | null {
     try {
-      const raw = localStorage.getItem(this.topMoversStorageKey(days, limit, 'slab'));
+      const raw = localStorage.getItem(this.topMoversStorageKey(days, limit, 'slab', grader));
       if (!raw) return null;
       const parsed = JSON.parse(raw) as TopMoversCacheEntry;
       if (!parsed?.data || typeof parsed.expiresAt !== 'number') return null;
@@ -206,14 +225,22 @@ export class PriceHistoryApi {
     }
   }
 
-  private static writeSlabMoversCache(days: number, limit: number, data: TopMoversResponse): void {
+  private static writeSlabMoversCache(
+    days: number,
+    limit: number,
+    data: TopMoversResponse,
+    grader: string = 'PSA'
+  ): void {
     const entry: TopMoversCacheEntry = {
       expiresAt: Date.now() + TOP_MOVERS_TTL_MS,
       data,
     };
-    this.slabMoversMemory.set(this.slabMoversCacheKey(days, limit), entry);
+    this.slabMoversMemory.set(this.slabMoversCacheKey(days, limit, grader), entry);
     try {
-      localStorage.setItem(this.topMoversStorageKey(days, limit, 'slab'), JSON.stringify(entry));
+      localStorage.setItem(
+        this.topMoversStorageKey(days, limit, 'slab', grader),
+        JSON.stringify(entry)
+      );
     } catch {
       // Quota / private mode
     }
@@ -234,9 +261,10 @@ export class PriceHistoryApi {
   static async getTopSlabMovers(
     days: number = 7,
     limit: number = 20,
-    options: { force?: boolean } = {}
+    options: { force?: boolean; grader?: 'PSA' | 'BGS' | string } = {}
   ): Promise<TopMoversResponse> {
-    const key = this.slabMoversCacheKey(days, limit);
+    const grader = (options.grader || 'PSA').toUpperCase();
+    const key = this.slabMoversCacheKey(days, limit, grader);
     const mem = this.slabMoversMemory.get(key);
     if (
       !options.force &&
@@ -247,7 +275,7 @@ export class PriceHistoryApi {
       return mem.data;
     }
 
-    const stored = this.readSlabMoversStorage(days, limit);
+    const stored = this.readSlabMoversStorage(days, limit, grader);
     if (
       !options.force &&
       stored &&
@@ -259,15 +287,17 @@ export class PriceHistoryApi {
     }
 
     try {
-      const response = await fetch(`${this.baseUrl}/top-slab-movers?days=${days}&limit=${limit}`);
+      const response = await fetch(
+        `${this.baseUrl}/top-slab-movers?days=${days}&limit=${limit}&grader=${encodeURIComponent(grader)}`
+      );
       if (!response.ok) {
-        return mem?.data ?? stored?.data ?? { date: null, days, gainers: [], losers: [] };
+        return mem?.data ?? stored?.data ?? { date: null, days, gainers: [], losers: [], grader };
       }
       const data = (await response.json()) as TopMoversResponse;
-      this.writeSlabMoversCache(days, limit, data);
+      this.writeSlabMoversCache(days, limit, data, grader);
       return data;
     } catch {
-      return mem?.data ?? stored?.data ?? { date: null, days, gainers: [], losers: [] };
+      return mem?.data ?? stored?.data ?? { date: null, days, gainers: [], losers: [], grader };
     }
   }
 
@@ -316,7 +346,7 @@ export class PriceHistoryApi {
     // productId is only a hint — never override a conflicting collector number
     // (Trainer Gallery TG16 must not resolve to main-set #68 via a stale SKU).
     if (card.productId) {
-      const found = mappings.find(m => m.tcgplayerProductId === card.productId);
+      const found = mappings.find((m) => m.tcgplayerProductId === card.productId);
       if (found) {
         const wantNum = (card.number || '').toLowerCase().replace(/[^a-z0-9]/g, '');
         const gotNum = (found.cardNumber || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -332,7 +362,7 @@ export class PriceHistoryApi {
 
     // Score each potential match
     const scoredMatches = mappings
-      .map(m => {
+      .map((m) => {
         const dbCardName = m.cardName.toLowerCase().trim();
         let score = 0;
 
@@ -358,7 +388,7 @@ export class PriceHistoryApi {
         // Exact set ID match is best
         if (dbSetId === cardSetId) {
           score += 50;
-        } 
+        }
         // Set name exact match
         else if (dbSetName === normalizedSetName) {
           score += 40;
@@ -371,7 +401,7 @@ export class PriceHistoryApi {
         else {
           const setWords = normalizedSetName.split(/\s+/);
           const dbSetWords = dbSetName.split(/\s+/);
-          const overlap = setWords.filter(w => dbSetWords.includes(w)).length;
+          const overlap = setWords.filter((w) => dbSetWords.includes(w)).length;
           if (overlap > 0) {
             score += overlap * 5;
           } else {
@@ -383,7 +413,7 @@ export class PriceHistoryApi {
         if (card.number && m.cardNumber) {
           const apiNumber = card.number.toLowerCase().replace(/[^a-z0-9]/g, '');
           const dbNumber = m.cardNumber.toLowerCase().replace(/[^a-z0-9]/g, '');
-          
+
           if (apiNumber === dbNumber) {
             score += 30; // Exact card number match
           } else {
@@ -412,38 +442,48 @@ export class PriceHistoryApi {
 
         return { mapping: m, score };
       })
-      .filter(match => match.score > 0) // Remove invalid matches
+      .filter((match) => match.score > 0) // Remove invalid matches
       .sort((a, b) => b.score - a.score); // Sort by score descending
 
     if (scoredMatches.length > 0) {
       // Log the top matches for debugging (only in debug mode)
       if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_MATCHING && scoredMatches.length > 1) {
-        console.log(`Found ${scoredMatches.length} potential matches for "${card.name}" in "${card.set.name}" (card #${card.number || 'N/A'})`);
-        console.log(`Best match: "${scoredMatches[0].mapping.cardName}" in "${scoredMatches[0].mapping.setName}" (card #${scoredMatches[0].mapping.cardNumber || 'N/A'}) - score: ${scoredMatches[0].score}`);
+        console.log(
+          `Found ${scoredMatches.length} potential matches for "${card.name}" in "${card.set.name}" (card #${card.number || 'N/A'})`
+        );
+        console.log(
+          `Best match: "${scoredMatches[0].mapping.cardName}" in "${scoredMatches[0].mapping.setName}" (card #${scoredMatches[0].mapping.cardNumber || 'N/A'}) - score: ${scoredMatches[0].score}`
+        );
         if (scoredMatches[1]) {
-          console.log(`Second best: "${scoredMatches[1].mapping.cardName}" in "${scoredMatches[1].mapping.setName}" (card #${scoredMatches[1].mapping.cardNumber || 'N/A'}) - score: ${scoredMatches[1].score}`);
+          console.log(
+            `Second best: "${scoredMatches[1].mapping.cardName}" in "${scoredMatches[1].mapping.setName}" (card #${scoredMatches[1].mapping.cardNumber || 'N/A'}) - score: ${scoredMatches[1].score}`
+          );
         }
       }
-      
+
       // Additional validation: If we have a card number, strongly prefer matches with card numbers
       if (card.number) {
-        const matchesWithNumbers = scoredMatches.filter(m => m.mapping.cardNumber !== null);
+        const matchesWithNumbers = scoredMatches.filter((m) => m.mapping.cardNumber !== null);
         if (matchesWithNumbers.length > 0) {
           if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_MATCHING) {
-            console.log(`✅ Selected match with card number: "${matchesWithNumbers[0].mapping.cardName}" #${matchesWithNumbers[0].mapping.cardNumber}`);
+            console.log(
+              `✅ Selected match with card number: "${matchesWithNumbers[0].mapping.cardName}" #${matchesWithNumbers[0].mapping.cardNumber}`
+            );
           }
           return matchesWithNumbers[0].mapping;
         } else {
           // Only log in debug mode - this is common for promo cards
           if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_MATCHING) {
-            console.warn(`⚠️ No DB entries found with card numbers for "${card.name}", using best available match`);
+            console.warn(
+              `⚠️ No DB entries found with card numbers for "${card.name}", using best available match`
+            );
           }
         }
       }
-      
+
       return scoredMatches[0].mapping;
     }
-    
+
     return null;
   }
 
@@ -463,15 +503,15 @@ export class PriceHistoryApi {
     try {
       const params = new URLSearchParams({
         cardName,
-        setId
+        setId,
       });
-      
+
       if (cardNumber) {
         params.append('cardNumber', cardNumber);
       }
 
       const response = await fetch(`${this.baseUrl}/card?${params}`);
-      
+
       if (!response.ok) {
         // Silently return null for 404s (expected when card not in database)
         return null;
@@ -504,19 +544,19 @@ export class PriceHistoryApi {
     try {
       const params = new URLSearchParams({
         cardName,
-        setName
+        setName,
       });
-      
+
       if (cardNumber) {
         params.append('cardNumber', cardNumber);
       }
-      
+
       if (setId) {
         params.append('setId', setId);
       }
 
       const response = await fetch(`${this.baseUrl}/match?${params}`);
-      
+
       if (!response.ok) {
         // Silently return null (expected when card not in database)
         return null;
@@ -612,14 +652,14 @@ export class PriceHistoryApi {
           // Silently return empty array - many cards don't have price files
           return [];
         }
-        
+
         // Check if response is actually JSON
         const contentType = response.headers.get('content-type');
         if (!contentType || !contentType.includes('application/json')) {
           // Silently fail - price file doesn't exist or is not valid JSON
           return [];
         }
-        
+
         const data = await response.json();
         const normalizedData = (data || []).filter((point: PriceHistoryPoint) => {
           const pointVariant = normalizeVariantKey(point.subTypeName);
@@ -635,11 +675,13 @@ export class PriceHistoryApi {
     try {
       const fetchHistory = async (variantToUse?: string) => {
         const params = new URLSearchParams({
-          cardId: card.id,
           cardName: card.name,
           setName: card.set.name,
           setId: card.set.id,
         });
+        if (card.id) {
+          params.set('cardId', card.id);
+        }
         if (variantToUse) {
           params.append('variant', variantToUse);
         }
@@ -714,13 +756,13 @@ export class PriceHistoryApi {
   private static extractCardNumber(cardId: string): string {
     const parts = cardId.split('-');
     const lastPart = parts.length > 1 ? parts[parts.length - 1] : '';
-    
+
     // Handle various formats like "6", "006", "TG01", etc.
     // Pad single digits with leading zeros to match common formats
     if (lastPart && /^\d+$/.test(lastPart)) {
       return lastPart.padStart(3, '0'); // Convert "6" to "006"
     }
-    
+
     return lastPart;
   }
-} 
+}

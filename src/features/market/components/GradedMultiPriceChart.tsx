@@ -68,7 +68,15 @@ const SERIES_COLORS: Record<string, string> = {
   'ace::10': '#d4a574',
 };
 
-const FALLBACK_COLORS = ['#6ee7b7', '#5bc4d4', '#f0b27a', '#86efac', '#9aa6b8', '#d4a574', '#7dd3fc'];
+const FALLBACK_COLORS = [
+  '#6ee7b7',
+  '#5bc4d4',
+  '#f0b27a',
+  '#86efac',
+  '#9aa6b8',
+  '#d4a574',
+  '#7dd3fc',
+];
 
 const PRIMARY_KEYS = ['psa::10', 'cgc::10', 'bgs::10'] as const;
 
@@ -348,7 +356,9 @@ export const GradedMultiPriceChart: React.FC<GradedMultiPriceChartProps> = ({
   const primaryMetas = PRIMARY_KEYS.map((key) => metas.find((m) => m.key === key)).filter(
     (m): m is ChartSeriesMeta => Boolean(m)
   );
-  const extraMetas = metas.filter((m) => !PRIMARY_KEYS.includes(m.key as (typeof PRIMARY_KEYS)[number]));
+  const extraMetas = metas.filter(
+    (m) => !PRIMARY_KEYS.includes(m.key as (typeof PRIMARY_KEYS)[number])
+  );
   const visibleExtras = extraMetas.filter((m) => showAllLegend || enabled.has(m.key));
   const hiddenCount = extraMetas.filter((m) => !showAllLegend && !enabled.has(m.key)).length;
   const legendMetas = [...primaryMetas, ...visibleExtras];

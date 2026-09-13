@@ -129,7 +129,7 @@ export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
     const wish = setWishlistService.getWishlistForSet(setId);
     setWishlistIds(wish);
     try {
-      const cardsRes = await setTrackerService.getSetCards(setId, wish);
+      const cardsRes = await setTrackerService.getSetCards(setId);
       const summaryRes = await setTrackerService.getSetSummary(setId, wish);
       setSetMeta(cardsRes.set);
       setCards(cardsRes.cards);
@@ -268,7 +268,8 @@ export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
             <h2 className="text-sm font-semibold text-white">Set value over time</h2>
           </div>
           <p className="py-6 text-center text-sm text-ink-muted">
-            Value history coming soon for One Piece sets. Live set totals above use current market prices.
+            Value history coming soon for One Piece sets. Live set totals above use current market
+            prices.
           </p>
         </section>
 

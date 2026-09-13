@@ -43,15 +43,66 @@ interface NavCommand {
 function getNavCommands(isOnePiece: boolean): NavCommand[] {
   return [
     { label: 'Home', to: '/', keywords: 'home start dashboard', icon: LayoutGrid, shortcut: 'G H' },
-    { label: 'Browse cards', to: '/browse', keywords: 'browse cards marketplace', icon: LayoutGrid, shortcut: 'G B' },
-    { label: 'Slab market', to: '/prices', keywords: 'prices slabs graded psa market', icon: Layers, shortcut: 'G P' },
-    { label: 'Investments', to: '/investments', keywords: 'investments opportunities movers buyouts similar slabs external factors invest', icon: Layers },
-    { label: 'eBay Deals', to: '/deals', keywords: 'deals ebay underpriced listings marketplace scanner bargains', icon: Percent },
-    { label: 'My vault', to: '/vault', keywords: 'vault collection portfolio', icon: BookOpen, shortcut: 'G V' },
-    { label: 'Wishlist', to: '/wishlist', keywords: 'wishlist want list buy targets', icon: Heart, shortcut: 'G W' },
-    { label: 'Fair trade', to: '/trade', keywords: 'trade swap fair calculator have want even', icon: ArrowLeftRight, shortcut: 'G T' },
-    { label: 'Sets', to: '/sets', keywords: 'sets eras binder completion', icon: Layers, shortcut: 'G S' },
-    { label: 'Binder planner', to: '/binders', keywords: 'binders plan planner page 3x3 organize collection', icon: Album },
+    {
+      label: 'Browse cards',
+      to: '/browse',
+      keywords: 'browse cards marketplace',
+      icon: LayoutGrid,
+      shortcut: 'G B',
+    },
+    {
+      label: 'Slab market',
+      to: '/prices',
+      keywords: 'prices slabs graded psa market',
+      icon: Layers,
+      shortcut: 'G P',
+    },
+    {
+      label: 'Investments',
+      to: '/investments',
+      keywords: 'investments opportunities movers buyouts similar slabs external factors invest',
+      icon: Layers,
+    },
+    {
+      label: 'eBay Deals',
+      to: '/deals',
+      keywords: 'deals ebay underpriced listings marketplace scanner bargains',
+      icon: Percent,
+    },
+    {
+      label: 'My vault',
+      to: '/vault',
+      keywords: 'vault collection portfolio',
+      icon: BookOpen,
+      shortcut: 'G V',
+    },
+    {
+      label: 'Wishlist',
+      to: '/wishlist',
+      keywords: 'wishlist want list buy targets',
+      icon: Heart,
+      shortcut: 'G W',
+    },
+    {
+      label: 'Fair trade',
+      to: '/trade',
+      keywords: 'trade swap fair calculator have want even',
+      icon: ArrowLeftRight,
+      shortcut: 'G T',
+    },
+    {
+      label: 'Sets',
+      to: '/sets',
+      keywords: 'sets eras binder completion',
+      icon: Layers,
+      shortcut: 'G S',
+    },
+    {
+      label: 'Binder planner',
+      to: '/binders',
+      keywords: 'binders plan planner page 3x3 organize collection',
+      icon: Album,
+    },
     isOnePiece
       ? {
           label: 'Open packs',
@@ -79,9 +130,24 @@ function getNavCommands(isOnePiece: boolean): NavCommand[] {
           keywords: 'packs open one piece /open simulator',
           icon: Package,
         },
-    { label: 'Scan a card', to: '/scanner', keywords: 'scanner camera identify photo', icon: Camera },
-    { label: 'AI grade a card', to: '/grading', keywords: 'grade grading tag centering corners condition', icon: Award },
-    { label: 'Settings', to: '/settings', keywords: 'settings account profile sign in login', icon: Settings },
+    {
+      label: 'Scan a card',
+      to: '/scanner',
+      keywords: 'scanner camera identify photo',
+      icon: Camera,
+    },
+    {
+      label: 'AI grade a card',
+      to: '/grading',
+      keywords: 'grade grading tag centering corners condition',
+      icon: Award,
+    },
+    {
+      label: 'Settings',
+      to: '/settings',
+      keywords: 'settings account profile sign in login',
+      icon: Settings,
+    },
   ];
 }
 
@@ -98,7 +164,10 @@ const GO_TARGETS: Record<string, string> = {
 const SHORTCUTS_HELP: { keys: string; action: string }[] = [
   { keys: '⌘K / Ctrl+K', action: 'Open command palette' },
   { keys: '/', action: 'Open palette (search)' },
-  { keys: 'G then B / P / V / W / S / T / H', action: 'Go to Browse / Prices / Vault / Wishlist / Sets / Trade / Home' },
+  {
+    keys: 'G then B / P / V / W / S / T / H',
+    action: 'Go to Browse / Prices / Vault / Wishlist / Sets / Trade / Home',
+  },
   { keys: '↑ ↓', action: 'Move selection' },
   { keys: 'Enter', action: 'Open selection' },
   { keys: 'Esc', action: 'Close palette or modal' },
@@ -363,7 +432,9 @@ export const CommandPalette: React.FC = () => {
   return (
     <div
       className="fixed inset-0 z-[90] flex items-start justify-center bg-black/50 p-4 pt-[12vh]"
-      onClick={close}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) close();
+      }}
       role="presentation"
     >
       <div
@@ -371,13 +442,6 @@ export const CommandPalette: React.FC = () => {
         aria-modal="true"
         aria-label={helpMode ? 'Keyboard shortcuts' : 'Command palette'}
         className="w-full max-w-xl animate-scale-in overflow-hidden rounded-lg border border-border-default bg-surface-overlay shadow-popover"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            e.stopPropagation();
-            close();
-          }
-        }}
       >
         {helpMode ? (
           <div className="p-5">
@@ -392,7 +456,11 @@ export const CommandPalette: React.FC = () => {
                 </li>
               ))}
             </ul>
-            <button type="button" onClick={close} className="btn-secondary mt-5 w-full justify-center">
+            <button
+              type="button"
+              onClick={close}
+              className="btn-secondary mt-5 w-full justify-center"
+            >
               Close
             </button>
           </div>
@@ -448,7 +516,9 @@ export const CommandPalette: React.FC = () => {
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">{item.label}</span>
                       {item.sublabel && (
-                        <span className="block truncate text-xs text-ink-muted">{item.sublabel}</span>
+                        <span className="block truncate text-xs text-ink-muted">
+                          {item.sublabel}
+                        </span>
                       )}
                     </span>
                     {item.shortcut && (
