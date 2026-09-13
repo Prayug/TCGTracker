@@ -718,11 +718,12 @@ router.get('/top-movers', (req: Request, res: Response) => {
 router.get('/top-slab-movers', async (req: Request, res: Response) => {
   const requestedDays = parseInt(req.query.days as string, 10) || 7;
   const requestedLimit = parseInt(req.query.limit as string, 10) || 20;
+  const graderRaw = String(req.query.grader || 'PSA');
   const days = clampNumber(requestedDays, 1, 365);
   const limit = Math.min(Math.max(requestedLimit, 1), 50);
   try {
     const { getSlabTopMovers } = await import('../services/slabTopMovers');
-    const payload = await getSlabTopMovers(days, limit);
+    const payload = await getSlabTopMovers(days, limit, graderRaw);
     res.setHeader('Cache-Control', `public, max-age=${Math.floor(10 * 60)}`);
     res.json(payload);
   } catch (error) {

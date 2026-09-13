@@ -114,10 +114,11 @@ export class PriceHistoryApi {
   private static topMoversStorageKey(
     days: number,
     limit: number,
-    kind: 'raw' | 'slab' = 'raw'
+    kind: 'raw' | 'slab' = 'raw',
+    grader: string = 'PSA'
   ): string {
     return kind === 'slab'
-      ? `tcgtracker:top-slab-movers:v2:${days}:${limit}`
+      ? `tcgtracker:top-slab-movers:v3:${grader}:${days}:${limit}`
       : `tcgtracker:top-movers:v3:${days}:${limit}`;
   }
 
@@ -204,13 +205,17 @@ export class PriceHistoryApi {
 
   private static slabMoversMemory = new Map<string, TopMoversCacheEntry>();
 
-  private static slabMoversCacheKey(days: number, limit: number): string {
-    return `slab:${days}:${limit}`;
+  private static slabMoversCacheKey(days: number, limit: number, grader: string = 'PSA'): string {
+    return `slab:${grader}:${days}:${limit}`;
   }
 
-  private static readSlabMoversStorage(days: number, limit: number): TopMoversCacheEntry | null {
+  private static readSlabMoversStorage(
+    days: number,
+    limit: number,
+    grader: string = 'PSA'
+  ): TopMoversCacheEntry | null {
     try {
-      const raw = localStorage.getItem(this.topMoversStorageKey(days, limit, 'slab'));
+      const raw = localStorage.getItem(this.topMoversStorageKey(days, limit, 'slab', grader));
       if (!raw) return null;
       const parsed = JSON.parse(raw) as TopMoversCacheEntry;
       if (!parsed?.data || typeof parsed.expiresAt !== 'number') return null;
@@ -220,14 +225,22 @@ export class PriceHistoryApi {
     }
   }
 
-  private static writeSlabMoversCache(days: number, limit: number, data: TopMoversResponse): void {
+  private static writeSlabMoversCache(
+    days: number,
+    limit: number,
+    data: TopMoversResponse,
+    grader: string = 'PSA'
+  ): void {
     const entry: TopMoversCacheEntry = {
       expiresAt: Date.now() + TOP_MOVERS_TTL_MS,
       data,
     };
-    this.slabMoversMemory.set(this.slabMoversCacheKey(days, limit), entry);
+    this.slabMoversMemory.set(this.slabMoversCacheKey(days, limit, grader), entry);
     try {
-      localStorage.setItem(this.topMoversStorageKey(days, limit, 'slab'), JSON.stringify(entry));
+      localStorage.setItem(
+        this.topMoversStorageKey(days, limit, 'slab', grader),
+        JSON.stringify(entry)
+      );
     } catch {
       // Quota / private mode
     }
@@ -248,9 +261,10 @@ export class PriceHistoryApi {
   static async getTopSlabMovers(
     days: number = 7,
     limit: number = 20,
-    options: { force?: boolean } = {}
+    options: { force?: boolean; grader?: 'PSA' | 'BGS' | string } = {}
   ): Promise<TopMoversResponse> {
-    const key = this.slabMoversCacheKey(days, limit);
+    const grader = (options.grader || 'PSA').toUpperCase();
+    const key = this.slabMoversCacheKey(days, limit, grader);
     const mem = this.slabMoversMemory.get(key);
     if (
       !options.force &&
@@ -261,7 +275,7 @@ export class PriceHistoryApi {
       return mem.data;
     }
 
-    const stored = this.readSlabMoversStorage(days, limit);
+    const stored = this.readSlabMoversStorage(days, limit, grader);
     if (
       !options.force &&
       stored &&
@@ -273,15 +287,17 @@ export class PriceHistoryApi {
     }
 
     try {
-      const response = await fetch(`${this.baseUrl}/top-slab-movers?days=${days}&limit=${limit}`);
+      const response = await fetch(
+        `${this.baseUrl}/top-slab-movers?days=${days}&limit=${limit}&grader=${encodeURIComponent(grader)}`
+      );
       if (!response.ok) {
-        return mem?.data ?? stored?.data ?? { date: null, days, gainers: [], losers: [] };
+        return mem?.data ?? stored?.data ?? { date: null, days, gainers: [], losers: [], grader };
       }
       const data = (await response.json()) as TopMoversResponse;
-      this.writeSlabMoversCache(days, limit, data);
+      this.writeSlabMoversCache(days, limit, data, grader);
       return data;
     } catch {
-      return mem?.data ?? stored?.data ?? { date: null, days, gainers: [], losers: [] };
+      return mem?.data ?? stored?.data ?? { date: null, days, gainers: [], losers: [], grader };
     }
   }
 

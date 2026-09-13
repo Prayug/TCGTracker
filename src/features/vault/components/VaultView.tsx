@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { VaultCard as VaultCardType } from '../../../types/pokemon';
 import { vaultService } from '../../../services/vaultService';
 import { useGame } from '../../../contexts/GameContext';
@@ -25,12 +25,13 @@ import { cn } from '@/lib/utils';
 import { holdingMarketValue, holdingProfit, isAssumedCost } from '../../../utils/vaultCost';
 import { formatCurrency } from '../../../utils/cardDisplay';
 import { ViewModeToggle } from '../../../components/common/ViewModeToggle';
+import { BindersIndex } from '../../binders/components/BindersIndex';
 
 interface VaultViewProps {
   onOpenSet?: (setId: string) => void;
 }
 
-type VaultPanel = 'holdings' | 'performance' | 'sets' | 'activity';
+type VaultPanel = 'holdings' | 'performance' | 'sets' | 'activity' | 'binders';
 type SortKey = 'value' | 'pl' | 'name' | 'date' | 'qty';
 type ViewMode = 'table' | 'grid';
 
@@ -40,7 +41,19 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
   const [vaultCards, setVaultCards] = useState<VaultCardType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [panel, setPanel] = useState<VaultPanel>('holdings');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const initialPanel: VaultPanel =
+    tabParam === 'binders'
+      ? 'binders'
+      : tabParam === 'sets'
+        ? 'sets'
+        : tabParam === 'performance'
+          ? 'performance'
+          : tabParam === 'activity'
+            ? 'activity'
+            : 'holdings';
+  const [panel, setPanel] = useState<VaultPanel>(initialPanel);
   const [overflowOpen, setOverflowOpen] = useState(false);
   const overflowRef = useRef<HTMLDivElement>(null);
 
@@ -335,6 +348,7 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
             {(
               [
                 { id: 'holdings' as const, label: 'Holdings' },
+                { id: 'binders' as const, label: 'Binders' },
                 { id: 'performance' as const, label: 'Performance' },
                 ...(isPokemon ? [{ id: 'sets' as const, label: 'Sets' }] : []),
                 { id: 'activity' as const, label: 'Activity' },
@@ -343,7 +357,18 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setPanel(tab.id)}
+                onClick={() => {
+                  setPanel(tab.id);
+                  setSearchParams(
+                    (prev) => {
+                      const next = new URLSearchParams(prev);
+                      if (tab.id === 'holdings') next.delete('tab');
+                      else next.set('tab', tab.id);
+                      return next;
+                    },
+                    { replace: true }
+                  );
+                }}
                 className={cn(
                   'cursor-pointer border-b-2 px-0.5 pb-2 text-sm font-medium transition-colors',
                   panel === tab.id
@@ -537,6 +562,12 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
                   </div>
                 </div>
               )}
+            </div>
+          ) : null}
+
+          {panel === 'binders' ? (
+            <div className="pt-2">
+              <BindersIndex />
             </div>
           ) : null}
 

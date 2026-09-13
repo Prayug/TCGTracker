@@ -47,22 +47,22 @@ const NAV_GROUPS: {
     items: [
       { to: '/scanner', label: 'Scan', icon: Camera },
       { to: '/grading', label: 'Grade', icon: Award },
-      { to: '/packs', label: 'Open Packs', icon: Boxes },
+      { to: '/open', label: 'Open Packs', icon: Boxes },
     ],
   },
 ];
 
-const GAME_OPTIONS: { value: GameType; label: string; icon: React.ElementType }[] = [
-  { value: 'pokemon', label: 'Pokemon', icon: LayoutGrid },
-  { value: 'onepiece', label: 'One Piece', icon: Swords },
+const GAME_OPTIONS: { value: GameType; label: string; short: string; icon: React.ElementType }[] = [
+  { value: 'pokemon', label: 'Pokémon', short: 'PKM', icon: LayoutGrid },
+  { value: 'onepiece', label: 'One Piece', short: 'OP', icon: Swords },
 ];
 
 export const Sidebar: React.FC = () => {
   const { game, setGame } = useGame();
 
   return (
-    <aside className="hidden w-56 shrink-0 border-r border-border-subtle bg-sidebar/95 backdrop-blur-xl md:flex md:flex-col">
-      <div className="flex h-14 items-center border-b border-border-subtle px-5">
+    <aside className="hidden w-[15.5rem] shrink-0 border-r border-border-subtle bg-sidebar/95 backdrop-blur-xl md:flex md:flex-col">
+      <div className="flex h-14 items-center border-b border-border-subtle px-4">
         <NavLink to="/" className="min-w-0">
           <span className="font-display text-lg font-semibold tracking-[-0.02em] text-ink-primary">
             TCG Tracker
@@ -70,27 +70,35 @@ export const Sidebar: React.FC = () => {
         </NavLink>
       </div>
 
-      <div className="px-3 pt-4 pb-2">
-        <p className="mb-1.5 px-1 text-[10px] font-medium uppercase tracking-[0.14em] text-ink-secondary">
+      <div className="border-b border-border-subtle px-3 py-3">
+        <p className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-secondary">
           Game
         </p>
-        <div className="flex rounded-md border border-border-subtle bg-surface-inset/60 p-0.5">
-          {GAME_OPTIONS.map(({ value, label, icon: Icon }) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setGame(value)}
-              className={cn(
-                'flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-[4px] px-2 py-1.5 text-xs font-medium transition-colors duration-200',
-                game === value
-                  ? 'bg-accent/15 text-accent'
-                  : 'text-ink-secondary hover:text-ink-primary'
-              )}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {label}
-            </button>
-          ))}
+        <div
+          role="group"
+          aria-label="Active game"
+          className="grid grid-cols-2 gap-1.5 rounded-lg border border-border-strong bg-surface-inset/80 p-1.5"
+        >
+          {GAME_OPTIONS.map(({ value, label, icon: Icon }) => {
+            const active = game === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setGame(value)}
+                aria-pressed={active}
+                className={cn(
+                  'flex cursor-pointer flex-col items-center gap-1 rounded-md px-2 py-2.5 text-center transition-colors duration-200',
+                  active
+                    ? 'bg-accent/20 text-accent ring-1 ring-accent/35'
+                    : 'text-ink-secondary hover:bg-surface-hover hover:text-ink-primary'
+                )}
+              >
+                <Icon className="h-4 w-4" aria-hidden />
+                <span className="text-[11px] font-semibold leading-tight">{label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -98,7 +106,7 @@ export const Sidebar: React.FC = () => {
         {NAV_GROUPS.map((group, groupIndex) => (
           <div key={group.label ?? `group-${groupIndex}`} className={cn(groupIndex > 0 && 'mt-5')}>
             {group.label ? (
-              <p className="mb-1.5 px-2.5 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-ink-secondary">
+              <p className="mb-1.5 px-2.5 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-secondary">
                 {group.label}
               </p>
             ) : null}

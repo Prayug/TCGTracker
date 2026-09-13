@@ -46,9 +46,9 @@ export function PageShell({
         }}
         className={cn(
           'mx-auto w-full',
-          !flush && 'px-4 py-6 sm:px-6 sm:py-8 lg:px-8',
-          !flush && !fluid && (wide ? 'max-w-7xl' : 'max-w-6xl'),
-          fluid && 'max-w-none',
+          !flush && 'px-8 py-8 lg:px-10',
+          !flush && !fluid && (wide ? 'max-w-[1400px]' : 'max-w-[1400px]'),
+          fluid && 'max-w-[1400px]',
           'space-y-8',
           className
         )}

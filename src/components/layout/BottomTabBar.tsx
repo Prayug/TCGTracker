@@ -12,7 +12,6 @@ import {
   LayoutGrid,
   LineChart,
   MoreHorizontal,
-  Package,
   Percent,
   Settings,
   Swords,
@@ -32,17 +31,15 @@ const SECONDARY_TABS: { to: string; label: string; icon: React.ElementType }[] =
 
 const MORE_ITEMS: { to: string; label: string; icon: React.ElementType }[] = [
   { to: '/open', label: 'Open Packs', icon: Boxes },
-  { to: '/sets', label: 'Sets', icon: Layers },
+  { to: '/browse?view=sets', label: 'Sets', icon: Layers },
   { to: '/wishlist', label: 'Wishlist', icon: Heart },
   { to: '/trade', label: 'Trade', icon: ArrowLeftRight },
-  { to: '/packs', label: 'Packs', icon: Package },
-  { to: '/grading', label: 'Grade', icon: Award },
-  { to: '/prices', label: 'Slabs', icon: Layers },
-  { to: '/market-insights', label: 'Insights', icon: TrendingUp },
-  { to: '/investments', label: 'Investments', icon: LineChart },
+  { to: '/prices', label: 'Market', icon: TrendingUp },
   { to: '/deals', label: 'Deals', icon: Percent },
-  { to: '/binders', label: 'Binders', icon: BookOpen },
+  { to: '/market-insights', label: 'Insights', icon: LineChart },
+  { to: '/grading', label: 'Grade', icon: Award },
   { to: '/scanner', label: 'Scanner', icon: Camera },
+  { to: '/vault?tab=binders', label: 'Binders', icon: BookOpen },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 

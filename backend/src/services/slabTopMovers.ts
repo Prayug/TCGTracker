@@ -29,14 +29,14 @@ export interface SlabMoverEntry {
   tcgplayerProductId: string | null;
   tcgplayerPrices: string | null;
   productId: number;
-  grader: 'PSA';
+  grader: 'PSA' | 'BGS';
   grade: '10';
 }
 
 export interface SlabTopMoversResult {
   date: string | null;
   days: number;
-  grader: 'PSA';
+  grader: 'PSA' | 'BGS';
   grade: '10';
   gainers: SlabMoverEntry[];
   losers: SlabMoverEntry[];
@@ -124,8 +124,10 @@ export function seriesHasSingleProduct(
   return ids.size <= 1;
 }
 
-export async function getSlabTopMovers(days: number, limit: number): Promise<SlabTopMoversResult> {
-  const cacheKey = `v2:${days}:${limit}`;
+export async function getSlabTopMovers(days: number, limit: number, graderInput: string = 'PSA'): Promise<SlabTopMoversResult> {
+  const graderNorm = graderInput.toLowerCase() === 'bgs' ? 'bgs' : 'psa';
+  const graderLabel = (graderNorm === 'bgs' ? 'BGS' : 'PSA') as 'PSA' | 'BGS';
+  const cacheKey = `v3:${graderNorm}:${days}:${limit}`;
   const cached = cache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.payload;
@@ -134,7 +136,7 @@ export async function getSlabTopMovers(days: number, limit: number): Promise<Sla
   const empty = (date: string | null): SlabTopMoversResult => ({
     date,
     days,
-    grader: 'PSA',
+    grader: graderLabel,
     grade: '10',
     gainers: [],
     losers: [],
@@ -142,8 +144,9 @@ export async function getSlabTopMovers(days: number, limit: number): Promise<Sla
 
   const latestRow = await dbGet<{ maxDate: string }>(
     `SELECT date AS maxDate FROM graded_price_history
-     WHERE grader = 'psa' AND grade = '10' AND price > 0
-     ORDER BY date DESC LIMIT 1`
+     WHERE grader = ? AND grade = '10' AND price > 0
+     ORDER BY date DESC LIMIT 1`,
+    [graderNorm]
   );
   const latestDate = latestRow?.maxDate;
   if (!latestDate) {
@@ -163,21 +166,21 @@ export async function getSlabTopMovers(days: number, limit: number): Promise<Sla
       `SELECT cardId, COALESCE(variantKey, 'normal') AS variantKey, price, productId
        FROM graded_price_history
        WHERE date = ?
-         AND grader = 'psa'
+         AND grader = ?
          AND grade = '10'
          AND price >= ?
          AND COALESCE(verified, 0) = 1`,
-      [latestDate, MIN_PRICE]
+      [latestDate, graderNorm, MIN_PRICE]
     ),
     dbGet<{ prevDate: string }>(
       `SELECT MAX(date) AS prevDate
        FROM graded_price_history
-       WHERE grader = 'psa'
+       WHERE grader = ?
          AND grade = '10'
          AND price >= ?
          AND date <= date(?, ?)
          AND date >= date(?, ?)`,
-      [MIN_PRICE, latestDate, `-${days} days`, latestDate, `-${baselineSlackDays} days`]
+      [graderNorm, MIN_PRICE, latestDate, `-${days} days`, latestDate, `-${baselineSlackDays} days`]
     ),
   ]);
 
@@ -198,10 +201,10 @@ export async function getSlabTopMovers(days: number, limit: number): Promise<Sla
     `SELECT cardId, COALESCE(variantKey, 'normal') AS variantKey, date AS prevDate, price AS prevPrice, productId
      FROM graded_price_history
      WHERE date = ?
-       AND grader = 'psa'
+       AND grader = ?
        AND grade = '10'
        AND price >= ?`,
-    [prevDate, MIN_PRICE]
+    [prevDate, graderNorm, MIN_PRICE]
   );
 
   const prevByCard = new Map<string, { price: number; productId: string | null }>();
@@ -272,12 +275,12 @@ export async function getSlabTopMovers(days: number, limit: number): Promise<Sla
     `SELECT cardId, COALESCE(variantKey, 'normal') AS variantKey, date, price, productId
      FROM graded_price_history
      WHERE cardId IN (${placeholders})
-       AND grader = 'psa'
+       AND grader = ?
        AND grade = '10'
        AND date >= ?
        AND date <= ?
        AND price >= ?`,
-    [...ids, earliestPrev, latestDate, MIN_PRICE]
+    [...ids, graderNorm, earliestPrev, latestDate, MIN_PRICE]
   );
 
   const series = new Map<string, { date: string; price: number; productId: string | null }[]>();
@@ -303,12 +306,15 @@ export async function getSlabTopMovers(days: number, limit: number): Promise<Sla
     .sort((a, b) => a.changePercent - b.changePercent)
     .slice(0, limit);
 
-  const [gainers, losers] = await Promise.all([enrichMovers(gainerRank), enrichMovers(loserRank)]);
+  const [gainers, losers] = await Promise.all([
+    enrichMovers(gainerRank, graderNorm, graderLabel),
+    enrichMovers(loserRank, graderNorm, graderLabel),
+  ]);
 
   const payload: SlabTopMoversResult = {
     date: latestDate,
     days,
-    grader: 'PSA',
+    grader: graderLabel,
     grade: '10',
     gainers,
     losers,
@@ -325,7 +331,9 @@ async function enrichMovers(
     previousPrice: number;
     changePercent: number;
     productId?: string | null;
-  }>
+  }>,
+  graderNorm: string = 'psa',
+  graderLabel: 'PSA' | 'BGS' = 'PSA'
 ): Promise<SlabMoverEntry[]> {
   if (ranked.length === 0) return [];
   const ids = [...new Set(ranked.map((r) => r.cardId))];
@@ -348,9 +356,9 @@ async function enrichMovers(
        FROM graded_prices gp
        LEFT JOIN catalog_cards cc ON cc.cardId = gp.cardId
        WHERE gp.cardId IN (${placeholders})
-         AND gp.grader = 'psa'
+         AND gp.grader = ?
          AND gp.grade = '10'`,
-      ids
+      [...ids, graderNorm]
     ),
     dbAll<{ cardId: string; imageSmall: string | null; imageLarge: string | null }>(
       `SELECT cardId, MAX(imageSmall) AS imageSmall, MAX(imageLarge) AS imageLarge
@@ -392,7 +400,7 @@ async function enrichMovers(
       tcgplayerProductId: cat?.tcgplayerProductId ?? null,
       tcgplayerPrices: cat?.tcgplayerPrices ?? null,
       productId: Number.isFinite(productIdNum) ? productIdNum : 0,
-      grader: 'PSA',
+      grader: graderLabel,
       grade: '10',
     };
   });
