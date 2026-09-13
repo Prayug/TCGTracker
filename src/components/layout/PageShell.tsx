@@ -74,7 +74,7 @@ export function PageHeader({ title, description, actions, eyebrow, className }: 
     >
       <div className="min-w-0 space-y-2">
         {eyebrow ? (
-          <p className="inline-flex items-center gap-2 font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-ink-muted">
+          <p className="inline-flex items-center gap-2 font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-ink-secondary">
             {eyebrow}
           </p>
         ) : null}
@@ -101,7 +101,7 @@ interface StatBlockProps {
 export function StatBlock({ label, value, hint, trend, className }: StatBlockProps) {
   return (
     <div className={cn('card-chrome space-y-2 rounded-md', className)}>
-      <p className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-ink-muted">
+      <p className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-ink-secondary">
         {label}
       </p>
       <p
@@ -114,7 +114,7 @@ export function StatBlock({ label, value, hint, trend, className }: StatBlockPro
       >
         {value}
       </p>
-      {hint ? <p className="text-xs text-ink-muted">{hint}</p> : null}
+      {hint ? <p className="text-xs text-ink-secondary">{hint}</p> : null}
     </div>
   );
 }

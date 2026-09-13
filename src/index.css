@@ -22,8 +22,8 @@
     --surface-glass-blur: 18px;
 
     --ink-primary: #f1f1ef;
-    --ink-secondary: #b4b4b0;
-    --ink-muted: #7a7a76;
+    --ink-secondary: #a3a3a0;
+    --ink-muted: #666664;
 
     /* Legacy neon aliases → gallery metal / P&L only */
     --neon-gold: #c4b49a;
@@ -116,11 +116,12 @@
     min-width: 0;
   }
 
+  /* Serif (font-display) is opt-in: big numbers + major section titles only */
   h1,
   h2,
   h3,
   h4 {
-    @apply font-display;
+    @apply font-sans;
   }
 
   ::selection {

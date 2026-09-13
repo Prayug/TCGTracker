@@ -24,6 +24,7 @@ import { formatCurrency, formatPercent, proxyImageUrl } from '@/utils/cardDispla
 import { getCardPrice } from '@/utils/cardPrice';
 import { cn } from '@/lib/utils';
 import { HomeHero } from '@/components/landing/HomeHero';
+import { OnboardingProgressCard } from '@/components/common/OnboardingChecklist';
 
 const PERIODS: { key: PerformancePeriod; label: string }[] = [
   { key: '7d', label: '1W' },
@@ -143,6 +144,8 @@ export function HomeDashboard() {
             </Link>
           </div>
         </div>
+
+        {!empty ? <OnboardingProgressCard className="mt-6" /> : null}
 
         <section className="mt-8 rounded-xl border border-border-subtle bg-surface-raised/60 p-5 sm:p-6">
           <div className="flex flex-wrap items-end justify-between gap-3">

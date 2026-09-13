@@ -33,7 +33,7 @@ export const Header: React.FC = () => {
           to="/"
           className="flex shrink-0 items-center transition-opacity duration-200 md:hidden"
         >
-          <span className="font-display text-lg font-semibold tracking-[-0.02em] text-ink-primary">
+          <span className="text-lg font-semibold tracking-[-0.02em] text-ink-primary">
             TCG Tracker
           </span>
         </Link>
@@ -44,7 +44,7 @@ export const Header: React.FC = () => {
           <button
             type="button"
             onClick={openCommandPalette}
-            className="glass hidden h-10 w-60 cursor-pointer items-center gap-2 rounded-md border border-border-default px-4 text-sm text-ink-muted transition-all duration-200 hover:border-foil/40 hover:text-ink-secondary focus-visible:border-accent lg:flex"
+            className="glass hidden h-10 w-60 cursor-pointer items-center gap-2 rounded-md border border-border-default px-4 text-sm text-ink-secondary transition-all duration-200 hover:border-foil/40 hover:text-ink-primary focus-visible:border-accent lg:flex"
             aria-label="Open command palette"
           >
             <Search className="h-3.5 w-3.5 text-foil" />

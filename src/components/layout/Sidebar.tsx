@@ -64,7 +64,7 @@ export const Sidebar: React.FC = () => {
     <aside className="hidden w-[15.5rem] shrink-0 border-r border-border-subtle bg-sidebar/95 backdrop-blur-xl md:flex md:flex-col">
       <div className="flex h-14 items-center border-b border-border-subtle px-4">
         <NavLink to="/" className="min-w-0">
-          <span className="font-display text-lg font-semibold tracking-[-0.02em] text-ink-primary">
+          <span className="text-lg font-semibold tracking-[-0.02em] text-ink-primary">
             TCG Tracker
           </span>
         </NavLink>

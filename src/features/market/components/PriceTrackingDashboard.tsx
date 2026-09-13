@@ -306,7 +306,7 @@ export const PriceTrackingDashboard: React.FC = () => {
                         <h3 className="mb-1 text-sm font-semibold text-ink-primary">
                           Graded vs raw differential
                         </h3>
-                        <p className="mb-3 text-xs text-ink-muted">
+                        <p className="mb-3 text-xs text-ink-secondary">
                           From {gradedVaultCards.length} AI-graded vault card
                           {gradedVaultCards.length === 1 ? '' : 's'}
                         </p>
