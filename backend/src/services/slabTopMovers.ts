@@ -124,7 +124,11 @@ export function seriesHasSingleProduct(
   return ids.size <= 1;
 }
 
-export async function getSlabTopMovers(days: number, limit: number, graderInput: string = 'PSA'): Promise<SlabTopMoversResult> {
+export async function getSlabTopMovers(
+  days: number,
+  limit: number,
+  graderInput: string = 'PSA'
+): Promise<SlabTopMoversResult> {
   const graderNorm = graderInput.toLowerCase() === 'bgs' ? 'bgs' : 'psa';
   const graderLabel = (graderNorm === 'bgs' ? 'BGS' : 'PSA') as 'PSA' | 'BGS';
   const cacheKey = `v3:${graderNorm}:${days}:${limit}`;
