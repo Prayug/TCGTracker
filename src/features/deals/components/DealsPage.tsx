@@ -98,9 +98,8 @@ export function DealsPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <PageHeader
-        eyebrow="Market"
-        title="eBay Deals"
-        description="Compares live eBay listings for this game to TCGTracker market value. If eBay asks us to wait, leave this page open. Refresh during a cooldown restarts the wait."
+        title="eBay deals"
+        description="Live listings for this game compared to TCGTracker market value. If eBay rate-limits, leave this page open."
         actions={
           <button
             type="button"

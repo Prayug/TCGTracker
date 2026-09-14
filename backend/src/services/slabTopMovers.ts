@@ -5,11 +5,15 @@
 
 import { getDb } from '../db/database';
 import {
+  calendarDaysBetween,
   cliffPctForPeriod,
   isGradualMove,
   maxEndpointChangePctForPeriod,
   minPointsForPeriod,
+  minSpanDaysForPeriod,
 } from './topMoversQuality';
+
+export { calendarDaysBetween, minSpanDaysForPeriod } from './topMoversQuality';
 
 export interface SlabMoverEntry {
   productName: string;
@@ -87,20 +91,6 @@ const dbAll = <T>(sql: string, params: unknown[] = []): Promise<T[]> =>
       else resolve((rows || []) as T[]);
     });
   });
-
-export function calendarDaysBetween(fromIso: string, toIso: string): number {
-  const a = Date.parse(`${fromIso.slice(0, 10)}T00:00:00Z`);
-  const b = Date.parse(`${toIso.slice(0, 10)}T00:00:00Z`);
-  if (!Number.isFinite(a) || !Number.isFinite(b)) return 0;
-  return Math.round((b - a) / 86_400_000);
-}
-
-/** Require a real lookback so 30d is not just an 8-day window relabeled. */
-export function minSpanDaysForPeriod(days: number): number {
-  if (days <= 1) return 1;
-  if (days <= 7) return 3;
-  return Math.max(14, Math.floor(days * 0.5));
-}
 
 export function seriesKey(cardId: string, variantKey: string): string {
   return `${cardId}::${variantKey || 'normal'}`;

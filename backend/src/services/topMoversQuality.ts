@@ -21,6 +21,15 @@ export const SOURCE_PRIORITY: MarketSource[] = [
   'tcgcsv',
 ];
 
+/**
+ * Feeds used to rank raw top movers, in preference order.
+ * Both endpoints of a window must come from the SAME feed — never TCGdex-today
+ * vs catalog-last-month (that is the Rayquaza -99% bug). TCGdex is last-resort
+ * so 24h still has quotes when TCGPlayer catalog/csv did not move.
+ */
+export const MOVER_FEED_SOURCES = ['catalog_fallback', 'tcgcsv', 'tcgdex'] as const;
+export type MoverFeedSource = (typeof MOVER_FEED_SOURCES)[number];
+
 export interface PricePointLite {
   date: string;
   price: number;
@@ -133,4 +142,40 @@ export function maxEndpointChangePctForPeriod(days: number): number {
   const steps = Math.min(Math.max(days, minPointsForPeriod(days) - 1), 10);
   const compounded = (Math.pow(1 + cliff / 100, steps) - 1) * 100;
   return Math.min(compounded, 400);
+}
+
+export function calendarDaysBetween(fromIso: string, toIso: string): number {
+  const a = Date.parse(`${fromIso.slice(0, 10)}T00:00:00Z`);
+  const b = Date.parse(`${toIso.slice(0, 10)}T00:00:00Z`);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return 0;
+  return Math.round((b - a) / 86_400_000);
+}
+
+/** Require a real lookback so 30d is not just an 8-day window relabeled. */
+export function minSpanDaysForPeriod(days: number): number {
+  if (days <= 1) return 1;
+  if (days <= 7) return 3;
+  return Math.max(14, Math.floor(days * 0.5));
+}
+
+/** First feed that has a quote at both ends of the window. */
+export function pickLockedFeedSource(
+  currentSources: Iterable<string>,
+  prevSources: Iterable<string>
+): MoverFeedSource | null {
+  const current = new Set(currentSources);
+  const prev = new Set(prevSources);
+  for (const source of MOVER_FEED_SOURCES) {
+    if (current.has(source) && prev.has(source)) return source;
+  }
+  return null;
+}
+
+/** Cardmarket EUR finishes are a different series, not TCGPlayer USD. */
+export function isUsdMoverFinish(subTypeName?: string | null, uniqueIdentifier?: string | null): boolean {
+  const subtype = (subTypeName || '').toLowerCase();
+  if (subtype.includes('cardmarket')) return false;
+  const uid = (uniqueIdentifier || '').toLowerCase();
+  if (uid.endsWith('|cardmarket') || uid.endsWith('|cardmarketholo')) return false;
+  return true;
 }

@@ -116,6 +116,20 @@ export function repairStalePlateauCliffs(
   });
 }
 
+const CHART_SOURCE_RANK: Record<string, number> = {
+  catalog_fallback: 0,
+  tcgcsv: 1,
+  tcgdex: 2,
+  tcgdex_ja: 3,
+  cardmarket: 4,
+  pricecharting_raw: 5,
+};
+
+export function chartSourceRank(source?: string): number {
+  if (!source) return 8;
+  return CHART_SOURCE_RANK[source] ?? 9;
+}
+
 /**
  * Build chart series from raw market quotes.
  * - Only real quotes get dots and "market quote" tooltips.

@@ -31,7 +31,7 @@ const SECONDARY_TABS: { to: string; label: string; icon: React.ElementType }[] =
 ];
 
 const MORE_ITEMS: { to: string; label: string; icon: React.ElementType }[] = [
-  { to: '/open', label: 'Open Packs', icon: Boxes },
+  { to: '/open', label: 'OP Boosters', icon: Boxes },
   { to: '/sets', label: 'Sets', icon: Layers },
   { to: '/wishlist', label: 'Wishlist', icon: Heart },
   { to: '/trade', label: 'Trade', icon: ArrowLeftRight },

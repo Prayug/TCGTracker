@@ -28,8 +28,8 @@ const PULL_THEMES: Record<PullVisualKind, PullTheme> = {
   raw: {
     kind: 'raw',
     label: 'Raw',
-    hitLabel: 'CARD PULLED',
-    resultEyebrow: 'PACK PULL',
+    hitLabel: 'Pulled',
+    resultEyebrow: 'Pull',
     accent: 'text-foil',
     badge: 'border-foil/40 bg-foil/10 text-foil',
     glow: 'bg-[radial-gradient(circle_at_50%_42%,rgba(91,196,212,0.22),transparent_62%)]',
@@ -41,8 +41,8 @@ const PULL_THEMES: Record<PullVisualKind, PullTheme> = {
   psa: {
     kind: 'psa',
     label: 'PSA 10',
-    hitLabel: 'PSA 10 HIT',
-    resultEyebrow: 'PSA 10 PULL',
+    hitLabel: 'PSA 10',
+    resultEyebrow: 'PSA 10',
     accent: 'text-amber-300',
     badge: 'border-amber-400/45 bg-amber-500/12 text-amber-300',
     glow: 'bg-[radial-gradient(circle_at_50%_42%,rgba(251,191,36,0.22),transparent_62%)]',
@@ -54,8 +54,8 @@ const PULL_THEMES: Record<PullVisualKind, PullTheme> = {
   cgc: {
     kind: 'cgc',
     label: 'CGC 10',
-    hitLabel: 'CGC 10 HIT',
-    resultEyebrow: 'CGC 10 PULL',
+    hitLabel: 'CGC 10',
+    resultEyebrow: 'CGC 10',
     accent: 'text-cyan-300',
     badge: 'border-cyan-400/45 bg-cyan-500/12 text-cyan-300',
     glow: 'bg-[radial-gradient(circle_at_50%_42%,rgba(34,211,238,0.22),transparent_62%)]',
@@ -67,8 +67,8 @@ const PULL_THEMES: Record<PullVisualKind, PullTheme> = {
   bgs: {
     kind: 'bgs',
     label: 'BGS 10',
-    hitLabel: 'BGS 10 HIT',
-    resultEyebrow: 'BGS 10 PULL',
+    hitLabel: 'BGS 10',
+    resultEyebrow: 'BGS 10',
     accent: 'text-[#d4b483]',
     badge: 'border-[#d4b483]/45 bg-[#d4b483]/12 text-[#e0c49a]',
     glow: 'bg-[radial-gradient(circle_at_50%_42%,rgba(212,180,131,0.24),transparent_62%)]',
@@ -119,7 +119,9 @@ export function packTierTheme(tier: PackTier | string): PackTierTheme {
   }
 }
 
-export function pullVisualKind(pull: Pick<PackPull, 'pullKind' | 'grader' | 'grade'>): PullVisualKind {
+export function pullVisualKind(
+  pull: Pick<PackPull, 'pullKind' | 'grader' | 'grade'>
+): PullVisualKind {
   if (pull.pullKind !== 'slab') return 'raw';
   const grader = (pull.grader || 'PSA').toUpperCase();
   if (grader === 'CGC') return 'cgc';
@@ -136,8 +138,8 @@ export function getPullTheme(pull: Pick<PackPull, 'pullKind' | 'grader' | 'grade
   return {
     ...theme,
     label: `${grader} ${grade}`,
-    hitLabel: `${grader} ${grade} HIT`,
-    resultEyebrow: `${grader} ${grade} PULL`,
+    hitLabel: `${grader} ${grade}`,
+    resultEyebrow: `${grader} ${grade}`,
   };
 }
 

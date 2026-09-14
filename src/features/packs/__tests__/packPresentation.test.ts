@@ -29,7 +29,15 @@ describe('packIdentityStats', () => {
 
 describe('getPullTheme', () => {
   const base = {
-    pack: { id: 'p', name: 'Gold Pack', tier: 'gold', price: 500, averageValue: 500, cardsPerPack: 1, valueRanges: [] },
+    pack: {
+      id: 'p',
+      name: 'Gold Pack',
+      tier: 'gold',
+      price: 500,
+      averageValue: 500,
+      cardsPerPack: 1,
+      valueRanges: [],
+    },
     cards: [],
     totalValue: 800,
     profit: 300,
@@ -38,18 +46,20 @@ describe('getPullTheme', () => {
 
   it('uses foil accents for raw pulls', () => {
     expect(pullVisualKind({ pullKind: 'raw' })).toBe('raw');
-    expect(getPullTheme({ ...base, pullKind: 'raw' }).hitLabel).toBe('CARD PULLED');
+    expect(getPullTheme({ ...base, pullKind: 'raw' }).hitLabel).toBe('Pulled');
   });
 
   it('uses gold accents for PSA 10 slabs', () => {
     const theme = getPullTheme({ ...base, pullKind: 'slab', grader: 'PSA', grade: '10' });
     expect(theme.kind).toBe('psa');
     expect(theme.label).toBe('PSA 10');
-    expect(theme.hitLabel).toBe('PSA 10 HIT');
+    expect(theme.hitLabel).toBe('PSA 10');
   });
 
   it('uses cyan accents for CGC slabs', () => {
-    expect(getPullTheme({ ...base, pullKind: 'slab', grader: 'CGC', grade: '10' }).kind).toBe('cgc');
+    expect(getPullTheme({ ...base, pullKind: 'slab', grader: 'CGC', grade: '10' }).kind).toBe(
+      'cgc'
+    );
   });
 });
 

@@ -52,7 +52,7 @@ const NAV_GROUPS: {
   {
     label: 'Tools',
     items: [
-      { to: '/open', label: 'Open Packs', icon: Boxes },
+      { to: '/open', label: 'OP Boosters', icon: Boxes },
       { to: '/packs', label: 'Pack Shop', icon: Package },
       { to: '/scanner', label: 'Scan', icon: Camera },
       { to: '/grading', label: 'Grade', icon: Award },
@@ -91,9 +91,7 @@ export const Sidebar: React.FC = () => {
               onClick={() => setGame(value)}
               className={cn(
                 'flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors duration-200',
-                game === value
-                  ? 'bg-foil/15 text-foil'
-                  : 'text-ink-muted hover:text-ink-secondary'
+                game === value ? 'bg-foil/15 text-foil' : 'text-ink-muted hover:text-ink-secondary'
               )}
             >
               <Icon className="h-3.5 w-3.5" />
@@ -143,12 +141,6 @@ export const Sidebar: React.FC = () => {
           </div>
         ))}
       </nav>
-
-      <div className="border-t border-border-subtle px-4 py-3">
-        <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-ink-muted">
-          Collection command
-        </p>
-      </div>
     </aside>
   );
 };

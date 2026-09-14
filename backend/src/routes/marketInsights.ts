@@ -377,6 +377,15 @@ router.get('/card/:cardId', asyncHandler(async (req, res) => {
   });
 }));
 
+router.get('/run-status', asyncHandler(async (_req, res) => {
+  res.json({
+    running: false,
+    startedAt: null,
+    last: null,
+    progress: null,
+  });
+}));
+
 router.post('/run-predictions', asyncHandler(async (_req, res) => {
   logger.info('Manual prediction run requested');
   const result = await runPredictions();

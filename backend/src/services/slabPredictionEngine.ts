@@ -275,19 +275,41 @@ type SlabRunResult = {
   historyMaxDate: string | null;
 };
 
-let slabRunLock: Promise<SlabRunResult> | null = null;
-let slabRunMeta: { running: boolean; startedAt: string | null; last: SlabRunResult | null } = {
-  running: false,
-  startedAt: null,
-  last: null,
+export type SlabRunPhase = 'starting' | 'loading' | 'scoring' | 'finishing';
+
+export type SlabRunProgress = {
+  phase: SlabRunPhase;
+  total: number;
+  processed: number;
+  succeeded: number;
+  failed: number;
 };
 
-export function getSlabPredictionRunStatus(): {
+type SlabRunMeta = {
   running: boolean;
   startedAt: string | null;
   last: SlabRunResult | null;
-} {
-  return { ...slabRunMeta };
+  progress: SlabRunProgress | null;
+};
+
+let slabRunLock: Promise<SlabRunResult> | null = null;
+let slabRunMeta: SlabRunMeta = {
+  running: false,
+  startedAt: null,
+  last: null,
+  progress: null,
+};
+
+function setRunProgress(next: SlabRunProgress) {
+  slabRunMeta = { ...slabRunMeta, progress: next };
+}
+
+export function getSlabPredictionRunStatus(): SlabRunMeta {
+  return {
+    ...slabRunMeta,
+    progress: slabRunMeta.progress ? { ...slabRunMeta.progress } : null,
+    last: slabRunMeta.last ? { ...slabRunMeta.last } : null,
+  };
 }
 
 /** Fire-and-forget so the HTTP request isn't killed by the 30s axios timeout. */
@@ -295,15 +317,36 @@ export function startSlabPredictionsInBackground(): { started: boolean; alreadyR
   if (slabRunLock) {
     return { started: false, alreadyRunning: true };
   }
-  slabRunMeta = { running: true, startedAt: new Date().toISOString(), last: slabRunMeta.last };
+  slabRunMeta = {
+    running: true,
+    startedAt: new Date().toISOString(),
+    last: slabRunMeta.last,
+    progress: { phase: 'starting', total: 0, processed: 0, succeeded: 0, failed: 0 },
+  };
   slabRunLock = runSlabPredictions()
     .then((last) => {
-      slabRunMeta = { running: false, startedAt: null, last };
+      slabRunMeta = {
+        running: false,
+        startedAt: null,
+        last,
+        progress: {
+          phase: 'finishing',
+          total: last.total,
+          processed: last.total,
+          succeeded: last.succeeded,
+          failed: last.failed,
+        },
+      };
       return last;
     })
     .catch((err) => {
       logger.error('Background slab prediction run failed', { error: (err as Error).message });
-      slabRunMeta = { running: false, startedAt: null, last: slabRunMeta.last };
+      slabRunMeta = {
+        running: false,
+        startedAt: null,
+        last: slabRunMeta.last,
+        progress: slabRunMeta.progress,
+      };
       return {
         runId: 0,
         total: 0,
@@ -321,6 +364,13 @@ export function startSlabPredictionsInBackground(): { started: boolean; alreadyR
 }
 
 export async function runSlabPredictions(): Promise<SlabRunResult> {
+  setRunProgress({
+    phase: 'loading',
+    total: slabRunMeta.progress?.total ?? 0,
+    processed: 0,
+    succeeded: 0,
+    failed: 0,
+  });
   const horizonSupport = await getGradedHorizonSupportStatus(true);
   const span = await getGradedPriceHistorySpanDays();
   const runId = await run(
@@ -335,6 +385,13 @@ export async function runSlabPredictions(): Promise<SlabRunResult> {
   const historyByCard = await fetchAllPsa10HistoryByCard();
   let succeeded = 0;
   let failed = 0;
+  setRunProgress({
+    phase: 'scoring',
+    total: cards.length,
+    processed: 0,
+    succeeded: 0,
+    failed: 0,
+  });
   const calibrationModels = await getCalibrationModels();
 
   const insertStmt = `INSERT OR IGNORE INTO slab_predictions (
@@ -369,9 +426,7 @@ export async function runSlabPredictions(): Promise<SlabRunResult> {
       );
       if (!prediction) {
         failed++;
-        continue;
-      }
-
+      } else {
       await run(insertStmt, [
         runId,
         prediction.cardId,
@@ -389,11 +444,26 @@ export async function runSlabPredictions(): Promise<SlabRunResult> {
         prediction.signalScore ?? null, SLAB_GRADER, SLAB_GRADE,
       ]);
       succeeded++;
+      }
     } catch (err) {
       logger.warn(`Slab prediction failed for ${card.cardName}:`, err);
       failed++;
     }
+    setRunProgress({
+      phase: 'scoring',
+      total: cards.length,
+      processed: succeeded + failed,
+      succeeded,
+      failed,
+    });
   }
+  setRunProgress({
+    phase: 'finishing',
+    total: cards.length,
+    processed: succeeded + failed,
+    succeeded,
+    failed,
+  });
 
   logger.info(`Slab prediction run ${runId} complete: ${succeeded} succeeded, ${failed} failed`, {
     historyDays: horizonSupport.historyDays,
