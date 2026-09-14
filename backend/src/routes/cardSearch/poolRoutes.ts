@@ -23,7 +23,7 @@ const EXCLUDED_FAKE_SET_NAMES = [
   'League & Championship Cards',
   'Jumbo Cards',
   'Blister Exclusives',
-  'McDonald%',  // McDonald's promos
+  'McDonald%', // McDonald's promos
   'Burger King Promos',
   'Countdown Calendar Promos',
   'Professor Program Promos',
@@ -70,10 +70,7 @@ function buildPackPoolExclusions(): { exclusionSql: string; exclusionParams: str
   return { exclusionSql: exclusionClauses.join(' AND '), exclusionParams };
 }
 
-async function attachPsa10Prices(
-  db: ReturnType<typeof getDb>,
-  cards: any[]
-): Promise<any[]> {
+async function attachPsa10Prices(db: ReturnType<typeof getDb>, cards: any[]): Promise<any[]> {
   const cardIds = [...new Set(cards.map((c: any) => c.id).filter(Boolean))] as string[];
   const psa10ByCardId = new Map<string, number>();
   const BATCH = 400;
@@ -81,11 +78,10 @@ async function attachPsa10Prices(
   for (let i = 0; i < cardIds.length; i += BATCH) {
     const batch = cardIds.slice(i, i + BATCH);
     const placeholders = batch.map(() => '?').join(',');
-    const gradedRows = await new Promise<
-      Array<{ cardId: string; price: number }>
-    >((resolve, reject) => {
-      db.all(
-        `SELECT cardId, price
+    const gradedRows = await new Promise<Array<{ cardId: string; price: number }>>(
+      (resolve, reject) => {
+        db.all(
+          `SELECT cardId, price
          FROM graded_prices
          WHERE cardId IN (${placeholders})
            AND grader = 'psa'
@@ -93,13 +89,14 @@ async function attachPsa10Prices(
            AND verified = 1
            AND price IS NOT NULL
            AND price > 0`,
-        batch,
-        (gradedErr, result) => {
-          if (gradedErr) reject(gradedErr);
-          else resolve((result || []) as Array<{ cardId: string; price: number }>);
-        }
-      );
-    });
+          batch,
+          (gradedErr, result) => {
+            if (gradedErr) reject(gradedErr);
+            else resolve((result || []) as Array<{ cardId: string; price: number }>);
+          }
+        );
+      }
+    );
     for (const gr of gradedRows) {
       if (typeof gr.price === 'number' && gr.price > 0) {
         psa10ByCardId.set(gr.cardId, gr.price);
@@ -152,10 +149,7 @@ router.get('/pool', async (req, res) => {
 
     const { limit = '250', minPrice = '0', maxPrice = '100000', includeSlabs } = req.query;
     const poolLimit = Math.min(parseInt(limit as string) || 250, 10000); // Increased max to 10000 for better pool diversity
-    const withSlabs =
-      includeSlabs === '1' ||
-      includeSlabs === 'true' ||
-      includeSlabs === 'yes';
+    const withSlabs = includeSlabs === '1' || includeSlabs === 'true' || includeSlabs === 'yes';
 
     const imageColumns = await getImageColumnSelectFragment();
     const { exclusionSql, exclusionParams } = buildPackPoolExclusions();
@@ -166,30 +160,34 @@ router.get('/pool', async (req, res) => {
     const { bulk, chase } = stratifiedPoolSliceSizes(poolLimit);
     const sliceLimits = PACK_ERA_BANDS.flatMap(() => [bulk, chase]);
 
-    db.all(sql, [minPrice, maxPrice, ...exclusionParams, ...sliceLimits], async (err, rows: any[]) => {
-      if (err) {
-        logger.error('Error fetching random card pool:', err);
-        return res.status(500).json({
-          error: 'Database error',
-          message: err.message
-        });
-      }
+    db.all(
+      sql,
+      [minPrice, maxPrice, ...exclusionParams, ...sliceLimits],
+      async (err, rows: any[]) => {
+        if (err) {
+          logger.error('Error fetching random card pool:', err);
+          return res.status(500).json({
+            error: 'Database error',
+            message: err.message,
+          });
+        }
 
-      try {
-        await mapAndSendPoolCards(res, db, rows, withSlabs);
-      } catch (mapErr) {
-        logger.error('Error mapping/enriching card pool:', mapErr);
-        res.status(500).json({
-          error: 'Internal server error',
-          message: (mapErr as Error).message,
-        });
+        try {
+          await mapAndSendPoolCards(res, db, rows, withSlabs);
+        } catch (mapErr) {
+          logger.error('Error mapping/enriching card pool:', mapErr);
+          res.status(500).json({
+            error: 'Internal server error',
+            message: (mapErr as Error).message,
+          });
+        }
       }
-    });
+    );
   } catch (error) {
     logger.error('Error building card pool:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Internal server error',
-      message: (error as Error).message 
+      message: (error as Error).message,
     });
   }
 });

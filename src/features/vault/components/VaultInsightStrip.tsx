@@ -21,9 +21,7 @@ export const VaultInsightStrip: React.FC<VaultInsightStripProps> = ({
 }) => {
   const { top, gainer } = useMemo(() => {
     if (vaultCards.length === 0) return { top: null, gainer: null };
-    const byMarket = [...vaultCards].sort(
-      (a, b) => holdingMarketValue(b) - holdingMarketValue(a)
-    );
+    const byMarket = [...vaultCards].sort((a, b) => holdingMarketValue(b) - holdingMarketValue(a));
     const holdings = buildHoldings(vaultCards);
     const userSet = holdings.filter((h) => !h.assumedCost);
     const pool = userSet.length > 0 ? userSet : holdings;

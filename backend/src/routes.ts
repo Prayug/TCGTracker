@@ -21,7 +21,11 @@ import {
   maybeRecoverStalePrices,
   getPriceFreshness,
 } from './services/dataFetcher';
-import { backupDatabaseToCloud, getCloudBackupStatus, restoreDatabaseFromCloud } from './services/cloudBackupService';
+import {
+  backupDatabaseToCloud,
+  getCloudBackupStatus,
+  restoreDatabaseFromCloud,
+} from './services/cloudBackupService';
 import { syncCatalogData, syncJapaneseCatalogData } from './services/catalogSync';
 import { env } from './config/env';
 import { swaggerSpec } from './config/swagger';
@@ -61,12 +65,16 @@ function registerAdminRoutes(app: express.Express): void {
       const result = await updatePriceData(runDate ? { runDate } : undefined);
       if (result.skipped) {
         const skippedResult = result as { reason?: string };
-        res.status(409).json({ success: false, message: skippedResult.reason || 'Update already running' });
+        res
+          .status(409)
+          .json({ success: false, message: skippedResult.reason || 'Update already running' });
         return;
       }
       if (result.syncRunId == null) {
         const errorResult = result as { error?: string };
-        res.status(409).json({ success: false, message: errorResult.error || 'Update failed to start' });
+        res
+          .status(409)
+          .json({ success: false, message: errorResult.error || 'Update failed to start' });
         return;
       }
       logger.info('Manual update finished', result);

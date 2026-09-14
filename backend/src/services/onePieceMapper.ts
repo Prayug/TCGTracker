@@ -110,11 +110,11 @@ export function mapRowToApiCard(row: OnePieceCatalogRow, source = 'local_databas
     marketPrice:
       typeof row.latestMarketPrice === 'number'
         ? row.latestMarketPrice
-        : row.marketPrice ?? undefined,
+        : (row.marketPrice ?? undefined),
     inventoryPrice:
       typeof row.latestInventoryPrice === 'number'
         ? row.latestInventoryPrice
-        : row.inventoryPrice ?? undefined,
+        : (row.inventoryPrice ?? undefined),
     cardImageId: row.cardImageId,
     source,
   };

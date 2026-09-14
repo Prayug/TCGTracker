@@ -147,7 +147,9 @@ export const AddToVaultModal: React.FC<AddToVaultModalProps> = ({
           />
           <div className="flex-1">
             <h3 className="font-bold text-lg text-ink-primary">{card.name}</h3>
-            <p className="text-sm text-ink-muted">{card.set.name} &bull; #{card.number}</p>
+            <p className="text-sm text-ink-muted">
+              {card.set.name} &bull; #{card.number}
+            </p>
             {card.rarity && (
               <span className="inline-block mt-2 px-2 py-1 bg-accent-muted text-accent rounded-full text-xs font-semibold">
                 {card.rarity}
@@ -159,12 +161,17 @@ export const AddToVaultModal: React.FC<AddToVaultModalProps> = ({
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="purchase-price" className="flex items-center gap-2 text-sm font-semibold text-ink-secondary mb-2">
+              <label
+                htmlFor="purchase-price"
+                className="flex items-center gap-2 text-sm font-semibold text-ink-secondary mb-2"
+              >
                 <DollarSign className="w-4 h-4" />
                 Purchase Price (per card)
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted font-medium">$</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted font-medium">
+                  $
+                </span>
                 <input
                   id="purchase-price"
                   type="number"
@@ -180,7 +187,10 @@ export const AddToVaultModal: React.FC<AddToVaultModalProps> = ({
             </div>
 
             <div>
-              <label htmlFor="quantity" className="flex items-center gap-2 text-sm font-semibold text-ink-secondary mb-2">
+              <label
+                htmlFor="quantity"
+                className="flex items-center gap-2 text-sm font-semibold text-ink-secondary mb-2"
+              >
                 <Package className="w-4 h-4" />
                 Quantity
               </label>
@@ -197,7 +207,10 @@ export const AddToVaultModal: React.FC<AddToVaultModalProps> = ({
           </div>
 
           <div>
-            <label htmlFor="card-condition" className="block text-sm font-semibold text-ink-secondary mb-2">
+            <label
+              htmlFor="card-condition"
+              className="block text-sm font-semibold text-ink-secondary mb-2"
+            >
               Card Condition
             </label>
             <select
@@ -216,7 +229,10 @@ export const AddToVaultModal: React.FC<AddToVaultModalProps> = ({
           </div>
 
           <div>
-            <label htmlFor="notes" className="flex items-center gap-2 text-sm font-semibold text-ink-secondary mb-2">
+            <label
+              htmlFor="notes"
+              className="flex items-center gap-2 text-sm font-semibold text-ink-secondary mb-2"
+            >
               <FileText className="w-4 h-4" />
               Notes (optional)
             </label>
@@ -269,7 +285,8 @@ export const AddToVaultModal: React.FC<AddToVaultModalProps> = ({
 
         <div className="mt-6 p-4 bg-accent-muted border border-accent/20 rounded-xl">
           <p className="text-xs text-ink-muted">
-            Your vault is stored locally in your browser. Use the Export feature in the Vault view to backup your collection.
+            Your vault is stored locally in your browser. Use the Export feature in the Vault view
+            to backup your collection.
           </p>
         </div>
       </div>

@@ -34,7 +34,9 @@ describe('extractReversePriceFromVariants', () => {
   });
 });
 
-const card = (partial: Partial<SetCardDto> & Pick<SetCardDto, 'id' | 'marketPrice'>): SetCardDto => ({
+const card = (
+  partial: Partial<SetCardDto> & Pick<SetCardDto, 'id' | 'marketPrice'>
+): SetCardDto => ({
   name: partial.name || partial.id,
   number: partial.number || '1',
   reverseMarketPrice: partial.reverseMarketPrice ?? 0,

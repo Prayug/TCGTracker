@@ -36,7 +36,9 @@ interface OPTCGDonResponse {
   optcg_don_name?: string;
 }
 
-function buildCatalogId(raw: Pick<OPTCGCardResponse, 'set_id' | 'card_image_id' | 'card_name'>): string {
+function buildCatalogId(
+  raw: Pick<OPTCGCardResponse, 'set_id' | 'card_image_id' | 'card_name'>
+): string {
   return `${raw.set_id}::${raw.card_image_id}::${raw.card_name}`;
 }
 
@@ -113,7 +115,11 @@ export async function fetchFullOptcgCatalog(
   return cards;
 }
 
-export function searchOptcgCatalog(cards: OnePieceCard[], query: string, setId?: string): OnePieceCard[] {
+export function searchOptcgCatalog(
+  cards: OnePieceCard[],
+  query: string,
+  setId?: string
+): OnePieceCard[] {
   let results = cards.filter((c) => cardMatchesOnePieceQuery(c, query));
   if (setId) {
     results = results.filter(

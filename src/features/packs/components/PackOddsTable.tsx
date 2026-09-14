@@ -38,9 +38,13 @@ export const PackOddsTable: React.FC<PackOddsTableProps> = ({
             aria-hidden
           />
           <div className="relative flex items-baseline justify-between gap-3 text-sm">
-            <span className="truncate tabular-nums text-ink-secondary">{formatOddsLabel(range)}</span>
+            <span className="truncate tabular-nums text-ink-secondary">
+              {formatOddsLabel(range)}
+            </span>
             <span className="shrink-0 font-semibold tabular-nums text-ink-primary">
-              {range.probability % 1 === 0 ? `${range.probability}%` : `${range.probability.toFixed(1)}%`}
+              {range.probability % 1 === 0
+                ? `${range.probability}%`
+                : `${range.probability.toFixed(1)}%`}
             </span>
           </div>
         </div>

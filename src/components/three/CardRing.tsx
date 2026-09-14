@@ -29,10 +29,8 @@ function CardPlane({ placement }: { placement: RingCardPlacement }) {
   useFrame((state) => {
     if (!mesh.current) return;
     const t = state.clock.elapsedTime;
-    mesh.current.position.y =
-      placement.position[1] + Math.sin(t * 0.8 + phase.current) * 0.07;
-    mesh.current.rotation.z =
-      placement.rotation[2] + Math.sin(t * 0.5 + phase.current) * 0.05;
+    mesh.current.position.y = placement.position[1] + Math.sin(t * 0.8 + phase.current) * 0.07;
+    mesh.current.rotation.z = placement.rotation[2] + Math.sin(t * 0.5 + phase.current) * 0.05;
   });
 
   return (
@@ -209,7 +207,10 @@ export function CardRing({
   showLabels = false,
 }: CardRingProps) {
   // Grow major radius with set count so eras don't collapse into one band.
-  const setHint = Math.min(maxSets, Math.max(1, new Set(cards.map((c) => c.set?.id).filter(Boolean)).size));
+  const setHint = Math.min(
+    maxSets,
+    Math.max(1, new Set(cards.map((c) => c.set?.id).filter(Boolean)).size)
+  );
   const effectiveRadius = Math.max(radius, setHint * 0.14);
 
   const clusters = useMemo(

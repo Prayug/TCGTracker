@@ -40,13 +40,7 @@ export function setAuthCookie(res: Response, token: string): void {
 }
 
 export function clearAuthCookie(res: Response): void {
-  const parts = [
-    `${AUTH_COOKIE_NAME}=`,
-    'HttpOnly',
-    'Path=/',
-    'SameSite=Lax',
-    'Max-Age=0',
-  ];
+  const parts = [`${AUTH_COOKIE_NAME}=`, 'HttpOnly', 'Path=/', 'SameSite=Lax', 'Max-Age=0'];
   if (env.isProduction) {
     parts.push('Secure');
   }

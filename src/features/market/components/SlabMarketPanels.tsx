@@ -303,8 +303,7 @@ export const CrossGraderArbPanel: React.FC = () => {
               primaryTone={row.spreadPct >= 0 ? 'gain' : 'loss'}
               secondary={
                 <>
-                  PSA {formatCurrency(row.psa10)} · {row.altGrader}{' '}
-                  {formatCurrency(row.altPrice)}
+                  PSA {formatCurrency(row.psa10)} · {row.altGrader} {formatCurrency(row.altPrice)}
                 </>
               }
               onClick={() => openStubCard(openCard, row)}

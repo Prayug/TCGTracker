@@ -149,10 +149,7 @@ export const Modal: React.FC<ModalProps> = ({
       ? 'max-h-[min(calc(100dvh-1.5rem),52rem)]'
       : 'max-h-[min(calc(100dvh-1rem),40rem)]';
 
-  const borderAccent =
-    variant === 'confirm'
-      ? 'border-loss/40'
-      : 'border-border-default';
+  const borderAccent = variant === 'confirm' ? 'border-loss/40' : 'border-border-default';
 
   const modal = (
     <AnimatePresence>
@@ -243,9 +240,7 @@ export const Modal: React.FC<ModalProps> = ({
                   isPack
                     ? 'flex flex-col overflow-y-auto overscroll-contain pt-8 sm:pt-10'
                     : 'overflow-y-auto overscroll-contain',
-                  flush
-                    ? 'px-0 pb-0 pt-0'
-                    : 'px-4 pt-12 pb-4 sm:px-8 sm:pt-14 sm:pb-5',
+                  flush ? 'px-0 pb-0 pt-0' : 'px-4 pt-12 pb-4 sm:px-8 sm:pt-14 sm:pb-5',
                   showScene && !flush && 'pt-4 sm:pt-5',
                   bodyClassName
                 )}

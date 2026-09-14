@@ -55,6 +55,8 @@ export interface OpenedPack {
   cards: PullCard[];
   /** Bonus DON!! card included in the pack (box-mode only, OP-04+). */
   donCard?: PullCard;
+  /** Chase cards in this pack (manga, TR, SP, SEC, AA, etc.). */
+  hits?: PullCard[];
   openedAt: string;
   mode: 'pack' | 'box';
   boxIndex?: number;

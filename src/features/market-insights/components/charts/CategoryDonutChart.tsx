@@ -44,7 +44,9 @@ export function CategoryDonutChart({ data }: Props) {
     <div>
       <div className="mx-auto h-48 w-48">
         <PieChart data={chartData} innerRadius={52} padAngle={0.02} className="h-full w-full">
-          <PieSlice />
+          {chartData.map((entry, index) => (
+            <PieSlice key={entry.label} index={index} color={entry.color} />
+          ))}
           <PieCenter defaultLabel="cards" />
         </PieChart>
       </div>

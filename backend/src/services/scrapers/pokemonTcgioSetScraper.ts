@@ -19,14 +19,16 @@ export class PokemonTcgioSetScraper implements SignalScraper {
         return [];
       }
 
-      const data = await response.json() as { data: Array<{
-        id: string;
-        name: string;
-        series: string;
-        releaseDate: string;
-        total: number;
-        images?: { logo?: string; symbol?: string };
-      }> };
+      const data = (await response.json()) as {
+        data: Array<{
+          id: string;
+          name: string;
+          series: string;
+          releaseDate: string;
+          total: number;
+          images?: { logo?: string; symbol?: string };
+        }>;
+      };
 
       const now = new Date();
       const signals: ScrapedSignal[] = [];
@@ -35,7 +37,9 @@ export class PokemonTcgioSetScraper implements SignalScraper {
         const releaseDate = new Date(set.releaseDate);
         if (isNaN(releaseDate.getTime())) continue;
 
-        const daysUntil = Math.ceil((releaseDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        const daysUntil = Math.ceil(
+          (releaseDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+        );
 
         // Only create signals for sets released in the last 30 days or upcoming
         if (daysUntil > 60) continue;
@@ -69,9 +73,10 @@ export class PokemonTcgioSetScraper implements SignalScraper {
           sentiment,
           relevance: 0.8,
           riskType,
-          expiresAt: daysUntil > 0
-            ? new Date(releaseDate.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
-            : new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+          expiresAt:
+            daysUntil > 0
+              ? new Date(releaseDate.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
+              : new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString(),
         });
       }
 

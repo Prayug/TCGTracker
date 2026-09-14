@@ -1,4 +1,12 @@
-import { useState, useEffect, createContext, useContext, useCallback, useMemo, type ReactNode } from 'react';
+import {
+  useState,
+  useEffect,
+  createContext,
+  useContext,
+  useCallback,
+  useMemo,
+  type ReactNode,
+} from 'react';
 import { authService, User, AuthResponse } from '../services/authService';
 import {
   saveGuestSnapshot,
@@ -63,12 +71,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const currentUser = await authService.getCurrentUser();
         if (cancelled) return;
         setUser(currentUser);
+        // Don't block first paint on vault/watchlist sync — run it in the background.
         if (currentUser) {
-          try {
-            await syncUserDataOnLogin();
-          } catch (err) {
+          void syncUserDataOnLogin().catch((err) => {
             console.error('User data sync failed on boot:', err);
-          }
+          });
         }
       } catch (error) {
         console.error('Failed to get current user:', error);

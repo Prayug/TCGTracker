@@ -3,19 +3,13 @@ import { Download, TrendingDown, TrendingUp } from 'lucide-react';
 import { VaultCard } from '../../../types/pokemon';
 import { formatCurrency, formatPercent } from '../../../utils/cardDisplay';
 import { PriceChart } from '../../market/components/PriceChart';
-import {
-  buildHoldings,
-  buildValueSeries,
-  type PerformancePeriod,
-} from '../utils/portfolioSeries';
+import { buildHoldings, buildValueSeries, type PerformancePeriod } from '../utils/portfolioSeries';
 
 interface VaultPerformanceReportProps {
   vaultCards: VaultCard[];
 }
 
-function exportCostBasisCsv(
-  holdings: ReturnType<typeof buildHoldings>
-) {
+function exportCostBasisCsv(holdings: ReturnType<typeof buildHoldings>) {
   const rows = [
     ['Name', 'Set', 'Qty', 'Cost Basis', 'Current Value', 'P/L', 'P/L %'].join(','),
     ...holdings.map((h) =>
@@ -44,10 +38,7 @@ export const VaultPerformanceReport: React.FC<VaultPerformanceReportProps> = ({ 
 
   const holdings = useMemo(() => buildHoldings(vaultCards), [vaultCards]);
   const series = useMemo(() => buildValueSeries(vaultCards, period), [vaultCards, period]);
-  const ranked = useMemo(
-    () => [...holdings].sort((a, b) => b.profitPct - a.profitPct),
-    [holdings]
-  );
+  const ranked = useMemo(() => [...holdings].sort((a, b) => b.profitPct - a.profitPct), [holdings]);
   const best = ranked[0];
   const worst = ranked[ranked.length - 1];
 
@@ -114,9 +105,7 @@ export const VaultPerformanceReport: React.FC<VaultPerformanceReportProps> = ({ 
             <div className="min-w-0">
               <p className="text-xs font-medium uppercase tracking-[0.12em] text-ink-muted">Best</p>
               <p className="truncate text-sm font-medium text-ink-primary">{best.name}</p>
-              <p
-                className={`text-xs tabular-nums ${best.profit >= 0 ? 'text-gain' : 'text-loss'}`}
-              >
+              <p className={`text-xs tabular-nums ${best.profit >= 0 ? 'text-gain' : 'text-loss'}`}>
                 {formatPercent(best.profitPct, { signed: true })} · {formatCurrency(best.profit)}
               </p>
             </div>
@@ -126,7 +115,9 @@ export const VaultPerformanceReport: React.FC<VaultPerformanceReportProps> = ({ 
           <div className="flex items-start gap-3 rounded-xl border border-border-default bg-surface-raised px-4 py-3">
             <TrendingDown className="mt-0.5 h-4 w-4 shrink-0 text-loss" />
             <div className="min-w-0">
-              <p className="text-xs font-medium uppercase tracking-[0.12em] text-ink-muted">Worst</p>
+              <p className="text-xs font-medium uppercase tracking-[0.12em] text-ink-muted">
+                Worst
+              </p>
               <p className="truncate text-sm font-medium text-ink-primary">{worst.name}</p>
               <p
                 className={`text-xs tabular-nums ${worst.profit >= 0 ? 'text-gain' : 'text-loss'}`}

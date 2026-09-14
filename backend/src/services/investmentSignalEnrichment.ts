@@ -3,30 +3,20 @@
  * signal cards with market metrics, scoring, and human-readable interpretation.
  */
 
+import { getDb } from '../db/database';
 import { scoreLiquidity, type LiquidityTier } from './liquidityScore';
-import {
-  applyBulkAndEconomicScoring,
-  buildBulkAwareWhy,
-} from './opportunityBulkScoring';
+import { applyBulkAndEconomicScoring, buildBulkAwareWhy } from './opportunityBulkScoring';
 
 interface SeriesPoint {
   date: string;
   price: number;
 }
 
-function computeChange(
-  current: number,
-  prev: number
-): { changeAbs: number; changePct: number } {
+function computeChange(current: number, prev: number): { changeAbs: number; changePct: number } {
   const changeAbs = round2(current - prev);
   const changePct = prev > 0 ? round2(((current - prev) / prev) * 100) : 0;
   return { changeAbs, changePct };
 }
-
-const getDb = () => {
-  const { getDb: db } = require('../db/database') as typeof import('../db/database');
-  return db();
-};
 
 const all = <T>(sql: string, params: unknown[] = []): Promise<T[]> =>
   new Promise((resolve, reject) => {
@@ -237,7 +227,8 @@ export function mapSignalCategory(
   if (src === 'news') return 'news';
   if (src === 'tournament') return 'tournament';
   if (src === 'ban_list') return 'ban_list';
-  if (src === 'set_release' || risk === 'set_release' || risk === 'upcoming_set') return 'set_release';
+  if (src === 'set_release' || risk === 'set_release' || risk === 'upcoming_set')
+    return 'set_release';
 
   if (/buyout/i.test(risk)) return 'buyout';
   if (/supply|listing/i.test(risk)) return 'supply';
@@ -280,10 +271,7 @@ const SOURCE_TYPE_LABELS: Record<string, string> = {
   ban_list: 'Ban List',
 };
 
-export function hasMarketConfirmation(
-  metrics: SignalMetrics,
-  sparkline: number[]
-): boolean {
+export function hasMarketConfirmation(metrics: SignalMetrics, sparkline: number[]): boolean {
   return (
     metrics.price30dPct != null ||
     metrics.price7dPct != null ||
@@ -298,7 +286,10 @@ function extractSetFromContent(title: string | null, summary: string | null): st
 
   const fromMatch = /\bfrom\s+([A-Za-z0-9][A-Za-z0-9\s&':-]{2,42}?)(?:\s*[!?.#]|$)/i.exec(text);
   if (fromMatch?.[1]) {
-    const name = fromMatch[1].trim().replace(/\s+(Set|SET)$/i, '').trim();
+    const name = fromMatch[1]
+      .trim()
+      .replace(/\s+(Set|SET)$/i, '')
+      .trim();
     if (name.length >= 3 && !/^(the|this|pokemon|tcg|revealing)$/i.test(name)) return name;
   }
 
@@ -312,7 +303,11 @@ function extractSetFromContent(title: string | null, summary: string | null): st
   for (const re of patterns) {
     const m = re.exec(text);
     const candidate = m?.[1]?.trim().replace(/^["']|["']$/g, '');
-    if (candidate && candidate.length >= 3 && !/^(the|this|a|an|pokemon|tcg|revealing)$/i.test(candidate)) {
+    if (
+      candidate &&
+      candidate.length >= 3 &&
+      !/^(the|this|a|an|pokemon|tcg|revealing)$/i.test(candidate)
+    ) {
       return candidate.replace(/\s+(Set|SET)$/i, '').trim();
     }
   }
@@ -494,11 +489,7 @@ export function classifySignalTier(input: {
   direction: SignalDirection;
 }): SignalTier {
   if (input.opportunityScore <= 0 || input.direction === 'neutral') return 'monitor';
-  if (
-    input.hasMarketConfirmation &&
-    input.opportunityScore >= 38 &&
-    input.confidence >= 42
-  ) {
+  if (input.hasMarketConfirmation && input.opportunityScore >= 38 && input.confidence >= 42) {
     return 'actionable';
   }
   if (input.opportunityScore >= 52 && input.confidence >= 55) return 'actionable';
@@ -616,10 +607,7 @@ function countSourcesByType(sources: SignalSourceItem[]): Record<string, number>
   return byType;
 }
 
-function mergeSignalSources(
-  a: SignalSourceItem[],
-  b: SignalSourceItem[]
-): SignalSourceItem[] {
+function mergeSignalSources(a: SignalSourceItem[], b: SignalSourceItem[]): SignalSourceItem[] {
   const seen = new Set<string>();
   const out: SignalSourceItem[] = [];
   for (const s of [...a, ...b]) {
@@ -728,10 +716,7 @@ async function fetchSignalSources(input: {
   const conditions: string[] = [];
   const params: unknown[] = [];
 
-  const useCardId =
-    input.cardId &&
-    input.category !== 'set_release' &&
-    input.entityType === 'card';
+  const useCardId = input.cardId && input.category !== 'set_release' && input.entityType === 'card';
   if (useCardId) {
     conditions.push('card_id = ?');
     params.push(input.cardId);
@@ -798,7 +783,10 @@ export function computeSignalDirection(input: {
       : null;
 
   // Source-only signals default to "watching" — not neutral padding.
-  if (priceBlend == null && (input.category === 'youtube' || input.category === 'reddit' || input.category === 'news')) {
+  if (
+    priceBlend == null &&
+    (input.category === 'youtube' || input.category === 'reddit' || input.category === 'news')
+  ) {
     if (input.sentiment >= 0.22) return 'bullish';
     if (input.sentiment <= -0.22) return 'bearish';
     return 'watch';
@@ -812,7 +800,8 @@ export function computeSignalDirection(input: {
 
   if (combined >= 0.22) return 'bullish';
   if (combined <= -0.22) return 'bearish';
-  if (Math.abs(combined) < 0.08 && (priceBlend == null || Math.abs(priceBlend) < 4)) return 'neutral';
+  if (Math.abs(combined) < 0.08 && (priceBlend == null || Math.abs(priceBlend) < 4))
+    return 'neutral';
   return 'watch';
 }
 
@@ -847,7 +836,9 @@ export function computeOpportunityScore(input: {
   const dataBonus = input.hasMarketData ? 10 : 0;
 
   return clamp(
-    Math.round(rel * 0.22 + sentMag * 0.18 + dirBonus + priceBonus + volBonus + srcBonus + dataBonus),
+    Math.round(
+      rel * 0.22 + sentMag * 0.18 + dirBonus + priceBonus + volBonus + srcBonus + dataBonus
+    ),
     0,
     100
   );
@@ -880,7 +871,11 @@ function normalizeSparkline(points: SeriesPoint[]): number[] {
   return prices.map((p) => round2((p - min) / span));
 }
 
-function extractSetName(title: string | null, summary: string | null, setName: string | null): string | null {
+function extractSetName(
+  title: string | null,
+  summary: string | null,
+  setName: string | null
+): string | null {
   const fromTitle = (() => {
     if (!title) return null;
     const recent = /(?:Recent|Upcoming) Set:\s*(.+)$/i.exec(title);
@@ -910,7 +905,11 @@ function cleanEventTitle(title: string | null, setName: string | null): string {
     .trim();
 }
 
-function parseEventDetail(title: string | null, summary: string | null, category: SignalCategory): string {
+function parseEventDetail(
+  title: string | null,
+  summary: string | null,
+  category: SignalCategory
+): string {
   const text = summary ?? title ?? '';
   const daysMatch = /released (\d+) days ago/i.exec(text);
   if (daysMatch) return `Released ${daysMatch[1]} days ago`;
@@ -945,7 +944,9 @@ function buildInterpretation(input: {
 
   if (metrics.volumeChangePct != null) {
     const volDir = metrics.volumeChangePct >= 0 ? 'above' : 'below';
-    parts.push(`sales volume remains ${Math.abs(round1(metrics.volumeChangePct))}% ${volDir} baseline`);
+    parts.push(
+      `sales volume remains ${Math.abs(round1(metrics.volumeChangePct))}% ${volDir} baseline`
+    );
   }
 
   const observed =
@@ -958,7 +959,12 @@ function buildInterpretation(input: {
           : 'No strong price or volume divergence detected yet.';
 
   let interpretation = 'Signal is still forming — monitor for confirmation.';
-  if (direction === 'bullish' && metrics.price30dPct != null && metrics.price30dPct < 0 && (metrics.volumeChangePct ?? 0) > 0) {
+  if (
+    direction === 'bullish' &&
+    metrics.price30dPct != null &&
+    metrics.price30dPct < 0 &&
+    (metrics.volumeChangePct ?? 0) > 0
+  ) {
     interpretation = 'Price compression is slowing while demand holds above baseline.';
   } else if (direction === 'bullish') {
     interpretation = 'Demand signals and market behavior align toward upside.';
@@ -999,7 +1005,13 @@ function buildDrivers(input: {
   const drivers: SignalDriver[] = [];
 
   const sentLevel: SignalDriver['level'] =
-    input.sentiment > 0.35 ? 'up_strong' : input.sentiment > 0.1 ? 'up' : input.sentiment < -0.1 ? 'down' : 'flat';
+    input.sentiment > 0.35
+      ? 'up_strong'
+      : input.sentiment > 0.1
+        ? 'up'
+        : input.sentiment < -0.1
+          ? 'down'
+          : 'flat';
   drivers.push({ key: 'sentiment', label: 'Sentiment', level: sentLevel });
 
   if (input.metrics.price30dPct != null) {
@@ -1007,7 +1019,13 @@ function buildDrivers(input: {
       key: 'price',
       label: 'Price',
       level:
-        input.metrics.price30dPct > 8 ? 'up_strong' : input.metrics.price30dPct > 2 ? 'up' : input.metrics.price30dPct < -2 ? 'down' : 'flat',
+        input.metrics.price30dPct > 8
+          ? 'up_strong'
+          : input.metrics.price30dPct > 2
+            ? 'up'
+            : input.metrics.price30dPct < -2
+              ? 'down'
+              : 'flat',
     });
   }
 
@@ -1016,7 +1034,13 @@ function buildDrivers(input: {
       key: 'volume',
       label: 'Volume',
       level:
-        input.metrics.volumeChangePct > 15 ? 'up_strong' : input.metrics.volumeChangePct > 3 ? 'up' : input.metrics.volumeChangePct < -3 ? 'down' : 'flat',
+        input.metrics.volumeChangePct > 15
+          ? 'up_strong'
+          : input.metrics.volumeChangePct > 3
+            ? 'up'
+            : input.metrics.volumeChangePct < -3
+              ? 'down'
+              : 'flat',
     });
   }
 
@@ -1031,7 +1055,11 @@ function buildDrivers(input: {
   }
 
   if (input.sourceCount >= 3) {
-    drivers.push({ key: 'social', label: 'Social interest', level: input.sourceCount >= 6 ? 'up_strong' : 'up' });
+    drivers.push({
+      key: 'social',
+      label: 'Social interest',
+      level: input.sourceCount >= 6 ? 'up_strong' : 'up',
+    });
   }
 
   return drivers.slice(0, 5);
@@ -1097,7 +1125,12 @@ async function fetchCardMarketSnapshot(cardId: string): Promise<{
   );
 
   const series30 = await fetchCardSeries(cardId, 30);
-  const series7 = series30.length >= 2 ? series30.filter((p) => p.date >= new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)) : series30;
+  const series7 =
+    series30.length >= 2
+      ? series30.filter(
+          (p) => p.date >= new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)
+        )
+      : series30;
 
   let price7dPct: number | null = null;
   let price30dPct: number | null = null;
@@ -1148,7 +1181,13 @@ async function fetchCardMarketSnapshot(cardId: string): Promise<{
     });
     liquidityTier = liq.tier;
     liquidityLabel =
-      liq.tier === 'strong' ? 'High' : liq.tier === 'ok' ? 'Moderate' : liq.tier === 'thin' ? 'Thin' : 'Low';
+      liq.tier === 'strong'
+        ? 'High'
+        : liq.tier === 'ok'
+          ? 'Moderate'
+          : liq.tier === 'thin'
+            ? 'Thin'
+            : 'Low';
   }
 
   const sparkline = normalizeSparkline(series30.slice(-14));
@@ -1205,14 +1244,20 @@ async function fetchSetMarketSnapshot(setName: string): Promise<{
 
   if (cards.length === 0) {
     return {
-      metrics: { price7dPct: null, price30dPct: null, volumeChangePct: null, liquidityTier: null, liquidityLabel: null },
+      metrics: {
+        price7dPct: null,
+        price30dPct: null,
+        volumeChangePct: null,
+        liquidityTier: null,
+        liquidityLabel: null,
+      },
       sparkline: [],
       topAffectedCard: null,
     };
   }
 
   const cardStats: Array<{
-    card: typeof cards[0];
+    card: (typeof cards)[0];
     c7: number;
     c30: number;
     weight: number;
@@ -1271,7 +1316,10 @@ async function fetchSetMarketSnapshot(setName: string): Promise<{
 
   let volumeChangePct: number | null = null;
   if (volSamples > 0 && totalVolEarly > 0) {
-    volumeChangePct = round1(((totalVolLate / volSamples - totalVolEarly / volSamples) / (totalVolEarly / volSamples)) * 100);
+    volumeChangePct = round1(
+      ((totalVolLate / volSamples - totalVolEarly / volSamples) / (totalVolEarly / volSamples)) *
+        100
+    );
   }
 
   const soldNow = cards.reduce((s, c) => s + (c.soldListings ?? 0), 0);
@@ -1291,7 +1339,11 @@ async function fetchSetMarketSnapshot(setName: string): Promise<{
     const collectScore =
       economicMoveScore(stat.c7, stat.card.price) *
       collectibilityWeight(stat.card.rarity, stat.card.cardName, stat.card.price);
-    if (collectScore > bestScore && stat.card.price >= 50 && collectibilityWeight(stat.card.rarity, stat.card.cardName, stat.card.price) >= 0.35) {
+    if (
+      collectScore > bestScore &&
+      stat.card.price >= 50 &&
+      collectibilityWeight(stat.card.rarity, stat.card.cardName, stat.card.price) >= 0.35
+    ) {
       bestScore = collectScore;
       bestMover = {
         cardId: stat.card.cardId,
@@ -1324,7 +1376,13 @@ async function fetchSetMarketSnapshot(setName: string): Promise<{
       volumeChangePct,
       liquidityTier: liq.tier,
       liquidityLabel:
-        liq.tier === 'strong' ? 'High' : liq.tier === 'ok' ? 'Moderate' : liq.tier === 'thin' ? 'Thin' : 'Low',
+        liq.tier === 'strong'
+          ? 'High'
+          : liq.tier === 'ok'
+            ? 'Moderate'
+            : liq.tier === 'thin'
+              ? 'Thin'
+              : 'Low',
     },
     sparkline: aggSpark,
     topAffectedCard: bestMover,
@@ -1426,8 +1484,7 @@ export async function enrichInvestmentSignal(raw: RawExternalSignal): Promise<In
     changeAbs: topAffectedCard?.changeAbs ?? null,
     changePct: metrics.price30dPct ?? metrics.price7dPct,
     momentumDays: 30,
-    soldListings:
-      metrics.liquidityTier === 'strong' ? 10 : metrics.liquidityTier === 'ok' ? 5 : 1,
+    soldListings: metrics.liquidityTier === 'strong' ? 10 : metrics.liquidityTier === 'ok' ? 5 : 1,
     liquidityTier: metrics.liquidityTier,
     buyoutScore: 0,
     velocityRatio: null,
@@ -1455,12 +1512,7 @@ export async function enrichInvestmentSignal(raw: RawExternalSignal): Promise<In
     0,
     100
   );
-  opportunityScore = boostSourceOnlyScore(
-    opportunityScore,
-    category,
-    raw.relevance,
-    raw.sentiment
-  );
+  opportunityScore = boostSourceOnlyScore(opportunityScore, category, raw.relevance, raw.sentiment);
 
   const confidence = computeSignalConfidence({
     hasCardMetrics,
@@ -1611,9 +1663,7 @@ export function partitionSignalsByTier(signals: InvestmentSignal[]): {
   emerging: InvestmentSignal[];
 } {
   const actionable = signals.filter((s) => s.signalTier === 'actionable');
-  const emerging = signals.filter(
-    (s) => s.signalTier === 'emerging' || s.signalTier === 'monitor'
-  );
+  const emerging = signals.filter((s) => s.signalTier === 'emerging' || s.signalTier === 'monitor');
   return { actionable, emerging };
 }
 

@@ -53,20 +53,10 @@ function KpiTile({
   );
 }
 
-export const VaultKpiStrip: React.FC<VaultKpiStripProps> = ({
-  stats,
-  vaultCards,
-  realizedPnl,
-}) => {
+export const VaultKpiStrip: React.FC<VaultKpiStripProps> = ({ stats, vaultCards, realizedPnl }) => {
   const series30 = useMemo(() => buildValueSeries(vaultCards, '30d'), [vaultCards]);
-  const delta30 = useMemo(
-    () => periodChangeExcludingInflows(vaultCards, '30d'),
-    [vaultCards]
-  );
-  const sparkData = useMemo(
-    () => series30.map((p) => ({ price: p.price })),
-    [series30]
-  );
+  const delta30 = useMemo(() => periodChangeExcludingInflows(vaultCards, '30d'), [vaultCards]);
+  const sparkData = useMemo(() => series30.map((p) => ({ price: p.price })), [series30]);
 
   const plTrend = stats.profit > 0 ? 'up' : stats.profit < 0 ? 'down' : 'neutral';
   const d30Trend = delta30.dollar > 0 ? 'up' : delta30.dollar < 0 ? 'down' : 'neutral';
@@ -132,9 +122,7 @@ export const VaultKpiStrip: React.FC<VaultKpiStripProps> = ({
             <span className={delta30.dollar >= 0 ? 'text-gain' : 'text-loss'}>
               {formatPercent(delta30.percent, { signed: true })}
             </span>
-            {delta30.sinceAddedOnly ? (
-              <span className="text-ink-muted"> · Since added</span>
-            ) : null}
+            {delta30.sinceAddedOnly ? <span className="text-ink-muted"> · Since added</span> : null}
           </span>
         }
       />

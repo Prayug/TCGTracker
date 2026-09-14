@@ -188,9 +188,7 @@ export async function syncUserDataOnLogin(): Promise<UserDataSyncResult> {
       ? `Synced ${parts.join(', ')} to this device`
       : 'Signed in — cloud sync had issues; local data kept';
 
-  window.dispatchEvent(
-    new CustomEvent('tcg:user-data-synced', { detail: result })
-  );
+  window.dispatchEvent(new CustomEvent('tcg:user-data-synced', { detail: result }));
   return result;
 }
 

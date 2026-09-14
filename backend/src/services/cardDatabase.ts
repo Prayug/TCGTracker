@@ -18,7 +18,12 @@ export const extractCardNumberFromName = (cardName?: string | null): string | nu
   if (dashMatch?.[1]) return dashMatch[1];
 
   const parenMatch = cardName.match(/\(([A-Za-z]?\d{1,4}[A-Za-z]?|[A-Z]{1,3}\d{1,4})\)\s*$/);
-  if (parenMatch?.[1] && !/^(delta species|team plasma|master ball pattern|poke ball pattern|cosmos holo)$/i.test(parenMatch[1])) {
+  if (
+    parenMatch?.[1] &&
+    !/^(delta species|team plasma|master ball pattern|poke ball pattern|cosmos holo)$/i.test(
+      parenMatch[1]
+    )
+  ) {
     return parenMatch[1];
   }
 
@@ -139,7 +144,9 @@ export const mapCatalogRowsToPokemonCards = (rows: any[]) => {
   for (const row of rows) {
     if (!row.cardId) continue;
 
-    let catalogPrices: Record<string, { market?: number; mid?: number; low?: number; high?: number }> | undefined;
+    let catalogPrices:
+      | Record<string, { market?: number; mid?: number; low?: number; high?: number }>
+      | undefined;
     if (row.tcgplayerPrices) {
       try {
         catalogPrices = JSON.parse(row.tcgplayerPrices);
@@ -208,7 +215,7 @@ export const getLocalCardsForQuery = async (
   const likeQuery = `%${trimmed}%`;
   const params: any[] = [trimmed, likeQuery, likeQuery, likeQuery];
   let whereClause =
-    '(cm.cardId = ? OR cm.cardId LIKE ? OR cm.cardName LIKE ? OR IFNULL(cm.matchName, \'\') LIKE ?)';
+    "(cm.cardId = ? OR cm.cardId LIKE ? OR cm.cardName LIKE ? OR IFNULL(cm.matchName, '') LIKE ?)";
 
   const lang = (language || 'en').toLowerCase();
   if (lang !== 'all') {
@@ -312,7 +319,12 @@ export const mapLocalRowsToPokemonCards = async (rows: any[]) => {
         null;
 
       // Skip sealed / product SKUs that have no printable card identity.
-      if (looksLikeNonSingleCard(row.cardName) && !cardNumber && !row.imageSmall && !row.imageLarge) {
+      if (
+        looksLikeNonSingleCard(row.cardName) &&
+        !cardNumber &&
+        !row.imageSmall &&
+        !row.imageLarge
+      ) {
         return null;
       }
 
@@ -344,7 +356,9 @@ export const mapLocalRowsToPokemonCards = async (rows: any[]) => {
         highPrice: row.latestHighPrice,
       });
 
-      let catalogPrices: Record<string, { market?: number; mid?: number; low?: number; high?: number }> | undefined;
+      let catalogPrices:
+        | Record<string, { market?: number; mid?: number; low?: number; high?: number }>
+        | undefined;
       if (row.catalogPrices) {
         try {
           catalogPrices = JSON.parse(row.catalogPrices);

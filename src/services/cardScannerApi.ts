@@ -3,9 +3,10 @@ import axios from 'axios';
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
-const API_BASE_URL = (
-  import.meta.env.VITE_CARD_SCANNER_API_URL || 'http://localhost:5001'
-).replace(/\/+$/, '');
+const API_BASE_URL = (import.meta.env.VITE_CARD_SCANNER_API_URL || 'http://localhost:5001').replace(
+  /\/+$/,
+  ''
+);
 
 const scannerAxios = axios.create({
   withCredentials: false,
@@ -99,9 +100,7 @@ export async function scanCardFromBase64(base64Image: string): Promise<ScanResul
 
 export async function getAvailableSets(): Promise<AvailableSets> {
   try {
-    const response = await scannerAxios.get<AvailableSets>(
-      `${API_BASE_URL}/api/available-sets`
-    );
+    const response = await scannerAxios.get<AvailableSets>(`${API_BASE_URL}/api/available-sets`);
     return response.data;
   } catch (error) {
     if (axios.isAxiosError(error) && error.response) {

@@ -43,7 +43,11 @@ function readLocalVault(): VaultCard[] {
   const migrate = (key: string) => {
     const stored = localStorage.getItem(key);
     if (stored) {
-      try { return JSON.parse(stored); } catch { return []; }
+      try {
+        return JSON.parse(stored);
+      } catch {
+        return [];
+      }
     }
     return [];
   };

@@ -14,10 +14,7 @@ export function computePriceChartDomain(prices: number[]): [number, number] {
 
   // Floor only for very small moves — a ~8–12% swing should fill most of the plot.
   const minSpanRatio = baseline < 10 ? 0.12 : baseline < 100 ? 0.1 : 0.08;
-  const minSpan = Math.max(
-    baseline * minSpanRatio,
-    baseline < 5 ? 0.5 : baseline < 25 ? 2 : 0
-  );
+  const minSpan = Math.max(baseline * minSpanRatio, baseline < 5 ? 0.5 : baseline < 25 ? 2 : 0);
 
   const span = Math.max(dataRange, minSpan);
   const center = (dataMin + dataMax) / 2;
@@ -45,10 +42,7 @@ export function computeSparklineRange(data: number[]): { min: number; max: numbe
   const baseline = valid.reduce((s, p) => s + p, 0) / valid.length;
 
   const minSpanRatio = baseline < 10 ? 0.12 : baseline < 100 ? 0.1 : 0.08;
-  const minSpan = Math.max(
-    baseline * minSpanRatio,
-    baseline < 5 ? 0.5 : baseline < 25 ? 2 : 0
-  );
+  const minSpan = Math.max(baseline * minSpanRatio, baseline < 5 ? 0.5 : baseline < 25 ? 2 : 0);
 
   const span = Math.max(dataRange, minSpan);
   const center = (dataMin + dataMax) / 2;

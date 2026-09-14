@@ -12,10 +12,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { OddsRow, OpenedPack, PullCard, BoxSession, BulkOpenSession } from '../types';
-import {
-  onePiecePackService,
-  sortPullsBestFirst,
-} from '../services/onePiecePackService';
+import { onePiecePackService, sortPullsBestFirst } from '../services/onePiecePackService';
 import { BOXES_PER_CASE, OnePieceSetOddsConfig } from '../data/setConfigs';
 import { PackRevealModal } from './PackRevealModal';
 import { BoxSessionModal } from './BoxSessionModal';
@@ -54,7 +51,7 @@ export const OpenPacksPage: React.FC = () => {
         const saved = localStorage.getItem('op_sim_selected_set');
         const initial = available.some((s) => s.code === saved)
           ? saved!
-          : available.find((s) => s.code === 'OP-05')?.code ?? available[0]?.code ?? '';
+          : (available.find((s) => s.code === 'OP-05')?.code ?? available[0]?.code ?? '');
         setSelectedCode(initial);
       } catch (error) {
         console.error('Failed to load One Piece sets:', error);
@@ -120,10 +117,7 @@ export const OpenPacksPage: React.FC = () => {
     try {
       const session = await onePiecePackService.openBulkBoxes(selectedCode, count);
       setBulkSession(session);
-      setSessionPacks((prev) => [
-        ...session.boxes.flatMap((b) => b.packs),
-        ...prev,
-      ]);
+      setSessionPacks((prev) => [...session.boxes.flatMap((b) => b.packs), ...prev]);
       setBulkModalOpen(true);
     } catch (error) {
       console.error('Failed to bulk-open boxes:', error);
@@ -132,15 +126,12 @@ export const OpenPacksPage: React.FC = () => {
     }
   };
 
-  const handleSave = useCallback(
-    (cards: PullCard[], code: string, setName: string): boolean => {
-      if (cards.length === 0) return false;
-      onePiecePackService.savePulls(cards, code, setName);
-      setPullsRefresh((n) => n + 1);
-      return true;
-    },
-    []
-  );
+  const handleSave = useCallback((cards: PullCard[], code: string, setName: string): boolean => {
+    if (cards.length === 0) return false;
+    onePiecePackService.savePulls(cards, code, setName);
+    setPullsRefresh((n) => n + 1);
+    return true;
+  }, []);
 
   const sessionCards = useMemo(
     () => sortPullsBestFirst(sessionPacks.flatMap((p) => fanCardsForPack(p))),
@@ -170,9 +161,9 @@ export const OpenPacksPage: React.FC = () => {
         </p>
         <h2 className="font-display text-h1 text-ink-primary">One Piece pack simulator</h2>
         <p className="max-w-2xl text-sm text-ink-secondary">
-          Open virtual One Piece TCG booster packs online. Pick a set, reveal 12
-          cards, chase manga rares and alternate arts — or rip a full booster box.
-          Save pulls to your collection, all in your browser.
+          Open virtual One Piece TCG booster packs online. Pick a set, reveal 12 cards, chase manga
+          rares and alternate arts — or rip a full booster box. Save pulls to your collection, all
+          in your browser.
         </p>
       </div>
 
@@ -180,7 +171,8 @@ export const OpenPacksPage: React.FC = () => {
         <div className="min-w-0">
           <p className="text-sm font-semibold text-ink-primary">Want the tiered shop instead?</p>
           <p className="text-xs text-ink-secondary">
-            Play-money tiers and EV-style packs live at <span className="font-mono text-accent">/packs</span>.
+            Play-money tiers and EV-style packs live at{' '}
+            <span className="font-mono text-accent">/packs</span>.
           </p>
         </div>
         <Link
@@ -228,15 +220,16 @@ export const OpenPacksPage: React.FC = () => {
             <h3 className="font-display text-2xl font-bold text-ink-primary sm:text-3xl">
               {selectedSet ? (
                 <>
-                  {selectedSet.code} <span className="text-ink-secondary">· {selectedSet.name}</span>
+                  {selectedSet.code}{' '}
+                  <span className="text-ink-secondary">· {selectedSet.name}</span>
                 </>
               ) : (
                 'Pick a set to begin'
               )}
             </h3>
             <p className="text-sm text-ink-secondary">
-              Pick your experience — just a taste, or the full adventure. One
-              pack contains 12 cards; a booster box is {selectedSet?.boxPacks ?? 24} packs.
+              Pick your experience — just a taste, or the full adventure. One pack contains 12
+              cards; a booster box is {selectedSet?.boxPacks ?? 24} packs.
             </p>
           </div>
           <div className="flex w-full flex-col gap-3 lg:w-auto lg:shrink-0">
@@ -322,9 +315,15 @@ export const OpenPacksPage: React.FC = () => {
           <div className="overflow-x-auto" role="table" aria-label="Pull rates">
             <div className="grid min-w-[36rem] grid-cols-[1fr_8rem_10rem_10rem] gap-2 px-2 pb-2 text-[11px] font-bold uppercase tracking-wider text-ink-muted">
               <span role="columnheader">Rarity</span>
-              <span role="columnheader" className="text-right">Per pack</span>
-              <span role="columnheader" className="text-right">Per box</span>
-              <span role="columnheader" className="text-right">Per case (12 boxes)</span>
+              <span role="columnheader" className="text-right">
+                Per pack
+              </span>
+              <span role="columnheader" className="text-right">
+                Per box
+              </span>
+              <span role="columnheader" className="text-right">
+                Per case (12 boxes)
+              </span>
             </div>
             {odds.map((row) => (
               <div
@@ -335,7 +334,9 @@ export const OpenPacksPage: React.FC = () => {
                 <span role="cell" className="text-sm font-medium text-ink-primary">
                   {row.label}
                   {row.note && (
-                    <span className="ml-2 text-[10px] font-normal text-ink-muted">({row.note})</span>
+                    <span className="ml-2 text-[10px] font-normal text-ink-muted">
+                      ({row.note})
+                    </span>
                   )}
                 </span>
                 <span role="cell" className="text-right text-sm tabular-nums text-ink-secondary">
@@ -351,11 +352,10 @@ export const OpenPacksPage: React.FC = () => {
             ))}
           </div>
           <p className="mt-4 rounded-xl border border-border-subtle bg-surface-hover/60 p-3 text-xs leading-relaxed text-ink-muted">
-            Simulated odds based on community pull-rate estimates compiled from
-            large sample openings — Bandai publishes no official rates. Every
-            roll uses exactly these probabilities; booster boxes are case-mapped
-            so box-level averages hold. This fan-made simulator is not
-            affiliated with or endorsed by Bandai, Shueisha or Toei Animation.
+            Simulated odds based on community pull-rate estimates compiled from large sample
+            openings — Bandai publishes no official rates. Every roll uses exactly these
+            probabilities; booster boxes are case-mapped so box-level averages hold. This fan-made
+            simulator is not affiliated with or endorsed by Bandai, Shueisha or Toei Animation.
           </p>
         </div>
       </details>
@@ -374,9 +374,7 @@ export const OpenPacksPage: React.FC = () => {
               </span>
             </div>
             <div className="flex items-center gap-4 text-sm">
-              <span className="tabular-nums text-ink-muted">
-                {sessionCards.length} cards
-              </span>
+              <span className="tabular-nums text-ink-muted">{sessionCards.length} cards</span>
               <span className="tabular-nums text-ink-secondary">
                 {formatCurrency(sessionValue)}
               </span>

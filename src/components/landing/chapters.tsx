@@ -343,8 +343,8 @@ export function FinalCTA() {
           Command your <span className="text-gradient">collection.</span>
         </h2>
         <p className="mt-5 max-w-xl text-base leading-relaxed text-ink-secondary sm:text-lg">
-          Live prices, vault holdings, AI grading and pack rips — every tool your collection deserves,
-          in one command surface.
+          Live prices, vault holdings, AI grading and pack rips — every tool your collection
+          deserves, in one command surface.
         </p>
         <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
           <Link

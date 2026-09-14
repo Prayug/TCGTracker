@@ -48,9 +48,7 @@ export async function ensureCanonicalPriceTable(): Promise<void> {
       PRIMARY KEY (uniqueIdentifier, date)
     )
   `);
-  await run(
-    'CREATE INDEX IF NOT EXISTS idx_canonical_price_date ON canonical_price_history(date)'
-  );
+  await run('CREATE INDEX IF NOT EXISTS idx_canonical_price_date ON canonical_price_history(date)');
   await run(
     'CREATE INDEX IF NOT EXISTS idx_canonical_price_source ON canonical_price_history(source)'
   );
@@ -75,9 +73,7 @@ export async function materializeCanonicalPrices(options?: {
     sinceDate = row?.d ?? null;
   }
 
-  const sourceCase = SOURCE_PRIORITY.map(
-    (s, i) => `WHEN '${s}' THEN ${i}`
-  ).join(' ');
+  const sourceCase = SOURCE_PRIORITY.map((s, i) => `WHEN '${s}' THEN ${i}`).join(' ');
 
   const whereClause = sinceDate
     ? `WHERE ph.date >= ? AND ph.source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')`
@@ -129,7 +125,11 @@ export async function materializeCanonicalPrices(options?: {
   );
 
   const upserted = countRow?.n ?? 0;
-  logger.info('Canonical prices materialized', { upserted, sinceDate, fullRebuild: !!options?.fullRebuild });
+  logger.info('Canonical prices materialized', {
+    upserted,
+    sinceDate,
+    fullRebuild: !!options?.fullRebuild,
+  });
   return { upserted, sinceDate };
 }
 

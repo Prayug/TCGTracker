@@ -30,7 +30,8 @@ export function getRarityTier(rarity?: string): RarityTier {
   if (!rarity) return 'common';
   const key = rarity.toLowerCase();
   if (key.includes('secret')) return 'secret';
-  if (key.includes('ultra') || key.includes('illustration') || key.includes('special')) return 'ultra';
+  if (key.includes('ultra') || key.includes('illustration') || key.includes('special'))
+    return 'ultra';
   if (key.includes('holo') || key.includes('holofoil')) return 'holo';
   if (key.includes('rare')) return 'rare';
   if (key.includes('uncommon')) return 'uncommon';

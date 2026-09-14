@@ -6,7 +6,18 @@ const router = Router();
 
 router.get('/population', async (req, res) => {
   try {
-    const { cardId, cardName, setId, setName, cardNumber, variant, language, matchName, game, cardImageId } = req.query;
+    const {
+      cardId,
+      cardName,
+      setId,
+      setName,
+      cardNumber,
+      variant,
+      language,
+      matchName,
+      game,
+      cardImageId,
+    } = req.query;
     if (!cardName || typeof cardName !== 'string') {
       return res.status(400).json({
         error: 'cardName query parameter is required',

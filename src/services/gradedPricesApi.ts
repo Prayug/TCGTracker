@@ -141,9 +141,7 @@ export const fetchTopGradedPremiums = async (
 };
 
 /** Batch PSA 10 spreads for vault card ids. */
-export const fetchPsa10SpreadsForCards = async (
-  cardIds: string[]
-): Promise<GradedSpreadRow[]> => {
+export const fetchPsa10SpreadsForCards = async (cardIds: string[]): Promise<GradedSpreadRow[]> => {
   const ids = cardIds.filter(Boolean);
   if (ids.length === 0) return [];
   const url = new URL(buildApiUrl('/api/cards/graded-spreads'));
@@ -350,12 +348,7 @@ export interface GradeWorthinessRow {
   fetchedAt?: string | null;
 }
 
-export type GradeWorthinessSort =
-  | 'score'
-  | 'netProfit'
-  | 'netRoi'
-  | 'gemEase'
-  | 'scarce';
+export type GradeWorthinessSort = 'score' | 'netProfit' | 'netRoi' | 'gemEase' | 'scarce';
 
 export interface GradeWorthinessFeeContext {
   grader: string;
@@ -605,9 +598,7 @@ export interface GradeLadderRow {
   why: string;
 }
 
-export const fetchGradeLadder = async (params?: {
-  limit?: number;
-}): Promise<GradeLadderRow[]> => {
+export const fetchGradeLadder = async (params?: { limit?: number }): Promise<GradeLadderRow[]> => {
   const url = new URL(buildApiUrl('/api/cards/grade-ladder'));
   url.searchParams.set('limit', String(params?.limit ?? 12));
   try {

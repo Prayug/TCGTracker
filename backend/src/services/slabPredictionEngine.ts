@@ -129,7 +129,10 @@ export async function fetchPsa10History(cardId: string): Promise<SourcedPricePoi
   }));
 }
 
-export async function fetchPsa10HistoryUpTo(cardId: string, cutoffDate: string): Promise<SourcedPricePoint[]> {
+export async function fetchPsa10HistoryUpTo(
+  cardId: string,
+  cutoffDate: string
+): Promise<SourcedPricePoint[]> {
   const rows = await all<{ date: string; price: number; source?: string }>(
     `SELECT date, price, source
      FROM graded_price_history
@@ -323,13 +326,10 @@ export function startSlabPredictionsInBackground(): { started: boolean; alreadyR
 export async function runSlabPredictions(): Promise<SlabRunResult> {
   const horizonSupport = await getGradedHorizonSupportStatus(true);
   const span = await getGradedPriceHistorySpanDays();
-  const runId = await run(
-    `INSERT INTO slab_prediction_runs (model_version, notes) VALUES (?, ?)`,
-    [
-      SLAB_MODEL_VERSION,
-      `PSA 10 slab run; historyDays=${horizonSupport.historyDays}; experimental=[${horizonSupport.experimental.join(',')}]`,
-    ]
-  );
+  const runId = await run(`INSERT INTO slab_prediction_runs (model_version, notes) VALUES (?, ?)`, [
+    SLAB_MODEL_VERSION,
+    `PSA 10 slab run; historyDays=${horizonSupport.historyDays}; experimental=[${horizonSupport.experimental.join(',')}]`,
+  ]);
 
   const cards = await fetchSlabUniverse();
   const historyByCard = await fetchAllPsa10HistoryByCard();
@@ -376,17 +376,39 @@ export async function runSlabPredictions(): Promise<SlabRunResult> {
         runId,
         prediction.cardId,
         prediction.currentPrice,
-        prediction.predicted7d.low, prediction.predicted7d.mid, prediction.predicted7d.high,
-        prediction.predicted30d.low, prediction.predicted30d.mid, prediction.predicted30d.high,
-        prediction.predicted90d.low, prediction.predicted90d.mid, prediction.predicted90d.high,
-        prediction.predicted180d.low, prediction.predicted180d.mid, prediction.predicted180d.high,
-        prediction.predicted365d.low, prediction.predicted365d.mid, prediction.predicted365d.high,
-        prediction.expected7dReturn, prediction.expected30dReturn, prediction.expected90dReturn,
-        prediction.expected180dReturn, prediction.expected365dReturn,
-        prediction.confidenceScore, prediction.riskScore, prediction.category, prediction.suggestedAction,
-        prediction.explanation, prediction.riskFactors, prediction.externalSignals, SLAB_MODEL_VERSION,
-        prediction.uniqueIdentifier || slabUid(card.cardId), prediction.variantKey || 'psa10',
-        prediction.signalScore ?? null, SLAB_GRADER, SLAB_GRADE,
+        prediction.predicted7d.low,
+        prediction.predicted7d.mid,
+        prediction.predicted7d.high,
+        prediction.predicted30d.low,
+        prediction.predicted30d.mid,
+        prediction.predicted30d.high,
+        prediction.predicted90d.low,
+        prediction.predicted90d.mid,
+        prediction.predicted90d.high,
+        prediction.predicted180d.low,
+        prediction.predicted180d.mid,
+        prediction.predicted180d.high,
+        prediction.predicted365d.low,
+        prediction.predicted365d.mid,
+        prediction.predicted365d.high,
+        prediction.expected7dReturn,
+        prediction.expected30dReturn,
+        prediction.expected90dReturn,
+        prediction.expected180dReturn,
+        prediction.expected365dReturn,
+        prediction.confidenceScore,
+        prediction.riskScore,
+        prediction.category,
+        prediction.suggestedAction,
+        prediction.explanation,
+        prediction.riskFactors,
+        prediction.externalSignals,
+        SLAB_MODEL_VERSION,
+        prediction.uniqueIdentifier || slabUid(card.cardId),
+        prediction.variantKey || 'psa10',
+        prediction.signalScore ?? null,
+        SLAB_GRADER,
+        SLAB_GRADE,
       ]);
       succeeded++;
     } catch (err) {
@@ -534,10 +556,14 @@ export async function getLatestSlabPredictions(
 
   const sortColumn = (() => {
     switch (filters?.sortBy) {
-      case 'confidence': return 'sp.confidence_score';
-      case 'price': return 'sp.current_price';
-      case 'name': return 'cm.cardName';
-      case 'risk': return 'sp.risk_score';
+      case 'confidence':
+        return 'sp.confidence_score';
+      case 'price':
+        return 'sp.current_price';
+      case 'name':
+        return 'cm.cardName';
+      case 'risk':
+        return 'sp.risk_score';
       default: {
         const col = WINDOW_RETURN_COLUMNS[window] ?? WINDOW_RETURN_COLUMNS['90d'];
         return `COALESCE(sp.${col}, sp.expected_90d_return)`;
@@ -717,10 +743,13 @@ export async function getSlabOverview(): Promise<{
     avgExpectedReturn90d: statsRow?.avgExpectedReturn90d || 0,
     avgExpectedReturn30d: statsRow?.avgExpectedReturn30d || 0,
     marketDirection,
-    categoryBreakdown: categoryRows.reduce((acc, row) => {
-      acc[row.category] = row.count;
-      return acc;
-    }, {} as Record<string, number>),
+    categoryBreakdown: categoryRows.reduce(
+      (acc, row) => {
+        acc[row.category] = row.count;
+        return acc;
+      },
+      {} as Record<string, number>
+    ),
     topGainers: topGainers.map(mapMover),
     topLosers: topLosers.map(mapMover),
     confidenceBuckets,
@@ -756,6 +785,12 @@ export async function getSlabPredictionResult(predictionId: number): Promise<any
   return get<any>(`SELECT * FROM slab_prediction_results WHERE prediction_id = ?`, [predictionId]);
 }
 
-export async function updateSlabExplanation(predictionId: number, explanation: string): Promise<void> {
-  await run(`UPDATE slab_predictions SET explanation = ? WHERE id = ?`, [explanation, predictionId]);
+export async function updateSlabExplanation(
+  predictionId: number,
+  explanation: string
+): Promise<void> {
+  await run(`UPDATE slab_predictions SET explanation = ? WHERE id = ?`, [
+    explanation,
+    predictionId,
+  ]);
 }

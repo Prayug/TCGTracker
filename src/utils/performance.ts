@@ -3,13 +3,13 @@
  */
 
 // Debounce function for search and input handlers
-export function debounce<T extends (...args: any[]) => any>(
-  func: T,
+export function debounce<TArgs extends unknown[], TResult>(
+  func: (...args: TArgs) => TResult,
   wait: number
-): (...args: Parameters<T>) => void {
+): (...args: TArgs) => void {
   let timeout: NodeJS.Timeout | null = null;
 
-  return function executedFunction(...args: Parameters<T>) {
+  return function executedFunction(...args: TArgs) {
     const later = () => {
       timeout = null;
       func(...args);
@@ -23,13 +23,13 @@ export function debounce<T extends (...args: any[]) => any>(
 }
 
 // Throttle function for scroll and resize handlers
-export function throttle<T extends (...args: any[]) => any>(
-  func: T,
+export function throttle<TArgs extends unknown[], TResult>(
+  func: (...args: TArgs) => TResult,
   limit: number
-): (...args: Parameters<T>) => void {
+): (...args: TArgs) => void {
   let inThrottle: boolean;
 
-  return function executedFunction(...args: Parameters<T>) {
+  return function executedFunction(...args: TArgs) {
     if (!inThrottle) {
       func(...args);
       inThrottle = true;
@@ -55,25 +55,24 @@ export function lazyLoadImage(img: HTMLImageElement, src: string): void {
 }
 
 // Memoize expensive calculations
-export function memoize<T extends (...args: any[]) => any>(fn: T): T {
-  const cache = new Map<string, ReturnType<T>>();
+export function memoize<TArgs extends unknown[], TResult>(
+  fn: (...args: TArgs) => TResult
+): (...args: TArgs) => TResult {
+  const cache = new Map<string, TResult>();
 
-  return ((...args: Parameters<T>) => {
+  return (...args: TArgs) => {
     const key = JSON.stringify(args);
     if (cache.has(key)) {
-      return cache.get(key);
+      return cache.get(key) as TResult;
     }
     const result = fn(...args);
     cache.set(key, result);
     return result;
-  }) as T;
+  };
 }
 
 // Batch multiple state updates
-export function batchUpdates(
-  updates: Array<() => void>,
-  callback?: () => void
-): void {
+export function batchUpdates(updates: Array<() => void>, callback?: () => void): void {
   updates.forEach((update) => update());
   callback?.();
 }
@@ -124,7 +123,7 @@ interface CacheEntry<T> {
   timestamp: number;
 }
 
-export class ResponseCache<T = any> {
+export class ResponseCache<T = unknown> {
   private cache = new Map<string, CacheEntry<T>>();
   private ttl: number;
 
@@ -169,4 +168,3 @@ export class ResponseCache<T = any> {
     return true;
   }
 }
-
