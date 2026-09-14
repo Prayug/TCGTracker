@@ -151,9 +151,12 @@ export function BrowsePage() {
   });
 
   const facetChips: { key: keyof MarketplaceFilters; label: string }[] = [];
-  if (marketplaceFilters.setName !== 'all') facetChips.push({ key: 'setName', label: marketplaceFilters.setName });
-  if (marketplaceFilters.rarity !== 'all') facetChips.push({ key: 'rarity', label: marketplaceFilters.rarity });
-  if (marketplaceFilters.cardType !== 'all') facetChips.push({ key: 'cardType', label: marketplaceFilters.cardType });
+  if (marketplaceFilters.setName !== 'all')
+    facetChips.push({ key: 'setName', label: marketplaceFilters.setName });
+  if (marketplaceFilters.rarity !== 'all')
+    facetChips.push({ key: 'rarity', label: marketplaceFilters.rarity });
+  if (marketplaceFilters.cardType !== 'all')
+    facetChips.push({ key: 'cardType', label: marketplaceFilters.cardType });
   if (marketplaceFilters.priceRange !== 'all')
     facetChips.push({ key: 'priceRange', label: `$${marketplaceFilters.priceRange}` });
 
@@ -164,9 +167,8 @@ export function BrowsePage() {
   return (
     <PageShell className="space-y-4">
       <PageHeader
-        eyebrow="Marketplace"
         title={`Browse ${gameLabel} cards`}
-        description="Filter by set, rarity, price, etc."
+        description="Filter by set, rarity, and price."
       />
 
       <SearchFilters

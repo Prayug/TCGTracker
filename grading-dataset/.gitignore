@@ -1,0 +1,14 @@
+dataset/**
+!dataset/.gitkeep
+reports/collection.log
+reports/*.png
+qa/*.html
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm

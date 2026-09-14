@@ -1,4 +1,4 @@
-import { repairStalePlateauCliffs } from '../priceHistory';
+import { repairStalePlateauCliffs, chartSourceRank } from '../priceHistory';
 
 describe('repairStalePlateauCliffs', () => {
   it('rewrites a long stale tcgdex plateau that cliffs downward', () => {
@@ -36,5 +36,12 @@ describe('repairStalePlateauCliffs', () => {
     const repaired = repairStalePlateauCliffs(points);
     expect(repaired.filter((p) => p.price === 2100).length).toBe(20);
     expect(repaired.filter((p) => p.price === 5250).length).toBe(10);
+  });
+});
+
+describe('chartSourceRank', () => {
+  it('prefers TCGPlayer catalog over live TCGdex on the same day', () => {
+    expect(chartSourceRank('catalog_fallback')).toBeLessThan(chartSourceRank('tcgdex'));
+    expect(chartSourceRank('tcgcsv')).toBeLessThan(chartSourceRank('tcgdex'));
   });
 });

@@ -204,6 +204,7 @@ router.get('/run-status', asyncHandler(async (_req, res) => {
     running: status.running,
     startedAt: status.startedAt,
     last: status.last,
+    progress: status.progress,
   });
 }));
 

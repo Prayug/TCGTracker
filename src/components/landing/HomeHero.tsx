@@ -46,12 +46,10 @@ export function HomeHero() {
             TCG<span className="text-accent">Tracker</span>
           </p>
           <h1 className="mt-3 font-display text-4xl font-bold leading-[1.05] tracking-tight text-ink-primary sm:text-5xl">
-            Rip packs. Grade cards.
-            <br />
-            <span className="text-gradient">Track the market.</span>
+            Prices, grades, and the cards you own.
           </h1>
           <p className="mt-3 max-w-md text-sm leading-relaxed text-ink-secondary sm:text-base">
-            Live prices, your vault, pack rips and AI grading — for Pokemon and One Piece.
+            Catalog, live market, vault, and photo grading for Pokemon and One Piece.
           </p>
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <Link

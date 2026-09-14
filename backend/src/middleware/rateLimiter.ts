@@ -18,6 +18,12 @@ function isDealsReadPath(req: Request): boolean {
   return url.includes('/api/deals');
 }
 
+function isInsightsRunStatusPath(req: Request): boolean {
+  if (req.method !== 'GET') return false;
+  const url = req.originalUrl || req.url || '';
+  return url.includes('/run-status');
+}
+
 // General API rate limiter
 export const apiLimiter = rateLimit({
   windowMs: env.rateLimit.windowMs,
@@ -29,7 +35,10 @@ export const apiLimiter = rateLimit({
   // burn the global budget on that relay traffic. Deal reads poll while a
   // marketplace crawl is running and must not share the 100/15min bucket.
   skip: (req) =>
-    isCaptureSessionsPath(req) || isEbayNotificationPath(req) || isDealsReadPath(req),
+    isCaptureSessionsPath(req) ||
+    isEbayNotificationPath(req) ||
+    isDealsReadPath(req) ||
+    isInsightsRunStatusPath(req),
 });
 
 /** Generous limiter for phone↔desktop capture relay (poll + image upload). */

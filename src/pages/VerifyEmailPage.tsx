@@ -45,14 +45,12 @@ export function VerifyEmailPage() {
 
   return (
     <PageShell>
-      <PageHeader eyebrow="Account" title="Email verification" description={message} />
+      <PageHeader title="Email verification" description={message} />
       <div className="mx-auto flex max-w-md flex-col items-center rounded-2xl border border-border-default bg-surface-raised px-6 py-10 text-center">
         {status === 'loading' && (
           <Loader2 className="mb-4 h-10 w-10 animate-spin text-accent" aria-hidden />
         )}
-        {status === 'success' && (
-          <CheckCircle2 className="mb-4 h-10 w-10 text-gain" aria-hidden />
-        )}
+        {status === 'success' && <CheckCircle2 className="mb-4 h-10 w-10 text-gain" aria-hidden />}
         {status === 'error' && <XCircle className="mb-4 h-10 w-10 text-loss" aria-hidden />}
 
         <p className="text-sm text-ink-secondary">{message}</p>

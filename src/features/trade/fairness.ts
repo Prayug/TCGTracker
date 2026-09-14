@@ -106,7 +106,7 @@ export function evaluateTrade(input: {
 export const VERDICT_COPY: Record<TradeVerdictKind, { title: string; hint: string }> = {
   empty: {
     title: 'Add cards to both sides',
-    hint: 'Search the catalog or pull from your vault. Optional cash evens an unbalanced offer.',
+    hint: 'Search the catalog or pull from your vault. Add cash if the values do not line up.',
   },
   incomplete: {
     title: 'Need market prices',
@@ -126,7 +126,7 @@ export const VERDICT_COPY: Record<TradeVerdictKind, { title: string; hint: strin
   },
   leans_you: {
     title: 'Unbalanced — you come out ahead',
-    hint: 'The other side is leaving a lot on the table.',
+    hint: 'The other side is giving up more than they are getting.',
   },
   leans_them: {
     title: 'Unbalanced — you give more',

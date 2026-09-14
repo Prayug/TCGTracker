@@ -225,9 +225,8 @@ export function TradePage() {
   return (
     <div className="section-stack">
       <PageHeader
-        eyebrow="Collector tools"
-        title="Fair trade"
-        description={`Line up what you give and what you get. ${gameLabel} market quotes decide whether the offer is even — cash optional.`}
+        title="Trade calculator"
+        description={`${gameLabel} quotes on both sides. Add cash if the totals do not match.`}
         actions={
           <div className="flex flex-wrap gap-2">
             <button

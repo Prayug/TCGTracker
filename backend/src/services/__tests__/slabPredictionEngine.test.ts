@@ -3,6 +3,7 @@ import {
   slabUid,
   SLAB_MIN_DATA_POINTS,
   SLAB_MIN_SPAN_DAYS,
+  getSlabPredictionRunStatus,
 } from '../slabPredictionEngine';
 
 describe('preferCatalogOverTcgcsv', () => {
@@ -30,6 +31,14 @@ describe('preferCatalogOverTcgcsv', () => {
 describe('slabUid', () => {
   it('namespaces PSA 10 series by card id', () => {
     expect(slabUid('sm115-9')).toBe('slab:psa10:sm115-9');
+  });
+});
+
+describe('getSlabPredictionRunStatus', () => {
+  it('includes progress so the UI can show how far a run has gone', () => {
+    const status = getSlabPredictionRunStatus();
+    expect(status).toHaveProperty('progress');
+    expect(typeof status.running).toBe('boolean');
   });
 });
 

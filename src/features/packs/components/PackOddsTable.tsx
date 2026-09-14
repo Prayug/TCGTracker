@@ -38,9 +38,13 @@ export const PackOddsTable: React.FC<PackOddsTableProps> = ({
             aria-hidden
           />
           <div className="relative flex items-baseline justify-between gap-3 text-sm">
-            <span className="truncate tabular-nums text-ink-secondary">{formatOddsLabel(range)}</span>
+            <span className="truncate tabular-nums text-ink-secondary">
+              {formatOddsLabel(range)}
+            </span>
             <span className="shrink-0 font-semibold tabular-nums text-ink-primary">
-              {range.probability % 1 === 0 ? `${range.probability}%` : `${range.probability.toFixed(1)}%`}
+              {range.probability % 1 === 0
+                ? `${range.probability}%`
+                : `${range.probability.toFixed(1)}%`}
             </span>
           </div>
         </div>
@@ -48,9 +52,9 @@ export const PackOddsTable: React.FC<PackOddsTableProps> = ({
     </div>
     <p className="mt-3 text-[10px] leading-relaxed text-ink-muted sm:text-xs">
       {boosted
-        ? 'Boosted odds — lower floor, higher ceiling. Same price.'
-        : 'Exact simulated odds — every tier disclosed.'}
-      {!isOnePiece ? ' Raw vs PSA 10 at each bracket follows what is in the card pool.' : ''}
+        ? 'Lower floor, higher ceiling. Same price.'
+        : 'Simulated odds. Every bracket is listed.'}
+      {!isOnePiece ? ' Each bracket can resolve to a raw card or a PSA 10 from the pool.' : ''}
     </p>
   </div>
 );

@@ -36,12 +36,11 @@ export function LandingPage() {
             viewport={{ once: true, margin: '-80px' }}
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
           >
-            <h2 className="font-display text-[clamp(2rem,5vw,3.5rem)] font-bold leading-tight tracking-tight">
-              <span className="text-gradient">Real-time</span>{' '}
-              <span className="text-ink-primary">market</span> data
+            <h2 className="font-display text-[clamp(2rem,5vw,3.5rem)] font-bold leading-tight tracking-tight text-ink-primary">
+              Market data
             </h2>
-            <p className="mt-3 max-w-lg text-base font-semibold text-ink-secondary">
-              Track prices, spot trends, and never miss a move.
+            <p className="mt-3 max-w-lg text-base text-ink-secondary">
+              Raw and PSA 10 movers for the game you have selected.
             </p>
           </motion.div>
 
