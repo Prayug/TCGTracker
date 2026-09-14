@@ -82,8 +82,7 @@ router.get('/sets/:setId/summary', async (req, res) => {
     const wishlistIds = parseOwnedIds(req.query.wishlistIds);
     const hasReverseParam = typeof req.query.ownedReverseIds === 'string';
     const ownedReverseIds = hasReverseParam ? parseOwnedIds(req.query.ownedReverseIds) : undefined;
-    const includeReverseInCost =
-      req.query.includeReverseInCost === 'true' || hasReverseParam;
+    const includeReverseInCost = req.query.includeReverseInCost === 'true' || hasReverseParam;
 
     const summary = computeSetSummary(cards, ownedIds, wishlistIds, {
       ownedReverseIds,

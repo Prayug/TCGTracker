@@ -2,10 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { CardRing } from '@/components/three/CardRing';
 import { setTrackerService } from '@/services/setTrackerService';
-import {
-  readCardRingCache,
-  writeCardRingCache,
-} from '@/services/cardRingCache';
+import { readCardRingCache, writeCardRingCache } from '@/services/cardRingCache';
 import type { PokemonCard, PokemonSet } from '@/types/pokemon';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 
@@ -18,7 +15,10 @@ function pickSetsForRing(sets: PokemonSet[], maxSets: number): PokemonSet[] {
   const sorted = [...sets].sort((a, b) => {
     const av = new Date(a.releaseDate ?? '').getTime();
     const bv = new Date(b.releaseDate ?? '').getTime();
-    return (Number.isNaN(av) ? Number.MAX_SAFE_INTEGER : av) - (Number.isNaN(bv) ? Number.MAX_SAFE_INTEGER : bv);
+    return (
+      (Number.isNaN(av) ? Number.MAX_SAFE_INTEGER : av) -
+      (Number.isNaN(bv) ? Number.MAX_SAFE_INTEGER : bv)
+    );
   });
 
   if (sorted.length <= maxSets) return sorted;
@@ -132,8 +132,8 @@ export function CardRingSection() {
               <span className="text-gradient">Every set</span> in the field
             </h2>
             <p className="mt-3 max-w-lg text-base font-semibold text-ink-secondary">
-              A particle ring of real card art — dense on the torus, scattered through the void. Drag to
-              orbit.
+              A particle ring of real card art — dense on the torus, scattered through the void.
+              Drag to orbit.
             </p>
           </div>
         </motion.div>
@@ -153,7 +153,9 @@ export function CardRingSection() {
           ) : cards.length > 0 ? (
             <CardRing cards={cards} maxSets={MAX_SETS} maxCardsPerSet={CARDS_PER_SET} />
           ) : (
-            <p className="py-24 text-center text-ink-secondary">Couldn't load cards for the ring.</p>
+            <p className="py-24 text-center text-ink-secondary">
+              Couldn't load cards for the ring.
+            </p>
           )}
         </div>
       </div>

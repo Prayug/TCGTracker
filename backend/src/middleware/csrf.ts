@@ -54,9 +54,7 @@ export const csrfProtection = (req: Request, res: Response, next: NextFunction) 
   const matchesAllowedOrigin = (value: string): boolean =>
     allowedOrigins.some(
       (allowed) =>
-        value === allowed ||
-        value.startsWith(`${allowed}/`) ||
-        value.startsWith(`${allowed}:`)
+        value === allowed || value.startsWith(`${allowed}/`) || value.startsWith(`${allowed}:`)
     ) ||
     (!env.isProduction && isPrivateLanOrigin(value));
 

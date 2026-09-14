@@ -18,23 +18,29 @@ ENV VITE_CARD_SCANNER_API_URL=$VITE_CARD_SCANNER_API_URL
 ENV VITE_ENABLE_AUTH=$VITE_ENABLE_AUTH
 ENV VITE_ENABLE_ANALYTICS=$VITE_ENABLE_ANALYTICS
 ENV VITE_GA_TRACKING_ID=$VITE_GA_TRACKING_ID
-ENV NODE_ENV=production
+# Do not set NODE_ENV=production before npm ci — that omits devDependencies
+# (vite, @types/node, etc.) while `tsc -b` still needs them for the build.
 
-# Copy package files
+# Copy package manifests + local file: dependency before install
 COPY package*.json ./
-RUN npm ci --ignore-scripts
+COPY packages/shared/package*.json ./packages/shared/
+COPY packages/shared ./packages/shared
+# Install full build toolchain (typescript, vite, @types/*), not production-only
+RUN npm ci --include=dev --ignore-scripts
 
-# Copy source code
-COPY . .
+# Copy only frontend build inputs (avoid pulling backend into this image)
+COPY index.html vite.config.ts tsconfig.json tsconfig.app.json tsconfig.node.json \
+     tailwind.config.js postcss.config.js eslint.config.js components.json ./
+COPY public ./public
+COPY src ./src
 
-# Build the application
+# Build the application (Vite sets production mode via `vite build`)
 RUN npm run build
 
 # Production stage
 FROM nginx:alpine AS frontend-production
 
-# Create nginx user/group if not exists
-RUN addgroup -g 101 -S nginx && adduser -S -D -H -u 101 -h /var/cache/nginx -s /sbin/nologin -G nginx -g nginx nginx
+# nginx:alpine already ships the nginx user/group — do not recreate them.
 
 # Copy built assets from builder
 COPY --from=frontend-builder /app/dist /usr/share/nginx/html

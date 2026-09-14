@@ -73,12 +73,17 @@ const evictStaleEntries = <T extends { timestamp?: number; fetchedAt?: number }>
 };
 
 // Run cache eviction every 15 minutes
-setInterval(() => {
-  evictStaleEntries(cardImageCache as any, MAX_CARD_IMAGE_CACHE_SIZE, CACHE_TTL);
-  evictStaleEntries(pokemonApiCache as any, MAX_POKEMON_API_CACHE_SIZE, POKEMON_CACHE_TTL);
-}, 15 * 60 * 1000);
+setInterval(
+  () => {
+    evictStaleEntries(cardImageCache as any, MAX_CARD_IMAGE_CACHE_SIZE, CACHE_TTL);
+    evictStaleEntries(pokemonApiCache as any, MAX_POKEMON_API_CACHE_SIZE, POKEMON_CACHE_TTL);
+  },
+  15 * 60 * 1000
+);
 
-export const getPersistentPokemonCache = (cacheKey: string): Promise<PokemonPersistentCacheRow | null> => {
+export const getPersistentPokemonCache = (
+  cacheKey: string
+): Promise<PokemonPersistentCacheRow | null> => {
   const db = getDb();
   return new Promise((resolve, reject) => {
     db.get(
@@ -127,7 +132,7 @@ export const savePersistentPokemonCache = (
         JSON.stringify(entry.data),
         entry.totalCount,
         entry.pagesFetched,
-        entry.fetchedAt
+        entry.fetchedAt,
       ],
       (err) => {
         if (err) {
@@ -142,4 +147,3 @@ export const savePersistentPokemonCache = (
 export const getCacheKey = (cardName: string, setId: string, cardNumber?: string): string => {
   return `${cardName}|${setId}|${cardNumber || 'none'}`.toLowerCase();
 };
-

@@ -13,10 +13,7 @@ import {
   maxEndpointChangePctForPeriod,
   type PricePointLite,
 } from './topMoversQuality';
-import {
-  applyBulkAndEconomicScoring,
-  buildBulkAwareWhy,
-} from './opportunityBulkScoring';
+import { applyBulkAndEconomicScoring, buildBulkAwareWhy } from './opportunityBulkScoring';
 
 const all = <T>(sql: string, params: unknown[] = []): Promise<T[]> =>
   new Promise((resolve, reject) => {
@@ -81,9 +78,30 @@ export function passesMoverThresholds(input: {
 export function characterToken(cardName: string | null | undefined): string | null {
   if (!cardName) return null;
   const STOP = new Set([
-    'ex', 'gx', 'v', 'vmax', 'vstar', 'lv.x', 'star', 'prime', 'break',
-    'dark', 'light', 'shining', 'shadow', 'radiant', 'galarian', 'alolan',
-    'hisuian', 'paldean', 'mega', 'primal', 'team', 'the', 'of', '&',
+    'ex',
+    'gx',
+    'v',
+    'vmax',
+    'vstar',
+    'lv.x',
+    'star',
+    'prime',
+    'break',
+    'dark',
+    'light',
+    'shining',
+    'shadow',
+    'radiant',
+    'galarian',
+    'alolan',
+    'hisuian',
+    'paldean',
+    'mega',
+    'primal',
+    'team',
+    'the',
+    'of',
+    '&',
   ]);
   const tokens = cardName
     .toLowerCase()
@@ -296,16 +314,14 @@ export function computeOpportunityScore(input: OpportunityScoreInputs): {
   // Each component normalized to 0–100 (50 = neutral).
   const momentumComponent = clamp(((input.momentumPct + 20) / 50) * 100, 0, 100);
   const underval =
-    input.premiumVsSetMedian != null
-      ? clamp(50 - input.premiumVsSetMedian / 2, 0, 100)
-      : 50;
+    input.premiumVsSetMedian != null ? clamp(50 - input.premiumVsSetMedian / 2, 0, 100) : 50;
   const buyoutUnderComponent = 0.5 * clamp(input.buyoutScore, 0, 100) + 0.5 * underval;
   const sentimentComponent =
-    input.netSentiment != null ? clamp(((clamp(input.netSentiment, -1, 1) + 1) / 2) * 100, 0, 100) : 50;
-  const compComponent =
-    input.compMomentumPct != null
-      ? clamp(((input.compMomentumPct + 20) / 50) * 100, 0, 100)
+    input.netSentiment != null
+      ? clamp(((clamp(input.netSentiment, -1, 1) + 1) / 2) * 100, 0, 100)
       : 50;
+  const compComponent =
+    input.compMomentumPct != null ? clamp(((input.compMomentumPct + 20) / 50) * 100, 0, 100) : 50;
 
   let score: number;
   if (input.predictedReturn90d != null) {
@@ -446,6 +462,12 @@ function mapMoverRow(r: MoverQueryRow, days: number): SlabMoverRow {
 }
 
 /** "Similar cards/slabs that have gone up" — verified PSA 10 %-change movers. */
+const SLAB_MOVERS_TTL_MS = 5 * 60 * 1000;
+const slabMoversCache = new Map<
+  string,
+  { expiresAt: number; payload: { rows: SlabMoverRow[]; count: number; days: number } }
+>();
+
 export async function getSlabMovers(options?: {
   days?: number;
   direction?: MoverDirection;
@@ -453,6 +475,13 @@ export async function getSlabMovers(options?: {
 }): Promise<{ rows: SlabMoverRow[]; count: number; days: number }> {
   const days = [7, 30, 90].includes(options?.days ?? 7) ? (options?.days ?? 7) : 7;
   const limit = clamp(options?.limit ?? 20, 1, 100);
+  const direction = options?.direction ?? '';
+  const cacheKey = `${days}:${limit}:${direction}`;
+  const cached = slabMoversCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.payload;
+  }
+
   const endpointCap = maxEndpointChangePctForPeriod(days);
 
   const rows = await queryMoverRows(days);
@@ -478,16 +507,23 @@ export async function getSlabMovers(options?: {
   // Scan deep — the biggest |%| candidates are often exactly the data cliffs.
   const out: SlabMoverRow[] = [];
   const maxChecks = Math.min(movers.length, Math.max(limit * 4, 200));
-  for (let i = 0; i < maxChecks && out.length < limit; i++) {
-    const m = movers[i];
-    const series = await fetchPsa10Series(m.cardId, days);
+  const candidates = movers.slice(0, maxChecks);
+  const seriesById = await fetchPsa10SeriesBatch(
+    candidates.map((m) => m.cardId),
+    days
+  );
+  for (const m of candidates) {
+    if (out.length >= limit) break;
+    const series = seriesById.get(m.cardId) ?? [];
     const points: PricePointLite[] = series.map((p) => ({ date: p.date, price: p.price }));
     if (isGradualMove(points, { cliffPct: 50, minPoints: MOVER_MIN_HISTORY_POINTS })) {
       out.push(m);
     }
   }
 
-  return { rows: out, count: out.length, days };
+  const payload = { rows: out, count: out.length, days };
+  slabMoversCache.set(cacheKey, { expiresAt: Date.now() + SLAB_MOVERS_TTL_MS, payload });
+  return payload;
 }
 
 // ---------------------------------------------------------------------------
@@ -540,6 +576,37 @@ async function fetchPsa10Series(cardId: string, days: number): Promise<SeriesPoi
      ORDER BY date ASC`,
     [cardId, `-${days} days`]
   );
+}
+
+/** Batch series fetch — avoids N+1 round-trips in getSlabMovers / buyout scans. */
+async function fetchPsa10SeriesBatch(
+  cardIds: string[],
+  days: number
+): Promise<Map<string, SeriesPoint[]>> {
+  const unique = [...new Set(cardIds.filter(Boolean))];
+  const out = new Map<string, SeriesPoint[]>();
+  if (unique.length === 0) return out;
+
+  // Chunk to keep SQLite variable lists bounded.
+  const chunkSize = 200;
+  for (let i = 0; i < unique.length; i += chunkSize) {
+    const chunk = unique.slice(i, i + chunkSize);
+    const placeholders = chunk.map(() => '?').join(',');
+    const rows = await all<SeriesPoint & { cardId: string }>(
+      `SELECT cardId, date, price FROM graded_price_history
+       WHERE cardId IN (${placeholders})
+         AND UPPER(grader) = 'PSA' AND grade = '10'
+         AND price > 0 AND date >= date('now', ?)
+       ORDER BY cardId ASC, date ASC`,
+      [...chunk, `-${days} days`]
+    );
+    for (const row of rows) {
+      const series = out.get(row.cardId) ?? [];
+      series.push({ date: row.date, price: row.price });
+      out.set(row.cardId, series);
+    }
+  }
+  return out;
 }
 
 interface CompCandidateRow {
@@ -617,8 +684,7 @@ function mapComp(
     matchScore: r.matchScore,
     historyPoints: r.historyPoints,
   });
-  const corr =
-    anchorSeries && compSeries ? moveCorrelation(anchorSeries, compSeries) : null;
+  const corr = anchorSeries && compSeries ? moveCorrelation(anchorSeries, compSeries) : null;
   return {
     compClass,
     cardId: r.cardId,
@@ -629,8 +695,7 @@ function mapComp(
     grader: r.grader,
     grade: r.grade,
     currentPrice: round2(r.currentPrice),
-    change7dPct:
-      r.prev7 && r.prev7 > 0 ? computeChange(r.currentPrice, r.prev7).changePct : null,
+    change7dPct: r.prev7 && r.prev7 > 0 ? computeChange(r.currentPrice, r.prev7).changePct : null,
     change30dPct:
       r.prev30 && r.prev30 > 0 ? computeChange(r.currentPrice, r.prev30).changePct : null,
     premiumPct:
@@ -915,14 +980,22 @@ export async function scanBuyoutCandidates(options?: {
   );
 
   const endpointCap = maxEndpointChangePctForPeriod(days);
-  const candidates: BuyoutCandidateRow[] = [];
-  for (const r of rows) {
-    if (!(r.prevPrice && r.prevPrice > 0)) continue;
+  const spikeRows = rows.filter((r) => {
+    if (!(r.prevPrice && r.prevPrice > 0)) return false;
     const { changePct } = computeChange(r.currentPrice, r.prevPrice);
-    if (changePct < 15 || changePct > endpointCap) continue;
+    return changePct >= 15 && changePct <= endpointCap;
+  });
+  const seriesById = await fetchPsa10SeriesBatch(
+    spikeRows.map((r) => r.cardId),
+    days
+  );
+
+  const candidates: BuyoutCandidateRow[] = [];
+  for (const r of spikeRows) {
+    const { changePct } = computeChange(r.currentPrice, r.prevPrice as number);
 
     // Quality guard (topMoversQuality): require a gradual path, not a data cliff.
-    const series = await fetchPsa10Series(r.cardId, days);
+    const series = seriesById.get(r.cardId) ?? [];
     const points: PricePointLite[] = series.map((p) => ({ date: p.date, price: p.price }));
     if (!isGradualMove(points, { cliffPct: 50, minPoints: 3 })) continue;
 
@@ -967,7 +1040,7 @@ export async function scanBuyoutCandidates(options?: {
       setName: r.setName,
       imageSmall: r.imageSmall,
       currentPrice: round2(r.currentPrice),
-      prevPrice: round2(r.prevPrice),
+      prevPrice: round2(r.prevPrice as number),
       changePct,
       days,
       listedCount: r.listedCount,
@@ -1058,7 +1131,15 @@ export async function getOpportunities(options?: {
   const limit = clamp(options?.limit ?? 20, 1, 100);
   const minScore = clamp(options?.minScore ?? 0, 0, 100);
 
-  const [predictions, moverResult, buyoutResult, premiumRows, sentimentRows, rawPriceRows, catalystRows] = await Promise.all([
+  const [
+    predictions,
+    moverResult,
+    buyoutResult,
+    premiumRows,
+    sentimentRows,
+    rawPriceRows,
+    catalystRows,
+  ] = await Promise.all([
     all<{
       card_id: string;
       expected_90d_return: number | null;
@@ -1243,7 +1324,8 @@ export async function getOpportunities(options?: {
       compMomentumPct,
     });
 
-    const marketPrice = rawPriceById.get(cardId) ?? meta.currentPrice ?? mover?.currentPrice ?? null;
+    const marketPrice =
+      rawPriceById.get(cardId) ?? meta.currentPrice ?? mover?.currentPrice ?? null;
     const bulk = applyBulkAndEconomicScoring({
       marketPrice,
       changeAbs: mover?.changeAbs ?? null,
@@ -1387,7 +1469,11 @@ export async function getExternalFactorsGlobal(options?: {
   if (options?.type) {
     typeFilter = 'AND (s.source_type = ? OR s.risk_type = ? OR s.source_type = ?)';
     const mapped =
-      options.type === 'reddit' ? 'social' : options.type === 'set_release' ? 'set_release' : options.type;
+      options.type === 'reddit'
+        ? 'social'
+        : options.type === 'set_release'
+          ? 'set_release'
+          : options.type;
     params.push(mapped, options.type, mapped);
   }
 
@@ -1470,9 +1556,9 @@ export async function getExternalFactorsGlobal(options?: {
     return s.opportunityScore >= 50;
   });
 
-  const sortKey = (['score', 'confidence', 'newest', 'price_impact', 'volume'] as SignalSort[]).includes(
-    options?.sort as SignalSort
-  )
+  const sortKey = (
+    ['score', 'confidence', 'newest', 'price_impact', 'volume'] as SignalSort[]
+  ).includes(options?.sort as SignalSort)
     ? (options!.sort as SignalSort)
     : 'score';
   enriched = sortInvestmentSignals(enriched, sortKey);

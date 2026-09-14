@@ -5,7 +5,11 @@ import { ebayChallengeResponse } from '../services/ebayMarketplaceDeletion';
 
 const router = Router();
 
-const resolveEndpoint = (req: { protocol: string; get: (h: string) => string | undefined; originalUrl: string }): string => {
+const resolveEndpoint = (req: {
+  protocol: string;
+  get: (h: string) => string | undefined;
+  originalUrl: string;
+}): string => {
   if (env.ebay.notificationEndpoint) return env.ebay.notificationEndpoint.replace(/\/$/, '');
   const host = req.get('host') ?? 'localhost';
   const path = req.originalUrl.split('?')[0];
@@ -14,7 +18,8 @@ const resolveEndpoint = (req: { protocol: string; get: (h: string) => string | u
 
 /** GET: eBay ownership challenge. POST: account-deletion notice (we store no eBay user identities). */
 router.get('/', (req, res) => {
-  const challengeCode = typeof req.query.challenge_code === 'string' ? req.query.challenge_code : '';
+  const challengeCode =
+    typeof req.query.challenge_code === 'string' ? req.query.challenge_code : '';
   const token = env.ebay.verificationToken;
   if (!challengeCode || !token) {
     res.status(400).json({ error: 'Missing challenge_code or EBAY_VERIFICATION_TOKEN' });

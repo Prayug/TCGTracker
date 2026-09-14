@@ -54,7 +54,11 @@ export interface SlotInput {
 export class BinderService {
   constructor(private db: Database) {}
 
-  async createBinder(userId: number, input: CreateBinderInput, slots?: SlotInput[]): Promise<BinderWithSlots> {
+  async createBinder(
+    userId: number,
+    input: CreateBinderInput,
+    slots?: SlotInput[]
+  ): Promise<BinderWithSlots> {
     const { lastID } = await runDb(
       this.db,
       `INSERT INTO binders (user_id, name, game, pages, slots_per_page, theme_description, budget_cents, constraints_json)
@@ -94,11 +98,10 @@ export class BinderService {
   }
 
   async getBinder(binderId: number, userId: number): Promise<BinderRow | undefined> {
-    return getDbRow<BinderRow>(
-      this.db,
-      'SELECT * FROM binders WHERE id = ? AND user_id = ?',
-      [binderId, userId]
-    );
+    return getDbRow<BinderRow>(this.db, 'SELECT * FROM binders WHERE id = ? AND user_id = ?', [
+      binderId,
+      userId,
+    ]);
   }
 
   async getBinderWithSlots(binderId: number, userId: number): Promise<BinderWithSlots | undefined> {
@@ -122,15 +125,20 @@ export class BinderService {
     );
   }
 
-  async updateBinder(
-    binderId: number,
-    userId: number,
-    updates: Partial<BinderRow>
-  ): Promise<void> {
+  async updateBinder(binderId: number, userId: number, updates: Partial<BinderRow>): Promise<void> {
     const fields: string[] = [];
     const values: unknown[] = [];
 
-    const allowedFields = ['name', 'game', 'pages', 'slots_per_page', 'theme_description', 'budget_cents', 'constraints_json', 'total_cost_cents'];
+    const allowedFields = [
+      'name',
+      'game',
+      'pages',
+      'slots_per_page',
+      'theme_description',
+      'budget_cents',
+      'constraints_json',
+      'total_cost_cents',
+    ];
 
     for (const [key, value] of Object.entries(updates)) {
       if (value !== undefined && allowedFields.includes(key)) {
@@ -226,14 +234,10 @@ export class BinderService {
   async commitToWishlist(binderId: number, userId: number): Promise<BinderSlotRow[]> {
     const binder = await this.getBinderWithSlots(binderId, userId);
     if (!binder) throw new Error('Binder not found');
-    return binder.slots.filter(s => s.card_id);
+    return binder.slots.filter((s) => s.card_id);
   }
 
   async getSlot(slotId: number): Promise<BinderSlotRow | undefined> {
-    return getDbRow<BinderSlotRow>(
-      this.db,
-      'SELECT * FROM binder_slots WHERE id = ?',
-      [slotId]
-    );
+    return getDbRow<BinderSlotRow>(this.db, 'SELECT * FROM binder_slots WHERE id = ?', [slotId]);
   }
 }

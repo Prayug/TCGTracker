@@ -38,10 +38,14 @@ const exportStaticData = async () => {
       if (!mapping.uniqueIdentifier) continue;
 
       const history = await new Promise<any[]>((resolve, reject) => {
-        db.all('SELECT date, price, subTypeName, lowPrice, highPrice, marketPrice FROM price_history WHERE uniqueIdentifier = ? ORDER BY date ASC', [mapping.uniqueIdentifier], (err, rows) => {
-          if (err) return reject(err);
-          resolve(rows);
-        });
+        db.all(
+          'SELECT date, price, subTypeName, lowPrice, highPrice, marketPrice FROM price_history WHERE uniqueIdentifier = ? ORDER BY date ASC',
+          [mapping.uniqueIdentifier],
+          (err, rows) => {
+            if (err) return reject(err);
+            resolve(rows);
+          }
+        );
       });
 
       if (history.length > 0) {
@@ -57,10 +61,14 @@ const exportStaticData = async () => {
       if (!mapping.uniqueIdentifier) continue;
 
       const history = await new Promise<any[]>((resolve, reject) => {
-        db.all('SELECT date, price FROM price_history WHERE uniqueIdentifier = ? ORDER BY date DESC LIMIT 1', [mapping.uniqueIdentifier], (err, rows) => {
-          if (err) return reject(err);
-          resolve(rows);
-        });
+        db.all(
+          'SELECT date, price FROM price_history WHERE uniqueIdentifier = ? ORDER BY date DESC LIMIT 1',
+          [mapping.uniqueIdentifier],
+          (err, rows) => {
+            if (err) return reject(err);
+            resolve(rows);
+          }
+        );
       });
 
       if (history.length > 0) {
@@ -68,7 +76,10 @@ const exportStaticData = async () => {
       }
     }
 
-    fs.writeFileSync(path.join(DATA_DIR, 'latest-prices.json'), JSON.stringify(latestPrices, null, 2));
+    fs.writeFileSync(
+      path.join(DATA_DIR, 'latest-prices.json'),
+      JSON.stringify(latestPrices, null, 2)
+    );
     console.log('Exported latest prices to latest-prices.json');
 
     console.log(`Exported price history for ${exportedCount} of ${mappings.length} cards.`);
@@ -76,10 +87,10 @@ const exportStaticData = async () => {
   } catch (error) {
     console.error('Failed to export static data:', error);
   } finally {
-    db.close(err => {
+    db.close((err) => {
       if (err) console.error('Error closing database:', err);
     });
   }
 };
 
-exportStaticData(); 
+exportStaticData();

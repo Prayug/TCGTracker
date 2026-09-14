@@ -8,6 +8,8 @@ import {
   OnePieceSetOddsConfig,
   ALL_SET_CONFIGS,
   buildOddsRows,
+  BOXES_PER_CASE,
+  RarityPoolMeta,
 } from '../data/setConfigs';
 import {
   BoxSession,
@@ -18,7 +20,6 @@ import {
   Rng,
   SavedPull,
   OddsRow,
-  RarityPoolMeta,
 } from '../types';
 import {
   toPullCard,
@@ -28,7 +29,6 @@ import {
   isReprintInsert,
 } from './rarityClassifier';
 import { openBox, openBoxes, openPack, shuffle, packMarketValue } from './packOdds';
-import { BOXES_PER_CASE } from '../data/setConfigs';
 
 const PULLS_KEY = 'op_sim_pulls_v1';
 
@@ -38,7 +38,9 @@ const PULLS_KEY = 'op_sim_pulls_v1';
  */
 function sanitizeSpPoolPrices(pools: RarityPools): void {
   const ABSOLUTE_SP_CAP = 800;
-  const priced = pools.SP.map((c) => c.marketPrice ?? 0).filter((p) => p > 0).sort((a, b) => a - b);
+  const priced = pools.SP.map((c) => c.marketPrice ?? 0)
+    .filter((p) => p > 0)
+    .sort((a, b) => a - b);
   const median = priced.length > 0 ? priced[Math.floor(priced.length / 2)] : 100;
   const cap =
     priced.length >= 3 ? Math.min(Math.max(median * 8, 250), ABSOLUTE_SP_CAP) : ABSOLUTE_SP_CAP;
@@ -223,7 +225,7 @@ class OnePiecePackService {
     boxIndex = 0
   ): BoxSession {
     const hits = packs
-      .flatMap((p) => p.hits)
+      .flatMap((p) => p.hits ?? p.cards.filter((c) => c.isChase))
       .sort((a, b) => rarityRank(a.rarity) - rarityRank(b.rarity));
     const totalValue = packs.reduce((sum, p) => sum + packMarketValue(p), 0);
     return {
@@ -258,9 +260,7 @@ class OnePiecePackService {
     const donPool = cfg.hasDon ? await this.getDonPool() : [];
     const openedAt = new Date().toISOString();
     const boxPacks = openBoxes(cfg, pools, this.rng, openedAt, n, donPool);
-    const boxes = boxPacks.map((packs, i) =>
-      this.toBoxSession(code, cfg.name, packs, openedAt, i)
-    );
+    const boxes = boxPacks.map((packs, i) => this.toBoxSession(code, cfg.name, packs, openedAt, i));
     const hits = boxes
       .flatMap((b) => b.hits)
       .sort((a, b) => rarityRank(a.rarity) - rarityRank(b.rarity));
@@ -308,11 +308,7 @@ class OnePiecePackService {
     }
     const meta: RarityPoolMeta = {
       count:
-        pools.AA.length +
-        pools.SP.length +
-        pools.TR.length +
-        pools.MANGA.length +
-        pools.SEC.length,
+        pools.AA.length + pools.SP.length + pools.TR.length + pools.MANGA.length + pools.SEC.length,
     };
     return { rows: buildOddsRows(cfg, meta), meta };
   }
@@ -348,10 +344,7 @@ class OnePiecePackService {
   removePull(pullId: string): void {
     try {
       const existing = this.getSavedPulls();
-      localStorage.setItem(
-        PULLS_KEY,
-        JSON.stringify(existing.filter((p) => p.card.id !== pullId))
-      );
+      localStorage.setItem(PULLS_KEY, JSON.stringify(existing.filter((p) => p.card.id !== pullId)));
     } catch {
       /* noop */
     }

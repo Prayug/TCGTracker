@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import { memo, useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
-import { cn } from "@/lib/utils";
-import { useChart, useChartStable } from "./chart-context";
-import { shortDateFmt } from "./chart-formatters";
-import { DEFAULT_Y_DOMAIN_TWEEN_MS } from "./chart-phase";
-import { LINE_LOADING_PULSE_EASE } from "./line-loading-timing";
+import { memo, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { cn } from '@/lib/utils';
+import { useChart, useChartStable } from './chart-context';
+import { shortDateFmt } from './chart-formatters';
+import { DEFAULT_Y_DOMAIN_TWEEN_MS } from './chart-phase';
+import { LINE_LOADING_PULSE_EASE } from './line-loading-timing';
 
 const X_AXIS_POSITION_TWEEN_MS = DEFAULT_Y_DOMAIN_TWEEN_MS;
 
@@ -19,7 +19,7 @@ export interface XAxisProps {
    * `"data"` — tick labels snap to data rows so crosshair and tooltip stay aligned (default).
    * `"domain"` — evenly spaced ticks across the time domain (may not align with hover).
    */
-  tickMode?: "domain" | "data";
+  tickMode?: 'domain' | 'data';
 }
 
 interface AxisTick {
@@ -69,18 +69,18 @@ function XAxisLabel({
         left: x,
         bottom: 12,
         width: 0,
-        display: "flex",
-        justifyContent: "center",
+        display: 'flex',
+        justifyContent: 'center',
         transition: animatePosition
-          ? `left ${X_AXIS_POSITION_TWEEN_MS}ms cubic-bezier(${LINE_LOADING_PULSE_EASE.join(", ")})`
+          ? `left ${X_AXIS_POSITION_TWEEN_MS}ms cubic-bezier(${LINE_LOADING_PULSE_EASE.join(', ')})`
           : undefined,
       }}
     >
       <span
-        className={cn("whitespace-nowrap text-chart-label text-xs")}
+        className={cn('whitespace-nowrap text-chart-label text-xs')}
         style={{
           opacity,
-          transition: "opacity 0.4s ease-in-out",
+          transition: 'opacity 0.4s ease-in-out',
         }}
       >
         {label}
@@ -252,17 +252,14 @@ function scoreTickLayout(
 
   const minGap = Math.min(...pixelGaps);
   const maxGap = Math.max(...pixelGaps);
-  const meanGap =
-    pixelGaps.reduce((sum, gap) => sum + gap, 0) / pixelGaps.length;
-  const spreadRatio =
-    meanGap > 0 ? (maxGap - minGap) / meanGap : maxGap - minGap;
+  const meanGap = pixelGaps.reduce((sum, gap) => sum + gap, 0) / pixelGaps.length;
+  const spreadRatio = meanGap > 0 ? (maxGap - minGap) / meanGap : maxGap - minGap;
   const countDistance = Math.abs(indices.length - targetCount);
 
   const gaps = indexGaps(indices);
   const smallestGap = Math.min(...gaps);
   const smallestGapIndex = gaps.indexOf(smallestGap);
-  const interiorPenalty =
-    smallestGapIndex > 0 && smallestGapIndex < gaps.length - 1 ? 0.08 : 0;
+  const interiorPenalty = smallestGapIndex > 0 && smallestGapIndex < gaps.length - 1 ? 0.08 : 0;
 
   const symmetryPenalty =
     gaps.reduce((penalty, gap, index) => {
@@ -270,11 +267,7 @@ function scoreTickLayout(
     }, 0) / gaps.length;
 
   return {
-    score:
-      spreadRatio +
-      0.1 * countDistance +
-      interiorPenalty +
-      symmetryPenalty * 0.02,
+    score: spreadRatio + 0.1 * countDistance + interiorPenalty + symmetryPenalty * 0.02,
     symmetryPenalty,
     countDistance,
     edgePreference: smallestGapEdgePreference(indices),
@@ -345,12 +338,7 @@ export function selectEvenlySpacedIndices(
     for (const rawIndices of allIndexLayouts(length, tickCount)) {
       const indices =
         options?.data && options.dateLabels && options.xAccessor
-          ? dedupeIndicesByLabel(
-              rawIndices,
-              options.data,
-              options.dateLabels,
-              options.xAccessor
-            )
+          ? dedupeIndicesByLabel(rawIndices, options.data, options.dateLabels, options.xAccessor)
           : rawIndices;
 
       if (indices.length < 2) {
@@ -360,14 +348,7 @@ export function selectEvenlySpacedIndices(
       const layoutScore = scoreTickLayout(indices, resolveXPx, targetCount);
       const countDistance = Math.abs(indices.length - targetCount);
 
-      if (
-        isBetterTickLayout(
-          layoutScore,
-          bestScore,
-          countDistance,
-          bestCountDistance
-        )
-      ) {
+      if (isBetterTickLayout(layoutScore, bestScore, countDistance, bestCountDistance)) {
         bestIndices = indices;
         bestScore = layoutScore;
         bestCountDistance = countDistance;
@@ -525,9 +506,7 @@ function appendProjectionTailTicks(
   const extraCount = Math.min(maxExtraTicks, 3);
 
   for (let i = 1; i <= extraCount; i++) {
-    const date = new Date(
-      startTime + (i / (extraCount + 1)) * (endTime - startTime)
-    );
+    const date = new Date(startTime + (i / (extraCount + 1)) * (endTime - startTime));
     const label = shortDateFmt.format(date);
     if (seenLabels.has(label)) {
       continue;
@@ -575,17 +554,16 @@ export function XAxis(props: XAxisProps) {
 const XAxisInner = memo(function XAxisInner({
   numTicks = 5,
   tickerHalfWidth = 50,
-  tickMode = "data",
+  tickMode = 'data',
   container,
 }: XAxisProps & { container: HTMLDivElement }) {
-  const { xScale, margin, tooltipData, data, xAccessor, dateLabels, xDomain } =
-    useChart();
+  const { xScale, margin, tooltipData, data, xAccessor, dateLabels, xDomain } = useChart();
 
   const labelsToShow = useMemo(() => {
     const projectionExtendsScale =
-      tickMode === "data" && domainExtendsPastData(data, xAccessor, xScale);
+      tickMode === 'data' && domainExtendsPastData(data, xAccessor, xScale);
 
-    if (tickMode === "domain") {
+    if (tickMode === 'domain') {
       return buildDomainTicks({
         marginLeft: margin.left,
         numTicks,
@@ -624,23 +602,13 @@ const XAxisInner = memo(function XAxisInner({
     }
 
     return dataTicks;
-  }, [
-    tickMode,
-    xDomain,
-    data,
-    dateLabels,
-    xAccessor,
-    xScale,
-    margin.left,
-    numTicks,
-  ]);
+  }, [tickMode, xDomain, data, dateLabels, xAccessor, xScale, margin.left, numTicks]);
 
   const isHovering = tooltipData !== null;
   const crosshairX = tooltipData ? tooltipData.x + margin.left : null;
   const hoveredLabel =
     isHovering && tooltipData
-      ? (dateLabels[tooltipData.index] ??
-        shortDateFmt.format(xAccessor(tooltipData.point)))
+      ? (dateLabels[tooltipData.index] ?? shortDateFmt.format(xAccessor(tooltipData.point)))
       : null;
 
   return createPortal(
@@ -662,6 +630,6 @@ const XAxisInner = memo(function XAxisInner({
   );
 });
 
-XAxis.displayName = "XAxis";
+XAxis.displayName = 'XAxis';
 
 export default XAxis;

@@ -1,4 +1,4 @@
-import { line as d3Line } from "d3-shape";
+import { line as d3Line } from 'd3-shape';
 
 // biome-ignore lint/suspicious/noExplicitAny: d3 curve factory type
 type CurveFactory = any;
@@ -21,7 +21,7 @@ export function computeSeriesPathPoints(
     const yValue = datum[dataKey];
     return {
       x: xScale(xValue) ?? 0,
-      y: typeof yValue === "number" ? (yScale(yValue) ?? 0) : 0,
+      y: typeof yValue === 'number' ? (yScale(yValue) ?? 0) : 0,
       key: String(xValue.getTime?.() ?? index),
     };
   });
@@ -52,9 +52,7 @@ export function interpolateSeriesPathPoints(
     }
 
     const previousTarget = index > 0 ? to[index - 1] : undefined;
-    const previousSource = previousTarget
-      ? fromByKey.get(previousTarget.key)
-      : undefined;
+    const previousSource = previousTarget ? fromByKey.get(previousTarget.key) : undefined;
     const nextTarget = index < to.length - 1 ? to[index + 1] : undefined;
     const nextSource = nextTarget ? fromByKey.get(nextTarget.key) : undefined;
     const anchor = previousSource ?? nextSource ?? from[0] ?? target;
@@ -67,12 +65,9 @@ export function interpolateSeriesPathPoints(
   });
 }
 
-export function seriesPathFromPoints(
-  points: SeriesPathPoint[],
-  curve: CurveFactory
-): string {
+export function seriesPathFromPoints(points: SeriesPathPoint[], curve: CurveFactory): string {
   if (points.length === 0) {
-    return "";
+    return '';
   }
 
   const generator = d3Line<SeriesPathPoint>()
@@ -80,7 +75,7 @@ export function seriesPathFromPoints(
     .y((point) => point.y)
     .curve(curve);
 
-  return generator(points) ?? "";
+  return generator(points) ?? '';
 }
 
 export function seriesPathTransitionSignature({
@@ -101,8 +96,8 @@ export function seriesPathTransitionSignature({
   const values = renderData.map((datum) => {
     const xValue = xAccessor(datum);
     const yValue = datum[dataKey];
-    return `${xValue.getTime()}:${typeof yValue === "number" ? yValue : ""}`;
+    return `${xValue.getTime()}:${typeof yValue === 'number' ? yValue : ''}`;
   });
 
-  return `${innerWidth}|${xDomainMin}|${xDomainMax}|${values.join(",")}`;
+  return `${innerWidth}|${xDomainMin}|${xDomainMax}|${values.join(',')}`;
 }

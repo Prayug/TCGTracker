@@ -17,7 +17,13 @@ const ACTIONS: { key: string; label: string; hint: string; href: string; icon: L
   { key: 'trade', label: 'Trade', hint: 'Fairness', href: '/trade', icon: ArrowLeftRight },
   { key: 'packs', label: 'Packs', hint: 'Rip sims', href: '/packs', icon: Package },
   { key: 'grade', label: 'Grade', hint: 'AI scan', href: '/grading', icon: ScanLine },
-  { key: 'insights', label: 'Insights', hint: 'Forecasts', href: '/market-insights', icon: LineChart },
+  {
+    key: 'insights',
+    label: 'Insights',
+    hint: 'Forecasts',
+    href: '/market-insights',
+    icon: LineChart,
+  },
 ];
 
 /** Utility launcher pills — deliberately lighter than a hero section. */

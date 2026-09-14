@@ -45,9 +45,9 @@ router.get('/stats', async (_req, res) => {
     db.get(sql, [], (err, row: any) => {
       if (err) {
         logger.error('Error fetching stats:', err);
-        return res.status(500).json({ 
+        return res.status(500).json({
           error: 'Database error',
-          message: err.message 
+          message: err.message,
         });
       }
 
@@ -55,15 +55,14 @@ router.get('/stats', async (_req, res) => {
         totalCards: row.totalCards || 0,
         totalSets: row.totalSets || 0,
         totalEntries: row.totalEntries || 0,
-        source: 'local_database'
+        source: 'local_database',
       });
     });
-
   } catch (error) {
     logger.error('Error fetching stats:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Internal server error',
-      message: (error as Error).message 
+      message: (error as Error).message,
     });
   }
 });
@@ -82,13 +81,13 @@ router.post('/refresh-set-mappings', async (_req, res) => {
       success: true,
       message: `Refreshed ${mappings.size} set mappings`,
       mappingsCount: mappings.size,
-      source: 'pokemon_tcg_api'
+      source: 'pokemon_tcg_api',
     });
   } catch (error) {
     logger.error('❌ Failed to refresh set mappings:', error);
     res.status(500).json({
       error: 'Failed to refresh set mappings',
-      message: (error as Error).message
+      message: (error as Error).message,
     });
   }
 });
@@ -105,13 +104,13 @@ router.get('/set-mappings/stats', async (_req, res) => {
       cachedMappings: stats.cachedMappings,
       lastRefreshed: stats.lastRefreshed ? new Date(stats.lastRefreshed).toISOString() : null,
       cacheAge: stats.lastRefreshed ? Date.now() - stats.lastRefreshed : null,
-      cacheTtl: stats.cacheTtl
+      cacheTtl: stats.cacheTtl,
     });
   } catch (error) {
     logger.error('Error fetching set mapping stats:', error);
     res.status(500).json({
       error: 'Internal server error',
-      message: (error as Error).message
+      message: (error as Error).message,
     });
   }
 });

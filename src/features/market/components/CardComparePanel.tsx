@@ -151,7 +151,12 @@ export const CardComparePanel: React.FC = () => {
             className="input w-full pl-9"
           />
         </div>
-        <button type="button" onClick={() => void handleSearch()} className="btn-secondary" disabled={searching}>
+        <button
+          type="button"
+          onClick={() => void handleSearch()}
+          className="btn-secondary"
+          disabled={searching}
+        >
           {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Search'}
         </button>
       </div>
@@ -208,9 +213,7 @@ export const CardComparePanel: React.FC = () => {
                         {formatCurrency(slot.history.at(-1)?.price ?? slot.card.marketPrice ?? 0)}
                         {slot.changePct != null && (
                           <span
-                            className={`ml-2 ${
-                              slot.changePct >= 0 ? 'text-gain' : 'text-loss'
-                            }`}
+                            className={`ml-2 ${slot.changePct >= 0 ? 'text-gain' : 'text-loss'}`}
                           >
                             {formatPercent(slot.changePct, { signed: true })}
                           </span>
@@ -221,12 +224,7 @@ export const CardComparePanel: React.FC = () => {
                 </div>
                 {!slot.loading && slot.history.length > 1 && (
                   <div className="mt-2">
-                    <PriceChart
-                      priceHistory={slot.history}
-                      variant="dark"
-                      height={140}
-                      compact
-                    />
+                    <PriceChart priceHistory={slot.history} variant="dark" height={140} compact />
                   </div>
                 )}
               </>

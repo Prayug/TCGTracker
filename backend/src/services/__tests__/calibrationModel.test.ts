@@ -14,10 +14,34 @@ function makeModel(overrides: Partial<CalibrationModel> = {}): CalibrationModel 
     sampleCount: 100,
     builtAt: '2026-07-01T00:00:00Z',
     buckets: [
-      { signalMin: -Infinity, signalMax: -0.1, meanActualReturn: -0.01, stdActualReturn: 0.1, sampleCount: 10 },
-      { signalMin: -0.1, signalMax: 0.05, meanActualReturn: 0.015, stdActualReturn: 0.08, sampleCount: 40 },
-      { signalMin: 0.05, signalMax: 0.2, meanActualReturn: 0.04, stdActualReturn: 0.1, sampleCount: 35 },
-      { signalMin: 0.2, signalMax: Infinity, meanActualReturn: 0.07, stdActualReturn: 0.18, sampleCount: 15 },
+      {
+        signalMin: -Infinity,
+        signalMax: -0.1,
+        meanActualReturn: -0.01,
+        stdActualReturn: 0.1,
+        sampleCount: 10,
+      },
+      {
+        signalMin: -0.1,
+        signalMax: 0.05,
+        meanActualReturn: 0.015,
+        stdActualReturn: 0.08,
+        sampleCount: 40,
+      },
+      {
+        signalMin: 0.05,
+        signalMax: 0.2,
+        meanActualReturn: 0.04,
+        stdActualReturn: 0.1,
+        sampleCount: 35,
+      },
+      {
+        signalMin: 0.2,
+        signalMax: Infinity,
+        meanActualReturn: 0.07,
+        stdActualReturn: 0.18,
+        sampleCount: 15,
+      },
     ],
     ...overrides,
   };

@@ -2,7 +2,7 @@ const DeepSeek = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
     height="1em"
     style={{
-      flex: "none",
+      flex: 'none',
       lineHeight: 1,
     }}
     viewBox="0 0 24 24"

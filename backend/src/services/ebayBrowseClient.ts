@@ -121,10 +121,7 @@ const apiHost = (): string =>
   env.ebay.sandbox ? 'https://api.sandbox.ebay.com' : 'https://api.ebay.com';
 
 /** Keep lots, wrong grades, and proxies out of the ask sample. */
-export const isPsa10ActiveListingTitle = (
-  title: string,
-  input: ProductMatchInput
-): boolean => {
+export const isPsa10ActiveListingTitle = (title: string, input: ProductMatchInput): boolean => {
   const t = title.toLowerCase();
   if (!/\bpsa\s*[-.]?\s*10\b/.test(t)) return false;
   if (/\b(lot of|lots of|\d+\s*x\s|wholesale lot)\b/.test(t)) return false;
@@ -132,7 +129,9 @@ export const isPsa10ActiveListingTitle = (
   if (/\bpsa\s*9\.5\b/.test(t)) return false;
   if (/\bpsa\s*9\b/.test(t) && !/\bpsa\s*10\b/.test(t)) return false;
   const nameForMatch =
-    input.game === 'onepiece' ? stripOpNameDecorators(input.cardName) || input.cardName : input.cardName;
+    input.game === 'onepiece'
+      ? stripOpNameDecorators(input.cardName) || input.cardName
+      : input.cardName;
   if (!titleIncludesName(title, nameForMatch)) return false;
   if (input.game !== 'onepiece' && !titleIncludesSet(title, input.setName)) return false;
   if (!titleIncludesNumber(title, input.cardNumber)) return false;
@@ -260,8 +259,7 @@ const classifyListingType = (buyingOptions: string[]): EbayListingType => {
 
 const toListingSummary = (item: BrowseItemSummary): EbayListingSummary | null => {
   if (!item.itemId || !item.title) return null;
-  const listingPrice =
-    parseMoney(item.price?.value) ?? parseMoney(item.currentBidPrice?.value);
+  const listingPrice = parseMoney(item.price?.value) ?? parseMoney(item.currentBidPrice?.value);
   if (listingPrice == null || listingPrice <= 0) return null;
   const shipRaw = item.shippingOptions?.[0]?.shippingCost?.value;
   const shippingCostType = (item.shippingOptions?.[0]?.shippingCostType || '').toUpperCase();
@@ -349,7 +347,10 @@ export const searchEbayListings = async (
       return { listings: [], total: null, error: 'unavailable' as const };
     }
 
-    const limit = Math.min(Math.max(options.limit ?? EBAY_BROWSE_PAGE_SIZE, 1), EBAY_BROWSE_PAGE_SIZE);
+    const limit = Math.min(
+      Math.max(options.limit ?? EBAY_BROWSE_PAGE_SIZE, 1),
+      EBAY_BROWSE_PAGE_SIZE
+    );
     const offset = Math.min(Math.max(options.offset ?? 0, 0), EBAY_BROWSE_MAX_OFFSET);
     const filterParts = ['deliveryCountry:US'];
     if (options.buyingOptions === 'FIXED_PRICE') {
@@ -358,9 +359,12 @@ export const searchEbayListings = async (
       filterParts.push('buyingOptions:{AUCTION}');
     }
     if (options.priceMin != null || options.priceMax != null) {
-      const lo = options.priceMin != null && Number.isFinite(options.priceMin) ? options.priceMin : 0;
+      const lo =
+        options.priceMin != null && Number.isFinite(options.priceMin) ? options.priceMin : 0;
       const hi =
-        options.priceMax != null && Number.isFinite(options.priceMax) ? options.priceMax : 1_000_000;
+        options.priceMax != null && Number.isFinite(options.priceMax)
+          ? options.priceMax
+          : 1_000_000;
       filterParts.push(`price:[${lo}..${hi}]`);
       filterParts.push('priceCurrency:USD');
     }
@@ -442,7 +446,10 @@ const fetchAppToken = async (): Promise<string | null> => {
   });
   if (!response.ok) {
     const detail = await response.text().catch(() => '');
-    logger.warn('eBay OAuth token failed', { status: response.status, detail: detail.slice(0, 300) });
+    logger.warn('eBay OAuth token failed', {
+      status: response.status,
+      detail: detail.slice(0, 300),
+    });
     return null;
   }
   const json = (await response.json()) as { access_token?: string; expires_in?: number };
@@ -494,7 +501,9 @@ export const fetchPsa10ListingQuote = async (
 
     const opFamily = input.game === 'onepiece' ? expectedOpPrintFamily(input) : null;
     const query = [
-      input.game === 'onepiece' ? stripOpNameDecorators(input.cardName) || input.cardName : input.cardName,
+      input.game === 'onepiece'
+        ? stripOpNameDecorators(input.cardName) || input.cardName
+        : input.cardName,
       input.game === 'onepiece' ? opSearchSetName(input.setName, opFamily!) : input.setName,
       input.cardNumber ? `#${input.cardNumber}` : '',
       input.game === 'onepiece'

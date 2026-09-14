@@ -65,8 +65,7 @@ router.get('/:id', validate(idParamsSchema), (req, res: Response) => {
   if (!session) return fail(res, 'Capture session not found or expired', 404);
   const includeImages = req.query.includeImages === '1' || req.query.includeImages === 'true';
   // Only return bulky images once the session is ready (or partial for preview).
-  const allowImages =
-    includeImages && (session.status === 'ready' || session.status === 'partial');
+  const allowImages = includeImages && (session.status === 'ready' || session.status === 'partial');
   return ok(res, toPublicSession(session, allowImages));
 });
 

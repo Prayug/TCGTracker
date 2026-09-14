@@ -152,7 +152,7 @@ export const SlabTopMovers: React.FC<SlabTopMoversProps> = ({ onCardClick }) => 
     const load = async () => {
       const maxRetries = 2;
       for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        const result = await PriceHistoryApi.getTopSlabMovers(days, 50, { force: true });
+        const result = await PriceHistoryApi.getTopSlabMovers(days, 50, { force: false });
         if (!mounted) return;
         if (applyResult(result, { allowEmpty: true })) return;
         if (attempt < maxRetries && !hadCache) {
@@ -181,7 +181,11 @@ export const SlabTopMovers: React.FC<SlabTopMoversProps> = ({ onCardClick }) => 
   );
 
   const gainers: MoverDisplay[] = useMemo(
-    () => sorted.filter((e) => e.changePercent > 0 && hasArt(e)).slice(0, 6).map(toDisplay),
+    () =>
+      sorted
+        .filter((e) => e.changePercent > 0 && hasArt(e))
+        .slice(0, 6)
+        .map(toDisplay),
     [sorted]
   );
 
@@ -235,16 +239,25 @@ export const SlabTopMovers: React.FC<SlabTopMoversProps> = ({ onCardClick }) => 
             </span>
           </div>
           <div className="space-y-1 p-2.5">
-            <p className="truncate text-[11px] font-medium leading-tight" style={{ color: 'var(--ink-primary)' }}>
+            <p
+              className="truncate text-[11px] font-medium leading-tight"
+              style={{ color: 'var(--ink-primary)' }}
+            >
               {productName}
             </p>
             {subtitle ? (
-              <p className="truncate text-[9px] leading-tight" style={{ color: 'var(--ink-muted)' }}>
+              <p
+                className="truncate text-[9px] leading-tight"
+                style={{ color: 'var(--ink-muted)' }}
+              >
                 {subtitle}
               </p>
             ) : null}
             <div className="flex items-baseline justify-between gap-1.5">
-              <span className="truncate font-mono text-[11px] tabular-nums" style={{ color: 'var(--foil)' }}>
+              <span
+                className="truncate font-mono text-[11px] tabular-nums"
+                style={{ color: 'var(--foil)' }}
+              >
                 {currentPrice > 0 ? formatCurrency(currentPrice) : '—'}
               </span>
               <span
@@ -270,7 +283,10 @@ export const SlabTopMovers: React.FC<SlabTopMoversProps> = ({ onCardClick }) => 
   const periodLabel = PERIODS.find((p) => p.key === period)?.label ?? period;
 
   const periodToggle = (
-    <div className="flex gap-1 rounded-lg border p-0.5" style={{ borderColor: 'rgba(91, 196, 212, 0.28)' }}>
+    <div
+      className="flex gap-1 rounded-lg border p-0.5"
+      style={{ borderColor: 'rgba(91, 196, 212, 0.28)' }}
+    >
       {PERIODS.map(({ key, label }) => (
         <button
           key={key}
@@ -295,7 +311,8 @@ export const SlabTopMovers: React.FC<SlabTopMoversProps> = ({ onCardClick }) => 
         className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border px-4 py-3.5 sm:px-5"
         style={{
           borderColor: 'rgba(91, 196, 212, 0.28)',
-          background: 'linear-gradient(180deg, rgba(20, 27, 38, 0.92) 0%, rgba(12, 17, 24, 0.96) 100%)',
+          background:
+            'linear-gradient(180deg, rgba(20, 27, 38, 0.92) 0%, rgba(12, 17, 24, 0.96) 100%)',
         }}
       >
         <div className="flex items-center gap-2">

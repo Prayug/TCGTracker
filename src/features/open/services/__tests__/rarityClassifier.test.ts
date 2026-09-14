@@ -22,13 +22,19 @@ describe('classifyVariant', () => {
   });
 
   it('maps Super Alternate Art to MANGA (never SEC)', () => {
-    expect(classifyVariant('Monkey.D.Luffy (118) (Super Alternate Art)', 'SEC').rarity).toBe('MANGA');
+    expect(classifyVariant('Monkey.D.Luffy (118) (Super Alternate Art)', 'SEC').rarity).toBe(
+      'MANGA'
+    );
     expect(classifyVariant('Sabo (120) (Super Alternate Art)', 'SEC').rarity).toBe('MANGA');
   });
 
   it('maps Red Super Alternate Art to SAA (never SEC)', () => {
-    expect(classifyVariant('Monkey.D.Luffy (118) (Red Super Alternate Art)', 'SEC').rarity).toBe('SAA');
-    expect(classifyVariant('Portgas.D.Ace (119) (Red Super Alternate Art)', 'SEC').rarity).toBe('SAA');
+    expect(classifyVariant('Monkey.D.Luffy (118) (Red Super Alternate Art)', 'SEC').rarity).toBe(
+      'SAA'
+    );
+    expect(classifyVariant('Portgas.D.Ace (119) (Red Super Alternate Art)', 'SEC').rarity).toBe(
+      'SAA'
+    );
   });
 
   it('maps Wanted Poster to AA (not SP / SEC)', () => {
@@ -116,7 +122,12 @@ describe('filters', () => {
 
 describe('toPullCard', () => {
   it('marks chase cards', () => {
-    const manga = toPullCard({ id: 'x', name: 'Enel (Alternate Art) (Manga)', rarity: 'SEC', number: 'OP15-118' });
+    const manga = toPullCard({
+      id: 'x',
+      name: 'Enel (Alternate Art) (Manga)',
+      rarity: 'SEC',
+      number: 'OP15-118',
+    });
     expect(manga.isChase).toBe(true);
 
     const common = toPullCard({ id: 'y', name: 'Caribou', rarity: 'C', number: 'OP01-007' });

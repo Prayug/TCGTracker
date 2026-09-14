@@ -53,7 +53,7 @@ export const BoxSessionModal: React.FC<BoxSessionModalProps> = ({
     if (!session) return [];
     return session.packs
       .slice(0, revealedCount)
-      .flatMap((p) => p.hits)
+      .flatMap((p) => p.hits ?? p.cards.filter((c) => c.isChase))
       .sort((a, b) => rarityRank(a.rarity) - rarityRank(b.rarity));
   }, [session, revealedCount]);
 
@@ -113,8 +113,12 @@ export const BoxSessionModal: React.FC<BoxSessionModalProps> = ({
       <div className="flex h-full flex-col">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="section-label">Booster box · {session.code} · {session.packs.length} packs</p>
-            <h3 className="truncate font-display text-xl font-bold text-ink-primary">{session.setName}</h3>
+            <p className="section-label">
+              Booster box · {session.code} · {session.packs.length} packs
+            </p>
+            <h3 className="truncate font-display text-xl font-bold text-ink-primary">
+              {session.setName}
+            </h3>
           </div>
           <button
             type="button"
@@ -148,7 +152,10 @@ export const BoxSessionModal: React.FC<BoxSessionModalProps> = ({
           {hitsSoFar.slice(0, 10).map((h, i) => (
             <span
               key={`${h.id}-${i}`}
-              className={cn('rounded-full border px-2 py-0.5 text-[10px] font-bold', opRarityStyle(h.rarity).badge)}
+              className={cn(
+                'rounded-full border px-2 py-0.5 text-[10px] font-bold',
+                opRarityStyle(h.rarity).badge
+              )}
               title={`${h.name} · ${OP_RARITY_LABELS[h.rarity]}`}
             >
               {OP_RARITY_LABELS[h.rarity]}

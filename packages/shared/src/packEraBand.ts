@@ -63,10 +63,14 @@ export function packEraBandFromSetLabel(set?: { id?: string; name?: string }): P
   return 'vintage';
 }
 
+/** Prefer Web Crypto when available (browser / modern Node); no DOM lib required. */
 function randomIndex(length: number): number {
   if (length <= 1) return 0;
-  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
-    return crypto.getRandomValues(new Uint32Array(1))[0] % length;
+  const webCrypto = (
+    globalThis as { crypto?: { getRandomValues?: (arr: Uint32Array) => Uint32Array } }
+  ).crypto;
+  if (typeof webCrypto?.getRandomValues === 'function') {
+    return webCrypto.getRandomValues(new Uint32Array(1))[0]! % length;
   }
   return Math.floor(Math.random() * length);
 }

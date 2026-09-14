@@ -65,7 +65,8 @@ function parseQuery(req: AuthRequest): DealQuery {
   };
 }
 
-const asyncHandler = (fn: (req: AuthRequest, res: Response) => Promise<unknown>) =>
+const asyncHandler =
+  (fn: (req: AuthRequest, res: Response) => Promise<unknown>) =>
   (req: AuthRequest, res: Response) => {
     fn(req, res).catch((err: Error) => {
       logger.error('Deals route error', { error: err.message });

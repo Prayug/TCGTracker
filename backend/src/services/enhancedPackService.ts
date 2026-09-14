@@ -61,8 +61,8 @@ export class EnhancedPackService {
       rareUltra: 0.8,
       rareSecret: 0.15,
       rareRainbow: 0.05,
-      promo: 0.5
-    }
+      promo: 0.5,
+    },
   };
 
   /**
@@ -96,12 +96,13 @@ export class EnhancedPackService {
         cards: packCards,
         totalValue,
         profit,
-        packPrice: packConfig.price
+        packPrice: packConfig.price,
       };
 
-      logger.info(`Pack opened: ${packCards.length} cards, value $${totalValue.toFixed(2)}, profit $${profit.toFixed(2)}`);
+      logger.info(
+        `Pack opened: ${packCards.length} cards, value $${totalValue.toFixed(2)}, profit $${profit.toFixed(2)}`
+      );
       return result;
-
     } catch (error) {
       logger.error('Error opening enhanced pack:', error);
       throw error;
@@ -146,32 +147,43 @@ export class EnhancedPackService {
           return;
         }
 
-        const cards: PokemonApiCard[] = await Promise.all(rows.map(async (row) => {
-          const storedImages = row.imageSmall || row.imageLarge ? {
-            small: row.imageSmall,
-            large: row.imageLarge
-          } : null;
-          const deterministicImages = storedImages
-            ? null
-            : await setCodeService.buildDeterministicImageUrls(row.setId, row.cardNumber, row.setName);
+        const cards: PokemonApiCard[] = await Promise.all(
+          rows.map(async (row) => {
+            const storedImages =
+              row.imageSmall || row.imageLarge
+                ? {
+                    small: row.imageSmall,
+                    large: row.imageLarge,
+                  }
+                : null;
+            const deterministicImages = storedImages
+              ? null
+              : await setCodeService.buildDeterministicImageUrls(
+                  row.setId,
+                  row.cardNumber,
+                  row.setName
+                );
 
-          return {
-            id: row.id,
-            name: row.name,
-            number: row.number,
-            rarity: row.rarity,
-            set: {
-              id: row.setId,
-              name: row.setName
-            },
-            images: storedImages || deterministicImages || undefined,
-            tcgplayer: row.marketPrice ? {
-              prices: {
-                normal: { market: row.marketPrice }
-              }
-            } : undefined
-          };
-        }));
+            return {
+              id: row.id,
+              name: row.name,
+              number: row.number,
+              rarity: row.rarity,
+              set: {
+                id: row.setId,
+                name: row.setName,
+              },
+              images: storedImages || deterministicImages || undefined,
+              tcgplayer: row.marketPrice
+                ? {
+                    prices: {
+                      normal: { market: row.marketPrice },
+                    },
+                  }
+                : undefined,
+            };
+          })
+        );
 
         resolve(cards);
       });
@@ -184,7 +196,7 @@ export class EnhancedPackService {
   private groupCardsByRarity(cards: PokemonApiCard[]): Record<string, PokemonApiCard[]> {
     const grouped: Record<string, PokemonApiCard[]> = {};
 
-    cards.forEach(card => {
+    cards.forEach((card) => {
       const rarity = this.normalizeRarity(card.rarity || 'Common');
       if (!grouped[rarity]) {
         grouped[rarity] = [];
@@ -200,14 +212,14 @@ export class EnhancedPackService {
    */
   private normalizeRarity(rarity: string): string {
     const rarityMap: Record<string, string> = {
-      'Common': 'Common',
-      'Uncommon': 'Uncommon',
-      'Rare': 'Rare',
+      Common: 'Common',
+      Uncommon: 'Uncommon',
+      Rare: 'Rare',
       'Rare Holo': 'Rare Holo',
       'Rare Ultra': 'Rare Ultra',
       'Rare Secret': 'Rare Secret',
       'Rare Rainbow': 'Rare Rainbow',
-      'Promo': 'Promo',
+      Promo: 'Promo',
       'Amazing Rare': 'Rare Ultra',
       '1st Edition': 'Rare Holo',
       // Add more mappings as needed
@@ -227,7 +239,10 @@ export class EnhancedPackService {
 
     // Generate guaranteed cards based on distribution
     const rarityKeys = Object.keys(config.rarityDistribution);
-    const totalWeight = Object.values(config.rarityDistribution).reduce((sum, weight) => sum + weight, 0);
+    const totalWeight = Object.values(config.rarityDistribution).reduce(
+      (sum, weight) => sum + weight,
+      0
+    );
 
     for (let i = 0; i < config.guaranteedCards; i++) {
       const selectedRarity = this.selectRarityByWeight(config.rarityDistribution, totalWeight);
@@ -285,11 +300,11 @@ export class EnhancedPackService {
       rarity: card.rarity,
       set: {
         id: card.set.id,
-        name: card.set.name
+        name: card.set.name,
       },
       images: card.images,
       marketPrice: this.extractCardPrice(card),
-      source: 'pokemon_api'
+      source: 'pokemon_api',
     };
   }
 
@@ -334,15 +349,17 @@ export class EnhancedPackService {
 
       if (apiSets.length > 0) {
         return apiSets
-          .filter(set => set.id && set.name)
-          .map(set => ({
+          .filter((set) => set.id && set.name)
+          .map((set) => ({
             id: set.id,
             name: set.name,
-            totalCards: 0 // API doesn't provide this directly
+            totalCards: 0, // API doesn't provide this directly
           }));
       }
     } catch (error) {
-      logger.warn('Pokemon API sets failed, using local database', { error: (error as Error).message });
+      logger.warn('Pokemon API sets failed, using local database', {
+        error: (error as Error).message,
+      });
     }
 
     // Fallback to local database
@@ -364,15 +381,16 @@ export class EnhancedPackService {
           return;
         }
 
-        resolve(rows.map(row => ({
-          id: row.id,
-          name: row.name,
-          totalCards: row.totalCards
-        })));
+        resolve(
+          rows.map((row) => ({
+            id: row.id,
+            name: row.name,
+            totalCards: row.totalCards,
+          }))
+        );
       });
     });
   }
-
 }
 
 export const enhancedPackService = new EnhancedPackService();

@@ -35,8 +35,8 @@ function getActivityKey(game?: 'pokemon' | 'onepiece'): string {
 function asVaultCardArray(value: unknown): VaultCard[] {
   if (Array.isArray(value)) return value as VaultCard[];
   if (value && typeof value === 'object') {
-    const items = (value as { items?: unknown; cards?: unknown }).items
-      ?? (value as { cards?: unknown }).cards;
+    const items =
+      (value as { items?: unknown; cards?: unknown }).items ?? (value as { cards?: unknown }).cards;
     if (Array.isArray(items)) return items as VaultCard[];
   }
   return [];

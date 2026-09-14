@@ -55,9 +55,5 @@ export function GameProvider({ children }: { children: ReactNode }) {
     [game, setGame]
   );
 
-  return (
-    <GameContext.Provider value={value}>
-      {children}
-    </GameContext.Provider>
-  );
+  return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
 }

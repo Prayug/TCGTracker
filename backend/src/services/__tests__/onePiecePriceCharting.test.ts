@@ -53,9 +53,9 @@ describe('One Piece name / family parsing', () => {
         cardImageId: 'OP13-120_p4',
       })
     ).toBe('wanted');
-    expect(
-      expectedOpPrintFamily({ cardName: 'Sabo (120) (SP)', cardImageId: 'OP13-120' })
-    ).toBe('standard');
+    expect(expectedOpPrintFamily({ cardName: 'Sabo (120) (SP)', cardImageId: 'OP13-120' })).toBe(
+      'standard'
+    );
   });
 
   it('keeps anniversary reprints distinct from the cheap base and from each other', () => {
@@ -71,9 +71,9 @@ describe('One Piece name / family parsing', () => {
         cardImageId: 'ST10-006_pr1',
       })
     ).toBe('anniversary3');
-    expect(
-      expectedOpPrintFamily({ cardName: 'Monkey.D.Luffy', cardImageId: 'ST10-006' })
-    ).toBe('standard');
+    expect(expectedOpPrintFamily({ cardName: 'Monkey.D.Luffy', cardImageId: 'ST10-006' })).toBe(
+      'standard'
+    );
   });
 
   it('does not treat OPTCG _pr3 promo reprints as red manga (_p3)', () => {
@@ -277,9 +277,9 @@ describe('One Piece same-number reprint matching', () => {
   };
 
   it('does not treat two One Piece sets as the same just because they share One Piece', () => {
-    expect(opSetNamesMatch('One Piece Ultra Deck: The Three Captains', 'One Piece Promotion Cards')).toBe(
-      false
-    );
+    expect(
+      opSetNamesMatch('One Piece Ultra Deck: The Three Captains', 'One Piece Promotion Cards')
+    ).toBe(false);
     expect(opSetNamesMatch('One Piece Promo', 'One Piece Promotion Cards')).toBe(true);
     expect(opSetNamesMatch('One Piece Romance Dawn', 'Romance Dawn')).toBe(true);
   });
@@ -288,9 +288,10 @@ describe('One Piece same-number reprint matching', () => {
     expect(isAcceptableMatch(anniversary, firstAnniversaryInput)).toBe(true);
     expect(isAcceptableMatch(baseSt10, firstAnniversaryInput)).toBe(false);
     expect(isAcceptableMatch(anniversary3, firstAnniversaryInput)).toBe(false);
-    expect(selectBestProductMatch([baseSt10, anniversary, anniversary3], firstAnniversaryInput)?.row.productId).toBe(
-      '7574931'
-    );
+    expect(
+      selectBestProductMatch([baseSt10, anniversary, anniversary3], firstAnniversaryInput)?.row
+        .productId
+    ).toBe('7574931');
   });
 
   it('keeps the Ultra Deck base ST10-006 off anniversary SKUs', () => {
