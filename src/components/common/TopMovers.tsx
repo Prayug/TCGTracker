@@ -260,7 +260,7 @@ export const TopMovers: React.FC<TopMoversProps> = ({ onCardClick }) => {
       <div className="flex flex-col items-center gap-3 py-8">
         <TrendingUp className="h-8 w-8" style={{ color: 'var(--ink-muted)' }} />
         <p className="text-sm" style={{ color: 'var(--ink-muted)' }}>
-          Movers unavailable right now — retry in a moment.
+          No movers to show yet — price history may still be syncing.
         </p>
       </div>
     );
