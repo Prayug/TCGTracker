@@ -1,9 +1,9 @@
-export type ProjectionMode = "auto" | "target" | "manual";
-export type ProjectionAutoMethod = "linearRegression" | "lastSegment";
+export type ProjectionMode = 'auto' | 'target' | 'manual';
+export type ProjectionAutoMethod = 'linearRegression' | 'lastSegment';
 /** How the projection segment is drawn between anchor and horizon. */
-export type ProjectionCurveKind = "linear" | "bezier";
+export type ProjectionCurveKind = 'linear' | 'bezier';
 /** @deprecated Stepped density removed — projections always anchor → horizon. */
-export type ProjectionPathDensity = "stepped" | "endpoints";
+export type ProjectionPathDensity = 'stepped' | 'endpoints';
 
 export interface ProjectionPoint {
   date: Date;
@@ -33,23 +33,20 @@ function readDate(row: Record<string, unknown>, xDataKey: string): Date | null {
   if (raw instanceof Date && !Number.isNaN(raw.getTime())) {
     return raw;
   }
-  if (typeof raw === "number" && Number.isFinite(raw)) {
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
     const date = new Date(raw);
     return Number.isNaN(date.getTime()) ? null : date;
   }
-  if (typeof raw === "string") {
+  if (typeof raw === 'string') {
     const date = new Date(raw);
     return Number.isNaN(date.getTime()) ? null : date;
   }
   return null;
 }
 
-function readValue(
-  row: Record<string, unknown>,
-  seriesKey: string
-): number | null {
+function readValue(row: Record<string, unknown>, seriesKey: string): number | null {
   const raw = row[seriesKey];
-  return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
+  return typeof raw === 'number' && Number.isFinite(raw) ? raw : null;
 }
 
 function resolveStartIndex(
@@ -153,7 +150,7 @@ function buildAutoFutureValues(options: {
   } = options;
 
   const slope =
-    autoMethod === "lastSegment" && historyPoints.length >= 2
+    autoMethod === 'lastSegment' && historyPoints.length >= 2
       ? (() => {
           const prev = historyPoints.at(-2);
           const last = historyPoints.at(-1);
@@ -165,7 +162,7 @@ function buildAutoFutureValues(options: {
         })()
       : linearRegressionSlope(historyPoints);
 
-  if (pathDensity === "endpoints") {
+  if (pathDensity === 'endpoints') {
     const endTime = anchorTime + intervalMs * horizonPoints;
     const endValue = anchorValue + slope * intervalMs * horizonPoints;
     return [
@@ -174,9 +171,7 @@ function buildAutoFutureValues(options: {
     ];
   }
 
-  const result: ProjectionPoint[] = [
-    { date: new Date(anchorTime), value: anchorValue },
-  ];
+  const result: ProjectionPoint[] = [{ date: new Date(anchorTime), value: anchorValue }];
 
   for (let i = 1; i <= horizonPoints; i++) {
     const t = anchorTime + intervalMs * i;
@@ -191,7 +186,7 @@ function buildAutoFutureValues(options: {
 export function computeProjectionAnchorTangentSlope(
   sourceData: Record<string, unknown>[],
   seriesKey: string,
-  xDataKey = "date",
+  xDataKey = 'date',
   startIndexProp?: number
 ): number {
   if (sourceData.length < 2) {
@@ -248,8 +243,7 @@ function buildTargetPath(options: {
   horizonPoints: number;
   intervalMs: number;
 }): ProjectionPoint[] {
-  const { anchorTime, anchorValue, endValue, horizonPoints, intervalMs } =
-    options;
+  const { anchorTime, anchorValue, endValue, horizonPoints, intervalMs } = options;
   const endTime = anchorTime + intervalMs * horizonPoints;
   return [
     { date: new Date(anchorTime), value: anchorValue },
@@ -258,23 +252,21 @@ function buildTargetPath(options: {
 }
 
 /** Build a projection path from historical chart data or explicit points. */
-export function buildProjectionPath(
-  options: BuildProjectionPathOptions
-): ProjectionPoint[] {
+export function buildProjectionPath(options: BuildProjectionPathOptions): ProjectionPoint[] {
   const {
     sourceData,
     seriesKey,
-    xDataKey = "date",
+    xDataKey = 'date',
     mode,
-    autoMethod = "linearRegression",
-    pathDensity = "endpoints",
+    autoMethod = 'linearRegression',
+    pathDensity = 'endpoints',
     startIndex: startIndexProp,
     horizonPoints = 6,
     endValue,
     points,
   } = options;
 
-  if (mode === "manual" && points && points.length >= 2) {
+  if (mode === 'manual' && points && points.length >= 2) {
     return points.map((point) => ({
       date: new Date(point.date),
       value: point.value,
@@ -313,7 +305,7 @@ export function buildProjectionPath(
     }
   }
 
-  if (mode === "target" && endValue != null && Number.isFinite(endValue)) {
+  if (mode === 'target' && endValue != null && Number.isFinite(endValue)) {
     return buildTargetPath({
       anchorTime,
       anchorValue,

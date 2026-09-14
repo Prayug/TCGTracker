@@ -49,10 +49,7 @@ export function normalizeNumber(number: string | null | undefined): string {
  * Classify a raw catalog card into a simulator rarity bucket.
  * Critical: never let manga / red SAA / SP variants fall into the base SEC pool.
  */
-export function classifyVariant(
-  name: string,
-  rarity?: string | null
-): ClassifyResult {
+export function classifyVariant(name: string, rarity?: string | null): ClassifyResult {
   const n = name || '';
   const base = rarity || undefined;
 
@@ -124,7 +121,14 @@ export function classifyVariant(
   }
 
   const mapped = (base || '').toUpperCase();
-  if (mapped === 'C' || mapped === 'UC' || mapped === 'R' || mapped === 'L' || mapped === 'SR' || mapped === 'SEC') {
+  if (
+    mapped === 'C' ||
+    mapped === 'UC' ||
+    mapped === 'R' ||
+    mapped === 'L' ||
+    mapped === 'SR' ||
+    mapped === 'SEC'
+  ) {
     return { rarity: mapped as OpRarity, name: cleanName(n), baseRarity: base, isVariant: false };
   }
 
@@ -158,7 +162,10 @@ export const isExcludedFromPacks = (name: string): boolean =>
  * Native set prefix for a card number: "OP13-120" → "OP13", "EB02-028" → "EB02".
  */
 export function cardNumberSetPrefix(number: string): string {
-  return (number || '').split('-')[0].replace(/[^a-z0-9]/gi, '').toUpperCase();
+  return (number || '')
+    .split('-')[0]
+    .replace(/[^a-z0-9]/gi, '')
+    .toUpperCase();
 }
 
 export function setCodePrefix(code: string): string {
@@ -181,10 +188,12 @@ export function toPullCard(input: {
   imageUrl?: string;
   marketPrice?: number;
 }): PullCard {
-  const { rarity: opRarity, name, baseRarity, isVariant } = classifyVariant(
-    input.name,
-    input.rarity
-  );
+  const {
+    rarity: opRarity,
+    name,
+    baseRarity,
+    isVariant,
+  } = classifyVariant(input.name, input.rarity);
   return {
     id: input.id,
     name,
@@ -193,8 +202,6 @@ export function toPullCard(input: {
     baseRarity,
     imageUrl: input.imageUrl,
     marketPrice: input.marketPrice,
-    isChase:
-      isVariant ||
-      ['SAA', 'MANGA', 'TR', 'SP', 'SEC', 'LAA', 'AA'].includes(opRarity),
+    isChase: isVariant || ['SAA', 'MANGA', 'TR', 'SP', 'SEC', 'LAA', 'AA'].includes(opRarity),
   };
 }

@@ -55,32 +55,42 @@ export const createWatchlistsRouter = (watchlistService: WatchlistService) => {
     }
   });
 
-  router.post('/sync', authenticate, validate(syncSchema), async (req: AuthRequest, res: Response) => {
-    try {
-      const wipeTypes = (req.body.wipeListTypes || []) as WatchlistKind[];
-      const items = req.body.items || [];
+  router.post(
+    '/sync',
+    authenticate,
+    validate(syncSchema),
+    async (req: AuthRequest, res: Response) => {
+      try {
+        const wipeTypes = (req.body.wipeListTypes || []) as WatchlistKind[];
+        const items = req.body.items || [];
 
-      if (items.length === 0 && wipeTypes.length > 0) {
-        await watchlistService.wipeListTypes(req.user!.id, wipeTypes);
-        const remaining = await watchlistService.getForUser(req.user!.id);
-        return ok(res, { items: remaining, synced: 0 });
+        if (items.length === 0 && wipeTypes.length > 0) {
+          await watchlistService.wipeListTypes(req.user!.id, wipeTypes);
+          const remaining = await watchlistService.getForUser(req.user!.id);
+          return ok(res, { items: remaining, synced: 0 });
+        }
+
+        const synced = await watchlistService.syncForUser(req.user!.id, items);
+        ok(res, { items: synced, synced: synced.length });
+      } catch (error: any) {
+        fail(res, error.message);
       }
-
-      const synced = await watchlistService.syncForUser(req.user!.id, items);
-      ok(res, { items: synced, synced: synced.length });
-    } catch (error: any) {
-      fail(res, error.message);
     }
-  });
+  );
 
-  router.post('/', authenticate, validate(upsertSchema), async (req: AuthRequest, res: Response) => {
-    try {
-      const item = await watchlistService.upsert(req.user!.id, req.body);
-      ok(res, { item }, 201);
-    } catch (error: any) {
-      fail(res, error.message);
+  router.post(
+    '/',
+    authenticate,
+    validate(upsertSchema),
+    async (req: AuthRequest, res: Response) => {
+      try {
+        const item = await watchlistService.upsert(req.user!.id, req.body);
+        ok(res, { item }, 201);
+      } catch (error: any) {
+        fail(res, error.message);
+      }
     }
-  });
+  );
 
   router.delete('/:cardId', authenticate, async (req: AuthRequest, res: Response) => {
     try {

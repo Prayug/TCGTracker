@@ -4,9 +4,7 @@ interface GlitchOverlayProps {
   density?: 'low' | 'medium' | 'high';
 }
 
-export const GlitchOverlay: React.FC<GlitchOverlayProps> = ({
-  density = 'low',
-}) => {
+export const GlitchOverlay: React.FC<GlitchOverlayProps> = ({ density = 'low' }) => {
   const [glitching, setGlitching] = useState(false);
 
   const intervalMap = {
@@ -39,7 +37,8 @@ export const GlitchOverlay: React.FC<GlitchOverlayProps> = ({
         <div
           className="pointer-events-none fixed inset-0 z-[9997] opacity-[0.03]"
           style={{
-            background: 'linear-gradient(180deg, var(--neon-gold), var(--neon-pink), var(--neon-green))',
+            background:
+              'linear-gradient(180deg, var(--neon-gold), var(--neon-pink), var(--neon-green))',
             animation: 'glitch1 0.15s ease-in-out',
           }}
           aria-hidden="true"

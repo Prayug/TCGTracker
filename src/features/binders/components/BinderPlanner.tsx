@@ -4,9 +4,18 @@ import type { BinderPlan, ConstraintOptions } from '../types';
 import type { PlanRequest } from '../services/binderService';
 
 const THEME_EMOJI: Record<string, string> = {
-  warm: '🔥', sunny: '☀️', icy: '❄️', cool: '💧', earthy: '🌿',
-  colorful: '🌈', dark: '🌑', pastel: '🌸', neon: '💡', nature: '🌲',
-  mystic: '🔮', royal: '👑',
+  warm: '🔥',
+  sunny: '☀️',
+  icy: '❄️',
+  cool: '💧',
+  earthy: '🌿',
+  colorful: '🌈',
+  dark: '🌑',
+  pastel: '🌸',
+  neon: '💡',
+  nature: '🌲',
+  mystic: '🔮',
+  royal: '👑',
 };
 
 interface BinderPlannerProps {
@@ -109,7 +118,9 @@ export const BinderPlanner: React.FC<BinderPlannerProps> = ({
             Budget
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-ink-muted">$</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-ink-muted">
+              $
+            </span>
             <input
               type="number"
               value={budget}

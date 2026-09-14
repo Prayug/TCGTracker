@@ -9,18 +9,34 @@ interface Props {
   runningBacktest: boolean;
 }
 
-function MetricCard({ label, value, positive }: { label: string; value: string; positive?: boolean }) {
+function MetricCard({
+  label,
+  value,
+  positive,
+}: {
+  label: string;
+  value: string;
+  positive?: boolean;
+}) {
   return (
     <div className="rounded-xl border border-border-default bg-surface-raised p-3">
       <div className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">{label}</div>
-      <div className={`mt-1 font-mono text-sm font-semibold ${positive === true ? 'text-emerald-400' : positive === false ? 'text-red-400' : 'text-white'}`}>
+      <div
+        className={`mt-1 font-mono text-sm font-semibold ${positive === true ? 'text-emerald-400' : positive === false ? 'text-red-400' : 'text-white'}`}
+      >
         {value}
       </div>
     </div>
   );
 }
 
-export function BacktestPanel({ results, backtestDate, onBacktestDateChange, onRunBacktest, runningBacktest }: Props) {
+export function BacktestPanel({
+  results,
+  backtestDate,
+  onBacktestDateChange,
+  onRunBacktest,
+  runningBacktest,
+}: Props) {
   const latest = results[0];
 
   return (
@@ -36,7 +52,7 @@ export function BacktestPanel({ results, backtestDate, onBacktestDateChange, onR
             <input
               type="date"
               value={backtestDate}
-              onChange={e => onBacktestDateChange(e.target.value)}
+              onChange={(e) => onBacktestDateChange(e.target.value)}
               className="rounded-lg border border-border-default bg-surface-inset px-2 py-1 text-xs text-white"
             />
           </label>
@@ -66,7 +82,11 @@ export function BacktestPanel({ results, backtestDate, onBacktestDateChange, onR
                 <MetricCard label="Cards Tested" value={latest.cardsTested.toString()} />
                 <MetricCard
                   label="Directional Accuracy"
-                  value={latest.directionalAccuracy != null ? `${(latest.directionalAccuracy * 100).toFixed(1)}%` : 'N/A'}
+                  value={
+                    latest.directionalAccuracy != null
+                      ? `${(latest.directionalAccuracy * 100).toFixed(1)}%`
+                      : 'N/A'
+                  }
                   positive={latest.directionalAccuracy != null && latest.directionalAccuracy > 0.5}
                 />
                 <MetricCard
@@ -76,7 +96,11 @@ export function BacktestPanel({ results, backtestDate, onBacktestDateChange, onR
                 />
                 <MetricCard
                   label="Top 10 Gainers Avg"
-                  value={latest.top10AvgReturn != null ? `${(latest.top10AvgReturn * 100).toFixed(1)}%` : 'N/A'}
+                  value={
+                    latest.top10AvgReturn != null
+                      ? `${(latest.top10AvgReturn * 100).toFixed(1)}%`
+                      : 'N/A'
+                  }
                   positive={latest.top10AvgReturn != null && latest.top10AvgReturn > 0}
                 />
               </div>
@@ -84,17 +108,32 @@ export function BacktestPanel({ results, backtestDate, onBacktestDateChange, onR
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
                 <MetricCard
                   label="Market Avg Return"
-                  value={latest.marketAvgReturn != null ? `${(latest.marketAvgReturn * 100).toFixed(1)}%` : 'N/A'}
+                  value={
+                    latest.marketAvgReturn != null
+                      ? `${(latest.marketAvgReturn * 100).toFixed(1)}%`
+                      : 'N/A'
+                  }
                   positive={latest.marketAvgReturn != null && latest.marketAvgReturn > 0}
                 />
                 <MetricCard
                   label="Strong Buy FP Rate"
-                  value={latest.strongBuyFalsePositiveRate != null ? `${(latest.strongBuyFalsePositiveRate * 100).toFixed(1)}%` : 'N/A'}
-                  positive={latest.strongBuyFalsePositiveRate != null && latest.strongBuyFalsePositiveRate < 0.2}
+                  value={
+                    latest.strongBuyFalsePositiveRate != null
+                      ? `${(latest.strongBuyFalsePositiveRate * 100).toFixed(1)}%`
+                      : 'N/A'
+                  }
+                  positive={
+                    latest.strongBuyFalsePositiveRate != null &&
+                    latest.strongBuyFalsePositiveRate < 0.2
+                  }
                 />
                 <MetricCard
                   label="Avoid Avg Return"
-                  value={latest.avoidAvgReturn != null ? `${(latest.avoidAvgReturn * 100).toFixed(1)}%` : 'N/A'}
+                  value={
+                    latest.avoidAvgReturn != null
+                      ? `${(latest.avoidAvgReturn * 100).toFixed(1)}%`
+                      : 'N/A'
+                  }
                   positive={latest.avoidAvgReturn != null && latest.avoidAvgReturn < 0}
                 />
                 <MetricCard
@@ -104,7 +143,9 @@ export function BacktestPanel({ results, backtestDate, onBacktestDateChange, onR
                 />
                 <MetricCard
                   label="Max Drawdown"
-                  value={latest.maxDrawdown != null ? `${(latest.maxDrawdown * 100).toFixed(1)}%` : 'N/A'}
+                  value={
+                    latest.maxDrawdown != null ? `${(latest.maxDrawdown * 100).toFixed(1)}%` : 'N/A'
+                  }
                   positive={latest.maxDrawdown != null && latest.maxDrawdown < 0.2}
                 />
               </div>
@@ -127,7 +168,11 @@ export function BacktestPanel({ results, backtestDate, onBacktestDateChange, onR
                 />
                 <MetricCard
                   label="Mean Bias"
-                  value={latest.meanBias != null ? `${latest.meanBias >= 0 ? '+' : ''}${(latest.meanBias * 100).toFixed(1)}%` : 'N/A'}
+                  value={
+                    latest.meanBias != null
+                      ? `${latest.meanBias >= 0 ? '+' : ''}${(latest.meanBias * 100).toFixed(1)}%`
+                      : 'N/A'
+                  }
                   positive={latest.meanBias != null && Math.abs(latest.meanBias) < 0.02}
                 />
               </div>
@@ -140,12 +185,20 @@ export function BacktestPanel({ results, backtestDate, onBacktestDateChange, onR
                 />
                 <MetricCard
                   label="Baseline Avg Return"
-                  value={latest.baselineAvgReturn != null ? `${(latest.baselineAvgReturn * 100).toFixed(1)}%` : 'N/A'}
+                  value={
+                    latest.baselineAvgReturn != null
+                      ? `${(latest.baselineAvgReturn * 100).toFixed(1)}%`
+                      : 'N/A'
+                  }
                   positive={latest.baselineAvgReturn != null && latest.baselineAvgReturn > 0}
                 />
                 <MetricCard
                   label="Model Alpha (top10-baseline)"
-                  value={latest.modelAlpha != null ? `${latest.modelAlpha >= 0 ? '+' : ''}${(latest.modelAlpha * 100).toFixed(1)}%` : 'N/A'}
+                  value={
+                    latest.modelAlpha != null
+                      ? `${latest.modelAlpha >= 0 ? '+' : ''}${(latest.modelAlpha * 100).toFixed(1)}%`
+                      : 'N/A'
+                  }
                   positive={latest.modelAlpha != null && latest.modelAlpha > 0}
                 />
                 <MetricCard label="Window" value={`${latest.windowDays}d`} />
@@ -153,7 +206,9 @@ export function BacktestPanel({ results, backtestDate, onBacktestDateChange, onR
 
               {latest.categoryPerformance && latest.categoryPerformance.length > 0 && (
                 <div>
-                  <h3 className="mb-2 text-sm font-medium text-ink-secondary">Category Performance</h3>
+                  <h3 className="mb-2 text-sm font-medium text-ink-secondary">
+                    Category Performance
+                  </h3>
                   <div className="overflow-x-auto rounded-xl border border-border-default">
                     <table className="w-full text-left text-xs">
                       <thead>
@@ -165,15 +220,22 @@ export function BacktestPanel({ results, backtestDate, onBacktestDateChange, onR
                         </tr>
                       </thead>
                       <tbody>
-                        {latest.categoryPerformance.map((cp: any) => (
-                          <tr key={cp.category} className="border-b border-border-subtle last:border-0">
+                        {latest.categoryPerformance.map((cp) => (
+                          <tr
+                            key={cp.category}
+                            className="border-b border-border-subtle last:border-0"
+                          >
                             <td className="px-3 py-2">
-                              <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${CATEGORY_COLORS[cp.category as PredictionCategory] || ''}`}>
+                              <span
+                                className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${CATEGORY_COLORS[cp.category as PredictionCategory] || ''}`}
+                              >
                                 {CATEGORY_LABELS[cp.category as PredictionCategory] || cp.category}
                               </span>
                             </td>
                             <td className="px-3 py-2 text-ink-secondary">{cp.count}</td>
-                            <td className={`px-3 py-2 font-mono ${cp.avgReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            <td
+                              className={`px-3 py-2 font-mono ${cp.avgReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}`}
+                            >
                               {(cp.avgReturn * 100).toFixed(1)}%
                             </td>
                             <td className="px-3 py-2 font-mono text-ink-muted">
@@ -191,18 +253,43 @@ export function BacktestPanel({ results, backtestDate, onBacktestDateChange, onR
 
           {results.length > 1 && (
             <div>
-              <h3 className="mb-2 text-sm font-medium text-ink-secondary">Previous Backtest Runs</h3>
+              <h3 className="mb-2 text-sm font-medium text-ink-secondary">
+                Previous Backtest Runs
+              </h3>
               <div className="space-y-2">
-                {results.slice(1, 6).map(r => (
-                  <div key={r.id} className="flex items-center justify-between rounded-lg border border-border-subtle bg-surface-inset px-3 py-2 text-xs">
+                {results.slice(1, 6).map((r) => (
+                  <div
+                    key={r.id}
+                    className="flex items-center justify-between rounded-lg border border-border-subtle bg-surface-inset px-3 py-2 text-xs"
+                  >
                     <span className="text-ink-muted">{r.backtestDate}</span>
                     <span className="text-ink-secondary">{r.cardsTested} cards</span>
-                    <span className={r.directionalAccuracy != null && r.directionalAccuracy >= 0.5 ? 'text-emerald-400' : 'text-red-400'}>
-                      Acc: {r.directionalAccuracy != null ? `${(r.directionalAccuracy * 100).toFixed(1)}%` : 'N/A'}
+                    <span
+                      className={
+                        r.directionalAccuracy != null && r.directionalAccuracy >= 0.5
+                          ? 'text-emerald-400'
+                          : 'text-red-400'
+                      }
+                    >
+                      Acc:{' '}
+                      {r.directionalAccuracy != null
+                        ? `${(r.directionalAccuracy * 100).toFixed(1)}%`
+                        : 'N/A'}
                     </span>
-                    <span className="text-ink-muted">MAPE: {r.mape != null ? `${(r.mape * 100).toFixed(1)}%` : 'N/A'}</span>
-                    <span className={r.marketAvgReturn != null && r.marketAvgReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                      Avg: {r.marketAvgReturn != null ? `${(r.marketAvgReturn * 100).toFixed(1)}%` : 'N/A'}
+                    <span className="text-ink-muted">
+                      MAPE: {r.mape != null ? `${(r.mape * 100).toFixed(1)}%` : 'N/A'}
+                    </span>
+                    <span
+                      className={
+                        r.marketAvgReturn != null && r.marketAvgReturn >= 0
+                          ? 'text-emerald-400'
+                          : 'text-red-400'
+                      }
+                    >
+                      Avg:{' '}
+                      {r.marketAvgReturn != null
+                        ? `${(r.marketAvgReturn * 100).toFixed(1)}%`
+                        : 'N/A'}
                     </span>
                   </div>
                 ))}

@@ -73,10 +73,7 @@ interface PageHeaderProps {
 export function PageHeader({ title, description, actions, eyebrow, className }: PageHeaderProps) {
   return (
     <div
-      className={cn(
-        'flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between',
-        className
-      )}
+      className={cn('flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between', className)}
     >
       <div className="min-w-0 space-y-2">
         {eyebrow ? (
@@ -87,7 +84,9 @@ export function PageHeader({ title, description, actions, eyebrow, className }: 
         <h1 className="font-display text-h1 tracking-tight text-ink-primary sm:text-[clamp(2rem,4vw,3.25rem)]">
           {title}
         </h1>
-        {description ? <p className="max-w-2xl text-sm text-ink-secondary sm:text-base">{description}</p> : null}
+        {description ? (
+          <p className="max-w-2xl text-sm text-ink-secondary sm:text-base">{description}</p>
+        ) : null}
       </div>
       {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
     </div>

@@ -13,10 +13,7 @@ import {
   maxEndpointChangePctForPeriod,
   type PricePointLite,
 } from './topMoversQuality';
-import {
-  applyBulkAndEconomicScoring,
-  buildBulkAwareWhy,
-} from './opportunityBulkScoring';
+import { applyBulkAndEconomicScoring, buildBulkAwareWhy } from './opportunityBulkScoring';
 
 const all = <T>(sql: string, params: unknown[] = []): Promise<T[]> =>
   new Promise((resolve, reject) => {
@@ -81,9 +78,30 @@ export function passesMoverThresholds(input: {
 export function characterToken(cardName: string | null | undefined): string | null {
   if (!cardName) return null;
   const STOP = new Set([
-    'ex', 'gx', 'v', 'vmax', 'vstar', 'lv.x', 'star', 'prime', 'break',
-    'dark', 'light', 'shining', 'shadow', 'radiant', 'galarian', 'alolan',
-    'hisuian', 'paldean', 'mega', 'primal', 'team', 'the', 'of', '&',
+    'ex',
+    'gx',
+    'v',
+    'vmax',
+    'vstar',
+    'lv.x',
+    'star',
+    'prime',
+    'break',
+    'dark',
+    'light',
+    'shining',
+    'shadow',
+    'radiant',
+    'galarian',
+    'alolan',
+    'hisuian',
+    'paldean',
+    'mega',
+    'primal',
+    'team',
+    'the',
+    'of',
+    '&',
   ]);
   const tokens = cardName
     .toLowerCase()
@@ -296,16 +314,14 @@ export function computeOpportunityScore(input: OpportunityScoreInputs): {
   // Each component normalized to 0–100 (50 = neutral).
   const momentumComponent = clamp(((input.momentumPct + 20) / 50) * 100, 0, 100);
   const underval =
-    input.premiumVsSetMedian != null
-      ? clamp(50 - input.premiumVsSetMedian / 2, 0, 100)
-      : 50;
+    input.premiumVsSetMedian != null ? clamp(50 - input.premiumVsSetMedian / 2, 0, 100) : 50;
   const buyoutUnderComponent = 0.5 * clamp(input.buyoutScore, 0, 100) + 0.5 * underval;
   const sentimentComponent =
-    input.netSentiment != null ? clamp(((clamp(input.netSentiment, -1, 1) + 1) / 2) * 100, 0, 100) : 50;
-  const compComponent =
-    input.compMomentumPct != null
-      ? clamp(((input.compMomentumPct + 20) / 50) * 100, 0, 100)
+    input.netSentiment != null
+      ? clamp(((clamp(input.netSentiment, -1, 1) + 1) / 2) * 100, 0, 100)
       : 50;
+  const compComponent =
+    input.compMomentumPct != null ? clamp(((input.compMomentumPct + 20) / 50) * 100, 0, 100) : 50;
 
   let score: number;
   if (input.predictedReturn90d != null) {
@@ -668,8 +684,7 @@ function mapComp(
     matchScore: r.matchScore,
     historyPoints: r.historyPoints,
   });
-  const corr =
-    anchorSeries && compSeries ? moveCorrelation(anchorSeries, compSeries) : null;
+  const corr = anchorSeries && compSeries ? moveCorrelation(anchorSeries, compSeries) : null;
   return {
     compClass,
     cardId: r.cardId,
@@ -680,8 +695,7 @@ function mapComp(
     grader: r.grader,
     grade: r.grade,
     currentPrice: round2(r.currentPrice),
-    change7dPct:
-      r.prev7 && r.prev7 > 0 ? computeChange(r.currentPrice, r.prev7).changePct : null,
+    change7dPct: r.prev7 && r.prev7 > 0 ? computeChange(r.currentPrice, r.prev7).changePct : null,
     change30dPct:
       r.prev30 && r.prev30 > 0 ? computeChange(r.currentPrice, r.prev30).changePct : null,
     premiumPct:
@@ -1117,7 +1131,15 @@ export async function getOpportunities(options?: {
   const limit = clamp(options?.limit ?? 20, 1, 100);
   const minScore = clamp(options?.minScore ?? 0, 0, 100);
 
-  const [predictions, moverResult, buyoutResult, premiumRows, sentimentRows, rawPriceRows, catalystRows] = await Promise.all([
+  const [
+    predictions,
+    moverResult,
+    buyoutResult,
+    premiumRows,
+    sentimentRows,
+    rawPriceRows,
+    catalystRows,
+  ] = await Promise.all([
     all<{
       card_id: string;
       expected_90d_return: number | null;
@@ -1302,7 +1324,8 @@ export async function getOpportunities(options?: {
       compMomentumPct,
     });
 
-    const marketPrice = rawPriceById.get(cardId) ?? meta.currentPrice ?? mover?.currentPrice ?? null;
+    const marketPrice =
+      rawPriceById.get(cardId) ?? meta.currentPrice ?? mover?.currentPrice ?? null;
     const bulk = applyBulkAndEconomicScoring({
       marketPrice,
       changeAbs: mover?.changeAbs ?? null,
@@ -1446,7 +1469,11 @@ export async function getExternalFactorsGlobal(options?: {
   if (options?.type) {
     typeFilter = 'AND (s.source_type = ? OR s.risk_type = ? OR s.source_type = ?)';
     const mapped =
-      options.type === 'reddit' ? 'social' : options.type === 'set_release' ? 'set_release' : options.type;
+      options.type === 'reddit'
+        ? 'social'
+        : options.type === 'set_release'
+          ? 'set_release'
+          : options.type;
     params.push(mapped, options.type, mapped);
   }
 
@@ -1529,9 +1556,9 @@ export async function getExternalFactorsGlobal(options?: {
     return s.opportunityScore >= 50;
   });
 
-  const sortKey = (['score', 'confidence', 'newest', 'price_impact', 'volume'] as SignalSort[]).includes(
-    options?.sort as SignalSort
-  )
+  const sortKey = (
+    ['score', 'confidence', 'newest', 'price_impact', 'volume'] as SignalSort[]
+  ).includes(options?.sort as SignalSort)
     ? (options!.sort as SignalSort)
     : 'score';
   enriched = sortInvestmentSignals(enriched, sortKey);

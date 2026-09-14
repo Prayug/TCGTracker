@@ -64,10 +64,54 @@ describe('graded price history schema', () => {
         soldListings = excluded.soldListings
     `;
 
-    await run(upsert, ['card-1', 'reverseholofoil', '2026-08-10', 'psa', '10', 100, 5, 'pc1', 1, 'https://x']);
-    await run(upsert, ['card-1', 'reverseholofoil', '2026-08-10', 'psa', '10', 110, 6, 'pc1', 1, 'https://x']);
-    await run(upsert, ['card-1', 'reverseholofoil', '2026-08-11', 'psa', '10', 120, 7, 'pc1', 1, 'https://x']);
-    await run(upsert, ['card-1', 'normal', '2026-08-10', 'psa', '10', 20, 2, 'pc2', 1, 'https://y']);
+    await run(upsert, [
+      'card-1',
+      'reverseholofoil',
+      '2026-08-10',
+      'psa',
+      '10',
+      100,
+      5,
+      'pc1',
+      1,
+      'https://x',
+    ]);
+    await run(upsert, [
+      'card-1',
+      'reverseholofoil',
+      '2026-08-10',
+      'psa',
+      '10',
+      110,
+      6,
+      'pc1',
+      1,
+      'https://x',
+    ]);
+    await run(upsert, [
+      'card-1',
+      'reverseholofoil',
+      '2026-08-11',
+      'psa',
+      '10',
+      120,
+      7,
+      'pc1',
+      1,
+      'https://x',
+    ]);
+    await run(upsert, [
+      'card-1',
+      'normal',
+      '2026-08-10',
+      'psa',
+      '10',
+      20,
+      2,
+      'pc2',
+      1,
+      'https://y',
+    ]);
 
     const reverse = await all<{ date: string; price: number }>(
       `SELECT date, price FROM graded_price_history

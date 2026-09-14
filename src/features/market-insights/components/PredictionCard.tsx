@@ -34,7 +34,12 @@ function parseSignalCount(externalSignals: string): number {
   }
 }
 
-export function PredictionCard({ prediction, card, window: predictionWindow = '90d', onViewDetail }: Props) {
+export function PredictionCard({
+  prediction,
+  card,
+  window: predictionWindow = '90d',
+  onViewDetail,
+}: Props) {
   const { openCard } = useCardModal();
   const insightsApi = useInsightsApi();
   const [showSignals, setShowSignals] = useState(false);
@@ -103,8 +108,8 @@ export function PredictionCard({ prediction, card, window: predictionWindow = '9
     try {
       const result = await insightsApi.getAiExplanation(prediction.cardId);
       setExplanationText(result.explanation);
-    } catch (err: any) {
-      const msg = err?.message || 'AI analysis unavailable';
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'AI analysis unavailable';
       setExplanationText(`Error: ${msg}`);
     } finally {
       setLoadingExplanation(false);
@@ -132,18 +137,18 @@ export function PredictionCard({ prediction, card, window: predictionWindow = '9
 
   return (
     <div className="prediction-card relative">
-      <PokemonCardTile
-        card={displayCard}
-        onClick={handleOpen}
-        onViewPriceHistory={handleOpen}
-      />
+      <PokemonCardTile card={displayCard} onClick={handleOpen} onViewPriceHistory={handleOpen} />
 
       <div className="pointer-events-none absolute left-[clamp(0.375rem,0.8vw,0.5rem)] right-[clamp(0.375rem,0.8vw,0.5rem)] top-[clamp(0.375rem,0.8vw,0.5rem)] z-30 flex flex-col gap-1">
         <div className="flex items-start justify-between gap-1">
           <span className={`prediction-badge ${badgeBase}`}>
             <span className="prediction-density-full">{CATEGORY_LABELS[prediction.category]}</span>
-            <span className="prediction-density-compact">{CATEGORY_SHORT_LABELS[prediction.category]}</span>
-            <span className="prediction-density-minimal">{CATEGORY_SHORT_LABELS[prediction.category]}</span>
+            <span className="prediction-density-compact">
+              {CATEGORY_SHORT_LABELS[prediction.category]}
+            </span>
+            <span className="prediction-density-minimal">
+              {CATEGORY_SHORT_LABELS[prediction.category]}
+            </span>
           </span>
           <span className={returnBadgeClass}>
             <span className="prediction-density-full">

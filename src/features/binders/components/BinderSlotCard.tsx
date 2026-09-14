@@ -51,14 +51,10 @@ export const BinderSlotCard: React.FC<BinderSlotCardProps> = ({
       )}
 
       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2">
-        <p className="truncate text-xs font-semibold text-white drop-shadow-md">
-          {cardName}
-        </p>
+        <p className="truncate text-xs font-semibold text-white drop-shadow-md">{cardName}</p>
         <div className="mt-0.5 flex items-center justify-between">
           {rarity && (
-            <span className="text-[10px] font-medium text-gray-300 drop-shadow-md">
-              {rarity}
-            </span>
+            <span className="text-[10px] font-medium text-gray-300 drop-shadow-md">{rarity}</span>
           )}
           {price != null && (
             <span className="text-[10px] font-bold text-accent drop-shadow-md">

@@ -78,7 +78,9 @@ export async function resolveOnePiecePrice(input: {
   };
 }
 
-export async function resolveOnePiecePriceFromRaw(raw: OPTCGCardResponse): Promise<OnePiecePriceResolution> {
+export async function resolveOnePiecePriceFromRaw(
+  raw: OPTCGCardResponse
+): Promise<OnePiecePriceResolution> {
   return resolveOnePiecePrice({
     setId: raw.set_id,
     cardSetId: raw.card_set_id,

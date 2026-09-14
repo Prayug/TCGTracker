@@ -13,14 +13,15 @@ export const EnergyBuildup: React.FC<{
   const orbRef = useRef<THREE.Mesh>(null);
 
   const material = useMemo(
-    () => new THREE.MeshBasicMaterial({
-      color: colors.glow,
-      transparent: true,
-      opacity: 0,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    }),
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: colors.glow,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }),
     [colors.glow]
   );
 
@@ -87,13 +88,14 @@ export const OrbitEnergy: React.FC<{
   }, [count]);
 
   const material = useMemo(
-    () => new THREE.MeshBasicMaterial({
-      color: colors.glow,
-      transparent: true,
-      opacity: 0.7,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    }),
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: colors.glow,
+        transparent: true,
+        opacity: 0.7,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
     [colors.glow]
   );
 

@@ -74,9 +74,7 @@ export const PortfolioMetricCard: React.FC<PortfolioMetricCardProps> = ({
     >
       <div className="mb-1.5 flex items-start justify-between gap-2">
         <p className={`text-ink-muted ${sizing.label}`}>{label}</p>
-        {Icon && (
-          <Icon className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
-        )}
+        {Icon && <Icon className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />}
       </div>
 
       <div className="flex items-end justify-between gap-2">

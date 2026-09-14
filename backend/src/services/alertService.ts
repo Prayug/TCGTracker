@@ -185,7 +185,10 @@ export class AlertService {
   }
 
   /** Best-effort email; never throws — in-app alerts must keep working. */
-  private async notifyAlertEmail(alert: PriceAlert, extra?: { currentPrice?: number }): Promise<void> {
+  private async notifyAlertEmail(
+    alert: PriceAlert,
+    extra?: { currentPrice?: number }
+  ): Promise<void> {
     if (!isEmailConfigured()) return;
     try {
       const email = await this.getUserEmail(alert.user_id);
@@ -283,8 +286,7 @@ export class AlertService {
         snapshot.priorVolume != null &&
         snapshot.priorVolume > 0
       ) {
-        const dropPct =
-          ((snapshot.priorVolume - snapshot.volume) / snapshot.priorVolume) * 100;
+        const dropPct = ((snapshot.priorVolume - snapshot.volume) / snapshot.priorVolume) * 100;
         if (dropPct >= Math.abs(pct || 50)) hit = true;
       }
 

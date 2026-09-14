@@ -119,7 +119,9 @@ export function packTierTheme(tier: PackTier | string): PackTierTheme {
   }
 }
 
-export function pullVisualKind(pull: Pick<PackPull, 'pullKind' | 'grader' | 'grade'>): PullVisualKind {
+export function pullVisualKind(
+  pull: Pick<PackPull, 'pullKind' | 'grader' | 'grade'>
+): PullVisualKind {
   if (pull.pullKind !== 'slab') return 'raw';
   const grader = (pull.grader || 'PSA').toUpperCase();
   if (grader === 'CGC') return 'cgc';

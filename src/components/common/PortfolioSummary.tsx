@@ -25,10 +25,17 @@ export const PortfolioSummary: React.FC = () => {
       label: 'Profit / loss',
       value: hasCards ? (
         <span className={stats.profit >= 0 ? 'text-neon-green' : 'text-neon-pink'}>
-          {stats.profit >= 0 ? '+' : ''}{stats.profitPercentage.toFixed(1)}%
+          {stats.profit >= 0 ? '+' : ''}
+          {stats.profitPercentage.toFixed(1)}%
         </span>
-      ) : 'Add cards',
-      accent: hasCards ? (stats.profit >= 0 ? 'var(--neon-green)' : 'var(--neon-pink)') : 'var(--ink-muted)',
+      ) : (
+        'Add cards'
+      ),
+      accent: hasCards
+        ? stats.profit >= 0
+          ? 'var(--neon-green)'
+          : 'var(--neon-pink)'
+        : 'var(--ink-muted)',
     },
   ];
 
@@ -44,7 +51,9 @@ export const PortfolioSummary: React.FC = () => {
         >
           <Icon className="h-5 w-5 shrink-0" style={{ color: accent }} />
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-ink-muted">{label}</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-ink-muted">
+              {label}
+            </p>
             <p
               className="font-mono text-lg font-bold tabular-nums tracking-tight"
               style={{ color: accent }}
