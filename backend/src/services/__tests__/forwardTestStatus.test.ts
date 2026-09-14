@@ -29,7 +29,12 @@ describe('windowIsHit', () => {
 
 describe('resolveStatus', () => {
   it('stays pending while no window has matured', () => {
-    expect(resolveStatus([{ has: false, hit: false }, { has: false, hit: false }])).toBe('pending');
+    expect(
+      resolveStatus([
+        { has: false, hit: false },
+        { has: false, hit: false },
+      ])
+    ).toBe('pending');
   });
 
   it('hit when every matured window hit', () => {

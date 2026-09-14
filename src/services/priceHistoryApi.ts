@@ -26,7 +26,7 @@ interface CardPriceHistoryResponse {
     cardNumber?: string;
   };
   priceHistory: PriceHistoryPoint[];
-  rollingAverages: unknown[];
+  rollingAverages: Array<Record<string, unknown>>;
 }
 
 interface CardMatchResponse {
@@ -37,7 +37,7 @@ interface CardMatchResponse {
     uniqueIdentifier?: string;
   };
   priceHistory: PriceHistoryPoint[];
-  rollingAverages: unknown[];
+  rollingAverages: Array<Record<string, unknown>>;
   message?: string;
   searchCriteria?: {
     cardName: string;
@@ -84,13 +84,6 @@ type TopMoversCacheEntry = {
   data: TopMoversResponse;
 };
 
-const isFreshTopMoversEntry = (
-  entry: TopMoversCacheEntry | null | undefined
-): entry is TopMoversCacheEntry =>
-  Boolean(
-    entry && entry.data && typeof entry.expiresAt === 'number' && entry.expiresAt > Date.now()
-  );
-
 /**
  * Fetches top movers (biggest gainers/losers) over a given period
  */
@@ -100,6 +93,8 @@ export class PriceHistoryApi {
   private static staticMappings: CardIdentifier[] | null = null;
   private static latestPrices: { [uniqueIdentifier: string]: PricePoint } | null = null;
   private static topMoversMemory = new Map<string, TopMoversCacheEntry>();
+  private static topMoversInflight = new Map<string, Promise<TopMoversResponse>>();
+  private static slabMoversInflight = new Map<string, Promise<TopMoversResponse>>();
 
   private static topMoversCacheKey(days: number, limit: number): string {
     return `${days}:${limit}`;
@@ -145,9 +140,11 @@ export class PriceHistoryApi {
   static peekTopMovers(days: number = 7, limit: number = 20): TopMoversResponse | null {
     const key = this.topMoversCacheKey(days, limit);
     const mem = this.topMoversMemory.get(key);
-    if (isFreshTopMoversEntry(mem)) return mem.data;
+    if (mem?.data && (mem.data.gainers.length > 0 || mem.data.losers.length > 0)) {
+      return mem.data;
+    }
     const stored = this.readTopMoversStorage(days, limit);
-    if (isFreshTopMoversEntry(stored)) {
+    if (stored?.data && (stored.data.gainers.length > 0 || stored.data.losers.length > 0)) {
       this.topMoversMemory.set(key, stored);
       return stored.data;
     }
@@ -181,19 +178,29 @@ export class PriceHistoryApi {
       return stored.data;
     }
 
-    try {
-      const response = await fetch(`${this.baseUrl}/top-movers?days=${days}&limit=${limit}`);
-      if (!response.ok) {
+    const existing = this.topMoversInflight.get(key);
+    if (existing) return existing;
+
+    const request = (async (): Promise<TopMoversResponse> => {
+      try {
+        const response = await fetch(`${this.baseUrl}/top-movers?days=${days}&limit=${limit}`);
+        if (!response.ok) {
+          return mem?.data ?? stored?.data ?? { date: null, days, gainers: [], losers: [] };
+        }
+        const data = (await response.json()) as TopMoversResponse;
+        if (data.gainers.length > 0 || data.losers.length > 0) {
+          this.writeTopMoversCache(days, limit, data);
+        }
+        return data;
+      } catch {
         return mem?.data ?? stored?.data ?? { date: null, days, gainers: [], losers: [] };
+      } finally {
+        this.topMoversInflight.delete(key);
       }
-      const data = (await response.json()) as TopMoversResponse;
-      if (data.gainers.length > 0 || data.losers.length > 0) {
-        this.writeTopMoversCache(days, limit, data);
-      }
-      return data;
-    } catch {
-      return mem?.data ?? stored?.data ?? { date: null, days, gainers: [], losers: [] };
-    }
+    })();
+
+    this.topMoversInflight.set(key, request);
+    return request;
   }
 
   private static slabMoversMemory = new Map<string, TopMoversCacheEntry>();
@@ -230,9 +237,11 @@ export class PriceHistoryApi {
   static peekTopSlabMovers(days: number = 7, limit: number = 20): TopMoversResponse | null {
     const key = this.slabMoversCacheKey(days, limit);
     const mem = this.slabMoversMemory.get(key);
-    if (isFreshTopMoversEntry(mem)) return mem.data;
+    if (mem?.data && (mem.data.gainers.length > 0 || mem.data.losers.length > 0)) {
+      return mem.data;
+    }
     const stored = this.readSlabMoversStorage(days, limit);
-    if (isFreshTopMoversEntry(stored)) {
+    if (stored?.data && (stored.data.gainers.length > 0 || stored.data.losers.length > 0)) {
       this.slabMoversMemory.set(key, stored);
       return stored.data;
     }
@@ -266,17 +275,27 @@ export class PriceHistoryApi {
       return stored.data;
     }
 
-    try {
-      const response = await fetch(`${this.baseUrl}/top-slab-movers?days=${days}&limit=${limit}`);
-      if (!response.ok) {
+    const existing = this.slabMoversInflight.get(key);
+    if (existing) return existing;
+
+    const request = (async (): Promise<TopMoversResponse> => {
+      try {
+        const response = await fetch(`${this.baseUrl}/top-slab-movers?days=${days}&limit=${limit}`);
+        if (!response.ok) {
+          return mem?.data ?? stored?.data ?? { date: null, days, gainers: [], losers: [] };
+        }
+        const data = (await response.json()) as TopMoversResponse;
+        this.writeSlabMoversCache(days, limit, data);
+        return data;
+      } catch {
         return mem?.data ?? stored?.data ?? { date: null, days, gainers: [], losers: [] };
+      } finally {
+        this.slabMoversInflight.delete(key);
       }
-      const data = (await response.json()) as TopMoversResponse;
-      this.writeSlabMoversCache(days, limit, data);
-      return data;
-    } catch {
-      return mem?.data ?? stored?.data ?? { date: null, days, gainers: [], losers: [] };
-    }
+    })();
+
+    this.slabMoversInflight.set(key, request);
+    return request;
   }
 
   private static async getStaticMappings(): Promise<CardIdentifier[]> {
@@ -657,11 +676,13 @@ export class PriceHistoryApi {
     try {
       const fetchHistory = async (variantToUse?: string) => {
         const params = new URLSearchParams({
-          cardId: card.id,
           cardName: card.name,
           setName: card.set.name,
           setId: card.set.id,
         });
+        if (card.id) {
+          params.set('cardId', card.id);
+        }
         if (variantToUse) {
           params.append('variant', variantToUse);
         }

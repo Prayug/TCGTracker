@@ -119,31 +119,22 @@ function sampleField(rng: Rng, majorR: number): [number, number, number] {
   }
   // Free volume box around the whole scene (depth + height scatter)
   const extent = majorR * 1.85;
-  return [
-    (rng() - 0.5) * 2 * extent,
-    (rng() - 0.5) * extent * 1.3,
-    (rng() - 0.5) * 2 * extent,
-  ];
+  return [(rng() - 0.5) * 2 * extent, (rng() - 0.5) * extent * 1.3, (rng() - 0.5) * 2 * extent];
 }
 
-function faceCameraish(
-  rng: Rng,
-  x: number,
-  z: number
-): [number, number, number] {
+function faceCameraish(rng: Rng, x: number, z: number): [number, number, number] {
   const angle = Math.atan2(z, x);
-  return [
-    (rng() - 0.5) * 0.35,
-    Math.PI / 2 - angle + (rng() - 0.5) * 0.55,
-    (rng() - 0.5) * 0.35,
-  ];
+  return [(rng() - 0.5) * 0.35, Math.PI / 2 - angle + (rng() - 0.5) * 0.55, (rng() - 0.5) * 0.35];
 }
 
 /**
  * Group cards by set, order sets by release date (oldest first), and place
  * them as a thick particle torus plus a surrounding field of free-floating cards.
  */
-export function buildRingClusters(cards: PokemonCard[], options: RingLayoutOptions = {}): RingSetCluster[] {
+export function buildRingClusters(
+  cards: PokemonCard[],
+  options: RingLayoutOptions = {}
+): RingSetCluster[] {
   const {
     radius = 8,
     tubeRadius = 2.4,
@@ -155,7 +146,10 @@ export function buildRingClusters(cards: PokemonCard[], options: RingLayoutOptio
 
   const rng = mulberry32(seed);
 
-  const groups = new Map<string, { id: string; name: string; releaseDate: string; cards: PokemonCard[] }>();
+  const groups = new Map<
+    string,
+    { id: string; name: string; releaseDate: string; cards: PokemonCard[] }
+  >();
   for (const card of cards) {
     const set = card.set;
     if (!set?.id) continue;
@@ -170,7 +164,10 @@ export function buildRingClusters(cards: PokemonCard[], options: RingLayoutOptio
   const sorted = [...groups.values()].sort((a, b) => {
     const av = new Date(a.releaseDate).getTime();
     const bv = new Date(b.releaseDate).getTime();
-    return (Number.isNaN(av) ? Number.MAX_SAFE_INTEGER : av) - (Number.isNaN(bv) ? Number.MAX_SAFE_INTEGER : bv);
+    return (
+      (Number.isNaN(av) ? Number.MAX_SAFE_INTEGER : av) -
+      (Number.isNaN(bv) ? Number.MAX_SAFE_INTEGER : bv)
+    );
   });
 
   // When there are more sets than maxSets, stride-sample across the full

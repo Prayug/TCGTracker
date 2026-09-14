@@ -12,7 +12,18 @@ const router = Router();
 
 router.get('/graded-prices', async (req, res) => {
   try {
-    const { cardId, cardName, setId, setName, cardNumber, language, matchName, variant, game, cardImageId } = req.query;
+    const {
+      cardId,
+      cardName,
+      setId,
+      setName,
+      cardNumber,
+      language,
+      matchName,
+      variant,
+      game,
+      cardImageId,
+    } = req.query;
 
     if (!cardId || !cardName) {
       return res.status(400).json({ error: 'cardId and cardName are required' });
@@ -80,11 +91,9 @@ router.get('/graded-price-history', async (req, res) => {
 
 router.get('/graded-spreads', async (req, res) => {
   try {
-    const {
-      getGradedSpreadsForCard,
-      getTopGradedPremiums,
-      getPsa10SpreadsForCards,
-    } = await import('../../services/gradedSpreadService');
+    const { getGradedSpreadsForCard, getTopGradedPremiums, getPsa10SpreadsForCards } = await import(
+      '../../services/gradedSpreadService'
+    );
     const cardId = req.query.cardId ? String(req.query.cardId) : null;
     const variant = req.query.variant ? String(req.query.variant) : undefined;
     if (cardId) {
@@ -300,7 +309,9 @@ router.post('/slab-marks', async (req, res) => {
  */
 router.post('/refresh-graded-data', async (req, res) => {
   try {
-    const { runGradedRefresh, runAllCardsRefresh } = await import('../../services/gradedRefreshService');
+    const { runGradedRefresh, runAllCardsRefresh } = await import(
+      '../../services/gradedRefreshService'
+    );
     const { withDbJobLock } = await import('../../utils/dbJobLock');
     const limit = Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 200);
     const all = String(req.query.all || '') === '1';

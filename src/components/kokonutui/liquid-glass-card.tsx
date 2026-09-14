@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * @author: @dorianbaffier
@@ -10,21 +10,15 @@
  * @github: https://github.com/kokonut-labs/kokonutui
  */
 
-import { cva, type VariantProps } from "class-variance-authority";
-import {
-  ArrowLeft,
-  ArrowRight,
-  MoreHorizontal,
-  Pause,
-  Play,
-} from "lucide-react";
-import React from "react";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { cva, type VariantProps } from 'class-variance-authority';
+import { ArrowLeft, ArrowRight, MoreHorizontal, Pause, Play } from 'lucide-react';
+import React from 'react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 
 function Image({
-  alt = "",
+  alt = '',
   fill: _fill,
   sizes: _sizes,
   priority: _priority,
@@ -39,10 +33,10 @@ function Image({
 
 // Constants for better maintainability
 const GLASS_SHADOW_LIGHT =
-  "shadow-[0_0_6px_rgba(0,0,0,0.03),0_2px_6px_rgba(0,0,0,0.08),inset_3px_3px_0.5px_-3px_rgba(0,0,0,0.9),inset_-3px_-3px_0.5px_-3px_rgba(0,0,0,0.85),inset_1px_1px_1px_-0.5px_rgba(0,0,0,0.6),inset_-1px_-1px_1px_-0.5px_rgba(0,0,0,0.6),inset_0_0_6px_6px_rgba(0,0,0,0.12),inset_0_0_2px_2px_rgba(0,0,0,0.06),0_0_12px_rgba(255,255,255,0.15)]";
+  'shadow-[0_0_6px_rgba(0,0,0,0.03),0_2px_6px_rgba(0,0,0,0.08),inset_3px_3px_0.5px_-3px_rgba(0,0,0,0.9),inset_-3px_-3px_0.5px_-3px_rgba(0,0,0,0.85),inset_1px_1px_1px_-0.5px_rgba(0,0,0,0.6),inset_-1px_-1px_1px_-0.5px_rgba(0,0,0,0.6),inset_0_0_6px_6px_rgba(0,0,0,0.12),inset_0_0_2px_2px_rgba(0,0,0,0.06),0_0_12px_rgba(255,255,255,0.15)]';
 
 const GLASS_SHADOW_DARK =
-  "dark:shadow-[0_0_8px_rgba(0,0,0,0.03),0_2px_6px_rgba(0,0,0,0.08),inset_3px_3px_0.5px_-3.5px_rgba(255,255,255,0.09),inset_-3px_-3px_0.5px_-3.5px_rgba(255,255,255,0.85),inset_1px_1px_1px_-0.5px_rgba(255,255,255,0.6),inset_-1px_-1px_1px_-0.5px_rgba(255,255,255,0.6),inset_0_0_6px_6px_rgba(255,255,255,0.12),inset_0_0_2px_2px_rgba(255,255,255,0.06),0_0_12px_rgba(0,0,0,0.15)]";
+  'dark:shadow-[0_0_8px_rgba(0,0,0,0.03),0_2px_6px_rgba(0,0,0,0.08),inset_3px_3px_0.5px_-3.5px_rgba(255,255,255,0.09),inset_-3px_-3px_0.5px_-3.5px_rgba(255,255,255,0.85),inset_1px_1px_1px_-0.5px_rgba(255,255,255,0.6),inset_-1px_-1px_1px_-0.5px_rgba(255,255,255,0.6),inset_0_0_6px_6px_rgba(255,255,255,0.12),inset_0_0_2px_2px_rgba(255,255,255,0.06),0_0_12px_rgba(0,0,0,0.15)]';
 
 const GLASS_SHADOW = `${GLASS_SHADOW_LIGHT} ${GLASS_SHADOW_DARK}`;
 
@@ -55,61 +49,48 @@ interface GlassFilterProps {
   scale?: number;
 }
 
-const GlassFilter = React.memo(
-  ({ id, scale = DEFAULT_GLASS_FILTER_SCALE }: GlassFilterProps) => (
-    <svg aria-hidden="true" className="hidden" focusable={false}>
-      <title>Glass Effect Filter</title>
-      <defs>
-        <filter
-          colorInterpolationFilters="sRGB"
-          height="200%"
-          id={id}
-          width="200%"
-          x="-50%"
-          y="-50%"
-        >
-          <feTurbulence
-            baseFrequency="0.05 0.05"
-            numOctaves="1"
-            result="turbulence"
-            seed="1"
-            type="fractalNoise"
-          />
-          <feGaussianBlur
-            in="turbulence"
-            result="blurredNoise"
-            stdDeviation="2"
-          />
-          <feDisplacementMap
-            in="SourceGraphic"
-            in2="blurredNoise"
-            result="displaced"
-            scale={scale}
-            xChannelSelector="R"
-            yChannelSelector="B"
-          />
-          <feGaussianBlur in="displaced" result="finalBlur" stdDeviation="4" />
-          <feComposite in="finalBlur" in2="finalBlur" operator="over" />
-        </filter>
-      </defs>
-    </svg>
-  )
-);
-GlassFilter.displayName = "GlassFilter";
+const GlassFilter = React.memo(({ id, scale = DEFAULT_GLASS_FILTER_SCALE }: GlassFilterProps) => (
+  <svg aria-hidden="true" className="hidden" focusable={false}>
+    <title>Glass Effect Filter</title>
+    <defs>
+      <filter colorInterpolationFilters="sRGB" height="200%" id={id} width="200%" x="-50%" y="-50%">
+        <feTurbulence
+          baseFrequency="0.05 0.05"
+          numOctaves="1"
+          result="turbulence"
+          seed="1"
+          type="fractalNoise"
+        />
+        <feGaussianBlur in="turbulence" result="blurredNoise" stdDeviation="2" />
+        <feDisplacementMap
+          in="SourceGraphic"
+          in2="blurredNoise"
+          result="displaced"
+          scale={scale}
+          xChannelSelector="R"
+          yChannelSelector="B"
+        />
+        <feGaussianBlur in="displaced" result="finalBlur" stdDeviation="4" />
+        <feComposite in="finalBlur" in2="finalBlur" operator="over" />
+      </filter>
+    </defs>
+  </svg>
+));
+GlassFilter.displayName = 'GlassFilter';
 
 // Liquid Button - extends shadcn Button with glass effect
 const liquidButtonVariants = cva(
-  "relative transition-transform duration-200 motion-reduce:transition-none",
+  'relative transition-transform duration-200 motion-reduce:transition-none',
   {
     variants: {
       liquidVariant: {
         default:
-          "active:scale-[0.97] motion-reduce:active:scale-100 motion-reduce:hover:scale-100 [@media(hover:hover)]:hover:scale-105",
-        none: "",
+          'active:scale-[0.97] motion-reduce:active:scale-100 motion-reduce:hover:scale-100 [@media(hover:hover)]:hover:scale-105',
+        none: '',
       },
     },
     defaultVariants: {
-      liquidVariant: "default",
+      liquidVariant: 'default',
     },
   }
 );
@@ -119,7 +100,7 @@ export type LiquidButtonProps = React.ComponentProps<typeof Button> &
 
 function LiquidButton({
   className,
-  liquidVariant = "default",
+  liquidVariant = 'default',
   children,
   ...props
 }: LiquidButtonProps) {
@@ -127,15 +108,9 @@ function LiquidButton({
 
   return (
     <>
-      <Button
-        className={cn(liquidButtonVariants({ liquidVariant }), className)}
-        {...props}
-      >
+      <Button className={cn(liquidButtonVariants({ liquidVariant }), className)} {...props}>
         <div
-          className={cn(
-            "pointer-events-none absolute inset-0 rounded-[inherit]",
-            GLASS_SHADOW
-          )}
+          className={cn('pointer-events-none absolute inset-0 rounded-[inherit]', GLASS_SHADOW)}
         />
         <div
           className="pointer-events-none absolute inset-0 isolate -z-10 overflow-hidden rounded-[inherit]"
@@ -150,17 +125,17 @@ function LiquidButton({
 
 // Liquid Glass Card - extends shadcn Card with glass effect
 const liquidGlassCardVariants = cva(
-  "group relative overflow-hidden bg-background/20 backdrop-blur-[2px]",
+  'group relative overflow-hidden bg-background/20 backdrop-blur-[2px]',
   {
     variants: {
       glassSize: {
-        sm: "p-4",
-        default: "p-6",
-        lg: "p-8",
+        sm: 'p-4',
+        default: 'p-6',
+        lg: 'p-8',
       },
     },
     defaultVariants: {
-      glassSize: "default",
+      glassSize: 'default',
     },
   }
 );
@@ -180,16 +155,8 @@ function LiquidGlassCard({
   const filterId = React.useId();
 
   return (
-    <Card
-      className={cn(liquidGlassCardVariants({ glassSize }), className)}
-      {...props}
-    >
-      <div
-        className={cn(
-          "pointer-events-none absolute inset-0 rounded-[inherit]",
-          GLASS_SHADOW
-        )}
-      />
+    <Card className={cn(liquidGlassCardVariants({ glassSize }), className)} {...props}>
+      <div className={cn('pointer-events-none absolute inset-0 rounded-[inherit]', GLASS_SHADOW)} />
 
       {glassEffect && (
         <>
@@ -213,7 +180,7 @@ const TOTAL_DURATION = 45;
 const VOLUME_BAR_COUNT = 8;
 const SEEK_JUMP_SECONDS = 5;
 const TIMER_INTERVAL_MS = 1000;
-const STATIC_BAR_HEIGHT = "6px";
+const STATIC_BAR_HEIGHT = '6px';
 const MIN_TIME = 0;
 const BAR_DELAY_INCREMENT = 0.1;
 const PROGRESS_PERCENTAGE_MULTIPLIER = 100;
@@ -221,7 +188,7 @@ const PROGRESS_PERCENTAGE_MULTIPLIER = 100;
 const formatTime = (timeInSeconds: number): string => {
   const minutes = Math.floor(timeInSeconds / 60);
   const seconds = Math.floor(timeInSeconds % 60);
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 };
 
 interface VolumeBarsProps {
@@ -239,21 +206,21 @@ const VolumeBars = React.memo(({ isPlaying }: VolumeBarsProps) => {
       {bars.map((bar) => (
         <div
           className={cn(
-            "w-[3px] rounded-sm",
-            isPlaying && "animate-bounce-music motion-reduce:animate-none"
+            'w-[3px] rounded-sm',
+            isPlaying && 'animate-bounce-music motion-reduce:animate-none'
           )}
           key={bar.id}
           style={{
             height: isPlaying ? undefined : STATIC_BAR_HEIGHT,
             animationDelay: `${bar.delay}s`,
-            background: "linear-gradient(to top, #FF2E55, #FF6B88)",
+            background: 'linear-gradient(to top, #FF2E55, #FF6B88)',
           }}
         />
       ))}
     </div>
   );
 });
-VolumeBars.displayName = "VolumeBars";
+VolumeBars.displayName = 'VolumeBars';
 
 interface ProgressBarProps {
   currentTime: number;
@@ -261,74 +228,68 @@ interface ProgressBarProps {
   onSeek: (newTime: number) => void;
 }
 
-const ProgressBar = React.memo(
-  ({ currentTime, totalDuration, onSeek }: ProgressBarProps) => {
-    const progress =
-      (currentTime / totalDuration) * PROGRESS_PERCENTAGE_MULTIPLIER;
+const ProgressBar = React.memo(({ currentTime, totalDuration, onSeek }: ProgressBarProps) => {
+  const progress = (currentTime / totalDuration) * PROGRESS_PERCENTAGE_MULTIPLIER;
 
-    const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-      const bar = e.currentTarget;
-      const rect = bar.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const percent = x / rect.width;
-      const newTime = Math.min(
-        Math.max(MIN_TIME, percent * totalDuration),
-        totalDuration
-      );
-      onSeek(newTime);
-    };
+  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const bar = e.currentTarget;
+    const rect = bar.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const percent = x / rect.width;
+    const newTime = Math.min(Math.max(MIN_TIME, percent * totalDuration), totalDuration);
+    onSeek(newTime);
+  };
 
-    const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-      switch (e.key) {
-        case "ArrowRight":
-          e.preventDefault();
-          onSeek(Math.min(currentTime + SEEK_JUMP_SECONDS, totalDuration));
-          break;
-        case "ArrowLeft":
-          e.preventDefault();
-          onSeek(Math.max(currentTime - SEEK_JUMP_SECONDS, MIN_TIME));
-          break;
-        case "Home":
-          e.preventDefault();
-          onSeek(MIN_TIME);
-          break;
-        case "End":
-          e.preventDefault();
-          onSeek(totalDuration);
-          break;
-        default:
-          break;
-      }
-    };
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    switch (e.key) {
+      case 'ArrowRight':
+        e.preventDefault();
+        onSeek(Math.min(currentTime + SEEK_JUMP_SECONDS, totalDuration));
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        onSeek(Math.max(currentTime - SEEK_JUMP_SECONDS, MIN_TIME));
+        break;
+      case 'Home':
+        e.preventDefault();
+        onSeek(MIN_TIME);
+        break;
+      case 'End':
+        e.preventDefault();
+        onSeek(totalDuration);
+        break;
+      default:
+        break;
+    }
+  };
 
-    return (
-      <>
-        <div className="flex justify-between font-medium text-xs text-zinc-500 dark:text-zinc-400">
-          <span className="tabular-nums">{formatTime(currentTime)}</span>
-          <span className="tabular-nums">{formatTime(totalDuration)}</span>
-        </div>
+  return (
+    <>
+      <div className="flex justify-between font-medium text-xs text-zinc-500 dark:text-zinc-400">
+        <span className="tabular-nums">{formatTime(currentTime)}</span>
+        <span className="tabular-nums">{formatTime(totalDuration)}</span>
+      </div>
+      <div
+        aria-label="Seek progress bar"
+        aria-valuemax={totalDuration}
+        aria-valuemin={MIN_TIME}
+        aria-valuenow={currentTime}
+        aria-valuetext={`${formatTime(currentTime)} of ${formatTime(totalDuration)}`}
+        className="relative z-10 h-1 w-full cursor-pointer overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"
+        onClick={handleClick}
+        onKeyDown={handleKeyDown}
+        role="slider"
+        tabIndex={0}
+      >
         <div
-          aria-label="Seek progress bar"
-          aria-valuemax={totalDuration}
-          aria-valuemin={MIN_TIME}
-          aria-valuenow={currentTime}
-          aria-valuetext={`${formatTime(currentTime)} of ${formatTime(totalDuration)}`}
-          className="relative z-10 h-1 w-full cursor-pointer overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"
-          onClick={handleClick}
-          onKeyDown={handleKeyDown}
-          role="slider"
-          tabIndex={0}
-        >
-          <div
-            className="h-full bg-gradient-to-r from-[#FF2E55] to-[#FF6B88] transition-all duration-200"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      </>
-    );
-  }
-);
-ProgressBar.displayName = "ProgressBar";
+          className="h-full bg-gradient-to-r from-[#FF2E55] to-[#FF6B88] transition-all duration-200"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+    </>
+  );
+});
+ProgressBar.displayName = 'ProgressBar';
 
 export function NotificationCenter() {
   const [isPlaying, setIsPlaying] = React.useState(true);
@@ -344,10 +305,9 @@ export function NotificationCenter() {
       return;
     }
 
-    const observer = new IntersectionObserver(
-      ([entry]) => setIsVisible(entry.isIntersecting),
-      { rootMargin: "100px" }
-    );
+    const observer = new IntersectionObserver(([entry]) => setIsVisible(entry.isIntersecting), {
+      rootMargin: '100px',
+    });
     observer.observe(element);
 
     return () => observer.disconnect();
@@ -359,9 +319,7 @@ export function NotificationCenter() {
     }
 
     const intervalId = setInterval(() => {
-      setCurrentTime((prev) =>
-        prev + 1 >= TOTAL_DURATION ? TOTAL_DURATION : prev + 1
-      );
+      setCurrentTime((prev) => (prev + 1 >= TOTAL_DURATION ? TOTAL_DURATION : prev + 1));
     }, TIMER_INTERVAL_MS);
 
     return () => clearInterval(intervalId);
@@ -403,9 +361,7 @@ export function NotificationCenter() {
             <h3 className="overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-lg text-zinc-900 dark:text-white">
               Glow
             </h3>
-            <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">
-              Echo
-            </p>
+            <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">Echo</p>
           </div>
 
           <VolumeBars isPlaying={isPlaying} />
@@ -429,17 +385,13 @@ export function NotificationCenter() {
                 <ArrowLeft className="size-4" />
               </LiquidButton>
               <LiquidButton
-                aria-label={isPlaying ? "Pause" : "Play"}
+                aria-label={isPlaying ? 'Pause' : 'Play'}
                 className="h-11 w-11 rounded-full bg-transparent text-zinc-700 transition-colors hover:bg-zinc-200/80 dark:text-zinc-300 dark:hover:bg-zinc-800/80"
                 onClick={handlePlayPause}
                 size="icon"
                 variant="ghost"
               >
-                {isPlaying ? (
-                  <Pause className="size-5" />
-                ) : (
-                  <Play className="size-5" />
-                )}
+                {isPlaying ? <Pause className="size-5" /> : <Play className="size-5" />}
               </LiquidButton>
               <LiquidButton
                 aria-label="Next track"

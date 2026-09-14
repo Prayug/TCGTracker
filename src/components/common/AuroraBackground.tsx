@@ -47,8 +47,12 @@ export const AuroraBackground: React.FC<AuroraBackgroundProps> = ({
         const radius = canvas.width * (0.35 + Math.sin(timeRef.current * 0.2 + i) * 0.1);
 
         const gradient = ctx.createRadialGradient(
-          cx + xOff, cy + yOff, 0,
-          cx + xOff, cy + yOff, radius
+          cx + xOff,
+          cy + yOff,
+          0,
+          cx + xOff,
+          cy + yOff,
+          radius
         );
         gradient.addColorStop(0, color);
         gradient.addColorStop(1, 'transparent');

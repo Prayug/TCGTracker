@@ -41,7 +41,9 @@ export const decodeHtmlEntities = (value?: string): string =>
     .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)));
 
 export const normalize = (value?: string): string =>
-  decodeHtmlEntities(value).toLowerCase().replace(/[^a-z0-9]/g, '');
+  decodeHtmlEntities(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
 
 /**
  * Collector numbers for equality checks: "034"→"34", "212/203"→"212", "gg44" stays.
@@ -136,9 +138,9 @@ export interface ProductMatchInput {
  */
 export type PcFinishFamily = 'standard' | 'reverse' | '1stedition' | '1steditionreverse';
 
-const hasReverseFinish = (hay: string): boolean => /reverse[\s\-]*holo/.test(hay);
+const hasReverseFinish = (hay: string): boolean => /reverse[\s-]*holo/.test(hay);
 const hasFirstEditionFinish = (hay: string): boolean =>
-  /1st[\s\-]*edition/.test(hay) || /first[\s\-]*edition/.test(hay);
+  /1st[\s-]*edition/.test(hay) || /first[\s-]*edition/.test(hay);
 
 export const detectPcFinishFamily = (
   title?: string | null,
@@ -191,10 +193,7 @@ export const pcFinishSearchTerms = (variant?: string | null): string => {
 };
 
 /** Map a PriceCharting product back onto our variantKey vocabulary. */
-export const inferVariantKeyFromPc = (
-  title?: string | null,
-  url?: string | null
-): string => {
+export const inferVariantKeyFromPc = (title?: string | null, url?: string | null): string => {
   switch (detectPcFinishFamily(title, url)) {
     case 'reverse':
       return 'reverseholofoil';
@@ -214,11 +213,7 @@ export const finishesMatch = (
 ): boolean => {
   if (expected === detected) return true;
   // Alias only untagged PC pages onto reverse/1st requests — never the reverse.
-  if (
-    options?.allowStandardAlias &&
-    expected !== 'standard' &&
-    detected === 'standard'
-  ) {
+  if (options?.allowStandardAlias && expected !== 'standard' && detected === 'standard') {
     return true;
   }
   return false;
@@ -314,7 +309,8 @@ export const parseSearchRows = (html: string): SearchCandidate[] => {
 
     let url = '';
     let title = '';
-    const anchorRegex = /<a href="(https:\/\/www\.pricecharting\.com\/game\/[^"]+)"[^>]*>\s*([\s\S]*?)<\/a>/g;
+    const anchorRegex =
+      /<a href="(https:\/\/www\.pricecharting\.com\/game\/[^"]+)"[^>]*>\s*([\s\S]*?)<\/a>/g;
     let anchor: RegExpExecArray | null;
     while ((anchor = anchorRegex.exec(rowBody)) !== null) {
       const text = decodeHtmlEntities(anchor[2].replace(/<[^>]+>/g, ''))
@@ -389,10 +385,7 @@ export const titleIncludesNumber = (
   const want = normalizeCardNumber(cardNumber);
   if (!want) return true;
 
-  const marked = [
-    ...extractCardNumbers(candidateTitle),
-    ...extractCardNumbers(candidateUrl),
-  ];
+  const marked = [...extractCardNumbers(candidateTitle), ...extractCardNumbers(candidateUrl)];
   if (marked.length > 0) return marked.includes(want);
 
   // Fallback on lightly tokenized text (keep separators) with digit boundaries.
@@ -401,13 +394,12 @@ export const titleIncludesNumber = (
   return new RegExp(`(?:^|[^0-9a-z])${escaped}(?:[^0-9a-z]|$)`).test(hay);
 };
 
-export const scoreCandidate = (
-  candidate: SearchCandidate,
-  input: ProductMatchInput
-): number => {
+export const scoreCandidate = (candidate: SearchCandidate, input: ProductMatchInput): number => {
   let score = 0;
   const nameForMatch =
-    input.game === 'onepiece' ? stripOpNameDecorators(input.cardName) || input.cardName : input.cardName;
+    input.game === 'onepiece'
+      ? stripOpNameDecorators(input.cardName) || input.cardName
+      : input.cardName;
   if (titleIncludesName(candidate.title, nameForMatch)) score += 60;
   const setsMatch =
     input.game === 'onepiece'
@@ -488,9 +480,7 @@ export const selectBestProductMatch = (
     const numbered = pool.filter(({ row }) => Boolean(primaryCollectorNumber(row)));
     if (numbered.length > 0) pool = numbered;
 
-    const nums = new Set(
-      pool.map(({ row }) => primaryCollectorNumber(row)).filter(Boolean)
-    );
+    const nums = new Set(pool.map(({ row }) => primaryCollectorNumber(row)).filter(Boolean));
     if (nums.size > 1) return null;
   }
 
@@ -498,9 +488,14 @@ export const selectBestProductMatch = (
   return pool[0] ?? null;
 };
 
-export const isAcceptableMatch = (candidate: SearchCandidate, input: ProductMatchInput): boolean => {
+export const isAcceptableMatch = (
+  candidate: SearchCandidate,
+  input: ProductMatchInput
+): boolean => {
   const nameForMatch =
-    input.game === 'onepiece' ? stripOpNameDecorators(input.cardName) || input.cardName : input.cardName;
+    input.game === 'onepiece'
+      ? stripOpNameDecorators(input.cardName) || input.cardName
+      : input.cardName;
   const hasNumber = titleIncludesNumber(candidate.title, input.cardNumber, candidate.url);
   const hasName = titleIncludesName(candidate.title, nameForMatch);
   const candidateIsOp = /one\s*piece/i.test(candidate.setName);
@@ -532,10 +527,7 @@ export const isAcceptableMatch = (candidate: SearchCandidate, input: ProductMatc
   // SM166, …) that is enough to disambiguate — requiring the set name too
   // blanks slab prices for most promo cards.
   const promoBridge =
-    !!input.cardNumber &&
-    hasNumber &&
-    isPromoSet(input.setName) &&
-    isPromoSet(candidate.setName);
+    !!input.cardNumber && hasNumber && isPromoSet(input.setName) && isPromoSet(candidate.setName);
   if (!hasFinish) return false;
   if (input.cardNumber) {
     return hasName && hasNumber && (hasSet || promoBridge);
@@ -581,13 +573,14 @@ export const searchBestProduct = async (
     const pop = parsePopData(searchHtml);
     const titleMatch = searchHtml.match(/<meta itemprop="name" content="([^"]+)"/);
     const setMatch = searchHtml.match(/<meta itemprop="gamePlatform" content="([^"]+)"/);
-    const title = titleMatch
-      ? decodeHtmlEntities(titleMatch[1]).replace(/\s+/g, ' ').trim()
-      : '';
-    const setName = setMatch
-      ? decodeHtmlEntities(setMatch[1]).replace(/\s+/g, ' ').trim()
-      : '';
-    const candidate: SearchCandidate = { productId: pop.productId || '', url: searchUrl, title, setName };
+    const title = titleMatch ? decodeHtmlEntities(titleMatch[1]).replace(/\s+/g, ' ').trim() : '';
+    const setName = setMatch ? decodeHtmlEntities(setMatch[1]).replace(/\s+/g, ' ').trim() : '';
+    const candidate: SearchCandidate = {
+      productId: pop.productId || '',
+      url: searchUrl,
+      title,
+      setName,
+    };
     const best = pop.productId ? selectBestProductMatch([candidate], input) : null;
     if (best) {
       return {
@@ -636,7 +629,9 @@ const parsePopArray = (raw: unknown): number[] | null => {
 };
 
 /** Pure parser for the VGPC.pop_data block + VGPC.product id on a product page. */
-export const parsePopData = (html: string): { psaPop: number[] | null; cgcPop: number[] | null; productId: string | null } => {
+export const parsePopData = (
+  html: string
+): { psaPop: number[] | null; cgcPop: number[] | null; productId: string | null } => {
   let popData: { psa?: unknown; cgc?: unknown } = {};
   const popMatch = html.match(/VGPC\.pop_data\s*=\s*(\{[\s\S]*?\});/);
   if (popMatch) {
@@ -660,12 +655,7 @@ export const parsePopData = (html: string): { psaPop: number[] | null; cgcPop: n
 
 /** Normalized label key — unifies e.g. "CGC 10 Pristine" with dropdown "CGC 10 Prist.". */
 const normLabel = (label: string): string =>
-  label
-    .toLowerCase()
-    .replace(/\./g, '')
-    .replace(/\s+/g, ' ')
-    .replace('pristine', 'prist')
-    .trim();
+  label.toLowerCase().replace(/\./g, '').replace(/\s+/g, ' ').replace('pristine', 'prist').trim();
 
 /** Pure parser for the #full-prices table + completed-auctions sold counts. */
 export const parseFullPrices = (html: string): ParsedSlabPrice[] => {
@@ -806,12 +796,8 @@ export const fetchProductPageData = async (
 
   return {
     productId: pop.productId,
-    title: titleMatch
-      ? decodeHtmlEntities(titleMatch[1]).replace(/\s+/g, ' ').trim()
-      : null,
-    setName: setMatch
-      ? decodeHtmlEntities(setMatch[1]).replace(/\s+/g, ' ').trim()
-      : null,
+    title: titleMatch ? decodeHtmlEntities(titleMatch[1]).replace(/\s+/g, ' ').trim() : null,
+    setName: setMatch ? decodeHtmlEntities(setMatch[1]).replace(/\s+/g, ' ').trim() : null,
     psaPop: pop.psaPop,
     cgcPop: pop.cgcPop,
     gradedPrices: parseFullPrices(html),

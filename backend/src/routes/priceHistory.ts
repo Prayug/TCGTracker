@@ -79,8 +79,8 @@ router.get('/card', (req: Request, res: Response): void => {
   const { cardName, setId, cardNumber, variant = 'normal' } = req.query;
 
   if (!cardName || !setId) {
-    res.status(400).json({ 
-      error: 'cardName and setId are required query parameters.' 
+    res.status(400).json({
+      error: 'cardName and setId are required query parameters.',
     });
     return;
   }
@@ -91,15 +91,20 @@ router.get('/card', (req: Request, res: Response): void => {
   const safeVariant = String(variant).trim();
 
   // Generate unique identifier
-  const uniqueIdentifier = generateUniqueIdentifier(safeSetId, safeCardNumber, safeCardName, safeVariant);
+  const uniqueIdentifier = generateUniqueIdentifier(
+    safeSetId,
+    safeCardNumber,
+    safeCardName,
+    safeVariant
+  );
 
   // Get price history using the unique identifier
   getCardPriceHistory(uniqueIdentifier)
     .then((priceHistory) => {
       if (priceHistory.length === 0) {
-        res.status(404).json({ 
+        res.status(404).json({
           message: 'No price history found for the specified card',
-          uniqueIdentifier 
+          uniqueIdentifier,
         });
         return;
       }
@@ -112,13 +117,13 @@ router.get('/card', (req: Request, res: Response): void => {
           cardNumber: safeCardNumber,
           variant: safeVariant,
         },
-        priceHistory
+        priceHistory,
       });
     })
-    .catch(err => {
+    .catch((err) => {
       logger.error('Price history query failed', { error: err.message });
-      res.status(500).json({ 
-        error: 'Database error fetching price history.'
+      res.status(500).json({
+        error: 'Database error fetching price history.',
       });
     });
 });
@@ -129,35 +134,33 @@ router.get('/match', (req: Request, res: Response): void => {
   const db = getDb();
 
   if (!cardName || (!setName && !setId)) {
-    res.status(400).json({ 
-      error: 'cardName and either setName or setId are required query parameters.' 
+    res.status(400).json({
+      error: 'cardName and either setName or setId are required query parameters.',
     });
     return;
   }
 
   const safeCardName = String(cardName).trim();
   const safeSetName = setName ? String(setName).trim() : '';
-  const safeSetId = setId ? String(setId).trim() : safeSetName.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const safeSetId = setId
+    ? String(setId).trim()
+    : safeSetName.toLowerCase().replace(/[^a-z0-9]/g, '');
   const safeCardNumber = cardNumber ? String(cardNumber).trim() : undefined;
   const safeVariant = String(variant).trim();
   const safeProductId = productId ? String(productId).trim() : undefined;
 
   // First try to find using our card mappings
   findCardByDetails(safeCardName, safeSetId, safeCardNumber, undefined, safeVariant, safeProductId)
-    .then(mapping => {
+    .then((mapping) => {
       if (mapping) {
         // Prefer UID-scoped history so shared productIds cannot bleed across prints.
         return getCardPriceHistory(mapping.uniqueIdentifier).then(async (byUid) => {
           let priceHistory = byUid;
           if (priceHistory.length === 0 && mapping.productId) {
-            priceHistory = await getCardPriceHistoryForProduct(
-              mapping.productId,
-              safeVariant,
-              {
-                setName: mapping.setName,
-                uniqueIdentifier: mapping.uniqueIdentifier,
-              }
-            );
+            priceHistory = await getCardPriceHistoryForProduct(mapping.productId, safeVariant, {
+              setName: mapping.setName,
+              uniqueIdentifier: mapping.uniqueIdentifier,
+            });
           }
           return {
             matchedProduct: {
@@ -173,20 +176,29 @@ router.get('/match', (req: Request, res: Response): void => {
       }
       return fallbackMatch(safeCardName, safeSetName, safeCardNumber, db);
     })
-    .then(result => {
+    .then((result) => {
       res.json(result);
     })
-    .catch(err => {
-      res.status(500).json({ 
+    .catch((err) => {
+      res.status(500).json({
         error: 'Database error during card matching.',
-        details: err.message 
+        details: err.message,
       });
     });
 });
 
 // New endpoint specifically for getting price history by card details
 router.get('/history', async (req: Request, res: Response) => {
-  const { cardId, cardName, setName, cardNumber, setId, rarity, productId, variant = 'normal' } = req.query;
+  const {
+    cardId,
+    cardName,
+    setName,
+    cardNumber,
+    setId,
+    rarity,
+    productId,
+    variant = 'normal',
+  } = req.query;
 
   if (!cardName || !setName) {
     return res.status(400).json({ error: 'cardName and setName are required.' });
@@ -214,17 +226,14 @@ router.get('/history', async (req: Request, res: Response) => {
       // Prefer uniqueIdentifier history first. Looking up by productId alone
       // stitches main-set series onto Trainer Gallery cards when TCGdex remaps
       // them onto the wrong shared TCGPlayer SKU.
-      let priceHistory: Awaited<ReturnType<typeof getCardPriceHistory>> =
-        await getCardPriceHistory(exactCard.uniqueIdentifier);
+      let priceHistory: Awaited<ReturnType<typeof getCardPriceHistory>> = await getCardPriceHistory(
+        exactCard.uniqueIdentifier
+      );
       if (priceHistory.length === 0 && exactCard.productId) {
-        priceHistory = await getCardPriceHistoryForProduct(
-          exactCard.productId,
-          safeVariant,
-          {
-            setName: exactCard.setName,
-            uniqueIdentifier: exactCard.uniqueIdentifier,
-          }
-        );
+        priceHistory = await getCardPriceHistoryForProduct(exactCard.productId, safeVariant, {
+          setName: exactCard.setName,
+          uniqueIdentifier: exactCard.uniqueIdentifier,
+        });
       }
 
       return res.json({
@@ -246,8 +255,9 @@ router.get('/history', async (req: Request, res: Response) => {
     );
 
     if (card) {
-      let priceHistory: Awaited<ReturnType<typeof getCardPriceHistory>> =
-        await getCardPriceHistory(card.uniqueIdentifier);
+      let priceHistory: Awaited<ReturnType<typeof getCardPriceHistory>> = await getCardPriceHistory(
+        card.uniqueIdentifier
+      );
       if (priceHistory.length === 0 && card.productId) {
         priceHistory = await getCardPriceHistoryForProduct(card.productId, safeVariant, {
           setName: card.setName,
@@ -280,7 +290,6 @@ router.get('/history', async (req: Request, res: Response) => {
         variant: safeVariant,
       },
     });
-
   } catch (error) {
     logger.error('Error fetching price history:', error);
     res.status(500).json({ error: 'Failed to fetch price history.' });
@@ -288,7 +297,12 @@ router.get('/history', async (req: Request, res: Response) => {
 });
 
 // Fallback matching function for cards not in our mapping system
-const fallbackMatch = (cardName: string, setName: string, cardNumber: string | undefined, db: any) => {
+const fallbackMatch = (
+  cardName: string,
+  setName: string,
+  cardNumber: string | undefined,
+  db: any
+) => {
   return new Promise((resolve, reject) => {
     const findProductSql = `
       SELECT 
@@ -310,7 +324,9 @@ const fallbackMatch = (cardName: string, setName: string, cardNumber: string | u
     `;
 
     const cardNamePattern = `%${cardName}%`;
-    const cardNameWithNumberPattern = cardNumber ? `%${cardName}%(${cardNumber})%` : cardNamePattern;
+    const cardNameWithNumberPattern = cardNumber
+      ? `%${cardName}%(${cardNumber})%`
+      : cardNamePattern;
     const setNamePattern = `%${setName}%`;
 
     const params = [
@@ -320,7 +336,7 @@ const fallbackMatch = (cardName: string, setName: string, cardNumber: string | u
       setName,
       cardNumber,
       cardNumber,
-      setNamePattern
+      setNamePattern,
     ];
 
     db.get(findProductSql, params, (err: any, row: any) => {
@@ -331,15 +347,15 @@ const fallbackMatch = (cardName: string, setName: string, cardNumber: string | u
       if (!row) {
         resolve({
           message: 'No matching product found for the given criteria.',
-          searchCriteria: { cardName, setName, cardNumber }
+          searchCriteria: { cardName, setName, cardNumber },
         });
         return;
       }
 
-      const matchedProduct = row as { productId: number, productName: string, groupName: string };
+      const matchedProduct = row as { productId: number; productName: string; groupName: string };
 
       const historySql =
-        'SELECT * FROM price_history WHERE productId = ? AND source IN (\'tcgcsv\', \'tcgdex\', \'catalog_fallback\') ORDER BY date ASC';
+        "SELECT * FROM price_history WHERE productId = ? AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback') ORDER BY date ASC";
       db.all(historySql, [matchedProduct.productId], (historyErr: any, rows: any) => {
         if (historyErr) {
           reject(historyErr);
@@ -349,9 +365,9 @@ const fallbackMatch = (cardName: string, setName: string, cardNumber: string | u
           matchedProduct: {
             productId: matchedProduct.productId,
             productName: matchedProduct.productName,
-            groupName: matchedProduct.groupName
+            groupName: matchedProduct.groupName,
           },
-          priceHistory: rows || []
+          priceHistory: rows || [],
         });
       });
     });
@@ -437,11 +453,11 @@ router.get('/:productId', (req: Request, res: Response) => {
   const { productId } = req.params;
   const { days } = req.query;
   const db = getDb();
-  
+
   let sql =
-    'SELECT * FROM price_history WHERE productId = ? AND source IN (\'tcgcsv\', \'tcgdex\', \'catalog_fallback\')';
+    "SELECT * FROM price_history WHERE productId = ? AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')";
   const params: any[] = [productId];
-  
+
   if (days) {
     const daysNum = parseInt(days as string, 10);
     if (isNaN(daysNum) || daysNum < 1) {
@@ -451,7 +467,7 @@ router.get('/:productId', (req: Request, res: Response) => {
     sql += ' AND date >= date("now", ?)';
     params.push(`-${daysNum} days`);
   }
-  
+
   sql += ' ORDER BY date ASC';
 
   db.all(sql, params, (err, rows) => {
@@ -468,7 +484,7 @@ router.get('/search/:cardName', (req: Request, res: Response) => {
   const { cardName } = req.params;
   const { minPrice, maxPrice, sortBy = 'avgPrice' } = req.query;
   const db = getDb();
-  
+
   let sql = `
     SELECT DISTINCT productId, productName, groupName, 
            MAX(date) as latestDate, 
@@ -482,19 +498,19 @@ router.get('/search/:cardName', (req: Request, res: Response) => {
       AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
   `;
   const params: any[] = [`%${cardName}%`];
-  
+
   if (minPrice) {
     sql += ' AND price >= ?';
     params.push(minPrice as string);
   }
-  
+
   if (maxPrice) {
     sql += ' AND price <= ?';
     params.push(maxPrice as string);
   }
-  
+
   sql += ` GROUP BY productId, productName, groupName, source`;
-  
+
   // Add sorting using whitelist mapping (never interpolate raw input)
   const orderMap: Record<string, string> = {
     avgPrice: 'avgPrice DESC',
@@ -505,7 +521,7 @@ router.get('/search/:cardName', (req: Request, res: Response) => {
   };
   const orderClause = orderMap[sortBy as string] || 'avgPrice DESC';
   sql += ` ORDER BY ${orderClause}`;
-  
+
   sql += ' LIMIT 20';
 
   db.all(sql, params, (err, rows) => {
@@ -566,24 +582,30 @@ router.get('/compare/:productId', (req: Request, res: Response) => {
       res.status(500).json({ error: err.message });
       return;
     }
-    
+
     const typedRows = rows as PriceComparisonRow[];
-    
+
     // Calculate percentage changes
-    const outerData = typedRows.find(r => r.period === 'outer');
-    const innerData = typedRows.find(r => r.period === 'inner');
-    
+    const outerData = typedRows.find((r) => r.period === 'outer');
+    const innerData = typedRows.find((r) => r.period === 'inner');
+
     let priceChange = null;
     if (outerData && innerData && outerData.avgPrice > 0) {
       priceChange = ((innerData.avgPrice - outerData.avgPrice) / outerData.avgPrice) * 100;
     }
-    
-    res.json({ 
+
+    res.json({
       data: typedRows,
       analysis: {
         priceChange: priceChange ? parseFloat(priceChange.toFixed(2)) : null,
-        trend: priceChange ? (priceChange > 0 ? 'UP' : priceChange < 0 ? 'DOWN' : 'STABLE') : 'UNKNOWN'
-      }
+        trend: priceChange
+          ? priceChange > 0
+            ? 'UP'
+            : priceChange < 0
+              ? 'DOWN'
+              : 'STABLE'
+          : 'UNKNOWN',
+      },
     });
   });
 });
@@ -593,7 +615,7 @@ router.get('/snapshots/daily', (req: Request, res: Response) => {
   const requestedDays = parseInt(req.query.days as string, 10) || 30;
   const days = clampNumber(requestedDays, 1, 365);
   const db = getDb();
-  
+
   const sql = `
     SELECT 
       date,
@@ -606,7 +628,7 @@ router.get('/snapshots/daily', (req: Request, res: Response) => {
     GROUP BY date
     ORDER BY date ASC
   `;
-  
+
   db.all(sql, [`-${days} days`], (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
@@ -657,7 +679,7 @@ router.get('/export/:productId', (req: Request, res: Response) => {
 
   const db = getDb();
   const sql =
-    'SELECT * FROM price_history WHERE productId = ? AND source IN (\'tcgcsv\', \'tcgdex\', \'catalog_fallback\') ORDER BY date ASC';
+    "SELECT * FROM price_history WHERE productId = ? AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback') ORDER BY date ASC";
 
   db.all(sql, [productId], (err, rows: PriceHistoryRow[]) => {
     if (err) {
@@ -668,11 +690,11 @@ router.get('/export/:productId', (req: Request, res: Response) => {
     if (format === 'csv') {
       res.header('Content-Type', 'text/csv');
       res.attachment(`price_history_${productId}.csv`);
-      
+
       if (rows.length === 0) {
         return res.send('');
       }
-      
+
       const escapeCsv = (val: unknown): string => {
         const str = val == null ? '' : String(val);
         if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
@@ -681,7 +703,7 @@ router.get('/export/:productId', (req: Request, res: Response) => {
         return str;
       };
       const headers = Object.keys(rows[0]).map(escapeCsv).join(',');
-      const csvRows = rows.map(row => Object.values(row).map(escapeCsv).join(',')).join('\n');
+      const csvRows = rows.map((row) => Object.values(row).map(escapeCsv).join(',')).join('\n');
       return res.send(`${headers}\n${csvRows}`);
     } else {
       res.json({ data: rows as PriceHistoryRow[] });

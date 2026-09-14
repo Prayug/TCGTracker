@@ -120,11 +120,7 @@ export const SetShoppingList: React.FC<SetShoppingListProps> = ({
                 className="flex min-w-0 flex-1 items-center gap-2 text-left"
               >
                 {card.images?.small && (
-                  <img
-                    src={card.images.small}
-                    alt=""
-                    className="h-12 w-9 rounded object-cover"
-                  />
+                  <img src={card.images.small} alt="" className="h-12 w-9 rounded object-cover" />
                 )}
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-ink-primary">{card.name}</p>

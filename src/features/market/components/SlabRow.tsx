@@ -78,7 +78,9 @@ export function SlabRow({
 
   if (onClick && trailing) {
     return (
-      <div className={`flex w-full items-center gap-1 rounded-lg px-1 py-0.5 transition-colors ${shell}`}>
+      <div
+        className={`flex w-full items-center gap-1 rounded-lg px-1 py-0.5 transition-colors ${shell}`}
+      >
         <button
           type="button"
           onClick={onClick}

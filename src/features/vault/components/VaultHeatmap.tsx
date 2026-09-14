@@ -113,7 +113,8 @@ const HeatTooltip: React.FC<any> = ({ active, payload }) => {
       <p className="font-semibold text-ink-primary">{slice.name}</p>
       <p className="tabular-nums text-ink-secondary">{formatCurrency(slice.size)} held</p>
       <p className={`font-semibold tabular-nums ${slice.profit >= 0 ? 'text-gain' : 'text-loss'}`}>
-        {formatCurrency(slice.profit, { signed: true })} ({formatPercent(slice.profitPct, { signed: true })})
+        {formatCurrency(slice.profit, { signed: true })} (
+        {formatPercent(slice.profitPct, { signed: true })})
       </p>
     </div>
   );

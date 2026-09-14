@@ -28,9 +28,9 @@ describe('@tcgtracker/shared jest contract', () => {
   });
 
   it('resolves listing prices without ask-wall mids', () => {
-    expect(
-      resolveListingPrice({ market: 1150, mid: 19999.99, low: 749.99, high: 21999.99 })
-    ).toBe(1150);
+    expect(resolveListingPrice({ market: 1150, mid: 19999.99, low: 749.99, high: 21999.99 })).toBe(
+      1150
+    );
   });
 
   it('classifies eras and pack bands', () => {

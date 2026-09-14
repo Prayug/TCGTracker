@@ -37,10 +37,7 @@ if (!parsed.success) {
 const envVars = parsed.success ? parsed.data : envSchema.parse({});
 
 const getApiUrl = (): string => {
-  const configured =
-    envVars.VITE_API_URL ||
-    envVars.VITE_BACKEND_URL ||
-    'http://localhost:3001';
+  const configured = envVars.VITE_API_URL || envVars.VITE_BACKEND_URL || 'http://localhost:3001';
 
   const cleanUrl = configured.replace(/\/$/, '');
 

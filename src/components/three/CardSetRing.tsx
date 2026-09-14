@@ -1,11 +1,4 @@
-import {
-  Suspense,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type RefObject,
-} from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html, OrbitControls, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
@@ -80,10 +73,7 @@ function layout(sets: RingSet[]): PlacedCard[] {
     const span = count > 1 ? CLUSTER_ARC * (count / (count + 3)) : 0;
 
     set.cards.forEach((card, j) => {
-      const rel =
-        count > 1
-          ? (j / (count - 1) - 0.5) * span
-          : (hash01(i, j) - 0.5) * 0.06;
+      const rel = count > 1 ? (j / (count - 1) - 0.5) * span : (hash01(i, j) - 0.5) * 0.06;
       const angle = centerAngle + rel;
       const radius = RING_RADIUS + (hash01(i, j) - 0.5) * RADIUS_SPREAD;
 
@@ -124,8 +114,7 @@ function useCardRingData(game: GameType | undefined, setCount: number, cardsPerS
         if (isPokemon) {
           const all = await setTrackerService.getSets();
           const newest = [...all].sort(
-            (a, b) =>
-              parseReleaseDate(b.releaseDate) - parseReleaseDate(a.releaseDate)
+            (a, b) => parseReleaseDate(b.releaseDate) - parseReleaseDate(a.releaseDate)
           );
           const chosen = newest.slice(0, setCount).reverse();
 

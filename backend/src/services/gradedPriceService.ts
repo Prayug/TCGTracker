@@ -26,8 +26,7 @@ const CACHE_TTL_MS = 1000 * 60 * 60 * 12;
 const LISTED_TTL_MS = 1000 * 60 * 60 * 12;
 const HISTORY_TIMEZONE = 'America/New_York';
 
-const variantKeyOf = (variant?: string | null): string =>
-  normalizeVariantKey(variant ?? undefined);
+const variantKeyOf = (variant?: string | null): string => normalizeVariantKey(variant ?? undefined);
 
 /**
  * PriceCharting only splits reverse / 1st-edition products. Holofoil, normal,
@@ -39,7 +38,8 @@ export const canonicalGradedHistoryVariantKey = (variant?: string | null): strin
   const key = variantKeyOf(variant);
   const family = expectedPcFinishFamily(key);
   if (family === 'reverse') return 'reverseholofoil';
-  if (family === '1steditionreverse') return key.includes('holo') ? '1steditionholofoil' : '1stedition';
+  if (family === '1steditionreverse')
+    return key.includes('holo') ? '1steditionholofoil' : '1stedition';
   if (family === '1stedition') return '1stedition';
   return 'normal';
 };
@@ -442,9 +442,7 @@ export const saveGradedScrape = async (
   const finishOk =
     gotFinish === wantFinish ||
     Boolean(
-      options?.allowStandardFinishAlias &&
-        wantFinish !== 'standard' &&
-        gotFinish === 'standard'
+      options?.allowStandardFinishAlias && wantFinish !== 'standard' && gotFinish === 'standard'
     );
   if (!finishOk) {
     logger.warn('Refusing to save slab scrape with mismatched finish', {
@@ -523,12 +521,8 @@ export const saveGradedScrape = async (
   return null;
 };
 
-
 /** When reverse/1st is backed by an untagged PC product, reuse `normal` history. */
-const historyVariantKeysForRead = async (
-  cardId: string,
-  variantKey: string
-): Promise<string[]> => {
+const historyVariantKeysForRead = async (cardId: string, variantKey: string): Promise<string[]> => {
   const historyKey = canonicalGradedHistoryVariantKey(variantKey);
   const keys = new Set<string>([variantKey, historyKey]);
   if (expectedPcFinishFamily(variantKey) === 'standard') {
@@ -560,7 +554,12 @@ export const getGradedPriceHistory = async (
   const placeholders = historyKeys.map(() => '?').join(', ');
   // Prefer the requested finish when both exist for a date; fall back to the
   // canonical / aliased series that holds the real history.
-  const rows = await dbAll<{ date: string; price: number; soldListings: number; variantKey: string }>(
+  const rows = await dbAll<{
+    date: string;
+    price: number;
+    soldListings: number;
+    variantKey: string;
+  }>(
     `SELECT date, price, COALESCE(soldListings, 0) AS soldListings, variantKey
      FROM graded_price_history
      WHERE cardId = ?

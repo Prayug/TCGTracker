@@ -27,24 +27,42 @@ export function computeHitSlotOdds(cfg: OnePieceSetOddsConfig, pools: RarityPool
   const perCase = (countPerCase: number) => countPerCase / casePacks;
 
   const odds: HitSlotOdds[] = [
-    { rarity: 'L', probability: cfg.leadersPerBox > 0 && pools.L.length > 0 ? perPack(cfg.leadersPerBox) : 0 },
-    { rarity: 'SR', probability: cfg.srPerBox > 0 && pools.SR.length > 0 ? perPack(cfg.srPerBox) : 0 },
-    { rarity: 'AA', probability: cfg.aaPerBox > 0 && pools.AA.length > 0 ? perPack(cfg.aaPerBox) : 0 },
-    { rarity: 'LAA', probability: cfg.laaPerBox > 0 && pools.LAA.length > 0 ? perPack(cfg.laaPerBox) : 0 },
-    { rarity: 'SEC', probability: cfg.secPerBox > 0 && pools.SEC.length > 0 ? perPack(cfg.secPerBox) : 0 },
-    { rarity: 'SP', probability: cfg.spPerCase > 0 && pools.SP.length > 0 ? perCase(cfg.spPerCase) : 0 },
-    { rarity: 'TR', probability: cfg.trPerCase > 0 && pools.TR.length > 0 ? perCase(cfg.trPerCase) : 0 },
+    {
+      rarity: 'L',
+      probability: cfg.leadersPerBox > 0 && pools.L.length > 0 ? perPack(cfg.leadersPerBox) : 0,
+    },
+    {
+      rarity: 'SR',
+      probability: cfg.srPerBox > 0 && pools.SR.length > 0 ? perPack(cfg.srPerBox) : 0,
+    },
+    {
+      rarity: 'AA',
+      probability: cfg.aaPerBox > 0 && pools.AA.length > 0 ? perPack(cfg.aaPerBox) : 0,
+    },
+    {
+      rarity: 'LAA',
+      probability: cfg.laaPerBox > 0 && pools.LAA.length > 0 ? perPack(cfg.laaPerBox) : 0,
+    },
+    {
+      rarity: 'SEC',
+      probability: cfg.secPerBox > 0 && pools.SEC.length > 0 ? perPack(cfg.secPerBox) : 0,
+    },
+    {
+      rarity: 'SP',
+      probability: cfg.spPerCase > 0 && pools.SP.length > 0 ? perCase(cfg.spPerCase) : 0,
+    },
+    {
+      rarity: 'TR',
+      probability: cfg.trPerCase > 0 && pools.TR.length > 0 ? perCase(cfg.trPerCase) : 0,
+    },
     {
       rarity: 'MANGA',
       probability:
-        cfg.mangaPerCases > 0 && pools.MANGA.length > 0
-          ? 1 / (cfg.mangaPerCases * casePacks)
-          : 0,
+        cfg.mangaPerCases > 0 && pools.MANGA.length > 0 ? 1 / (cfg.mangaPerCases * casePacks) : 0,
     },
     {
       rarity: 'SAA',
-      probability:
-        cfg.saaPerBoxes > 0 && pools.SAA.length > 0 ? 1 / (cfg.saaPerBoxes * box) : 0,
+      probability: cfg.saaPerBoxes > 0 && pools.SAA.length > 0 ? 1 / (cfg.saaPerBoxes * box) : 0,
     },
   ];
 
@@ -232,11 +250,7 @@ export function buildGodPack(
 ): PullCard[] | null {
   if (!cfg.godPack) return null;
   const pool =
-    cfg.godPack.kind === 'manga'
-      ? pools.MANGA
-      : cfg.godPack.kind === 'sp'
-        ? pools.SP
-        : pools.SEC;
+    cfg.godPack.kind === 'manga' ? pools.MANGA : cfg.godPack.kind === 'sp' ? pools.SP : pools.SEC;
   if (pool.length === 0) return null;
   const count = Math.min(cfg.godPack.cardCount, 12);
   const cards = pickRandom(pool, count, rng);
@@ -294,7 +308,7 @@ export function openBox(
   while (assignments.length < cfg.boxPacks) assignments.push('R');
   const shuffledAssignments = shuffle(assignments, rng).slice(0, cfg.boxPacks);
 
-  const packs = shuffledAssignments.map((rarity, index) => {
+  const packs: BuiltPack[] = shuffledAssignments.map((rarity, index) => {
     const cards = buildPack(cfg, pools, rng, { hitRarity: rarity });
     return {
       id: `${cfg.code}-${openedAt}-box${rng().toString(36).slice(2, 8)}-${boxIndex}-${index}`,

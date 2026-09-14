@@ -48,4 +48,3 @@ export const notFoundHandler = (req: Request, res: Response) => {
     path: req.url,
   });
 };
-

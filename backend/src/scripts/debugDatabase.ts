@@ -6,18 +6,18 @@ import { logger } from '../utils/logger';
   try {
     logger.info('🔧 Initializing database...');
     initializeDatabase();
-    
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
     const db = getDb();
-    
+
     logger.info('🔧 Running migrations...');
     await runMigrations(db);
-    
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
     logger.info('✅ Database ready!\n');
-    
+
     // Check migrations table
     logger.info('📋 Checking migrations table:');
     const migrations: any[] = await new Promise((resolve) => {
@@ -30,13 +30,13 @@ import { logger } from '../utils/logger';
         }
       });
     });
-    
+
     migrations.forEach((m: any) => {
       logger.info(`   ✅ Migration ${m.id}: ${m.name} (executed at ${m.executed_at})`);
     });
-    
+
     logger.info('');
-    
+
     // Check card_mappings table schema
     logger.info('📋 card_mappings table schema:');
     const schema: any[] = await new Promise((resolve) => {
@@ -49,20 +49,24 @@ import { logger } from '../utils/logger';
         }
       });
     });
-    
+
     schema.forEach((col: any) => {
-      const marker = ['imageSmall', 'imageLarge', 'imageSource', 'imageLastUpdated'].includes(col.name) ? '🎨' : '  ';
+      const marker = ['imageSmall', 'imageLarge', 'imageSource', 'imageLastUpdated'].includes(
+        col.name
+      )
+        ? '🎨'
+        : '  ';
       logger.info(`   ${marker} ${col.name} (${col.type}${col.notnull ? ', NOT NULL' : ''})`);
     });
-    
+
     logger.info('');
-    
+
     // Check if image columns exist
     const hasImageSmall = schema.some((col: any) => col.name === 'imageSmall');
     const hasImageLarge = schema.some((col: any) => col.name === 'imageLarge');
     const hasImageSource = schema.some((col: any) => col.name === 'imageSource');
     const hasImageLastUpdated = schema.some((col: any) => col.name === 'imageLastUpdated');
-    
+
     if (hasImageSmall && hasImageLarge && hasImageSource && hasImageLastUpdated) {
       logger.info('✅ All image columns exist!');
     } else {
@@ -72,9 +76,9 @@ import { logger } from '../utils/logger';
       if (!hasImageSource) logger.error('   - imageSource');
       if (!hasImageLastUpdated) logger.error('   - imageLastUpdated');
     }
-    
+
     logger.info('');
-    
+
     // Count cards
     const count: any = await new Promise((resolve) => {
       db.get('SELECT COUNT(*) as count FROM card_mappings', [], (err, row) => {
@@ -86,13 +90,12 @@ import { logger } from '../utils/logger';
         }
       });
     });
-    
+
     logger.info(`📊 Total cards in database: ${count.count}`);
-    
+
     process.exit(0);
   } catch (error) {
     logger.error('Fatal error', { error });
     process.exit(1);
   }
 })();
-

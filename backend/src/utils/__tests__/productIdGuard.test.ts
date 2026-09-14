@@ -51,16 +51,11 @@ describe('productIdGuard', () => {
       },
     ];
     expect(
-      resolveProductIdFromOwners(
-        'Mimikyu V',
-        'Brilliant Stars Trainer Gallery',
-        'TG16',
-        candidates
-      )
+      resolveProductIdFromOwners('Mimikyu V', 'Brilliant Stars Trainer Gallery', 'TG16', candidates)
     ).toBe(264221);
-    expect(
-      resolveProductIdFromOwners('Mimikyu V', 'Brilliant Stars', '68', candidates)
-    ).toBe(263784);
+    expect(resolveProductIdFromOwners('Mimikyu V', 'Brilliant Stars', '68', candidates)).toBe(
+      263784
+    );
   });
 });
 

@@ -1,6 +1,7 @@
 import { guessConsoleName } from '../priceChartingResolver';
 import { buildMatchNameFromDex, resolveMatchName } from '../../utils/matchName';
 import { isAcceptableMatch, parseSearchRows } from '../priceChartingClient';
+import { queryContainsCjk } from '../../utils/scriptDetection';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -49,10 +50,7 @@ describe('buildMatchNameFromDex', () => {
 });
 
 describe('Japanese PriceCharting search fixture', () => {
-  const searchHtml = fs.readFileSync(
-    path.join(__dirname, 'fixtures', 'pcSearch.html'),
-    'utf8'
-  );
+  const searchHtml = fs.readFileSync(path.join(__dirname, 'fixtures', 'pcSearch.html'), 'utf8');
 
   it('can accept JP 151 Charizard EX via English matchName', () => {
     const rows = parseSearchRows(searchHtml);
@@ -77,8 +75,6 @@ describe('Japanese PriceCharting search fixture', () => {
 });
 
 describe('queryContainsCjk', () => {
-  const { queryContainsCjk } = require('../../utils/scriptDetection');
-
   it('detects katakana Pikachu', () => {
     expect(queryContainsCjk('ピカチュウ')).toBe(true);
   });

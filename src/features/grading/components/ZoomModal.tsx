@@ -97,7 +97,7 @@ export function ZoomModal({ imageSrc, label, onClose }: ZoomModalProps) {
       onClick={onClose}
       role="presentation"
     >
-      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events */}
+      {}
       <motion.div
         initial={{ opacity: 0, scale: 0.72, filter: 'blur(10px)', rotateX: 12 }}
         animate={{ opacity: 1, scale: 1, filter: 'blur(0px)', rotateX: 0 }}
@@ -114,7 +114,10 @@ export function ZoomModal({ imageSrc, label, onClose }: ZoomModalProps) {
         aria-modal="true"
         aria-label={label}
       >
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-1 bg-gradient-to-r from-accent via-foil to-accent" aria-hidden />
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-1 bg-gradient-to-r from-accent via-foil to-accent"
+          aria-hidden
+        />
         <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-border-subtle px-3 sm:px-4">
           <span className="truncate text-sm font-medium text-ink-primary">{label}</span>
           <div className="flex shrink-0 items-center gap-2">

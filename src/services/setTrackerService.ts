@@ -1,7 +1,6 @@
 import { PokemonCard, PokemonSet, PricePoint } from '../types/pokemon';
 import { toReliableSetPricePoints } from '../utils/setValueHistory';
 import { cacheService } from './cacheService';
-import { vaultService } from './vaultService';
 import { env } from '../config/env';
 import {
   buildVaultOwnershipIndex,
@@ -82,7 +81,8 @@ function computeSummaryFromCards(
 
   for (const card of cards) {
     const price = cardMarketPrice(card);
-    const reverse = card.reverseMarketPrice && card.reverseMarketPrice > 0 ? card.reverseMarketPrice : 0;
+    const reverse =
+      card.reverseMarketPrice && card.reverseMarketPrice > 0 ? card.reverseMarketPrice : 0;
     if (price > 0) {
       pricedCardCount++;
       if (card.priceSource === 'market_sync') marketSyncCount++;
@@ -146,7 +146,7 @@ class SetTrackerService {
     return sets;
   }
 
-  async getSetCards(setId: string, wishlistIds?: Set<string>): Promise<{
+  async getSetCards(setId: string): Promise<{
     set: PokemonSet;
     cards: SetTrackerCard[];
   }> {
@@ -187,7 +187,7 @@ class SetTrackerService {
     wishlistIds?: Set<string>
   ): Promise<{ set: PokemonSet; summary: SetSummary }> {
     const wish = wishlistIds ?? new Set<string>();
-    const { set, cards } = await this.getSetCards(setId, wish);
+    const { set, cards } = await this.getSetCards(setId);
     return { set, summary: computeSummaryFromCards(set, cards, wish) };
   }
 
@@ -230,11 +230,7 @@ class SetTrackerService {
     return (matchedNumbers.size / totalCards) * 100;
   }
 
-  exportChecklistCsv(
-    setName: string,
-    cards: SetTrackerCard[],
-    wishlistIds: Set<string>
-  ): void {
+  exportChecklistCsv(setName: string, cards: SetTrackerCard[], wishlistIds: Set<string>): void {
     const header = 'Number,Name,Rarity,Owned,Wishlist,Market Price';
     const rows = cards.map((c) => {
       const owned = c.owned ? 'yes' : 'no';

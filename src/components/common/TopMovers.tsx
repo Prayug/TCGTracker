@@ -181,8 +181,8 @@ export const TopMovers: React.FC<TopMoversProps> = ({ onCardClick }) => {
     const load = async () => {
       const maxRetries = 2;
       for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        // force: always revalidate in background; backend TTL keeps this cheap
-        const result = await PriceHistoryApi.getTopMovers(days, 50, { force: true });
+        // Revalidate in the background only when peek already painted UI.
+        const result = await PriceHistoryApi.getTopMovers(days, 50, { force: false });
         if (!mounted) return;
         if (applyResult(result)) return;
         if (attempt < maxRetries && !hadCache) {
@@ -260,7 +260,7 @@ export const TopMovers: React.FC<TopMoversProps> = ({ onCardClick }) => {
       <div className="flex flex-col items-center gap-3 py-8">
         <TrendingUp className="h-8 w-8" style={{ color: 'var(--ink-muted)' }} />
         <p className="text-sm" style={{ color: 'var(--ink-muted)' }}>
-          Not enough price data yet — check back later.
+          No movers to show yet — price history may still be syncing.
         </p>
       </div>
     );

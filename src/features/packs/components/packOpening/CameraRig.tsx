@@ -1,6 +1,13 @@
 import React, { useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { CARD_FLIGHT, CARD_INTERVAL, cardStart, getTierAnim, GLAMOUR_CONFIG, rarityRank } from './tierConfig';
+import {
+  CARD_FLIGHT,
+  CARD_INTERVAL,
+  cardStart,
+  getTierAnim,
+  GLAMOUR_CONFIG,
+  rarityRank,
+} from './tierConfig';
 import { clamp01, easeInOutCubic, easeOutCubic, lerp } from './easing';
 
 export const CameraRig: React.FC<{
@@ -18,7 +25,7 @@ export const CameraRig: React.FC<{
   useFrame(() => {
     const t = timeRef.current;
     const g = glamour as keyof typeof GLAMOUR_CONFIG;
-    const shakeIntensity = g === 'god' ? 0.14 : g === 'legendary' ? 0.10 : 0.06;
+    const shakeIntensity = g === 'god' ? 0.14 : g === 'legendary' ? 0.1 : 0.06;
 
     const orbitEnd = anim.orbitDuration;
     const zoomEnd = orbitEnd + anim.zoomDuration;

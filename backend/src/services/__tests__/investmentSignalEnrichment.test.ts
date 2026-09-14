@@ -8,6 +8,7 @@ import {
   hasMarketConfirmation,
   mapSignalCategory,
   resolveSignalEntity,
+  sourceThumbnailUrl,
 } from '../investmentSignalEnrichment';
 
 describe('investmentSignalEnrichment', () => {
@@ -113,14 +114,19 @@ describe('investmentSignalEnrichment', () => {
   it('detects market confirmation from price metrics', () => {
     expect(
       hasMarketConfirmation(
-        { price7dPct: 5, price30dPct: null, volumeChangePct: null, liquidityTier: null, liquidityLabel: null },
+        {
+          price7dPct: 5,
+          price30dPct: null,
+          volumeChangePct: null,
+          liquidityTier: null,
+          liquidityLabel: null,
+        },
         []
       )
     ).toBe(true);
   });
 
   it('builds youtube thumbnail url from watch link', () => {
-    const { sourceThumbnailUrl } = require('../investmentSignalEnrichment');
     expect(sourceThumbnailUrl('https://youtube.com/watch?v=dQw4w9WgXcQ')).toContain('dQw4w9WgXcQ');
   });
 });

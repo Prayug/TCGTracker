@@ -1,6 +1,7 @@
 export type DealGame = 'pokemon' | 'onepiece';
 export type RawCardCondition = 'nm' | 'lp' | 'mp' | 'hp' | 'damaged' | 'unknown';
 export type DealListingType = 'bin' | 'auction';
+export type DealCondition = 'raw' | 'graded';
 export type DealSort = 'best' | 'discount_pct' | 'savings' | 'price' | 'market' | 'ending';
 export type DealFeedTab = 'best' | 'raw' | 'graded' | 'auctions' | 'saved' | 'review';
 export type MatchConfidenceTier = 'high' | 'medium' | 'low' | 'unresolved';

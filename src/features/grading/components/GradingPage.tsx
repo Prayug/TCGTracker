@@ -216,18 +216,26 @@ export const GradingPage: React.FC = () => {
           <div className="flex items-start gap-2">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
-              <p className="font-medium">Grading service not reachable on port 5001.</p>
+              <p className="font-medium">Grading service unavailable</p>
               <p className="mt-1 text-sm text-amber-200/80">
-                Start the Python backend:{' '}
-                <code className="font-mono text-xs">cd card-scanner-backend && python app.py</code>
+                AI card grading requires a local Python backend that processes card images —
+                it&apos;s not available on the hosted demo.
               </p>
+              <details className="mt-3">
+                <summary className="cursor-pointer text-xs font-medium text-ink-secondary hover:text-ink-primary">
+                  Running locally? Start the backend ↓
+                </summary>
+                <p className="mt-2 text-xs text-amber-200/80">
+                  <code className="font-mono">cd card-scanner-backend && python app.py</code>
+                </p>
+              </details>
               <button
                 type="button"
                 className="btn-secondary mt-3"
                 onClick={() => checkGradingBackendHealth().then(setBackendOk)}
               >
                 <RefreshCw className="h-4 w-4" />
-                Retry
+                Check again
               </button>
             </div>
           </div>

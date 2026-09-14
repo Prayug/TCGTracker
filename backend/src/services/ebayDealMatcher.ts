@@ -58,7 +58,10 @@ export function listingLanguageCompatible(
   return { ok: false, matched: false };
 }
 
-export function isEnglishCatalogCard(card: { language?: string | null; uniqueIdentifier?: string }): boolean {
+export function isEnglishCatalogCard(card: {
+  language?: string | null;
+  uniqueIdentifier?: string;
+}): boolean {
   if ((card.uniqueIdentifier || '').startsWith('ja|')) return false;
   return (card.language || 'en').toLowerCase() === 'en';
 }
@@ -171,7 +174,11 @@ export function pickBestListingMatch(
 
   const best = scored[0];
   const second = scored[1];
-  if (second && best.confidence - second.confidence < 0.08 && best.card.cardId !== second.card.cardId) {
+  if (
+    second &&
+    best.confidence - second.confidence < 0.08 &&
+    best.card.cardId !== second.card.cardId
+  ) {
     return {
       ...best,
       confidence: Math.min(best.confidence, 0.44),

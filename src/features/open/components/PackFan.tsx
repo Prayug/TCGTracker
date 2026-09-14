@@ -26,12 +26,7 @@ const ENTER_SPRING = { type: 'spring', stiffness: 100, damping: 18 } as const;
  * shuffled hand. Click a card to flip it (one at a time), click a flipped
  * card to fling it off. "Flip all" and "Remove commons" shortcuts on top.
  */
-export const PackFan: React.FC<PackFanProps> = ({
-  cards,
-  onDone,
-  onFlippedChange,
-  className,
-}) => {
+export const PackFan: React.FC<PackFanProps> = ({ cards, onDone, onFlippedChange, className }) => {
   const reducedMotion = usePrefersReducedMotion();
   const [flipped, setFlipped] = useState<Set<number>>(new Set());
   const [removed, setRemoved] = useState<Set<number>>(new Set());
@@ -136,9 +131,7 @@ export const PackFan: React.FC<PackFanProps> = ({
                       ...ENTER_SPRING,
                       /* Reverse drop order: hit enters first at the bottom,
                          commons land last on top — like the reference. */
-                      delay: reducedMotion
-                        ? 0
-                        : Math.min((n - 1 - i) * (STAGGER_MS / 1000), 0.4),
+                      delay: reducedMotion ? 0 : Math.min((n - 1 - i) * (STAGGER_MS / 1000), 0.4),
                     }
               }
               style={{

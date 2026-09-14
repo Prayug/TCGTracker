@@ -1,15 +1,15 @@
-"use client";
+'use client';
 
-import { animate, useReducedMotion } from "motion/react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { LINE_LOADING_PULSE_EASE } from "./line-loading-timing";
+import { animate, useReducedMotion } from 'motion/react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { LINE_LOADING_PULSE_EASE } from './line-loading-timing';
 import {
   computeSeriesPathPoints,
   interpolateSeriesPathPoints,
   type SeriesPathPoint,
   seriesPathFromPoints,
   seriesPathTransitionSignature,
-} from "./series-path-utils";
+} from './series-path-utils';
 
 // biome-ignore lint/suspicious/noExplicitAny: d3 curve factory type
 type CurveFactory = any;
@@ -40,9 +40,7 @@ export function useAnimatedSeriesPath({
   enabled,
 }: UseAnimatedSeriesPathOptions) {
   const reducedMotion = useReducedMotion();
-  const [animatedPoints, setAnimatedPoints] = useState<
-    SeriesPathPoint[] | null
-  >(null);
+  const [animatedPoints, setAnimatedPoints] = useState<SeriesPathPoint[] | null>(null);
   const displayedPointsRef = useRef<SeriesPathPoint[] | null>(null);
   const animatingRef = useRef(false);
 
@@ -65,8 +63,7 @@ export function useAnimatedSeriesPath({
   );
 
   const targetPoints = useMemo(
-    () =>
-      computeSeriesPathPoints(renderData, xAccessor, xScale, yScale, dataKey),
+    () => computeSeriesPathPoints(renderData, xAccessor, xScale, yScale, dataKey),
     [renderData, xAccessor, xScale, yScale, dataKey]
   );
 
@@ -82,7 +79,7 @@ export function useAnimatedSeriesPath({
     const shouldAnimate =
       enabled &&
       !reducedMotion &&
-      chartPhase === "ready" &&
+      chartPhase === 'ready' &&
       durationMs > 0 &&
       renderData.length > 0;
 
@@ -119,11 +116,7 @@ export function useAnimatedSeriesPath({
           yScale,
           dataKey
         );
-        const next = interpolateSeriesPathPoints(
-          fromSnapshot,
-          currentTarget,
-          progress
-        );
+        const next = interpolateSeriesPathPoints(fromSnapshot, currentTarget, progress);
         displayedPointsRef.current = next;
         setAnimatedPoints(next);
       },
@@ -153,10 +146,7 @@ export function useAnimatedSeriesPath({
   ]);
 
   const activePoints = animatedPoints ?? targetPoints;
-  const pathD = useMemo(
-    () => seriesPathFromPoints(activePoints, curve),
-    [activePoints, curve]
-  );
+  const pathD = useMemo(() => seriesPathFromPoints(activePoints, curve), [activePoints, curve]);
 
   return {
     pathD,

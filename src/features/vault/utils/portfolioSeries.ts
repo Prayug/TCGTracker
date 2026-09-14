@@ -1,9 +1,5 @@
 import { VaultCard } from '../../../types/pokemon';
-import {
-  effectiveCostBasis,
-  holdingMarketValue,
-  isAssumedCost,
-} from '../../../utils/vaultCost';
+import { effectiveCostBasis, holdingMarketValue, isAssumedCost } from '../../../utils/vaultCost';
 
 export type PerformancePeriod = '7d' | '30d' | 'ytd' | 'all';
 
@@ -134,11 +130,22 @@ export function periodChangeExcludingInflows(
     : vaultCards;
   const sinceAddedOnly = !!start && ownedAtStart.length === 0;
 
+  // Without daily mark-to-market history, do not invent a period move for
+  // holdings that already existed at the window start (treat as flat). New
+  // capital enters at cost so funding the vault no longer looks like a gain.
   let startValue = 0;
   let endValue = 0;
   for (const vc of vaultCards) {
-    startValue += effectiveCostBasis(vc);
-    endValue += holdingMarketValue(vc);
+    const market = holdingMarketValue(vc);
+    const cost = effectiveCostBasis(vc);
+    const ownedBefore = !start || new Date(vc.purchaseDate) <= start;
+    if (ownedBefore) {
+      startValue += market;
+      endValue += market;
+    } else {
+      startValue += cost;
+      endValue += market;
+    }
   }
 
   const dollar = endValue - startValue;

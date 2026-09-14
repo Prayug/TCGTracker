@@ -67,10 +67,7 @@ function connectPlain(host: string, port: number): Promise<net.Socket> {
 
 function upgradeToTls(socket: net.Socket, host: string): Promise<tls.TLSSocket> {
   return new Promise((resolve, reject) => {
-    const secure = tls.connect(
-      { socket, host, servername: host },
-      () => resolve(secure)
-    );
+    const secure = tls.connect({ socket, host, servername: host }, () => resolve(secure));
     secure.once('error', reject);
   });
 }

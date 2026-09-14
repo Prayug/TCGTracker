@@ -194,7 +194,11 @@ export function resolvePokemonApiSetId(
     if (foldName.length >= 6 && !GENERIC_FOLD_NAMES.has(foldName)) {
       suffixNames.push({ fold: foldName, id: set.id });
     }
-    if (foldCompact.length >= 6 && foldCompact !== foldName && !GENERIC_FOLD_NAMES.has(foldCompact)) {
+    if (
+      foldCompact.length >= 6 &&
+      foldCompact !== foldName &&
+      !GENERIC_FOLD_NAMES.has(foldCompact)
+    ) {
       suffixNames.push({ fold: foldCompact, id: set.id });
     }
   }
@@ -224,7 +228,12 @@ export function resolvePokemonApiSetId(
   }
 
   for (const { fold, id } of suffixNames) {
-    if (slug.endsWith(fold) || slugCompact.endsWith(fold) || nameFold.endsWith(fold) || nameCompact.endsWith(fold)) {
+    if (
+      slug.endsWith(fold) ||
+      slugCompact.endsWith(fold) ||
+      nameFold.endsWith(fold) ||
+      nameCompact.endsWith(fold)
+    ) {
       return id;
     }
     if (rest && rest !== slug && (rest.endsWith(fold) || rest.replace(/and/g, '').endsWith(fold))) {
