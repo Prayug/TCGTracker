@@ -5,9 +5,19 @@ import { buildApiUrl } from '../config/env';
 class RealDataService {
   private backendApi = buildApiUrl('/api');
 
-  async fetchRealData(cardName: string, setName: string, cardNumber: string, cardId?: string): Promise<RealData | null> {
+  async fetchRealData(
+    cardName: string,
+    setName: string,
+    cardNumber: string,
+    cardId?: string
+  ): Promise<RealData | null> {
     try {
-      const backendPriceHistory = await this.fetchBackendPriceHistory(cardName, setName, cardNumber, cardId);
+      const backendPriceHistory = await this.fetchBackendPriceHistory(
+        cardName,
+        setName,
+        cardNumber,
+        cardId
+      );
 
       return {
         psaData: null,
@@ -48,11 +58,19 @@ class RealDataService {
 
           if (rollingResponse.data?.data?.length > 0) {
             priceHistory = rollingResponse.data.data
-              .map((item: { date: string; marketPrice?: number; avg30?: number; avg7?: number; avg1?: number }) => ({
-                date: item.date,
-                price: item.marketPrice || item.avg30 || item.avg7 || item.avg1 || 0,
-                volume: 1,
-              }))
+              .map(
+                (item: {
+                  date: string;
+                  marketPrice?: number;
+                  avg30?: number;
+                  avg7?: number;
+                  avg1?: number;
+                }) => ({
+                  date: item.date,
+                  price: item.marketPrice || item.avg30 || item.avg7 || item.avg1 || 0,
+                  volume: 1,
+                })
+              )
               .filter((item: PricePoint) => item.price > 0);
           }
         } catch {
@@ -81,7 +99,12 @@ class RealDataService {
     }
   }
 
-  async createPriceAlert(cardId: string, productId: number, targetPrice: number, alertType: string) {
+  async createPriceAlert(
+    cardId: string,
+    productId: number,
+    targetPrice: number,
+    alertType: string
+  ) {
     try {
       const response = await axios.post(`${this.backendApi}/prices/alerts`, {
         cardId,
@@ -98,11 +121,7 @@ class RealDataService {
   }
 
   async getLatestPrice(cardName: string, setName: string, cardNumber: string): Promise<number> {
-    const nameVariations = [
-      cardName,
-      cardName.replace(/-/g, ' '),
-      cardName.replace(/-/g, ''),
-    ];
+    const nameVariations = [cardName, cardName.replace(/-/g, ' '), cardName.replace(/-/g, '')];
 
     for (const nameVariation of nameVariations) {
       try {
@@ -117,8 +136,9 @@ class RealDataService {
               price: item.marketPrice || item.price || 0,
             }))
             .filter((item: { price: number }) => item.price > 0)
-            .sort((a: { date: string }, b: { date: string }) =>
-              new Date(b.date).getTime() - new Date(a.date).getTime()
+            .sort(
+              (a: { date: string }, b: { date: string }) =>
+                new Date(b.date).getTime() - new Date(a.date).getTime()
             )[0];
 
           if (latestPrice) {

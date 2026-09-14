@@ -3,8 +3,8 @@ version: '3.8'
 services:
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: tcgtracker-backend
     ports:
       - '3001:3001'
@@ -16,7 +16,8 @@ services:
       - CORS_ORIGIN=http://localhost,http://localhost:80,http://localhost:5173
     volumes:
       - backend-data:/app/data
-      - ./backend/.env:/app/.env:ro
+      # App WORKDIR is /app/backend (monorepo layout for @tcgtracker/shared)
+      - ./backend/.env:/app/backend/.env:ro
     restart: unless-stopped
     networks:
       - tcgtracker-network

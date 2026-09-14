@@ -35,7 +35,8 @@ export class PkmnPricesNewsScraper implements SignalScraper {
       }
 
       // Also look for news items in common patterns
-      const newsRegex = /<div[^>]*class="[^"]*(?:news|article|post|entry)[^"]*"[^>]*>[\s\S]*?<\/div>/gi;
+      const newsRegex =
+        /<div[^>]*class="[^"]*(?:news|article|post|entry)[^"]*"[^>]*>[\s\S]*?<\/div>/gi;
       const newsItems = html.match(newsRegex) || [];
 
       for (const item of newsItems.slice(0, 10)) {
@@ -54,9 +55,7 @@ export class PkmnPricesNewsScraper implements SignalScraper {
   private parseArticle(html: string): ScrapedSignal | null {
     // Extract title
     const titleMatch = html.match(/<h[23][^>]*>([\s\S]*?)<\/h[23]>/i);
-    const title = titleMatch
-      ? this.stripHtml(titleMatch[1]).trim()
-      : null;
+    const title = titleMatch ? this.stripHtml(titleMatch[1]).trim() : null;
 
     if (!title || title.length < 10) return null;
 
@@ -66,9 +65,7 @@ export class PkmnPricesNewsScraper implements SignalScraper {
 
     // Extract summary/description
     const descMatch = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
-    const summary = descMatch
-      ? this.stripHtml(descMatch[1]).trim().slice(0, 300)
-      : title;
+    const summary = descMatch ? this.stripHtml(descMatch[1]).trim().slice(0, 300) : title;
 
     // Compute sentiment from keywords
     const combined = `${title} ${summary}`.toLowerCase();

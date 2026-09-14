@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { computePriceChartDomain, computeTightChartDomain, formatCompactAxisPrice, formatPriceChange, slicePriceHistory } from '../chartDomain';
+import {
+  computePriceChartDomain,
+  computeTightChartDomain,
+  formatCompactAxisPrice,
+  formatPriceChange,
+  slicePriceHistory,
+} from '../chartDomain';
 
 describe('computePriceChartDomain', () => {
   it('uses a wide span for small moves on high values', () => {

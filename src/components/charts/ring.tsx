@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { arc as arcGenerator } from "@visx/shape";
-import { type MotionValue, motion, useTransform } from "motion/react";
-import { memo, useCallback } from "react";
-import { ringCssVars, useRingHover, useRingStable } from "./ring-context";
-import { useEnterComplete } from "./use-enter-complete";
-import { useMountProgress } from "./use-mount-progress";
+import { arc as arcGenerator } from '@visx/shape';
+import { type MotionValue, motion, useTransform } from 'motion/react';
+import { memo, useCallback } from 'react';
+import { ringCssVars, useRingHover, useRingStable } from './ring-context';
+import { useEnterComplete } from './use-enter-complete';
+import { useMountProgress } from './use-mount-progress';
 
 function generateArcPath(
   innerRadius: number,
@@ -19,10 +19,10 @@ function generateArcPath(
     outerRadius,
     cornerRadius,
   });
-  return generator({ startAngle, endAngle } as unknown as null) || "";
+  return generator({ startAngle, endAngle } as unknown as null) || '';
 }
 
-export type RingLineCap = "round" | "butt";
+export type RingLineCap = 'round' | 'butt';
 
 export interface RingProps {
   index: number;
@@ -67,7 +67,7 @@ export const Ring = memo(function Ring({
   color: colorProp,
   animate = true,
   showGlow = true,
-  lineCap = "round",
+  lineCap = 'round',
 }: RingProps) {
   const {
     data,
@@ -103,15 +103,14 @@ export const Ring = memo(function Ring({
 
   const animatedProgressPath = useTransform(progressMount, (v) => {
     if (!ringData) {
-      return "";
+      return '';
     }
     const currentEndAngle = startAngle + arcRange * progress * v;
     if (currentEndAngle <= startAngle + 0.01) {
-      return "";
+      return '';
     }
     const radii = getRingRadii(index);
-    const corner =
-      lineCap === "round" ? (radii.outerRadius - radii.innerRadius) / 2 : 0;
+    const corner = lineCap === 'round' ? (radii.outerRadius - radii.innerRadius) / 2 : 0;
     return generateArcPath(
       radii.innerRadius,
       radii.outerRadius,
@@ -123,14 +122,8 @@ export const Ring = memo(function Ring({
 
   const enterScale = useTransform(expandProgress, [0, 1], [0, 1]);
 
-  const handleMouseEnter = useCallback(
-    () => setHoveredIndex(index),
-    [index, setHoveredIndex]
-  );
-  const handleMouseLeave = useCallback(
-    () => setHoveredIndex(null),
-    [setHoveredIndex]
-  );
+  const handleMouseEnter = useCallback(() => setHoveredIndex(index), [index, setHoveredIndex]);
+  const handleMouseLeave = useCallback(() => setHoveredIndex(null), [setHoveredIndex]);
 
   if (!ringData) {
     return null;
@@ -143,35 +136,22 @@ export const Ring = memo(function Ring({
   const isFaded = hoveredIndex !== null && hoveredIndex !== index;
   const isPushedOut = hoveredIndex !== null && hoveredIndex < index;
 
-  const cornerRadius =
-    lineCap === "round" ? (outerRadius - innerRadius) / 2 : 0;
-  const bgPath = generateArcPath(
-    innerRadius,
-    outerRadius,
-    startAngle,
-    endAngle,
-    cornerRadius
-  );
+  const cornerRadius = lineCap === 'round' ? (outerRadius - innerRadius) / 2 : 0;
+  const bgPath = generateArcPath(innerRadius, outerRadius, startAngle, endAngle, cornerRadius);
   const progressEndAngle = startAngle + arcRange * progress;
   const progressPath =
     progressEndAngle <= startAngle + 0.01
-      ? ""
-      : generateArcPath(
-          innerRadius,
-          outerRadius,
-          startAngle,
-          progressEndAngle,
-          cornerRadius
-        );
+      ? ''
+      : generateArcPath(innerRadius, outerRadius, startAngle, progressEndAngle, cornerRadius);
 
   const hoverScale = ringHoverScale(isHovered, isPushedOut);
   const layerOpacity = isFaded ? 0.35 : 1;
   const enterDone = !animate || (expandComplete && progressComplete);
 
   const groupStyle = {
-    cursor: "pointer" as const,
-    transformOrigin: "0px 0px",
-    filter: showGlow && isHovered ? `drop-shadow(0 0 12px ${color})` : "none",
+    cursor: 'pointer' as const,
+    transformOrigin: '0px 0px',
+    filter: showGlow && isHovered ? `drop-shadow(0 0 12px ${color})` : 'none',
   };
 
   if (enterDone) {
@@ -182,7 +162,7 @@ export const Ring = memo(function Ring({
         onMouseLeave={handleMouseLeave}
         style={groupStyle}
         transition={{
-          scale: { type: "spring", stiffness: 400, damping: 25 },
+          scale: { type: 'spring', stiffness: 400, damping: 25 },
           opacity: { duration: 0.15 },
         }}
       >
@@ -215,7 +195,7 @@ export const Ring = memo(function Ring({
       onMouseLeave={handleMouseLeave}
       style={groupStyle}
       transition={{
-        scale: { type: "spring", stiffness: 400, damping: 25 },
+        scale: { type: 'spring', stiffness: 400, damping: 25 },
         opacity: { duration: 0.15 },
       }}
     >
@@ -230,6 +210,6 @@ export const Ring = memo(function Ring({
   );
 });
 
-Ring.displayName = "Ring";
+Ring.displayName = 'Ring';
 
 export default Ring;

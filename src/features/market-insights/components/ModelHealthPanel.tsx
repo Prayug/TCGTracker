@@ -37,7 +37,8 @@ function formatRunAt(runAt: string | null): string {
 
 function StatusIcon({ status }: { status: DataQualityCheckResult['status'] }) {
   if (status === 'fail') return <XCircle className="h-3.5 w-3.5 text-red-400" aria-hidden />;
-  if (status === 'warn') return <AlertTriangle className="h-3.5 w-3.5 text-amber-400" aria-hidden />;
+  if (status === 'warn')
+    return <AlertTriangle className="h-3.5 w-3.5 text-amber-400" aria-hidden />;
   return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" aria-hidden />;
 }
 
@@ -93,7 +94,10 @@ export function ModelHealthPanel({ calibration, dataQuality, loading, error }: P
                 </thead>
                 <tbody>
                   {calibration.map((row) => (
-                    <tr key={row.horizon} className="border-b border-border-subtle/60 last:border-0">
+                    <tr
+                      key={row.horizon}
+                      className="border-b border-border-subtle/60 last:border-0"
+                    >
                       <td className="py-2 pr-3 font-mono text-ink-primary">{row.horizon}d</td>
                       <td className="py-2 pr-3 tabular-nums text-ink-secondary">
                         {row.sampleCount.toLocaleString()}

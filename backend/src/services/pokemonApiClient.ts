@@ -324,13 +324,19 @@ class PokemonApiClient {
   async getSets(limit = 250): Promise<PokemonApiSet[]> {
     try {
       // Use longer timeout for set fetching (can be a large request)
-      const response = await this.request<PokemonSetsResponse>('/sets', {
-        orderBy: '-releaseDate',
-        pageSize: String(limit),
-      }, 45000); // 45 second timeout for large set lists
+      const response = await this.request<PokemonSetsResponse>(
+        '/sets',
+        {
+          orderBy: '-releaseDate',
+          pageSize: String(limit),
+        },
+        45000
+      ); // 45 second timeout for large set lists
       return response.data ?? [];
     } catch (error) {
-      logger.warn('Pokemon API failed, falling back to cached/empty data', { error: (error as Error).message });
+      logger.warn('Pokemon API failed, falling back to cached/empty data', {
+        error: (error as Error).message,
+      });
       // Return empty array so callers can surface the API miss directly.
       return [];
     }
@@ -344,7 +350,7 @@ class PokemonApiClient {
       const sets = await this.getSets(1000); // Get many sets
       const setMap = new Map<string, PokemonApiSet>();
 
-      sets.forEach(set => {
+      sets.forEach((set) => {
         if (set.id && set.name) {
           setMap.set(set.id.toLowerCase(), set);
           // Also map by name for fuzzy matching
@@ -368,7 +374,7 @@ class PokemonApiClient {
       const response = await this.request<PokemonCardsResponse>('/cards', {
         q: `set.id:${setId}`,
         pageSize: String(pageSize),
-        orderBy: 'number'
+        orderBy: 'number',
       });
       return response.data ?? [];
     } catch (error) {
@@ -390,7 +396,10 @@ class PokemonApiClient {
   private normalizeCardNumber(value?: string | null): string {
     if (!value) return '';
     const beforeSlash = value.split('/')[0].trim();
-    return beforeSlash.toLowerCase().replace(/^0+/, '').replace(/[^a-z0-9]/g, '');
+    return beforeSlash
+      .toLowerCase()
+      .replace(/^0+/, '')
+      .replace(/[^a-z0-9]/g, '');
   }
 
   private selectBestCard(
@@ -489,4 +498,3 @@ class PokemonApiClient {
 }
 
 export const pokemonApiClient = new PokemonApiClient();
-

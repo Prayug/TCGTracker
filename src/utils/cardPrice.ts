@@ -43,7 +43,9 @@ export function getCardId(card: AnyCard): string {
 }
 
 export function getCardDedupeKey(card: AnyCard): string {
-  if (card.uniqueIdentifier) return card.uniqueIdentifier;
+  if ('uniqueIdentifier' in card && card.uniqueIdentifier) {
+    return card.uniqueIdentifier;
+  }
   return `${card.id}:${card.set?.id ?? ''}:${card.number ?? ''}`;
 }
 
@@ -61,10 +63,7 @@ export function dedupeCards<T extends AnyCard>(cards: T[]): T[] {
   });
 }
 
-export function getCardDeltaPct(
-  card: PokemonCard,
-  period: '1d' | '7d' | '30d',
-): number | null {
+export function getCardDeltaPct(card: PokemonCard, period: '1d' | '7d' | '30d'): number | null {
   const prices = card.cardmarket?.prices;
   if (!prices) return null;
 
@@ -75,14 +74,12 @@ export function getCardDeltaPct(
   const avg = prices[avgKey];
   if (!avg || avg <= 0) return null;
 
-  if (avg < 0.50 || current < 0.50) return null;
+  if (avg < 0.5 || current < 0.5) return null;
 
   return ((current - avg) / avg) * 100;
 }
 
-export function getBrowsePriceMove(
-  card: AnyCard
-): { percent: number; window: string } | null {
+export function getBrowsePriceMove(card: AnyCard): { percent: number; window: string } | null {
   if (!isPokemonCard(card)) return null;
 
   const analysis = card.investmentData?.marketAnalysis;
@@ -106,12 +103,12 @@ const LOOKBACK: Record<string, number> = { '1d': 1, '7d': 7, '30d': 30 };
 
 export function computeDeltaFromHistory(
   history: { date: string; price: number }[],
-  period: string,
+  period: string
 ): { changePct: number; currentPrice: number } | null {
   if (history.length < 2) return null;
 
   const sorted = [...history].sort(
-    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
   );
 
   const currentPrice = sorted[sorted.length - 1].price;
@@ -132,7 +129,7 @@ export function computeDeltaFromHistory(
   }
 
   if (!oldPrice || oldPrice <= 0) return null;
-  if (oldPrice < 0.50 || currentPrice < 0.50) return null;
+  if (oldPrice < 0.5 || currentPrice < 0.5) return null;
 
   return {
     currentPrice,

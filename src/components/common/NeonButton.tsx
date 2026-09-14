@@ -47,7 +47,12 @@ export const NeonButton: React.FC<NeonButtonProps> = ({
     ghost: `border-0 text-ink-secondary bg-transparent hover:text-ink-primary hover:bg-surface-hover`,
   };
 
-  const style: React.CSSProperties =
+  type NeonStyle = React.CSSProperties & {
+    '--hover-shadow'?: string;
+    '--hover-bg'?: string;
+  };
+
+  const style: NeonStyle =
     variant === 'primary'
       ? {
           background: accentColor,
@@ -60,15 +65,15 @@ export const NeonButton: React.FC<NeonButtonProps> = ({
             '--hover-bg': `${accentColor}14`,
             '--hover-shadow': `0 0 20px ${ringAccent}`,
           }
-        : undefined;
+        : {};
 
   const handleMouseEnter = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (variant === 'primary') {
-      e.currentTarget.style.boxShadow = (style as any)?.['--hover-shadow'] || '';
+      e.currentTarget.style.boxShadow = style['--hover-shadow'] || '';
       e.currentTarget.style.filter = 'brightness(1.1)';
     } else if (variant === 'secondary') {
-      e.currentTarget.style.background = (style as any)?.['--hover-bg'] || '';
-      e.currentTarget.style.boxShadow = (style as any)?.['--hover-shadow'] || '';
+      e.currentTarget.style.background = style['--hover-bg'] || '';
+      e.currentTarget.style.boxShadow = style['--hover-shadow'] || '';
     }
   };
 
@@ -84,11 +89,7 @@ export const NeonButton: React.FC<NeonButtonProps> = ({
 
   if (href) {
     return (
-      <a
-        href={href}
-        className={`${baseClasses} ${variantClasses[variant]}`}
-        style={style as React.CSSProperties}
-      >
+      <a href={href} className={`${baseClasses} ${variantClasses[variant]}`} style={style}>
         {children}
       </a>
     );

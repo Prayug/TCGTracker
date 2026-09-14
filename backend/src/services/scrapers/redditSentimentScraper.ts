@@ -10,11 +10,32 @@ export class RedditSentimentScraper implements SignalScraper {
 
   private readonly SUBREDDITS = ['pokemontcg', 'PokemonTCG'];
   private readonly CARD_KEYWORDS = [
-    'charizard', 'pikachu', 'mew', 'lugia', 'umbreon', 'espeon',
-    'rayquaza', 'arceus', ' Giratina', 'palkia', 'darkrai',
-    'sunny', 'moonbreon', 'moon', 'alt art', 'illustration rare',
-    'special illustration', 'secret rare', 'hyper rare', 'rainbow',
-    'gold', 'vmax', 'vstar', 'ex', 'gx', 'v ',
+    'charizard',
+    'pikachu',
+    'mew',
+    'lugia',
+    'umbreon',
+    'espeon',
+    'rayquaza',
+    'arceus',
+    ' Giratina',
+    'palkia',
+    'darkrai',
+    'sunny',
+    'moonbreon',
+    'moon',
+    'alt art',
+    'illustration rare',
+    'special illustration',
+    'secret rare',
+    'hyper rare',
+    'rainbow',
+    'gold',
+    'vmax',
+    'vstar',
+    'ex',
+    'gx',
+    'v ',
   ];
 
   async scrape(): Promise<ScrapedSignal[]> {
@@ -34,21 +55,18 @@ export class RedditSentimentScraper implements SignalScraper {
   }
 
   private async fetchSubredditPosts(subreddit: string): Promise<ScrapedSignal[]> {
-    const response = await fetch(
-      `https://www.reddit.com/r/${subreddit}/hot.json?limit=25`,
-      {
-        headers: {
-          'User-Agent': 'TCGTracker/1.0 (card price analysis bot)',
-        },
-      }
-    );
+    const response = await fetch(`https://www.reddit.com/r/${subreddit}/hot.json?limit=25`, {
+      headers: {
+        'User-Agent': 'TCGTracker/1.0 (card price analysis bot)',
+      },
+    });
 
     if (!response.ok) {
       logger.warn(`Reddit API returned ${response.status} for r/${subreddit}`);
       return [];
     }
 
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       data: {
         children: Array<{
           data: {
@@ -80,7 +98,7 @@ export class RedditSentimentScraper implements SignalScraper {
       const combined = `${titleLower} ${textLower}`;
 
       // Check if post mentions specific cards
-      const mentionedCards = this.CARD_KEYWORDS.filter(kw => combined.includes(kw));
+      const mentionedCards = this.CARD_KEYWORDS.filter((kw) => combined.includes(kw));
       if (mentionedCards.length === 0) continue;
 
       // Compute sentiment from upvote ratio and engagement
@@ -92,11 +110,18 @@ export class RedditSentimentScraper implements SignalScraper {
       let riskType = 'character_hype';
       if (combined.includes('ban') || combined.includes('errata')) {
         riskType = 'ban_list';
-      } else if (combined.includes('tournament') || combined.includes('regionals') || combined.includes('competitive')) {
+      } else if (
+        combined.includes('tournament') ||
+        combined.includes('regionals') ||
+        combined.includes('competitive')
+      ) {
         riskType = 'tournament_meta';
       } else if (combined.includes('reprint') || combined.includes('promo')) {
         riskType = 'reprint';
-      } else if (combined.includes('price') && (combined.includes('drop') || combined.includes('crash'))) {
+      } else if (
+        combined.includes('price') &&
+        (combined.includes('drop') || combined.includes('crash'))
+      ) {
         riskType = 'manipulation';
       }
 

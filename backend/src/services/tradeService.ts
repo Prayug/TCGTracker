@@ -124,7 +124,16 @@ export async function upsertTrade(input: {
   await run(
     `INSERT INTO trades (id, user_id, share_token, title, game, payload_json, give_total, get_total)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, input.userId, shareToken, title, input.game, JSON.stringify(input.payload), input.giveTotal, input.getTotal]
+    [
+      id,
+      input.userId,
+      shareToken,
+      title,
+      input.game,
+      JSON.stringify(input.payload),
+      input.giveTotal,
+      input.getTotal,
+    ]
   );
   const created = await get<TradeRow>(`SELECT * FROM trades WHERE id = ?`, [id]);
   return rowToRecord(created!);

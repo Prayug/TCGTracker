@@ -135,10 +135,20 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
 
       if (
         errorMessage.includes('Unable to fetch cards') ||
-        errorMessage.includes('No suitable card')
+        errorMessage.includes('No suitable card') ||
+        errorMessage.includes('Failed to fetch card pool')
       ) {
         showToast(
-          'Unable to open pack right now. The Pokemon TCG API might be experiencing issues. Please try again in a few moments.',
+          'Unable to open pack. The card pool service may be unavailable — this feature requires backend services not available on the hosted demo.',
+          'error'
+        );
+      } else if (
+        errorMessage.includes('502') ||
+        errorMessage.includes('503') ||
+        errorMessage.includes('Failed to fetch')
+      ) {
+        showToast(
+          'Pack service temporarily unavailable. The backend may be down — please try again later.',
           'error'
         );
       } else {

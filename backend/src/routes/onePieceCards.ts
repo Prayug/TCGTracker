@@ -23,7 +23,9 @@ router.get('/onepiece', async (req, res) => {
     const { query, setId, limit = '500' } = req.query;
 
     if (!query || typeof query !== 'string' || query.trim().length < 2) {
-      return res.status(400).json({ error: 'Query parameter with at least 2 characters is required.' });
+      return res
+        .status(400)
+        .json({ error: 'Query parameter with at least 2 characters is required.' });
     }
 
     const sanitizedQuery = query.trim();
@@ -36,7 +38,9 @@ router.get('/onepiece', async (req, res) => {
 
     if (normalizedSetId) {
       matches = matches.filter(
-        (c) => c.set_id === normalizedSetId || c.set_name.toLowerCase().includes(normalizedSetId.toLowerCase())
+        (c) =>
+          c.set_id === normalizedSetId ||
+          c.set_name.toLowerCase().includes(normalizedSetId.toLowerCase())
       );
     }
 
@@ -166,9 +170,15 @@ router.get('/onepiece/card/:catalogId', async (req, res) => {
 
     if (rows.length > 0) {
       const sorted = await enrichOnePieceApiCards(
-        rows.map((row) => mapRowToApiCard(row)).sort((a, b) => (b.marketPrice ?? 0) - (a.marketPrice ?? 0))
+        rows
+          .map((row) => mapRowToApiCard(row))
+          .sort((a, b) => (b.marketPrice ?? 0) - (a.marketPrice ?? 0))
       );
-      return res.json({ data: sorted[0], variants: sorted, source: 'local_database_tcgplayer_enriched' });
+      return res.json({
+        data: sorted[0],
+        variants: sorted,
+        source: 'local_database_tcgplayer_enriched',
+      });
     }
 
     const liveVariants = await enrichOnePieceApiCards(

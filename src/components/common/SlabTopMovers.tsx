@@ -152,7 +152,7 @@ export const SlabTopMovers: React.FC<SlabTopMoversProps> = ({ onCardClick }) => 
     const load = async () => {
       const maxRetries = 2;
       for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        const result = await PriceHistoryApi.getTopSlabMovers(days, 50, { force: true });
+        const result = await PriceHistoryApi.getTopSlabMovers(days, 50, { force: false });
         if (!mounted) return;
         if (applyResult(result, { allowEmpty: true })) return;
         if (attempt < maxRetries && !hadCache) {

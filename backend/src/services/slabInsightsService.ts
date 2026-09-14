@@ -206,15 +206,11 @@ export async function getSubmitVsBuyLeaderboard(options?: {
     const fee = estimatePsaGradingFee(r.psa10);
     const buyCost = round2(r.psa10 * (1 + MARKETPLACE_FEE_PCT / 100));
     const submitCost = round2(r.rawPrice + fee.fee);
-    const psa9Fallback =
-      r.psa9 && r.psa9 > 0
-        ? r.psa9
-        : Math.max(r.rawPrice, r.psa10 * 0.45);
+    const psa9Fallback = r.psa9 && r.psa9 > 0 ? r.psa9 : Math.max(r.rawPrice, r.psa10 * 0.45);
     const pGem = gemRatePct / 100;
     const submitExpectedValue = round2(pGem * r.psa10 + (1 - pGem) * psa9Fallback);
     const submitEV = round2(submitExpectedValue - submitCost);
-    const expectedCostPerGem =
-      pGem > 0.02 ? round2(submitCost / pGem) : null;
+    const expectedCostPerGem = pGem > 0.02 ? round2(submitCost / pGem) : null;
     const gemPathAdvantage =
       expectedCostPerGem != null ? round2(buyCost - expectedCostPerGem) : null;
 
@@ -271,7 +267,7 @@ export async function getSubmitVsBuyLeaderboard(options?: {
       liquidityScore: liq.score,
       liquidityTier: liq.tier,
       // stash for sort
-      ...( { _edge: edge } as object),
+      ...({ _edge: edge } as object),
     } as SubmitVsBuyRow & { _edge: number });
   }
 
@@ -452,8 +448,7 @@ export async function getSetSlabHeatmap(options?: {
     if (acc.premiums.length < minCards) continue;
     const medianPremiumPct = median(acc.premiums)!;
     const medianPrev = median(acc.premiumsPrev);
-    const premiumPctDelta30d =
-      medianPrev != null ? round2(medianPremiumPct - medianPrev) : null;
+    const premiumPctDelta30d = medianPrev != null ? round2(medianPremiumPct - medianPrev) : null;
     const medianGemRatePct = median(acc.gems);
     const setCardCount = countByKey.get(acc.setId) || countByKey.get(acc.setName) || 0;
     const coveragePct =
@@ -462,8 +457,7 @@ export async function getSetSlabHeatmap(options?: {
         : round2(Math.min(100, acc.premiums.length * 2));
     const era = classifySetEra({ id: acc.setId, name: acc.setName });
     const expandBoost = premiumPctDelta30d != null ? Math.max(0, premiumPctDelta30d) / 50 : 0;
-    const scarcity =
-      medianGemRatePct != null ? Math.max(0, 1 - medianGemRatePct / 50) : 0.3;
+    const scarcity = medianGemRatePct != null ? Math.max(0, 1 - medianGemRatePct / 50) : 0.3;
     const heatScore = round2(
       Math.min(
         100,
@@ -604,21 +598,13 @@ export async function getPopRegimeRadar(options?: {
     if (r.gradedNow && r.rawNow && r.rawNow > 0) {
       premiumPct = ((r.gradedNow - r.rawNow) / r.rawNow) * 100;
     }
-    if (
-      r.gradedNow &&
-      r.rawNow &&
-      r.rawNow > 0 &&
-      r.gradedPrev &&
-      r.rawPrev &&
-      r.rawPrev > 0
-    ) {
+    if (r.gradedNow && r.rawNow && r.rawNow > 0 && r.gradedPrev && r.rawPrev && r.rawPrev > 0) {
       const nowP = ((r.gradedNow - r.rawNow) / r.rawNow) * 100;
       const prevP = ((r.gradedPrev - r.rawPrev) / r.rawPrev) * 100;
       premiumPctDelta = nowP - prevP;
     }
 
-    const direction: PopShockRow['direction'] =
-      psa10Delta > 0 ? 'flooding' : 'tightening';
+    const direction: PopShockRow['direction'] = psa10Delta > 0 ? 'flooding' : 'tightening';
     let regime: PopShockRow['regime'] = 'neutral';
     let why = '';
     if (direction === 'flooding' && (premiumPctDelta ?? 0) < -3) {
@@ -759,12 +745,9 @@ export async function getGradeLadderLeaderboard(options?: {
     const rawPrice = r.rawPrice;
     const fee = estimatePsaGradingFee(r.psa10).fee;
     const gemRatePct =
-      r.psaTotal && r.psaTotal > 0 && r.psa10Pop != null
-        ? (r.psa10Pop / r.psaTotal) * 100
-        : null;
+      r.psaTotal && r.psaTotal > 0 && r.psa10Pop != null ? (r.psa10Pop / r.psaTotal) * 100 : null;
     const premium10 = r.psa10 - rawPrice;
-    const breakEvenGemRatePct =
-      premium10 > 0 ? Math.min(100, (fee / premium10) * 100) : null;
+    const breakEvenGemRatePct = premium10 > 0 ? Math.min(100, (fee / premium10) * 100) : null;
 
     let pop: number[] | null = null;
     if (r.psaPopJson) {
@@ -784,8 +767,7 @@ export async function getGradeLadderLeaderboard(options?: {
     ];
 
     const steps: GradeLadderStep[] = gradeDefs.map((g) => {
-      const popCount =
-        g.popIdx != null && pop && pop[g.popIdx] != null ? pop[g.popIdx] : null;
+      const popCount = g.popIdx != null && pop && pop[g.popIdx] != null ? pop[g.popIdx] : null;
       const popSharePct =
         popCount != null && r.psaTotal && r.psaTotal > 0
           ? round2((popCount / r.psaTotal) * 100)
@@ -839,12 +821,10 @@ export async function getGradeLadderLeaderboard(options?: {
     const nineToTenGap = prem10 - prem9;
     if (gemRatePct != null && gemRatePct < 12 && prem9 > 80 && nineToTenGap > 40) {
       psa9Mispriced = true;
-      psa9MispriceNote =
-        'Hard gem + fat 9 premium — “grade for a 9” can beat chasing 10s here.';
+      psa9MispriceNote = 'Hard gem + fat 9 premium — “grade for a 9” can beat chasing 10s here.';
     } else if (gemRatePct != null && gemRatePct > 35 && nineToTenGap < 25 && prem9 > 40) {
       psa9Mispriced = true;
-      psa9MispriceNote =
-        'Easy gem but 9 sits close to 10 — 9s look rich vs gem upside.';
+      psa9MispriceNote = 'Easy gem but 9 sits close to 10 — 9s look rich vs gem upside.';
     }
 
     const why = psa9MispriceNote
@@ -866,8 +846,7 @@ export async function getGradeLadderLeaderboard(options?: {
       psa9Mispriced,
       psa9MispriceNote,
       gemRatePct: gemRatePct != null ? round2(gemRatePct) : null,
-      breakEvenGemRatePct:
-        breakEvenGemRatePct != null ? round2(breakEvenGemRatePct) : null,
+      breakEvenGemRatePct: breakEvenGemRatePct != null ? round2(breakEvenGemRatePct) : null,
       why,
     });
   }

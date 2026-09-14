@@ -31,8 +31,13 @@ const SOURCE_LABELS: Record<string, string> = {
 };
 
 function sentimentStyle(sentiment: number): { label: string; className: string } {
-  if (sentiment > 0.15) return { label: 'Positive', className: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' };
-  if (sentiment < -0.15) return { label: 'Negative', className: 'text-red-400 bg-red-500/10 border-red-500/30' };
+  if (sentiment > 0.15)
+    return {
+      label: 'Positive',
+      className: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
+    };
+  if (sentiment < -0.15)
+    return { label: 'Negative', className: 'text-red-400 bg-red-500/10 border-red-500/30' };
   return { label: 'Neutral', className: 'text-ink-muted bg-slate-500/10 border-slate-500/30' };
 }
 
@@ -105,8 +110,13 @@ export function ExternalSignalsPanel({ cardId, signals: preloaded }: Props) {
         return (
           <li key={`${signal.sourceUrl}-${i}`} className="px-3 py-2.5">
             <div className="flex items-start gap-2">
-              <span className="mt-0.5 shrink-0" title={SOURCE_LABELS[signal.sourceType] || signal.sourceType}>
-                {SOURCE_ICONS[signal.sourceType] ?? <Radio className="h-3.5 w-3.5 text-ink-muted" />}
+              <span
+                className="mt-0.5 shrink-0"
+                title={SOURCE_LABELS[signal.sourceType] || signal.sourceType}
+              >
+                {SOURCE_ICONS[signal.sourceType] ?? (
+                  <Radio className="h-3.5 w-3.5 text-ink-muted" />
+                )}
               </span>
               <div className="min-w-0 flex-1">
                 <a
@@ -122,7 +132,9 @@ export function ExternalSignalsPanel({ cardId, signals: preloaded }: Props) {
                   <p className="mt-0.5 line-clamp-2 text-[11px] text-ink-muted">{signal.summary}</p>
                 )}
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                  <span className={`rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${sentiment.className}`}>
+                  <span
+                    className={`rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${sentiment.className}`}
+                  >
                     {sentiment.label}
                   </span>
                   {signal.type && signal.type !== 'unknown' && (

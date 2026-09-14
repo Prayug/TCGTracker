@@ -1,8 +1,4 @@
-import {
-  dedupePackPoolCards,
-  packCardIdentity,
-  preferPackPoolCard,
-} from '../packPoolDedupe';
+import { dedupePackPoolCards, packCardIdentity, preferPackPoolCard } from '../packPoolDedupe';
 
 describe('packCardIdentity', () => {
   it('treats Pokemon API and TCGCSV ids as the same POP Series 3 Blastoise', () => {

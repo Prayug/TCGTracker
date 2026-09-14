@@ -21,14 +21,28 @@ export const ShatterFragments: React.FC<{
         Math.random() * 3.5 + 1,
         (Math.random() - 0.5) * 5
       ),
-      rot: new THREE.Vector3(Math.random() * Math.PI * 2, Math.random() * Math.PI * 2, Math.random() * Math.PI * 2),
-      rotSpeed: new THREE.Vector3((Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12),
+      rot: new THREE.Vector3(
+        Math.random() * Math.PI * 2,
+        Math.random() * Math.PI * 2,
+        Math.random() * Math.PI * 2
+      ),
+      rotSpeed: new THREE.Vector3(
+        (Math.random() - 0.5) * 12,
+        (Math.random() - 0.5) * 12,
+        (Math.random() - 0.5) * 12
+      ),
       scale: 0.08 + Math.random() * 0.15,
     }));
   }, [count]);
 
   const material = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: colors.base, metalness: 0.8, roughness: 0.3, transparent: true }),
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: colors.base,
+        metalness: 0.8,
+        roughness: 0.3,
+        transparent: true,
+      }),
     [colors.base]
   );
 
@@ -42,7 +56,10 @@ export const ShatterFragments: React.FC<{
     const ripStart = anim.orbitDuration + anim.zoomDuration;
     const age = t - ripStart;
 
-    if (age < 0 || age > 1.8) { mesh.visible = false; return; }
+    if (age < 0 || age > 1.8) {
+      mesh.visible = false;
+      return;
+    }
     mesh.visible = true;
 
     const fadeOut = 1 - easeOutCubic(clamp01(age / 1.5));

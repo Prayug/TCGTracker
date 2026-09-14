@@ -249,7 +249,6 @@ export function MarketInsightsPage({
             {message}
           </motion.div>
         )}
-
         {isOnePiece && !predictionsLoading && predictions.length === 0 && !predictionsError && (
           <div className="mb-4 rounded-lg border border-border-default bg-surface-raised px-4 py-3 text-sm text-ink-secondary">
             No One Piece predictions yet. Run Predictions to score cards with enough price history.
@@ -407,7 +406,7 @@ export function MarketInsightsPage({
                   </div>
                   {!isOnePiece && (
                     <div>
-                      <span className="mb-1 block text-xs font-medium text-ink-muted">Era</span>
+                      <span className="mb-1 block text-xs font-medium text-ink-muted">Era</span>{' '}
                       <div className="max-h-32 overflow-y-auto rounded-lg border border-border-default bg-surface-inset p-2">
                         {AVAILABLE_ERAS.map((era) => (
                           <label key={era.id} className="flex items-center gap-2 py-1">
@@ -432,7 +431,7 @@ export function MarketInsightsPage({
                     </div>
                   )}
                   <div>
-                    <span className="mb-1 block text-xs font-medium text-ink-muted">Rarities</span>
+                    <span className="mb-1 block text-xs font-medium text-ink-muted">Rarities</span>{' '}
                     <div className="max-h-32 overflow-y-auto rounded-lg border border-border-default bg-surface-inset p-2">
                       {rarityOptions.map((rarity) => (
                         <label key={rarity} className="flex items-center gap-2 py-1">

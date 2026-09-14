@@ -89,11 +89,7 @@ export function applyBulkAndEconomicScoring(input: BulkScoringInput): BulkScorin
   }
 
   // Supply drain with demand = strong override evidence.
-  if (
-    input.listedCount != null &&
-    input.listedCountPrev != null &&
-    input.listedCountPrev >= 3
-  ) {
+  if (input.listedCount != null && input.listedCountPrev != null && input.listedCountPrev >= 3) {
     const dropPct = ((input.listedCountPrev - input.listedCount) / input.listedCountPrev) * 100;
     if (dropPct >= 40) {
       evidenceScore += 14;
@@ -147,10 +143,7 @@ export function applyBulkAndEconomicScoring(input: BulkScoringInput): BulkScorin
     overrideReasons.push('set comps trending');
   }
 
-  if (
-    input.liquidityTier === 'strong' ||
-    input.liquidityTier === 'ok'
-  ) {
+  if (input.liquidityTier === 'strong' || input.liquidityTier === 'ok') {
     if (input.soldListings >= 5) evidenceScore += 5;
   }
 
