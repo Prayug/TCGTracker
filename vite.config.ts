@@ -130,6 +130,9 @@ export default defineConfig(({ mode }) => {
     exclude: ['backend/**', 'card-scanner-backend/**', 'node_modules/**', 'dist/**'],
     coverage: {
       provider: 'v8',
+      // Avoid scanning every untested file for sourcemaps — remapping crashes on
+      // empty/broken maps from vendored chart / 21st.dev UI primitives.
+      all: false,
       reporter: ['text', 'json', 'html', 'lcov'],
       exclude: [
         'node_modules/',
@@ -138,6 +141,9 @@ export default defineConfig(({ mode }) => {
         '**/*.config.*',
         '**/mockData',
         'dist/',
+        'src/components/charts/**',
+        'src/components/kokonutui/**',
+        '.vite/**',
       ],
     },
   },
