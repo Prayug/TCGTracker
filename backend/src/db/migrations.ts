@@ -630,64 +630,45 @@ export const migrations: Migration[] = [
     id: 14,
     name: 'add_backtest_metrics_columns',
     up: async (db: Database) => {
-      const run = (sql: string): Promise<void> =>
+      // Columns may already exist from database.ts CREATE TABLE — tolerate duplicates.
+      const runIgnoreDup = (sql: string): Promise<void> =>
         new Promise((resolve, reject) => {
           db.run(sql, (err) => {
-            if (err) reject(err);
+            if (err && !String(err.message).includes('duplicate column')) reject(err);
             else resolve();
           });
         });
 
-      await run('ALTER TABLE backtest_runs ADD COLUMN sharpe_ratio REAL');
-      await run('ALTER TABLE backtest_runs ADD COLUMN max_drawdown REAL');
-      await run('ALTER TABLE backtest_runs ADD COLUMN win_rate REAL');
-      await run('ALTER TABLE backtest_runs ADD COLUMN profit_factor REAL');
+      await runIgnoreDup('ALTER TABLE backtest_runs ADD COLUMN sharpe_ratio REAL');
+      await runIgnoreDup('ALTER TABLE backtest_runs ADD COLUMN max_drawdown REAL');
+      await runIgnoreDup('ALTER TABLE backtest_runs ADD COLUMN win_rate REAL');
+      await runIgnoreDup('ALTER TABLE backtest_runs ADD COLUMN profit_factor REAL');
 
       logger.info('Added sharpe_ratio, max_drawdown, win_rate, profit_factor columns to backtest_runs');
     },
     down: async (db: Database) => {
-      const run = (sql: string): Promise<void> =>
-        new Promise((resolve, reject) => {
-          db.run(sql, (err) => {
-            if (err) reject(err);
-            else resolve();
-          });
-        });
-
-      await run('ALTER TABLE backtest_runs DROP COLUMN sharpe_ratio');
-      await run('ALTER TABLE backtest_runs DROP COLUMN max_drawdown');
-      await run('ALTER TABLE backtest_runs DROP COLUMN win_rate');
-      await run('ALTER TABLE backtest_runs DROP COLUMN profit_factor');
+      logger.info('Skipping rollback of backtest metrics columns (SQLite limitation)');
     },
   },
   {
     id: 15,
     name: 'add_backtest_market_distribution_columns',
     up: async (db: Database) => {
-      const run = (sql: string): Promise<void> =>
+      const runIgnoreDup = (sql: string): Promise<void> =>
         new Promise((resolve, reject) => {
           db.run(sql, (err) => {
-            if (err) reject(err);
+            if (err && !String(err.message).includes('duplicate column')) reject(err);
             else resolve();
           });
         });
 
-      await run('ALTER TABLE backtest_runs ADD COLUMN market_median_return REAL');
-      await run('ALTER TABLE backtest_runs ADD COLUMN market_return_std_dev REAL');
+      await runIgnoreDup('ALTER TABLE backtest_runs ADD COLUMN market_median_return REAL');
+      await runIgnoreDup('ALTER TABLE backtest_runs ADD COLUMN market_return_std_dev REAL');
 
       logger.info('Added market_median_return and market_return_std_dev columns to backtest_runs');
     },
     down: async (db: Database) => {
-      const run = (sql: string): Promise<void> =>
-        new Promise((resolve, reject) => {
-          db.run(sql, (err) => {
-            if (err) reject(err);
-            else resolve();
-          });
-        });
-
-      await run('ALTER TABLE backtest_runs DROP COLUMN market_median_return');
-      await run('ALTER TABLE backtest_runs DROP COLUMN market_return_std_dev');
+      logger.info('Skipping rollback of backtest market distribution columns (SQLite limitation)');
     },
   },
   {

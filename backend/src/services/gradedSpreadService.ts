@@ -341,14 +341,23 @@ export interface PremiumMoverRow {
 /**
  * PSA 10 premium % change over `days` (graded history vs raw history).
  */
+const PREMIUM_MOVERS_TTL_MS = 5 * 60 * 1000;
+const premiumMoversCache = new Map<string, { expiresAt: number; rows: PremiumMoverRow[] }>();
+
 export async function getTopPremiumMovers(options?: {
   days?: number;
   limit?: number;
 }): Promise<PremiumMoverRow[]> {
   const days = Math.min(Math.max(options?.days ?? 30, 7), 90);
   const limit = Math.min(Math.max(options?.limit ?? 12, 1), 50);
+  const cacheKey = `${days}:${limit}`;
+  const cached = premiumMoversCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.rows;
+  }
   const lookback = `-${days} days`;
 
+  // Set-based joins instead of per-row correlated subqueries on large history tables.
   const rows = await all<{
     cardId: string;
     cardName: string | null;
@@ -364,49 +373,91 @@ export async function getTopPremiumMovers(options?: {
     rawNow: number | null;
     rawPrev: number | null;
   }>(
-    `SELECT
-       gp.cardId,
-       gp.cardName,
-       gp.setId,
-       gp.setName,
-       gp.price AS gradedNow,
-       COALESCE(gp.soldListings, 0) AS soldListings,
-       gp.fetchedAt,
-       COALESCE(gp.verified, 0) AS verified,
-       gp.matchScore,
-       (
-         SELECT COUNT(DISTINCT gph.date) FROM graded_price_history gph
-         WHERE gph.cardId = gp.cardId AND COALESCE(gph.variantKey, 'normal') = COALESCE(gp.variantKey, 'normal') AND UPPER(gph.grader) = 'PSA' AND gph.grade = '10'
-       ) AS historyPoints,
-       (
-         SELECT gph.price
-         FROM graded_price_history gph
-         WHERE gph.cardId = gp.cardId
-           AND COALESCE(gph.variantKey, 'normal') = COALESCE(gp.variantKey, 'normal')
-           AND UPPER(gph.grader) = 'PSA'
-           AND gph.grade = '10'
-           AND gph.price IS NOT NULL AND gph.price > 0
-           AND gph.date <= date('now', ?)
-         ORDER BY gph.date DESC
-         LIMIT 1
-       ) AS gradedPrev,
-       (
-         SELECT c.price FROM canonical_price_history c
-         INNER JOIN card_mappings cm ON cm.uniqueIdentifier = c.uniqueIdentifier
-         WHERE cm.cardId = gp.cardId
-         ORDER BY c.date DESC, c.price DESC LIMIT 1
-       ) AS rawNow,
-       (
-         SELECT c.price FROM canonical_price_history c
-         INNER JOIN card_mappings cm ON cm.uniqueIdentifier = c.uniqueIdentifier
-         WHERE cm.cardId = gp.cardId
-           AND c.date <= date('now', ?)
-         ORDER BY c.date DESC, c.price DESC LIMIT 1
-       ) AS rawPrev
-     FROM graded_prices gp
-     WHERE UPPER(gp.grader) = 'PSA' AND gp.grade = '10'
-       AND gp.price IS NOT NULL AND gp.price > 0
-       AND COALESCE(gp.verified, 0) = 1`,
+    `WITH psa10 AS (
+       SELECT
+         gp.cardId,
+         gp.cardName,
+         gp.setId,
+         gp.setName,
+         gp.price AS gradedNow,
+         COALESCE(gp.soldListings, 0) AS soldListings,
+         gp.fetchedAt,
+         COALESCE(gp.verified, 0) AS verified,
+         gp.matchScore,
+         COALESCE(gp.variantKey, 'normal') AS variantKey
+       FROM graded_prices gp
+       WHERE UPPER(gp.grader) = 'PSA' AND gp.grade = '10'
+         AND gp.price IS NOT NULL AND gp.price > 0
+         AND COALESCE(gp.verified, 0) = 1
+     ),
+     graded_prev AS (
+       SELECT
+         gph.cardId,
+         COALESCE(gph.variantKey, 'normal') AS variantKey,
+         gph.price,
+         ROW_NUMBER() OVER (
+           PARTITION BY gph.cardId, COALESCE(gph.variantKey, 'normal')
+           ORDER BY gph.date DESC
+         ) AS rn
+       FROM graded_price_history gph
+       WHERE UPPER(gph.grader) = 'PSA' AND gph.grade = '10'
+         AND gph.price IS NOT NULL AND gph.price > 0
+         AND gph.date <= date('now', ?)
+         AND gph.cardId IN (SELECT cardId FROM psa10)
+     ),
+     hist_counts AS (
+       SELECT
+         gph.cardId,
+         COALESCE(gph.variantKey, 'normal') AS variantKey,
+         COUNT(DISTINCT gph.date) AS historyPoints
+       FROM graded_price_history gph
+       WHERE UPPER(gph.grader) = 'PSA' AND gph.grade = '10'
+         AND gph.price IS NOT NULL AND gph.price > 0
+         AND gph.cardId IN (SELECT cardId FROM psa10)
+       GROUP BY gph.cardId, COALESCE(gph.variantKey, 'normal')
+     ),
+     raw_latest AS (
+       SELECT
+         cm.cardId,
+         c.price,
+         ROW_NUMBER() OVER (PARTITION BY cm.cardId ORDER BY c.date DESC, c.price DESC) AS rn
+       FROM canonical_price_history c
+       INNER JOIN card_mappings cm ON cm.uniqueIdentifier = c.uniqueIdentifier
+       WHERE cm.cardId IN (SELECT cardId FROM psa10)
+     ),
+     raw_prev AS (
+       SELECT
+         cm.cardId,
+         c.price,
+         ROW_NUMBER() OVER (PARTITION BY cm.cardId ORDER BY c.date DESC, c.price DESC) AS rn
+       FROM canonical_price_history c
+       INNER JOIN card_mappings cm ON cm.uniqueIdentifier = c.uniqueIdentifier
+       WHERE cm.cardId IN (SELECT cardId FROM psa10)
+         AND c.date <= date('now', ?)
+     )
+     SELECT
+       p.cardId,
+       p.cardName,
+       p.setId,
+       p.setName,
+       p.gradedNow,
+       p.soldListings,
+       p.fetchedAt,
+       p.verified,
+       p.matchScore,
+       hc.historyPoints,
+       gp.price AS gradedPrev,
+       rl.price AS rawNow,
+       rp.price AS rawPrev
+     FROM psa10 p
+     LEFT JOIN hist_counts hc
+       ON hc.cardId = p.cardId AND hc.variantKey = p.variantKey
+     LEFT JOIN graded_prev gp
+       ON gp.cardId = p.cardId AND gp.variantKey = p.variantKey AND gp.rn = 1
+     LEFT JOIN raw_latest rl
+       ON rl.cardId = p.cardId AND rl.rn = 1
+     LEFT JOIN raw_prev rp
+       ON rp.cardId = p.cardId AND rp.rn = 1`,
     [lookback, lookback]
   );
 
@@ -450,7 +501,12 @@ export async function getTopPremiumMovers(options?: {
   }
 
   movers.sort((a, b) => Math.abs(b.premiumPctDelta) - Math.abs(a.premiumPctDelta));
-  return movers.slice(0, limit);
+  const sliced = movers.slice(0, limit);
+  premiumMoversCache.set(cacheKey, {
+    expiresAt: Date.now() + PREMIUM_MOVERS_TTL_MS,
+    rows: sliced,
+  });
+  return sliced;
 }
 
 export interface CrossGraderArbRow {

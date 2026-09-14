@@ -32,25 +32,50 @@ export function MarketSnapshot() {
     const cached = PriceHistoryApi.peekTopMovers(DAYS, LIMIT);
     return cached ? [...(cached.gainers || []), ...(cached.losers || [])] : [];
   });
+  const [loading, setLoading] = useState(() => {
+    const cached = PriceHistoryApi.peekTopMovers(DAYS, LIMIT);
+    return !(cached && (cached.gainers.length > 0 || cached.losers.length > 0));
+  });
 
   useEffect(() => {
     let mounted = true;
-    PriceHistoryApi.getTopMovers(DAYS, LIMIT).then((result) => {
-      if (!mounted) return;
-      const combined = [...(result.gainers || []), ...(result.losers || [])];
-      if (combined.length > 0) setEntries(combined);
-    });
+    PriceHistoryApi.getTopMovers(DAYS, LIMIT)
+      .then((result) => {
+        if (!mounted) return;
+        const combined = [...(result.gainers || []), ...(result.losers || [])];
+        if (combined.length > 0) setEntries(combined);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (mounted) setLoading(false);
+      });
     return () => {
       mounted = false;
     };
   }, []);
 
   const data = useMemo(() => summarize(entries), [entries]);
+  if (loading && !data) {
+    return (
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="skeleton h-16 rounded-xl" />
+        ))}
+      </div>
+    );
+  }
   if (!data) return null;
 
   const { topGainer, topLoser, avgMove, moverCount } = data;
 
-  const stats: { key: string; label: string; value: string; detail?: string; tone: 'gain' | 'loss' | 'neutral'; icon: React.ElementType }[] = [];
+  const stats: {
+    key: string;
+    label: string;
+    value: string;
+    detail?: string;
+    tone: 'gain' | 'loss' | 'neutral';
+    icon: React.ElementType;
+  }[] = [];
   if (topGainer) {
     stats.push({
       key: 'gainer',
@@ -109,9 +134,7 @@ export function MarketSnapshot() {
           >
             {value}
           </span>
-          {detail ? (
-            <span className="truncate text-xs text-ink-secondary">{detail}</span>
-          ) : null}
+          {detail ? <span className="truncate text-xs text-ink-secondary">{detail}</span> : null}
         </div>
       ))}
     </div>
