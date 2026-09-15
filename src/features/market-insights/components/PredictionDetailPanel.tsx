@@ -14,6 +14,7 @@ import { PokemonCard } from '../../../types/pokemon';
 import { useInsightsApi } from '../hooks/insightsApiContext';
 import { formatInsightScore, insightScoreValue } from '../utils/formatInsightNumbers';
 import { ExternalSignalsPanel } from './ExternalSignalsPanel';
+import { parseExternalSignalsJson } from '../utils/parseExternalSignals';
 
 interface Props {
   prediction: CardPrediction | null;
@@ -125,6 +126,7 @@ export function PredictionDetailPanel({
   const isPositive = expectedReturn >= 0;
   const windowLabel = PREDICTION_WINDOW_LABELS[predictionWindow];
   const categoryDefinition = CATEGORY_DEFINITIONS[prediction.category];
+  const preloadedSignals = parseExternalSignalsJson(prediction.externalSignals);
 
   const handleExplain = async () => {
     if (explanation) return;
@@ -360,7 +362,10 @@ export function PredictionDetailPanel({
                   <span className="text-xs font-semibold text-ink-primary">External Signals</span>
                 </div>
                 <div className="max-h-64 overflow-y-auto">
-                  <ExternalSignalsPanel cardId={prediction.cardId} />
+                  <ExternalSignalsPanel
+                    cardId={prediction.cardId}
+                    signals={preloadedSignals.length > 0 ? preloadedSignals : undefined}
+                  />
                 </div>
               </div>
             )}

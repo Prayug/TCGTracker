@@ -16,6 +16,7 @@ import { formatPercent } from '../../../utils/cardDisplay';
 import { formatInsightScore } from '../utils/formatInsightNumbers';
 import { buildPokemonCardFromPrediction } from '../utils/predictionCard';
 import { ExternalSignalsPanel } from './ExternalSignalsPanel';
+import { parseExternalSignalsJson } from '../utils/parseExternalSignals';
 import { useInsightsApi } from '../hooks/insightsApiContext';
 
 interface Props {
@@ -62,6 +63,10 @@ export function PredictionCard({
   const categoryLabel = CATEGORY_SHORT_LABELS[prediction.category];
   const categoryDefinition = CATEGORY_DEFINITIONS[prediction.category];
   const confidenceText = formatInsightScore(prediction.confidenceScore);
+  const preloadedSignals = useMemo(
+    () => parseExternalSignalsJson(prediction.externalSignals),
+    [prediction.externalSignals]
+  );
 
   const signalCount = useMemo(
     () => parseSignalCount(prediction.externalSignals),
@@ -237,7 +242,10 @@ export function PredictionCard({
             </button>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
-            <ExternalSignalsPanel cardId={prediction.cardId} />
+            <ExternalSignalsPanel
+              cardId={prediction.cardId}
+              signals={preloadedSignals.length > 0 ? preloadedSignals : undefined}
+            />
           </div>
         </div>
       )}
