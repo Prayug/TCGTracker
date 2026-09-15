@@ -188,19 +188,19 @@ export function MarketInsightsPage({
               <p className="insights-subtitle-long text-sm text-ink-secondary sm:text-base">
                 {subtitle ?? (
                   <>
-                    Price predictions and model checks
+                    Forecasts, classifications, and model checks
                     {isOnePiece ? ' for One Piece' : ' for Pokémon'}
                   </>
                 )}
               </p>
               <p className="insights-subtitle-short text-xs text-ink-secondary">
-                {subtitle ?? `AI-powered predictions${isOnePiece ? ' for One Piece' : ''}`}
+                {subtitle ?? `Price forecasts${isOnePiece ? ' for One Piece' : ''}`}
               </p>
             </div>
           )}
           {embedded && (
             <p className="max-w-xl text-xs text-ink-muted">
-              {subtitle ?? 'PSA 10 price predictions from graded history.'}
+              {subtitle ?? 'PSA 10 price forecasts from graded history.'}
             </p>
           )}
           <div className="insights-header-actions flex shrink-0 items-center gap-2 sm:gap-3">
@@ -255,269 +255,7 @@ export function MarketInsightsPage({
           </div>
         )}
 
-        <div className="mb-4 space-y-[var(--insights-space-2,0.75rem)]">
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-            <span className="shrink-0 text-xs font-medium text-ink-muted">Prediction window:</span>
-            <div className="scroll-rail -mx-1 px-1">
-              <div className="inline-flex rounded-lg border border-border-default bg-surface-inset p-0.5">
-                {PREDICTION_WINDOWS.map((w) => {
-                  const status = windowStatus(w);
-                  const unsupported = status === 'unsupported';
-                  const experimental = status === 'experimental';
-                  return (
-                    <button
-                      key={w}
-                      type="button"
-                      onClick={() => setPredictionWindow(w)}
-                      disabled={unsupported}
-                      title={
-                        unsupported
-                          ? 'Unsupported — not enough price history for this horizon'
-                          : experimental
-                            ? 'Experimental — limited history; treat estimates cautiously'
-                            : undefined
-                      }
-                      className={`relative cursor-pointer rounded-lg px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed ${
-                        unsupported
-                          ? 'opacity-35 text-ink-muted'
-                          : predictionWindow === w
-                            ? 'bg-accent/15 text-accent'
-                            : 'text-ink-muted hover:bg-surface-hover hover:text-ink-secondary'
-                      }`}
-                    >
-                      {PREDICTION_WINDOW_LABELS[w]}
-                      {experimental && (
-                        <span className="ml-1 rounded bg-amber-500/20 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-amber-300">
-                          exp
-                        </span>
-                      )}
-                      {unsupported && (
-                        <span className="ml-1 rounded bg-surface-hover px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-ink-muted">
-                          n/a
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            {windowExperimental && (
-              <span className="text-[11px] text-amber-300/90" title="Experimental horizon">
-                Active window is experimental
-                {horizonSupport ? ` · ${horizonSupport.historyDays}d history` : ''}
-              </span>
-            )}
-          </div>
-
-          <div className="rounded-xl border border-border-default bg-surface-raised">
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-ink-secondary hover:bg-surface-hover"
-            >
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4" />
-                <span>Filters</span>
-                {hasActiveFilters && (
-                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-primary-foreground">
-                    !
-                  </span>
-                )}
-                <span className="rounded-full bg-surface-hover px-2 py-0.5 text-xs text-ink-muted">
-                  ${filters.minPrice || 0} - ${filters.maxPrice || '∞'} |{' '}
-                  {filters.rarities?.length || 0} rarities
-                </span>
-              </div>
-              {showFilters ? (
-                <ChevronUp className="h-4 w-4" />
-              ) : (
-                <ChevronDown className="h-4 w-4" />
-              )}
-            </button>
-
-            {showFilters && (
-              <div className="border-t border-border-default px-4 py-4">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <div>
-                    <label
-                      htmlFor="insights-min-price"
-                      className="mb-1 block text-xs font-medium text-ink-muted"
-                    >
-                      Min Price ($)
-                    </label>
-                    <input
-                      id="insights-min-price"
-                      type="number"
-                      min="0"
-                      step="0.5"
-                      value={draftFilters.minPrice || ''}
-                      onChange={(e) =>
-                        setDraftFilters((prev) => ({
-                          ...prev,
-                          minPrice: e.target.value ? parseFloat(e.target.value) : undefined,
-                        }))
-                      }
-                      className="w-full rounded-lg border border-border-default bg-surface-inset px-3 py-2 text-sm text-ink-primary"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="insights-max-price"
-                      className="mb-1 block text-xs font-medium text-ink-muted"
-                    >
-                      Max Price ($)
-                    </label>
-                    <input
-                      id="insights-max-price"
-                      type="number"
-                      min="0"
-                      step="10"
-                      value={draftFilters.maxPrice || ''}
-                      onChange={(e) =>
-                        setDraftFilters((prev) => ({
-                          ...prev,
-                          maxPrice: e.target.value ? parseFloat(e.target.value) : undefined,
-                        }))
-                      }
-                      className="w-full rounded-lg border border-border-default bg-surface-inset px-3 py-2 text-sm text-ink-primary"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="insights-min-confidence"
-                      className="mb-1 block text-xs font-medium text-ink-muted"
-                    >
-                      Min Confidence
-                    </label>
-                    <input
-                      id="insights-min-confidence"
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={draftFilters.minConfidence || 0}
-                      onChange={(e) =>
-                        setDraftFilters((prev) => ({
-                          ...prev,
-                          minConfidence: parseInt(e.target.value),
-                        }))
-                      }
-                      className="w-full"
-                    />
-                    <div className="text-xs text-ink-muted">{draftFilters.minConfidence || 0}%</div>
-                  </div>
-                  {!isOnePiece && (
-                    <div>
-                      <span className="mb-1 block text-xs font-medium text-ink-muted">Era</span>{' '}
-                      <div className="max-h-32 overflow-y-auto rounded-lg border border-border-default bg-surface-inset p-2">
-                        {AVAILABLE_ERAS.map((era) => (
-                          <label key={era.id} className="flex items-center gap-2 py-1">
-                            <input
-                              type="checkbox"
-                              checked={draftFilters.eras?.includes(era.id) || false}
-                              onChange={(e) => {
-                                setDraftFilters((prev) => {
-                                  const current = prev.eras || [];
-                                  const newEras = e.target.checked
-                                    ? [...current, era.id]
-                                    : current.filter((r) => r !== era.id);
-                                  return { ...prev, eras: newEras };
-                                });
-                              }}
-                              className="h-3 w-3 rounded"
-                            />
-                            <span className="text-xs text-ink-secondary">{era.label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  <div>
-                    <span className="mb-1 block text-xs font-medium text-ink-muted">Rarities</span>{' '}
-                    <div className="max-h-32 overflow-y-auto rounded-lg border border-border-default bg-surface-inset p-2">
-                      {rarityOptions.map((rarity) => (
-                        <label key={rarity} className="flex items-center gap-2 py-1">
-                          <input
-                            type="checkbox"
-                            checked={draftFilters.rarities?.includes(rarity) || false}
-                            onChange={(e) => {
-                              setDraftFilters((prev) => {
-                                const current = prev.rarities || [];
-                                const newRarities = e.target.checked
-                                  ? [...current, rarity]
-                                  : current.filter((r) => r !== rarity);
-                                return { ...prev, rarities: newRarities };
-                              });
-                            }}
-                            className="h-3 w-3 rounded"
-                          />
-                          <span className="text-xs text-ink-secondary">{rarity}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="insights-release-from"
-                      className="mb-1 block text-xs font-medium text-ink-muted"
-                    >
-                      Release Date From
-                    </label>
-                    <input
-                      id="insights-release-from"
-                      type="date"
-                      value={draftFilters.releaseDateFrom || ''}
-                      onChange={(e) =>
-                        setDraftFilters((prev) => ({
-                          ...prev,
-                          releaseDateFrom: e.target.value || undefined,
-                        }))
-                      }
-                      className="w-full rounded-lg border border-border-default bg-surface-inset px-3 py-2 text-sm text-ink-primary"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="insights-release-to"
-                      className="mb-1 block text-xs font-medium text-ink-muted"
-                    >
-                      Release Date To
-                    </label>
-                    <input
-                      id="insights-release-to"
-                      type="date"
-                      value={draftFilters.releaseDateTo || ''}
-                      onChange={(e) =>
-                        setDraftFilters((prev) => ({
-                          ...prev,
-                          releaseDateTo: e.target.value || undefined,
-                        }))
-                      }
-                      className="w-full rounded-lg border border-border-default bg-surface-inset px-3 py-2 text-sm text-ink-primary"
-                    />
-                  </div>
-                </div>
-                <div className="mt-4 flex justify-end gap-2">
-                  <button
-                    onClick={() => {
-                      handleResetFilters();
-                      setDraftFilters(DEFAULT_FILTERS);
-                    }}
-                    className="rounded-lg border border-border-default bg-surface-inset px-3 py-1.5 text-xs font-medium text-ink-secondary hover:bg-surface-hover"
-                  >
-                    Reset
-                  </button>
-                  <button
-                    onClick={handleApplyFilterClick}
-                    className="cursor-pointer rounded-xl bg-accent px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-accent-hover"
-                  >
-                    Apply Filters
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="scroll-rail scroll-rail-tabs mb-6 -mx-1 rounded-xl border border-border-default bg-surface-inset p-1 px-1">
+        <div className="scroll-rail scroll-rail-tabs mb-4 -mx-1 rounded-xl border border-border-default bg-surface-inset p-1 px-1">
           {TABS.map((tab) => (
             <button
               key={tab.id}
@@ -538,6 +276,283 @@ export function MarketInsightsPage({
             </button>
           ))}
         </div>
+
+        {(activeTab === 'overview' || activeTab === 'cards') && (
+          <div className="mb-4 space-y-[var(--insights-space-2,0.75rem)]">
+            <div className="flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+              <div className="min-w-0">
+                <span className="block text-[11px] font-medium uppercase tracking-wide text-ink-muted">
+                  Forecast window
+                </span>
+                <p className="text-[11px] text-ink-muted">
+                  Horizon used for expected return and card ranking
+                </p>
+              </div>
+              <div className="scroll-rail -mx-1 px-1">
+                <div className="inline-flex rounded-lg border border-border-default bg-surface-inset p-0.5">
+                  {PREDICTION_WINDOWS.map((w) => {
+                    const status = windowStatus(w);
+                    const unsupported = status === 'unsupported';
+                    const experimental = status === 'experimental';
+                    return (
+                      <button
+                        key={w}
+                        type="button"
+                        onClick={() => setPredictionWindow(w)}
+                        disabled={unsupported}
+                        title={
+                          unsupported
+                            ? 'Unsupported — not enough price history for this horizon'
+                            : experimental
+                              ? 'Experimental — limited history; treat estimates cautiously'
+                              : `${PREDICTION_WINDOW_LABELS[w]} forecast horizon`
+                        }
+                        className={`relative cursor-pointer rounded-lg px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed ${
+                          unsupported
+                            ? 'opacity-35 text-ink-muted'
+                            : predictionWindow === w
+                              ? 'bg-accent/15 text-accent'
+                              : 'text-ink-muted hover:bg-surface-hover hover:text-ink-secondary'
+                        }`}
+                      >
+                        {PREDICTION_WINDOW_LABELS[w]}
+                        {experimental && (
+                          <span className="ml-1 rounded bg-amber-500/20 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-amber-300">
+                            exp
+                          </span>
+                        )}
+                        {unsupported && (
+                          <span className="ml-1 rounded bg-surface-hover px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-ink-muted">
+                            n/a
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              {windowExperimental && (
+                <span className="text-[11px] text-amber-300/90" title="Experimental horizon">
+                  Experimental window
+                  {horizonSupport ? ` · ${horizonSupport.historyDays}d history` : ''}
+                </span>
+              )}
+            </div>
+
+            {activeTab === 'cards' && (
+              <div className="rounded-xl border border-border-default bg-surface-raised">
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-ink-secondary hover:bg-surface-hover"
+                >
+                  <div className="flex items-center gap-2">
+                    <Filter className="h-4 w-4" />
+                    <span>Price & rarity filters</span>
+                    {hasActiveFilters && (
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-primary-foreground">
+                        !
+                      </span>
+                    )}
+                    <span className="rounded-full bg-surface-hover px-2 py-0.5 text-xs text-ink-muted">
+                      ${filters.minPrice || 0} - ${filters.maxPrice || '∞'} |{' '}
+                      {filters.rarities?.length || 0} rarities
+                    </span>
+                  </div>
+                  {showFilters ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </button>
+
+                {showFilters && (
+                  <div className="border-t border-border-default px-4 py-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                      <div>
+                        <label
+                          htmlFor="insights-min-price"
+                          className="mb-1 block text-xs font-medium text-ink-muted"
+                        >
+                          Min Price ($)
+                        </label>
+                        <input
+                          id="insights-min-price"
+                          type="number"
+                          min="0"
+                          step="0.5"
+                          value={draftFilters.minPrice || ''}
+                          onChange={(e) =>
+                            setDraftFilters((prev) => ({
+                              ...prev,
+                              minPrice: e.target.value ? parseFloat(e.target.value) : undefined,
+                            }))
+                          }
+                          className="w-full rounded-lg border border-border-default bg-surface-inset px-3 py-2 text-sm text-ink-primary"
+                        />
+                      </div>
+                      <div>
+                        <label
+                          htmlFor="insights-max-price"
+                          className="mb-1 block text-xs font-medium text-ink-muted"
+                        >
+                          Max Price ($)
+                        </label>
+                        <input
+                          id="insights-max-price"
+                          type="number"
+                          min="0"
+                          step="10"
+                          value={draftFilters.maxPrice || ''}
+                          onChange={(e) =>
+                            setDraftFilters((prev) => ({
+                              ...prev,
+                              maxPrice: e.target.value ? parseFloat(e.target.value) : undefined,
+                            }))
+                          }
+                          className="w-full rounded-lg border border-border-default bg-surface-inset px-3 py-2 text-sm text-ink-primary"
+                        />
+                      </div>
+                      <div>
+                        <label
+                          htmlFor="insights-min-confidence"
+                          className="mb-1 block text-xs font-medium text-ink-muted"
+                        >
+                          Min Confidence
+                        </label>
+                        <input
+                          id="insights-min-confidence"
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={draftFilters.minConfidence || 0}
+                          onChange={(e) =>
+                            setDraftFilters((prev) => ({
+                              ...prev,
+                              minConfidence: parseInt(e.target.value),
+                            }))
+                          }
+                          className="w-full"
+                        />
+                        <div className="text-xs text-ink-muted">
+                          {draftFilters.minConfidence || 0}%
+                        </div>
+                      </div>
+                      {!isOnePiece && (
+                        <div>
+                          <span className="mb-1 block text-xs font-medium text-ink-muted">Era</span>{' '}
+                          <div className="max-h-32 overflow-y-auto rounded-lg border border-border-default bg-surface-inset p-2">
+                            {AVAILABLE_ERAS.map((era) => (
+                              <label key={era.id} className="flex items-center gap-2 py-1">
+                                <input
+                                  type="checkbox"
+                                  checked={draftFilters.eras?.includes(era.id) || false}
+                                  onChange={(e) => {
+                                    setDraftFilters((prev) => {
+                                      const current = prev.eras || [];
+                                      const newEras = e.target.checked
+                                        ? [...current, era.id]
+                                        : current.filter((r) => r !== era.id);
+                                      return { ...prev, eras: newEras };
+                                    });
+                                  }}
+                                  className="h-3 w-3 rounded"
+                                />
+                                <span className="text-xs text-ink-secondary">{era.label}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div>
+                        <span className="mb-1 block text-xs font-medium text-ink-muted">
+                          Rarities
+                        </span>{' '}
+                        <div className="max-h-32 overflow-y-auto rounded-lg border border-border-default bg-surface-inset p-2">
+                          {rarityOptions.map((rarity) => (
+                            <label key={rarity} className="flex items-center gap-2 py-1">
+                              <input
+                                type="checkbox"
+                                checked={draftFilters.rarities?.includes(rarity) || false}
+                                onChange={(e) => {
+                                  setDraftFilters((prev) => {
+                                    const current = prev.rarities || [];
+                                    const newRarities = e.target.checked
+                                      ? [...current, rarity]
+                                      : current.filter((r) => r !== rarity);
+                                    return { ...prev, rarities: newRarities };
+                                  });
+                                }}
+                                className="h-3 w-3 rounded"
+                              />
+                              <span className="text-xs text-ink-secondary">{rarity}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <label
+                          htmlFor="insights-release-from"
+                          className="mb-1 block text-xs font-medium text-ink-muted"
+                        >
+                          Release Date From
+                        </label>
+                        <input
+                          id="insights-release-from"
+                          type="date"
+                          value={draftFilters.releaseDateFrom || ''}
+                          onChange={(e) =>
+                            setDraftFilters((prev) => ({
+                              ...prev,
+                              releaseDateFrom: e.target.value || undefined,
+                            }))
+                          }
+                          className="w-full rounded-lg border border-border-default bg-surface-inset px-3 py-2 text-sm text-ink-primary"
+                        />
+                      </div>
+                      <div>
+                        <label
+                          htmlFor="insights-release-to"
+                          className="mb-1 block text-xs font-medium text-ink-muted"
+                        >
+                          Release Date To
+                        </label>
+                        <input
+                          id="insights-release-to"
+                          type="date"
+                          value={draftFilters.releaseDateTo || ''}
+                          onChange={(e) =>
+                            setDraftFilters((prev) => ({
+                              ...prev,
+                              releaseDateTo: e.target.value || undefined,
+                            }))
+                          }
+                          className="w-full rounded-lg border border-border-default bg-surface-inset px-3 py-2 text-sm text-ink-primary"
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-4 flex justify-end gap-2">
+                      <button
+                        onClick={() => {
+                          handleResetFilters();
+                          setDraftFilters(DEFAULT_FILTERS);
+                        }}
+                        className="rounded-lg border border-border-default bg-surface-inset px-3 py-1.5 text-xs font-medium text-ink-secondary hover:bg-surface-hover"
+                      >
+                        Reset
+                      </button>
+                      <button
+                        onClick={handleApplyFilterClick}
+                        className="cursor-pointer rounded-xl bg-accent px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-accent-hover"
+                      >
+                        Apply Filters
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         <motion.div
           key={activeTab}

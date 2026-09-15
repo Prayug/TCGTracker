@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { X, Brain, Radio, Shield, AlertTriangle } from 'lucide-react';
+import { X, Radio, Shield, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CardPrediction,
   CATEGORY_LABELS,
+  CATEGORY_DEFINITIONS,
   CATEGORY_COLORS,
   expectedReturnForWindow,
   PREDICTION_WINDOW_LABELS,
@@ -11,6 +12,7 @@ import {
 } from '../types';
 import { PokemonCard } from '../../../types/pokemon';
 import { useInsightsApi } from '../hooks/insightsApiContext';
+import { formatInsightScore, insightScoreValue } from '../utils/formatInsightNumbers';
 import { ExternalSignalsPanel } from './ExternalSignalsPanel';
 
 interface Props {
@@ -25,18 +27,27 @@ function Bar({
   value,
   maxValue,
   color,
+  hint,
 }: {
   label: string;
   value: number;
   maxValue: number;
   color: string;
+  hint?: string;
 }) {
-  const pct = Math.min(100, (value / maxValue) * 100);
+  const display = formatInsightScore(value);
+  const numeric = insightScoreValue(value);
+  const pct = Math.min(100, (numeric / maxValue) * 100);
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between text-xs">
-        <span className="text-ink-muted">{label}</span>
-        <span className="font-mono text-white">{value}</span>
+        <span className="text-ink-muted" title={hint}>
+          {label}
+        </span>
+        <span className="font-mono tabular-nums text-ink-primary">
+          {display}
+          <span className="text-ink-muted">/{maxValue}</span>
+        </span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-surface-inset">
         <div
@@ -62,16 +73,28 @@ function PriceRangeRow({
   current: number;
 }) {
   const rangeColor = mid >= current ? '#34d399' : '#f87171';
+  const changePct = current > 0 ? ((mid - current) / current) * 100 : 0;
   return (
-    <div className="flex items-center justify-between rounded-lg bg-surface-inset px-3 py-2">
-      <span className="text-xs font-medium text-ink-secondary">{label}</span>
-      <div className="flex items-center gap-3 font-mono text-xs">
-        <span className="text-ink-muted">${low.toFixed(2)}</span>
-        <span className="text-white">${mid.toFixed(2)}</span>
-        <span className="text-ink-muted">${high.toFixed(2)}</span>
-        <span style={{ color: rangeColor }}>
-          {mid >= current ? '+' : ''}
-          {(((mid - current) / current) * 100).toFixed(1)}%
+    <div className="rounded-lg bg-surface-inset px-3 py-2.5">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="text-xs font-medium text-ink-secondary">{label}</span>
+        <span className="font-mono text-xs tabular-nums" style={{ color: rangeColor }}>
+          {changePct >= 0 ? '+' : ''}
+          {changePct.toFixed(1)}% vs now
+        </span>
+      </div>
+      <div className="mb-1.5 flex items-baseline gap-2">
+        <span className="text-[10px] uppercase tracking-wide text-ink-muted">Expected</span>
+        <span className="font-mono text-sm font-semibold tabular-nums text-ink-primary">
+          ${mid.toFixed(2)}
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-3 text-[11px] text-ink-muted">
+        <span title="Lower bound of the forecast range">
+          Low <span className="font-mono tabular-nums text-ink-secondary">${low.toFixed(2)}</span>
+        </span>
+        <span title="Upper bound of the forecast range">
+          High <span className="font-mono tabular-nums text-ink-secondary">${high.toFixed(2)}</span>
         </span>
       </div>
     </div>
@@ -101,6 +124,7 @@ export function PredictionDetailPanel({
   const expectedReturn = expectedReturnForWindow(prediction, predictionWindow) * 100;
   const isPositive = expectedReturn >= 0;
   const windowLabel = PREDICTION_WINDOW_LABELS[predictionWindow];
+  const categoryDefinition = CATEGORY_DEFINITIONS[prediction.category];
 
   const handleExplain = async () => {
     if (explanation) return;
@@ -109,7 +133,7 @@ export function PredictionDetailPanel({
       const result = await insightsApi.getAiExplanation(prediction.cardId);
       setExplanation(result.explanation);
     } catch (err: unknown) {
-      setExplanation((err as Error)?.message || 'AI analysis unavailable');
+      setExplanation((err as Error)?.message || 'Analysis unavailable');
     } finally {
       setExplanationLoading(false);
     }
@@ -128,7 +152,9 @@ export function PredictionDetailPanel({
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between border-b border-border-default px-4 py-3">
             <div className="min-w-0 flex-1">
-              <h2 className="truncate text-sm font-semibold text-white">{prediction.cardName}</h2>
+              <h2 className="truncate text-sm font-semibold text-ink-primary">
+                {prediction.cardName}
+              </h2>
               <p className="truncate text-xs text-ink-muted">
                 {prediction.setName} &middot; {prediction.setId}
               </p>
@@ -157,16 +183,16 @@ export function PredictionDetailPanel({
                 <span className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">
                   Current Price
                 </span>
-                <div className="mt-1 font-mono text-lg font-semibold text-white">
+                <div className="mt-1 font-mono text-lg font-semibold tabular-nums text-ink-primary">
                   ${prediction.currentPrice?.toFixed(2) || 'N/A'}
                 </div>
               </div>
               <div className="rounded-xl border border-border-default bg-surface-inset p-3">
                 <span className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">
-                  {windowLabel} Return
+                  {windowLabel} Expected Return
                 </span>
                 <div
-                  className={`mt-1 font-mono text-lg font-semibold ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}
+                  className={`mt-1 font-mono text-lg font-semibold tabular-nums ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}
                 >
                   {isPositive ? '+' : ''}
                   {expectedReturn.toFixed(1)}%
@@ -177,16 +203,27 @@ export function PredictionDetailPanel({
             <div className="mb-4">
               <span
                 className={`inline-block rounded-full px-3 py-1 text-xs font-medium ${CATEGORY_COLORS[prediction.category] || ''}`}
+                title={categoryDefinition}
               >
                 {CATEGORY_LABELS[prediction.category]}
               </span>
+              <p className="mt-2 text-xs leading-relaxed text-ink-secondary">
+                {categoryDefinition}
+              </p>
               {prediction.suggestedAction && (
-                <span className="ml-2 text-xs text-ink-muted">{prediction.suggestedAction}</span>
+                <p className="mt-1 text-xs text-ink-muted">
+                  Suggested action: {prediction.suggestedAction}
+                </p>
               )}
             </div>
 
             <div className="mb-4 space-y-3">
-              <h3 className="text-xs font-medium text-ink-secondary">Predicted Price Ranges</h3>
+              <div>
+                <h3 className="text-xs font-medium text-ink-secondary">Forecast by horizon</h3>
+                <p className="mt-0.5 text-[11px] text-ink-muted">
+                  Expected is the midpoint forecast; Low / High is the model&apos;s range.
+                </p>
+              </div>
               <PriceRangeRow
                 label="7-Day"
                 low={prediction.predicted7dLow}
@@ -235,14 +272,22 @@ export function PredictionDetailPanel({
                 value={prediction.confidenceScore}
                 maxValue={100}
                 color="#818cf8"
+                hint="How sure the model is about this forecast (0–100)"
               />
-              <Bar label="Risk" value={prediction.riskScore} maxValue={100} color="#f87171" />
+              <Bar
+                label="Risk"
+                value={prediction.riskScore}
+                maxValue={100}
+                color="#f87171"
+                hint="Higher means more downside / volatility risk (0–100)"
+              />
               {prediction.liquidityScore != null && (
                 <Bar
                   label="Liquidity"
                   value={prediction.liquidityScore}
                   maxValue={100}
                   color="#34d399"
+                  hint="How easy this card is to buy/sell based on market activity"
                 />
               )}
             </div>
@@ -262,16 +307,18 @@ export function PredictionDetailPanel({
 
             {prediction.gradingPremiumPotential != null &&
               prediction.gradingPremiumPotential >= 0.25 && (
-                <div className="mb-4 rounded-lg border border-violet-500/20 bg-violet-500/5 p-3">
+                <div className="mb-4 rounded-lg border border-border-default bg-surface-inset p-3">
                   <div className="flex items-start gap-2">
-                    <Shield className="mt-0.5 h-4 w-4 shrink-0 text-violet-400" />
+                    <Shield className="mt-0.5 h-4 w-4 shrink-0 text-ink-secondary" />
                     <div>
-                      <h4 className="mb-1 text-xs font-medium text-violet-300">Grading Premium</h4>
+                      <h4 className="mb-1 text-xs font-medium text-ink-secondary">
+                        Grading premium
+                      </h4>
                       <p className="text-xs text-ink-muted">
                         Estimated +{Math.round(prediction.gradingPremiumPotential * 100)}% grading
                         premium potential
                         {prediction.gradingScore != null
-                          ? ` · grade-worthiness score ${Math.round(prediction.gradingScore)}/100`
+                          ? ` · grade-worthiness ${formatInsightScore(prediction.gradingScore)}/100`
                           : ''}
                         . Open the card on Slabs for PSA 10 fees, pop, and comps.
                       </p>
@@ -284,30 +331,26 @@ export function PredictionDetailPanel({
               <button
                 onClick={handleExplain}
                 disabled={explanationLoading}
-                className="flex items-center gap-1.5 rounded-lg border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-xs font-medium text-violet-300 transition-colors hover:bg-violet-500/20 disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-lg border border-border-default bg-surface-inset px-3 py-2 text-xs font-medium text-ink-secondary transition-colors hover:bg-surface-hover disabled:opacity-50"
               >
-                <Brain className="h-3.5 w-3.5" />
                 {explanationLoading
-                  ? 'Generating...'
+                  ? 'Loading…'
                   : explanation
-                    ? 'Show AI Analysis'
-                    : 'Generate AI Analysis'}
+                    ? 'Forecast notes ready'
+                    : 'Explain forecast'}
               </button>
               <button
                 onClick={() => setShowSignals(!showSignals)}
-                className="flex items-center gap-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs font-medium text-cyan-300 transition-colors hover:bg-cyan-500/20"
+                className="flex items-center gap-1.5 rounded-lg border border-border-default bg-surface-inset px-3 py-2 text-xs font-medium text-ink-secondary transition-colors hover:bg-surface-hover"
               >
                 <Radio className="h-3.5 w-3.5" />
-                External Signals
+                Signals
               </button>
             </div>
 
             {explanation && (
-              <div className="mb-4 rounded-lg border border-violet-500/20 bg-violet-500/5 p-3">
-                <div className="flex items-start gap-2">
-                  <Brain className="mt-0.5 h-4 w-4 shrink-0 text-violet-400" />
-                  <p className="text-xs leading-relaxed text-ink-secondary">{explanation}</p>
-                </div>
+              <div className="mb-4 rounded-lg border border-border-default bg-surface-inset p-3">
+                <p className="text-xs leading-relaxed text-ink-secondary">{explanation}</p>
               </div>
             )}
 
