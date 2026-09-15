@@ -151,7 +151,7 @@ export function PredictionCard({
         </div>
 
         <div className="flex items-center justify-between gap-2 text-[10px] text-ink-muted">
-          <span title="Model confidence 0–100">Conf {confidenceText}</span>
+          <span title="Model confidence 0–100">Conf {confidenceText}/100</span>
           <div className="flex items-center gap-1">
             {signalCount > 0 && (
               <button
