@@ -278,11 +278,13 @@ class TieredPackService {
   }
 
   // Fetch a large pool of cards from various sets (includes PSA 10 when available)
+  // Reduced limit from 10000 to 2000 for faster loading while maintaining pool diversity
   private async fetchCardPool(): Promise<PokemonCard[]> {
     let resp: Response;
     try {
-      resp = await fetch(`${env.apiUrl}/api/cards/pool?limit=10000&includeSlabs=1`, {
-        cache: 'no-store',
+      resp = await fetch(`${env.apiUrl}/api/cards/pool?limit=2000&includeSlabs=1`, {
+        // Allow browser/edge caching for 60s to reduce redundant requests
+        cache: 'default',
       });
     } catch {
       throw new Error(

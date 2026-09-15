@@ -129,8 +129,11 @@ export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
     const wish = setWishlistService.getWishlistForSet(setId);
     setWishlistIds(wish);
     try {
-      const cardsRes = await setTrackerService.getSetCards(setId);
-      const summaryRes = await setTrackerService.getSetSummary(setId, wish);
+      // Parallelize both calls to avoid waterfall
+      const [cardsRes, summaryRes] = await Promise.all([
+        setTrackerService.getSetCards(setId),
+        setTrackerService.getSetSummary(setId, wish),
+      ]);
       setSetMeta(cardsRes.set);
       setCards(cardsRes.cards);
       setSummary(summaryRes.summary);

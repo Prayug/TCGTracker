@@ -136,7 +136,9 @@ async function mapAndSendPoolCards(
     eraBand: packEraBandFromSet(card.set),
   }));
 
-  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  // Allow short client/edge cache with stale-while-revalidate since pool data
+  // is precomputed with 5min backend TTL anyway
+  res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
   res.json({
     data: cards,
     count: cards.length,

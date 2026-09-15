@@ -107,8 +107,29 @@ export const BindersIndex: React.FC = () => {
       )}
 
       {loading && !showPlanner && (
-        <div className="flex items-center justify-center py-12">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-hidden="true">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="rounded-2xl border border-border-default bg-surface-raised p-4">
+              <div className="mb-3 flex items-start justify-between">
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="skeleton h-4 w-28 rounded" />
+                  <div className="skeleton h-3 w-40 rounded" />
+                </div>
+              </div>
+              <div className="mb-3 grid grid-cols-4 gap-1">
+                {Array.from({ length: 9 }).map((_, j) => (
+                  <div
+                    key={j}
+                    className="skeleton aspect-[5/7] rounded border border-border-subtle"
+                  />
+                ))}
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="skeleton h-3 w-16 rounded" />
+                <div className="skeleton h-3 w-12 rounded" />
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

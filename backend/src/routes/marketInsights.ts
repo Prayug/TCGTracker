@@ -227,90 +227,102 @@ router.get(
           ? ` AND cp.card_id NOT LIKE 'op:%'`
           : '';
 
-    const statsRow: any = await new Promise((resolve, reject) => {
-      db.get(
-        `SELECT
-        COUNT(*) AS totalPredictions,
-        ROUND(AVG(confidence_score), 1) AS avgConfidence,
-        ROUND(AVG(risk_score), 1) AS avgRisk,
-        ROUND(AVG(expected_90d_return), 4) AS avgExpectedReturn90d,
-        ROUND(AVG(expected_30d_return), 4) AS avgExpectedReturn30d,
-        SUM(CASE WHEN expected_90d_return > 0.01 THEN 1 ELSE 0 END) AS bullishCount,
-        SUM(CASE WHEN expected_90d_return < -0.01 THEN 1 ELSE 0 END) AS bearishCount
-      FROM card_predictions
-      WHERE run_id = (SELECT MAX(id) FROM prediction_runs)${gameClause}`,
-        [],
-        (err, row: any) => (err ? reject(err) : resolve(row))
-      );
-    });
+    // Parallelize all independent DB queries using Promise.all
+    const [statsRow, categoryRows, topGainers, topLosers, confidenceBuckets, calibrationModels] =
+      await Promise.all([
+        // Stats query
+        new Promise<any>((resolve, reject) => {
+          db.get(
+            `SELECT
+            COUNT(*) AS totalPredictions,
+            ROUND(AVG(confidence_score), 1) AS avgConfidence,
+            ROUND(AVG(risk_score), 1) AS avgRisk,
+            ROUND(AVG(expected_90d_return), 4) AS avgExpectedReturn90d,
+            ROUND(AVG(expected_30d_return), 4) AS avgExpectedReturn30d,
+            SUM(CASE WHEN expected_90d_return > 0.01 THEN 1 ELSE 0 END) AS bullishCount,
+            SUM(CASE WHEN expected_90d_return < -0.01 THEN 1 ELSE 0 END) AS bearishCount
+          FROM card_predictions
+          WHERE run_id = (SELECT MAX(id) FROM prediction_runs)${gameClause}`,
+            [],
+            (err, row: any) => (err ? reject(err) : resolve(row))
+          );
+        }),
 
-    const categoryRows: any[] = await new Promise((resolve, reject) => {
-      db.all(
-        `SELECT category, COUNT(*) AS count
-       FROM card_predictions
-       WHERE run_id = (SELECT MAX(id) FROM prediction_runs)${gameClause}
-       GROUP BY category
-       ORDER BY count DESC`,
-        [],
-        (err, rows: any[]) => (err ? reject(err) : resolve(rows || []))
-      );
-    });
+        // Category counts query
+        new Promise<any[]>((resolve, reject) => {
+          db.all(
+            `SELECT category, COUNT(*) AS count
+           FROM card_predictions
+           WHERE run_id = (SELECT MAX(id) FROM prediction_runs)${gameClause}
+           GROUP BY category
+           ORDER BY count DESC`,
+            [],
+            (err, rows: any[]) => (err ? reject(err) : resolve(rows || []))
+          );
+        }),
 
-    const topGainers: any[] = await new Promise((resolve, reject) => {
-      db.all(
-        `SELECT cp.card_id, cm.cardName, cp.current_price, cp.expected_90d_return,
-              cp.confidence_score, cp.category
-       FROM card_predictions cp
-       LEFT JOIN (
-         SELECT cardId, MIN(cardName) AS cardName FROM card_mappings GROUP BY cardId
-       ) cm ON cm.cardId = cp.card_id
-       WHERE cp.run_id = (SELECT MAX(id) FROM prediction_runs)
-         AND cp.expected_90d_return IS NOT NULL
-         AND cp.confidence_score >= 55${cpGameClause}
-       ORDER BY cp.expected_90d_return DESC
-       LIMIT 5`,
-        [],
-        (err, rows: any[]) => (err ? reject(err) : resolve(rows || []))
-      );
-    });
+        // Top gainers query
+        new Promise<any[]>((resolve, reject) => {
+          db.all(
+            `SELECT cp.card_id, cm.cardName, cp.current_price, cp.expected_90d_return,
+                  cp.confidence_score, cp.category
+           FROM card_predictions cp
+           LEFT JOIN (
+             SELECT cardId, MIN(cardName) AS cardName FROM card_mappings GROUP BY cardId
+           ) cm ON cm.cardId = cp.card_id
+           WHERE cp.run_id = (SELECT MAX(id) FROM prediction_runs)
+             AND cp.expected_90d_return IS NOT NULL
+             AND cp.confidence_score >= 55${cpGameClause}
+           ORDER BY cp.expected_90d_return DESC
+           LIMIT 5`,
+            [],
+            (err, rows: any[]) => (err ? reject(err) : resolve(rows || []))
+          );
+        }),
 
-    const topLosers: any[] = await new Promise((resolve, reject) => {
-      db.all(
-        `SELECT cp.card_id, cm.cardName, cp.current_price, cp.expected_90d_return,
-              cp.confidence_score, cp.category
-       FROM card_predictions cp
-       LEFT JOIN (
-         SELECT cardId, MIN(cardName) AS cardName FROM card_mappings GROUP BY cardId
-       ) cm ON cm.cardId = cp.card_id
-       WHERE cp.run_id = (SELECT MAX(id) FROM prediction_runs)
-         AND cp.expected_90d_return IS NOT NULL
-         AND cp.confidence_score >= 55${cpGameClause}
-       ORDER BY cp.expected_90d_return ASC
-       LIMIT 5`,
-        [],
-        (err, rows: any[]) => (err ? reject(err) : resolve(rows || []))
-      );
-    });
+        // Top losers query
+        new Promise<any[]>((resolve, reject) => {
+          db.all(
+            `SELECT cp.card_id, cm.cardName, cp.current_price, cp.expected_90d_return,
+                  cp.confidence_score, cp.category
+           FROM card_predictions cp
+           LEFT JOIN (
+             SELECT cardId, MIN(cardName) AS cardName FROM card_mappings GROUP BY cardId
+           ) cm ON cm.cardId = cp.card_id
+           WHERE cp.run_id = (SELECT MAX(id) FROM prediction_runs)
+             AND cp.expected_90d_return IS NOT NULL
+             AND cp.confidence_score >= 55${cpGameClause}
+           ORDER BY cp.expected_90d_return ASC
+           LIMIT 5`,
+            [],
+            (err, rows: any[]) => (err ? reject(err) : resolve(rows || []))
+          );
+        }),
 
-    const confidenceBuckets: any[] = await new Promise((resolve, reject) => {
-      db.all(
-        `SELECT
-        CASE
-          WHEN confidence_score >= 80 THEN '80-100'
-          WHEN confidence_score >= 60 THEN '60-79'
-          WHEN confidence_score >= 40 THEN '40-59'
-          WHEN confidence_score >= 20 THEN '20-39'
-          ELSE '0-19'
-        END AS bucket,
-        COUNT(*) AS count
-       FROM card_predictions
-       WHERE run_id = (SELECT MAX(id) FROM prediction_runs)${gameClause}
-       GROUP BY bucket
-       ORDER BY bucket DESC`,
-        [],
-        (err, rows: any[]) => (err ? reject(err) : resolve(rows || []))
-      );
-    });
+        // Confidence buckets query
+        new Promise<any[]>((resolve, reject) => {
+          db.all(
+            `SELECT
+            CASE
+              WHEN confidence_score >= 80 THEN '80-100'
+              WHEN confidence_score >= 60 THEN '60-79'
+              WHEN confidence_score >= 40 THEN '40-59'
+              WHEN confidence_score >= 20 THEN '20-39'
+              ELSE '0-19'
+            END AS bucket,
+            COUNT(*) AS count
+           FROM card_predictions
+           WHERE run_id = (SELECT MAX(id) FROM prediction_runs)${gameClause}
+           GROUP BY bucket
+           ORDER BY bucket DESC`,
+            [],
+            (err, rows: any[]) => (err ? reject(err) : resolve(rows || []))
+          );
+        }),
+
+        // Calibration models (also async)
+        getCalibrationModels(),
+      ]);
 
     const categoryBreakdown = categoryRows.reduce(
       (acc: Record<string, number>, row: any) => {
@@ -334,11 +346,10 @@ router.get(
 
     // Context: the realized market median from calibration (what cards actually
     // returned) so the overview's numbers can be compared to reality.
-    const calibrationModels = await getCalibrationModels();
     const marketBenchmark90d = calibrationModels[90]?.marketMedianReturn ?? null;
     const marketBenchmark30d = calibrationModels[30]?.marketMedianReturn ?? null;
 
-    logger.info(`Overview query completed in ${Date.now() - startTime}ms`);
+    logger.info(`Overview query completed in ${Date.now() - startTime}ms (parallel)`);
     res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
     res.json({
       totalPredictions: statsRow.totalPredictions || 0,
