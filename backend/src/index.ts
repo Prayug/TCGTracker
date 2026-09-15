@@ -8,6 +8,7 @@ import { runMigrations } from './db/migrations';
 import { failStalePriceUpdateRuns } from './services/dataFetcher';
 import { backfillCardMappingImages } from './services/cardImageBackfillService';
 import { isOnePieceCatalogIncomplete, syncOnePieceData } from './services/onePieceSync';
+import { warmTopMoversCache } from './services/rawTopMovers';
 import { AuthService } from './services/authService';
 import { AlertService } from './services/alertService';
 import { PortfolioService } from './services/portfolioService';
@@ -63,6 +64,19 @@ async function bootstrap() {
     });
     setupScheduledJobs(alertService);
     startServer(app);
+
+    // Warm caches after server starts to avoid cold-start latency for first visitors
+    (async () => {
+      await new Promise((r) => setTimeout(r, 2000)); // Give server time to fully start
+      try {
+        await warmTopMoversCache();
+        logger.info('Top movers cache warmed successfully');
+      } catch (error) {
+        logger.warn('Top movers cache warming failed (non-fatal)', {
+          error: (error as Error).message,
+        });
+      }
+    })();
 
     void failStalePriceUpdateRuns()
       .then((n) => {

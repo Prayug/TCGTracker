@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowDownRight, ArrowUpRight, Bell, Loader2, Scale, TrendingUp } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Bell, Scale, TrendingUp } from 'lucide-react';
 import {
   CrossGraderArbRow,
   fetchCrossGraderArbs,
@@ -129,8 +129,20 @@ export const PremiumMoversPanel: React.FC<{
       />
 
       {loading ? (
-        <div className="flex justify-center py-6">
-          <Loader2 className="h-5 w-5 animate-spin text-accent" />
+        <div className="grid gap-4 sm:grid-cols-2" aria-hidden="true">
+          {[1, 2].map((col) => (
+            <div key={col}>
+              <div className="skeleton mb-2 h-4 w-24 rounded" />
+              <div className="space-y-1">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center gap-2 rounded-lg py-2">
+                    <div className="skeleton h-4 flex-1 rounded" />
+                    <div className="skeleton h-4 w-16 rounded" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       ) : rows.length === 0 ? (
         <SlabEmpty>Need graded + raw history to show premium momentum.</SlabEmpty>
@@ -282,8 +294,13 @@ export const CrossGraderArbPanel: React.FC = () => {
         subtitle="PSA 10 vs CGC / BGS / SGC 10"
       />
       {loading ? (
-        <div className="flex justify-center py-6">
-          <Loader2 className="h-5 w-5 animate-spin text-accent" />
+        <div className="space-y-1" aria-hidden="true">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex items-center gap-2 rounded-lg py-2">
+              <div className="skeleton h-4 flex-1 rounded" />
+              <div className="skeleton h-4 w-20 rounded" />
+            </div>
+          ))}
         </div>
       ) : rows.length === 0 ? (
         <SlabEmpty>No multi-grader 10 quotes with a meaningful gap yet.</SlabEmpty>

@@ -315,6 +315,27 @@ export async function getRawTopMovers(days: number, limit: number): Promise<RawT
   return payload;
 }
 
+/**
+ * Warm the top-movers cache on server startup so first visitor isn't punished.
+ * Called from server.ts after database is initialized.
+ */
+export async function warmTopMoversCache(): Promise<void> {
+  const defaultPeriods = [7, 30, 90];
+  const defaultLimit = 10;
+
+  try {
+    await Promise.all(
+      defaultPeriods.map(async (days) => {
+        const startTime = Date.now();
+        await getRawTopMovers(days, defaultLimit);
+        console.log(`[TopMovers] Warmed cache for ${days}d in ${Date.now() - startTime}ms`);
+      })
+    );
+  } catch (err) {
+    console.warn('[TopMovers] Cache warming failed:', err);
+  }
+}
+
 async function enrichMovers(
   ranked: Array<{
     uniqueIdentifier: string;

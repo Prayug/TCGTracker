@@ -78,8 +78,37 @@ export const PackShop: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[400px] items-center justify-center">
-        <div className="h-9 w-9 animate-spin rounded-full border-2 border-border-default border-t-accent" />
+      <div className="section-stack" aria-hidden="true">
+        <div className="space-y-2">
+          <div className="skeleton h-8 w-40 rounded" />
+          <div className="skeleton h-4 w-72 rounded" />
+        </div>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="overflow-hidden rounded-2xl border border-border-subtle bg-surface-inset"
+            >
+              <div className="min-h-[12.5rem] bg-gradient-to-br from-surface-overlay to-surface-raised p-5">
+                <div className="skeleton h-6 w-32 rounded" />
+                <div className="skeleton mt-2 h-3 w-24 rounded" />
+                <div className="skeleton mt-4 h-10 w-20 rounded" />
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  {[1, 2, 3].map((j) => (
+                    <div key={j} className="skeleton h-8 w-full rounded" />
+                  ))}
+                </div>
+              </div>
+              <div className="p-5 space-y-4">
+                <div className="flex justify-between border-b border-border-subtle pb-3">
+                  <div className="skeleton h-10 w-16 rounded" />
+                  <div className="skeleton h-10 w-16 rounded" />
+                </div>
+                <div className="skeleton h-10 w-full rounded-xl" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }

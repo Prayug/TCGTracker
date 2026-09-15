@@ -6,7 +6,6 @@ import { setTrackerService } from '../../../services/setTrackerService';
 import { setWishlistService } from '../../../services/setWishlistService';
 import { onePieceApi } from '../../../services/onepieceApi';
 import { useGame } from '../../../contexts/GameContext';
-import { LoadingSpinner } from '../../../components/common/LoadingSpinner';
 import { ErrorMessage } from '../../../components/common/ErrorMessage';
 import { PageEmptyState } from '../../../components/common/PageEmptyState';
 import { groupSetsByEra, formatReleaseYear } from '../../../utils/setEra';
@@ -169,8 +168,31 @@ export const SetIndex: React.FC<SetIndexProps> = ({ onSelectSet }) => {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[320px] items-center justify-center">
-        <LoadingSpinner />
+      <div className="space-y-8" aria-hidden="true">
+        <section className="space-y-2">
+          <div className="skeleton h-4 w-24 rounded" />
+          <div className="skeleton h-8 w-56 rounded" />
+          <div className="skeleton h-4 w-96 max-w-full rounded" />
+        </section>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="skeleton h-10 min-w-[200px] flex-1 rounded-lg" />
+          <div className="skeleton h-10 w-32 rounded-lg" />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 9 }).map((_, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-3 rounded-2xl border border-border-default bg-surface-raised p-3.5"
+            >
+              <div className="skeleton h-12 w-12 rounded-lg" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className="skeleton h-4 w-32 rounded" />
+                <div className="skeleton h-3 w-20 rounded" />
+              </div>
+              <div className="skeleton h-8 w-8 rounded-full" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }

@@ -34,8 +34,24 @@ export function DealFeed({
 }) {
   if (loading && deals.length === 0) {
     return (
-      <div className="flex h-40 items-center justify-center">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2" aria-hidden="true">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="rounded-xl border border-border-default bg-surface-raised p-4">
+            <div className="flex items-start gap-4">
+              <div className="skeleton h-20 w-16 rounded-lg" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className="skeleton h-4 w-40 rounded" />
+                <div className="skeleton h-3 w-28 rounded" />
+                <div className="skeleton h-5 w-20 rounded" />
+              </div>
+              <div className="skeleton h-8 w-20 rounded-lg" />
+            </div>
+            <div className="mt-3 flex items-center justify-between">
+              <div className="skeleton h-3 w-24 rounded" />
+              <div className="skeleton h-3 w-16 rounded" />
+            </div>
+          </div>
+        ))}
       </div>
     );
   }

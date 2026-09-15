@@ -166,8 +166,23 @@ export function DealsPage() {
 
       {tab === 'saved' ? (
         savedLoading ? (
-          <div className="flex h-40 items-center justify-center">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+          <div className="space-y-3" aria-hidden="true">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="rounded-xl border border-border-default bg-surface-raised p-4"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="space-y-2">
+                    <div className="skeleton h-4 w-32 rounded" />
+                    <div className="skeleton h-3 w-16 rounded" />
+                  </div>
+                  <div className="skeleton h-8 w-24 rounded-lg" />
+                </div>
+                <div className="mt-2 skeleton h-3 w-56 rounded" />
+                <div className="mt-1 skeleton h-3 w-32 rounded" />
+              </div>
+            ))}
           </div>
         ) : saved.length === 0 ? (
           <PageEmptyState

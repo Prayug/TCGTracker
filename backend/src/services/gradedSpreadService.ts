@@ -221,7 +221,13 @@ export async function getTopGradedPremiums(
   );
 
   let mapped = rows
-    .filter((r) => r.rawPrice && r.rawPrice > 0)
+    .filter((r) => {
+      // Filter out bad data: require valid raw price with minimum threshold
+      if (!r.rawPrice || r.rawPrice < 5) return false;
+      // Require minimum sold listings for confidence
+      if ((r.soldListings ?? 0) < 2) return false;
+      return true;
+    })
     .map((r) => {
       const premium = r.gradedPrice - (r.rawPrice as number);
       const premiumPct = (premium / (r.rawPrice as number)) * 100;
@@ -244,6 +250,8 @@ export async function getTopGradedPremiums(
         ...fresh,
       });
     })
+    // Filter out extreme outliers (>500% premium likely bad data)
+    .filter((r) => r.premiumPct != null && r.premiumPct <= 500)
     .sort((a, b) => (b.premiumPct ?? 0) - (a.premiumPct ?? 0));
 
   if (options?.tradeableOnly) {
@@ -463,10 +471,17 @@ export async function getTopPremiumMovers(options?: {
   for (const r of rows) {
     if (!(r.rawNow && r.rawNow > 0) || !(r.rawPrev && r.rawPrev > 0)) continue;
     if (!(r.gradedPrev && r.gradedPrev > 0)) continue;
+    // Skip very low raw prices where small $ changes cause huge % swings
+    if (r.rawNow < 5 || r.rawPrev < 5) continue;
+    // Require minimum sold listings for data confidence
+    if ((r.soldListings ?? 0) < 3) continue;
     const premiumPct = ((r.gradedNow - r.rawNow) / r.rawNow) * 100;
     const premiumPctPrev = ((r.gradedPrev - r.rawPrev) / r.rawPrev) * 100;
     const premiumPctDelta = premiumPct - premiumPctPrev;
     if (!Number.isFinite(premiumPctDelta) || Math.abs(premiumPctDelta) < 5) continue;
+    // Filter out extreme outliers (bad data) - cap at 500% premium change
+    if (Math.abs(premiumPct) > 500 || Math.abs(premiumPctPrev) > 500) continue;
+    if (Math.abs(premiumPctDelta) > 300) continue;
     const fresh = freshness(r.fetchedAt, r.verified);
     const liq = scoreLiquidity({
       soldListings: r.soldListings,

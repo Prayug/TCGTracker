@@ -101,7 +101,21 @@ export function BrowseDiscovery({ isOnePiece = false, onTrySearch }: BrowseDisco
           {loading ? (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="skeleton aspect-[3/4] rounded-xl" />
+                <div
+                  key={i}
+                  className="overflow-hidden rounded-xl border border-border-subtle bg-surface-raised shadow-card"
+                  aria-hidden="true"
+                >
+                  <div className="skeleton aspect-[63/88]" />
+                  <div className="space-y-2 p-3">
+                    <div className="skeleton h-4 w-4/5 rounded" />
+                    <div className="skeleton h-3 w-2/3 rounded" />
+                    <div className="mt-2 flex items-center justify-between">
+                      <div className="skeleton h-5 w-14 rounded-full" />
+                      <div className="skeleton h-4 w-10 rounded" />
+                    </div>
+                  </div>
+                </div>
               ))}
             </div>
           ) : trending.length > 0 ? (

@@ -30,12 +30,20 @@ export function HomeHero() {
     >
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_30%,rgba(110,231,183,0.05),transparent_50%)]" />
 
-      {!reduced && ready && (
+      {!reduced && (
         <>
+          {/* Soft skeleton shimmer while 3D loads */}
+          {!ready && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="h-48 w-48 animate-pulse rounded-full bg-gradient-to-r from-surface-inset via-surface-hover to-surface-inset opacity-30" />
+            </div>
+          )}
           {/* r3f Canvas forces position:relative inline, so position via a wrapper */}
-          <div className="absolute inset-0">
-            <ScrollWorld progressRef={progressRef} />
-          </div>
+          {ready && (
+            <div className="absolute inset-0">
+              <ScrollWorld progressRef={progressRef} />
+            </div>
+          )}
           <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(12,17,24,0.55)_0%,rgba(12,17,24,0.35)_45%,rgba(12,17,24,0.85)_100%)]" />
         </>
       )}

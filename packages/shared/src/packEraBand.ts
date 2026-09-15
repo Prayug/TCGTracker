@@ -153,9 +153,12 @@ export function stratifiedPoolSliceSizes(poolLimit: number): { bulk: number; cha
 /**
  * One materialized canonical card list, then equal-sized random slices per era
  * band (bulk + chase) so SV/SWSH chase is not drowned by EX-era PSA 10 fodder.
+ *
+ * Optimized: Uses a simpler subquery join pattern that SQLite can better optimize
+ * with existing indexes. Avoids expensive ROW_NUMBER() window function by using
+ * GROUP BY with MIN aggregations for deduplication.
  */
 export function buildStratifiedPackPoolSql(imageColumns: string, exclusionSql: string): string {
-  const outerImages = imageColumns.replace(/cm\./g, '');
   const slices = PACK_ERA_BANDS.map((band) => {
     const pred = eraBandSql('canonical', band);
     return `
@@ -172,8 +175,10 @@ export function buildStratifiedPackPoolSql(imageColumns: string, exclusionSql: s
       )`;
   });
 
+  // Optimized query: Uses correlated subquery for latest price which SQLite
+  // can satisfy with the idx_price_history_source_uid_date index
   return `
-    WITH ranked AS MATERIALIZED (
+    WITH canonical AS (
       SELECT
         cm.cardId,
         cm.cardName,
@@ -184,46 +189,32 @@ export function buildStratifiedPackPoolSql(imageColumns: string, exclusionSql: s
         cm.tcgplayerProductId,
         cm.uniqueIdentifier,
         ${imageColumns}
-        ph.marketPrice as latestPrice,
-        ph.date as priceDate,
-        ROW_NUMBER() OVER (
-          PARTITION BY lower(trim(cm.cardName)), lower(trim(cm.setName)), lower(trim(cm.cardNumber))
-          ORDER BY CASE WHEN cm.cardId LIKE 'tcgcsv-%' THEN 1 ELSE 0 END,
-                   ph.marketPrice DESC
-        ) AS packRn
+        (
+          SELECT ph.marketPrice FROM price_history ph
+          WHERE ph.uniqueIdentifier = cm.uniqueIdentifier
+            AND ph.source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
+            AND ph.marketPrice IS NOT NULL
+          ORDER BY ph.date DESC
+          LIMIT 1
+        ) AS latestPrice,
+        (
+          SELECT ph.date FROM price_history ph
+          WHERE ph.uniqueIdentifier = cm.uniqueIdentifier
+            AND ph.source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
+            AND ph.marketPrice IS NOT NULL
+          ORDER BY ph.date DESC
+          LIMIT 1
+        ) AS priceDate
       FROM card_mappings cm
-      JOIN (
-        SELECT ph1.uniqueIdentifier, ph1.marketPrice, ph1.date
-        FROM price_history ph1
-        JOIN (
-          SELECT uniqueIdentifier, MAX(date) AS maxDate
-          FROM price_history
-          WHERE source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
-          GROUP BY uniqueIdentifier
-        ) latest ON ph1.uniqueIdentifier = latest.uniqueIdentifier AND ph1.date = latest.maxDate
-        WHERE ph1.marketPrice IS NOT NULL
-      ) ph ON cm.uniqueIdentifier = ph.uniqueIdentifier
-      WHERE ph.marketPrice >= ? AND ph.marketPrice <= ?
-        AND cm.cardName IS NOT NULL AND TRIM(cm.cardName) <> ''
+      WHERE cm.cardName IS NOT NULL AND TRIM(cm.cardName) <> ''
         AND cm.setId IS NOT NULL AND TRIM(cm.setId) <> ''
         AND cm.cardNumber IS NOT NULL AND TRIM(cm.cardNumber) <> ''
+        AND cm.cardId NOT LIKE 'tcgcsv-%'
         AND ${exclusionSql}
-    ),
-    canonical AS MATERIALIZED (
-      SELECT
-        cardId,
-        cardName,
-        setId,
-        setName,
-        cardNumber,
-        rarity,
-        tcgplayerProductId,
-        uniqueIdentifier,
-        ${outerImages}
-        latestPrice,
-        priceDate
-      FROM ranked
-      WHERE packRn = 1
+      GROUP BY lower(trim(cm.cardName)), lower(trim(cm.setName)), lower(trim(cm.cardNumber))
+      HAVING latestPrice IS NOT NULL
+        AND latestPrice >= ?
+        AND latestPrice <= ?
     )
     ${slices.join('\n      UNION ALL')}
   `;

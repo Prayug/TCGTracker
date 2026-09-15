@@ -20,13 +20,53 @@ function DirectionLabel({ direction }: { direction: string }) {
   }
 }
 
+function OverviewSkeleton() {
+  return (
+    <div className="space-y-6" aria-hidden="true">
+      <div className="grid grid-cols-3 gap-4">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="rounded-xl border border-border-default bg-surface-raised p-4">
+            <div className="flex items-center gap-2">
+              <div className="skeleton h-4 w-4 rounded" />
+              <div className="skeleton h-3 w-20 rounded" />
+            </div>
+            <div className="skeleton mt-2 h-6 w-16 rounded" />
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="rounded-xl border border-border-default bg-surface-raised p-4">
+          <div className="skeleton mb-3 h-4 w-32 rounded" />
+          <div className="skeleton mx-auto h-40 w-40 rounded-full" />
+        </div>
+        <div className="rounded-xl border border-border-default bg-surface-raised p-4">
+          <div className="skeleton mb-3 h-4 w-40 rounded" />
+          <div className="space-y-2">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="skeleton h-6 w-full rounded" />
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {[1, 2].map((i) => (
+          <div key={i} className="rounded-xl border border-border-default bg-surface-raised p-4">
+            <div className="skeleton mb-3 h-4 w-24 rounded" />
+            <div className="space-y-2">
+              {[1, 2, 3, 4, 5].map((j) => (
+                <div key={j} className="skeleton h-10 w-full rounded-lg" />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function MarketOverview({ data, loading, error }: Props) {
   if (loading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-      </div>
-    );
+    return <OverviewSkeleton />;
   }
 
   if (error || !data) {

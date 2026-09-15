@@ -7,6 +7,7 @@ import {
   isPredictionWindow,
   PredictionWindow,
   computeSetAgeDays,
+  CardPredictionRow,
 } from '../services/predictionEngine';
 import { runBacktest, getBacktestResults } from '../services/backtestEngine';
 import { updateActualResults, getForwardTestStatus } from '../services/forwardTestTracker';
@@ -31,6 +32,27 @@ import { AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
+// In-memory cache for predictions with TTL
+interface PredictionsCacheEntry {
+  expiresAt: number;
+  data: CardPredictionRow[];
+  window: PredictionWindow;
+  requestedWindow: PredictionWindow;
+  horizonSupport: any;
+  experimental: boolean;
+}
+const PREDICTIONS_CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes
+const predictionsCache = new Map<string, PredictionsCacheEntry>();
+
+function buildPredictionsCacheKey(
+  limit: number,
+  category: string | undefined,
+  filters: any,
+  window: PredictionWindow
+): string {
+  return JSON.stringify({ limit, category, filters, window });
+}
+
 const asyncHandler =
   (fn: (req: AuthRequest, res: Response) => Promise<any>) => (req: AuthRequest, res: Response) => {
     fn(req, res).catch((err: any) => {
@@ -42,6 +64,7 @@ const asyncHandler =
 router.get(
   '/predictions',
   asyncHandler(async (req, res) => {
+    const startTime = Date.now();
     const limit = Math.min(parseInt(req.query.limit as string) || 100, 500);
     const category = req.query.category as string | undefined;
     const search = req.query.search as string | undefined;
@@ -92,26 +115,56 @@ router.get(
       if (fallback) effectiveWindow = `${fallback}d` as PredictionWindow;
     }
 
-    const predictions = await getLatestPredictions(
-      limit,
-      category,
-      {
-        minPrice,
-        maxPrice,
-        minConfidence,
-        rarities,
-        eras,
-        setIds,
-        releaseDateFrom,
-        releaseDateTo,
-        search,
-        sortBy: sortBy as 'return' | 'confidence' | 'price' | 'name' | 'risk',
-        sortOrder: sortOrder as 'asc' | 'desc',
-        game,
-      },
-      effectiveWindow
-    );
+    const filters: import('../services/predictionEngine').PredictionQueryFilters = {
+      minPrice,
+      maxPrice,
+      minConfidence,
+      rarities,
+      eras,
+      setIds,
+      releaseDateFrom,
+      releaseDateTo,
+      search,
+      sortBy: sortBy as 'return' | 'confidence' | 'price' | 'name' | 'risk',
+      sortOrder: sortOrder as 'asc' | 'desc',
+      game,
+    };
 
+    // Check cache for predictions without search (search results are unique per query)
+    const cacheKey = buildPredictionsCacheKey(limit, category, filters, effectiveWindow);
+    const cached = predictionsCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      logger.info(`Predictions cache hit, elapsed: ${Date.now() - startTime}ms`);
+      // Set cache headers for stale-while-revalidate
+      res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+      return res.json({
+        data: cached.data,
+        count: cached.data.length,
+        window: cached.window,
+        requestedWindow: cached.requestedWindow,
+        horizonSupport: cached.horizonSupport,
+        experimental: cached.experimental,
+        modelVersion: '3.2.0',
+        cached: true,
+      });
+    }
+
+    const predictions = await getLatestPredictions(limit, category, filters, effectiveWindow);
+
+    // Cache the result
+    predictionsCache.set(cacheKey, {
+      expiresAt: Date.now() + PREDICTIONS_CACHE_TTL_MS,
+      data: predictions,
+      window: effectiveWindow,
+      requestedWindow: window,
+      horizonSupport,
+      experimental: horizonSupport.experimental.includes(windowToHorizonDays(effectiveWindow)),
+    });
+
+    logger.info(`Predictions query completed in ${Date.now() - startTime}ms`);
+
+    // Set cache headers for stale-while-revalidate
+    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
     res.json({
       data: predictions,
       count: predictions.length,
@@ -157,6 +210,7 @@ router.post(
 router.get(
   '/overview',
   asyncHandler(async (req, res) => {
+    const startTime = Date.now();
     const db = getDb();
     const gameParam = (req.query.game as string | undefined)?.toLowerCase();
     const game = gameParam === 'onepiece' || gameParam === 'pokemon' ? gameParam : undefined;
@@ -173,90 +227,102 @@ router.get(
           ? ` AND cp.card_id NOT LIKE 'op:%'`
           : '';
 
-    const statsRow: any = await new Promise((resolve, reject) => {
-      db.get(
-        `SELECT
-        COUNT(*) AS totalPredictions,
-        ROUND(AVG(confidence_score), 1) AS avgConfidence,
-        ROUND(AVG(risk_score), 1) AS avgRisk,
-        ROUND(AVG(expected_90d_return), 4) AS avgExpectedReturn90d,
-        ROUND(AVG(expected_30d_return), 4) AS avgExpectedReturn30d,
-        SUM(CASE WHEN expected_90d_return > 0.01 THEN 1 ELSE 0 END) AS bullishCount,
-        SUM(CASE WHEN expected_90d_return < -0.01 THEN 1 ELSE 0 END) AS bearishCount
-      FROM card_predictions
-      WHERE run_id = (SELECT MAX(id) FROM prediction_runs)${gameClause}`,
-        [],
-        (err, row: any) => (err ? reject(err) : resolve(row))
-      );
-    });
+    // Parallelize all independent DB queries using Promise.all
+    const [statsRow, categoryRows, topGainers, topLosers, confidenceBuckets, calibrationModels] =
+      await Promise.all([
+        // Stats query
+        new Promise<any>((resolve, reject) => {
+          db.get(
+            `SELECT
+            COUNT(*) AS totalPredictions,
+            ROUND(AVG(confidence_score), 1) AS avgConfidence,
+            ROUND(AVG(risk_score), 1) AS avgRisk,
+            ROUND(AVG(expected_90d_return), 4) AS avgExpectedReturn90d,
+            ROUND(AVG(expected_30d_return), 4) AS avgExpectedReturn30d,
+            SUM(CASE WHEN expected_90d_return > 0.01 THEN 1 ELSE 0 END) AS bullishCount,
+            SUM(CASE WHEN expected_90d_return < -0.01 THEN 1 ELSE 0 END) AS bearishCount
+          FROM card_predictions
+          WHERE run_id = (SELECT MAX(id) FROM prediction_runs)${gameClause}`,
+            [],
+            (err, row: any) => (err ? reject(err) : resolve(row))
+          );
+        }),
 
-    const categoryRows: any[] = await new Promise((resolve, reject) => {
-      db.all(
-        `SELECT category, COUNT(*) AS count
-       FROM card_predictions
-       WHERE run_id = (SELECT MAX(id) FROM prediction_runs)${gameClause}
-       GROUP BY category
-       ORDER BY count DESC`,
-        [],
-        (err, rows: any[]) => (err ? reject(err) : resolve(rows || []))
-      );
-    });
+        // Category counts query
+        new Promise<any[]>((resolve, reject) => {
+          db.all(
+            `SELECT category, COUNT(*) AS count
+           FROM card_predictions
+           WHERE run_id = (SELECT MAX(id) FROM prediction_runs)${gameClause}
+           GROUP BY category
+           ORDER BY count DESC`,
+            [],
+            (err, rows: any[]) => (err ? reject(err) : resolve(rows || []))
+          );
+        }),
 
-    const topGainers: any[] = await new Promise((resolve, reject) => {
-      db.all(
-        `SELECT cp.card_id, cm.cardName, cp.current_price, cp.expected_90d_return,
-              cp.confidence_score, cp.category
-       FROM card_predictions cp
-       LEFT JOIN (
-         SELECT cardId, MIN(cardName) AS cardName FROM card_mappings GROUP BY cardId
-       ) cm ON cm.cardId = cp.card_id
-       WHERE cp.run_id = (SELECT MAX(id) FROM prediction_runs)
-         AND cp.expected_90d_return IS NOT NULL
-         AND cp.confidence_score >= 55${cpGameClause}
-       ORDER BY cp.expected_90d_return DESC
-       LIMIT 5`,
-        [],
-        (err, rows: any[]) => (err ? reject(err) : resolve(rows || []))
-      );
-    });
+        // Top gainers query
+        new Promise<any[]>((resolve, reject) => {
+          db.all(
+            `SELECT cp.card_id, cm.cardName, cp.current_price, cp.expected_90d_return,
+                  cp.confidence_score, cp.category
+           FROM card_predictions cp
+           LEFT JOIN (
+             SELECT cardId, MIN(cardName) AS cardName FROM card_mappings GROUP BY cardId
+           ) cm ON cm.cardId = cp.card_id
+           WHERE cp.run_id = (SELECT MAX(id) FROM prediction_runs)
+             AND cp.expected_90d_return IS NOT NULL
+             AND cp.confidence_score >= 55${cpGameClause}
+           ORDER BY cp.expected_90d_return DESC
+           LIMIT 5`,
+            [],
+            (err, rows: any[]) => (err ? reject(err) : resolve(rows || []))
+          );
+        }),
 
-    const topLosers: any[] = await new Promise((resolve, reject) => {
-      db.all(
-        `SELECT cp.card_id, cm.cardName, cp.current_price, cp.expected_90d_return,
-              cp.confidence_score, cp.category
-       FROM card_predictions cp
-       LEFT JOIN (
-         SELECT cardId, MIN(cardName) AS cardName FROM card_mappings GROUP BY cardId
-       ) cm ON cm.cardId = cp.card_id
-       WHERE cp.run_id = (SELECT MAX(id) FROM prediction_runs)
-         AND cp.expected_90d_return IS NOT NULL
-         AND cp.confidence_score >= 55${cpGameClause}
-       ORDER BY cp.expected_90d_return ASC
-       LIMIT 5`,
-        [],
-        (err, rows: any[]) => (err ? reject(err) : resolve(rows || []))
-      );
-    });
+        // Top losers query
+        new Promise<any[]>((resolve, reject) => {
+          db.all(
+            `SELECT cp.card_id, cm.cardName, cp.current_price, cp.expected_90d_return,
+                  cp.confidence_score, cp.category
+           FROM card_predictions cp
+           LEFT JOIN (
+             SELECT cardId, MIN(cardName) AS cardName FROM card_mappings GROUP BY cardId
+           ) cm ON cm.cardId = cp.card_id
+           WHERE cp.run_id = (SELECT MAX(id) FROM prediction_runs)
+             AND cp.expected_90d_return IS NOT NULL
+             AND cp.confidence_score >= 55${cpGameClause}
+           ORDER BY cp.expected_90d_return ASC
+           LIMIT 5`,
+            [],
+            (err, rows: any[]) => (err ? reject(err) : resolve(rows || []))
+          );
+        }),
 
-    const confidenceBuckets: any[] = await new Promise((resolve, reject) => {
-      db.all(
-        `SELECT
-        CASE
-          WHEN confidence_score >= 80 THEN '80-100'
-          WHEN confidence_score >= 60 THEN '60-79'
-          WHEN confidence_score >= 40 THEN '40-59'
-          WHEN confidence_score >= 20 THEN '20-39'
-          ELSE '0-19'
-        END AS bucket,
-        COUNT(*) AS count
-       FROM card_predictions
-       WHERE run_id = (SELECT MAX(id) FROM prediction_runs)${gameClause}
-       GROUP BY bucket
-       ORDER BY bucket DESC`,
-        [],
-        (err, rows: any[]) => (err ? reject(err) : resolve(rows || []))
-      );
-    });
+        // Confidence buckets query
+        new Promise<any[]>((resolve, reject) => {
+          db.all(
+            `SELECT
+            CASE
+              WHEN confidence_score >= 80 THEN '80-100'
+              WHEN confidence_score >= 60 THEN '60-79'
+              WHEN confidence_score >= 40 THEN '40-59'
+              WHEN confidence_score >= 20 THEN '20-39'
+              ELSE '0-19'
+            END AS bucket,
+            COUNT(*) AS count
+           FROM card_predictions
+           WHERE run_id = (SELECT MAX(id) FROM prediction_runs)${gameClause}
+           GROUP BY bucket
+           ORDER BY bucket DESC`,
+            [],
+            (err, rows: any[]) => (err ? reject(err) : resolve(rows || []))
+          );
+        }),
+
+        // Calibration models (also async)
+        getCalibrationModels(),
+      ]);
 
     const categoryBreakdown = categoryRows.reduce(
       (acc: Record<string, number>, row: any) => {
@@ -280,10 +346,11 @@ router.get(
 
     // Context: the realized market median from calibration (what cards actually
     // returned) so the overview's numbers can be compared to reality.
-    const calibrationModels = await getCalibrationModels();
     const marketBenchmark90d = calibrationModels[90]?.marketMedianReturn ?? null;
     const marketBenchmark30d = calibrationModels[30]?.marketMedianReturn ?? null;
 
+    logger.info(`Overview query completed in ${Date.now() - startTime}ms (parallel)`);
+    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
     res.json({
       totalPredictions: statsRow.totalPredictions || 0,
       avgConfidence: statsRow.avgConfidence || 0,

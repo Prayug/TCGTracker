@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, Bell, ChevronsUpDown, Loader2, Search, Sparkles, X } from 'lucide-react';
+import { ArrowRight, Bell, ChevronsUpDown, Search, Sparkles, X } from 'lucide-react';
 import {
   fetchGradeWorthiness,
   GradeWorthinessEraFacet,
@@ -534,8 +534,8 @@ export const GradeWorthinessList: React.FC<GradeWorthinessListProps> = ({
           </div>
 
           {(eraFacets.length > 0 || setFacets.length > 0) && (
-            <div className="mb-2.5 space-y-2">
-              <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:thin]">
+            <div className="mb-2.5 min-w-0 space-y-2">
+              <div className="-mx-1 flex min-w-0 max-w-full gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
                 <FilterChip
                   active={selectedEras.length === 0}
                   onClick={() => setSelectedEras([])}
@@ -582,8 +582,38 @@ export const GradeWorthinessList: React.FC<GradeWorthinessListProps> = ({
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center py-8">
-          <Loader2 className="h-5 w-5 animate-spin text-accent" />
+        <div className="space-y-3" aria-hidden="true">
+          {!compact && (
+            <div className="rounded-2xl border border-border-default p-3.5">
+              <div className="flex gap-4">
+                <div className="skeleton h-24 w-[4.75rem] rounded-lg" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="skeleton h-3 w-16 rounded" />
+                  <div className="skeleton h-5 w-40 rounded" />
+                  <div className="skeleton h-3 w-32 rounded" />
+                  <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div key={i} className="skeleton h-12 rounded-lg" />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          {Array.from({ length: compact ? 3 : 5 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3 rounded-xl px-1 py-1.5">
+              <div className="skeleton h-3 w-4 rounded" />
+              <div className="skeleton h-14 w-10 rounded-lg" />
+              <div className="min-w-0 flex-1 space-y-1.5">
+                <div className="skeleton h-4 w-32 rounded" />
+                <div className="skeleton h-3 w-24 rounded" />
+              </div>
+              <div className="space-y-1 text-right">
+                <div className="skeleton h-4 w-16 rounded" />
+                <div className="skeleton h-3 w-12 rounded" />
+              </div>
+            </div>
+          ))}
         </div>
       ) : rows.length === 0 || !featured ? (
         <p className="py-4 text-center text-xs text-ink-muted">
