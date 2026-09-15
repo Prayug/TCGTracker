@@ -28,6 +28,13 @@ const MarketInsightsDashboard = lazy(() =>
     default: m.MarketInsightsPage,
   }))
 );
+const InsightsClarityDemo = import.meta.env.DEV
+  ? lazy(() =>
+      import('./features/market-insights/dev/InsightsClarityDemoPage').then((m) => ({
+        default: m.InsightsClarityDemoPage,
+      }))
+    )
+  : null;
 const InvestmentsPage = lazy(() =>
   import('./features/investments/components/InvestmentsPage').then((m) => ({
     default: m.InvestmentsPage,
@@ -180,6 +187,16 @@ function AppRoutes() {
                   </ShellPage>
                 }
               />
+              {InsightsClarityDemo ? (
+                <Route
+                  path="/dev/insights-clarity"
+                  element={
+                    <ShellPage wide fluid>
+                      <InsightsClarityDemo />
+                    </ShellPage>
+                  }
+                />
+              ) : null}
               <Route
                 path="/investments"
                 element={

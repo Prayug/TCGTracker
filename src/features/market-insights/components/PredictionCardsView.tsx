@@ -12,6 +12,8 @@ import {
   PredictionWindow,
   PredictionCategory,
   CATEGORY_LABELS,
+  CATEGORY_SHORT_LABELS,
+  CATEGORY_DEFINITIONS,
   SortField,
   SortDirection,
   PREDICTION_WINDOW_LABELS,
@@ -38,41 +40,58 @@ interface Props {
   allLabel?: string;
 }
 
-const CATEGORY_OPTIONS: { value: string; label: string; icon: React.ReactNode }[] = [
-  { value: 'all', label: 'All Cards', icon: <Activity className="h-3.5 w-3.5" /> },
+const CATEGORY_OPTIONS: {
+  value: string;
+  label: string;
+  shortLabel: string;
+  icon: React.ReactNode;
+}[] = [
+  {
+    value: 'all',
+    label: 'All Cards',
+    shortLabel: 'All',
+    icon: <Activity className="h-3.5 w-3.5" />,
+  },
   {
     value: 'strong_buy',
-    label: CATEGORY_LABELS.strong_buy,
+    label: CATEGORY_SHORT_LABELS.strong_buy,
+    shortLabel: CATEGORY_SHORT_LABELS.strong_buy,
     icon: <TrendingUp className="h-3.5 w-3.5 text-green-400" />,
   },
   {
     value: 'watch_dip',
-    label: CATEGORY_LABELS.watch_dip,
+    label: CATEGORY_SHORT_LABELS.watch_dip,
+    shortLabel: CATEGORY_SHORT_LABELS.watch_dip,
     icon: <Target className="h-3.5 w-3.5 text-emerald-400" />,
   },
   {
     value: 'recovery',
-    label: CATEGORY_LABELS.recovery,
+    label: CATEGORY_SHORT_LABELS.recovery,
+    shortLabel: CATEGORY_SHORT_LABELS.recovery,
     icon: <Activity className="h-3.5 w-3.5 text-blue-400" />,
   },
   {
     value: 'momentum',
-    label: CATEGORY_LABELS.momentum,
+    label: CATEGORY_SHORT_LABELS.momentum,
+    shortLabel: CATEGORY_SHORT_LABELS.momentum,
     icon: <TrendingUp className="h-3.5 w-3.5 text-purple-400" />,
   },
   {
     value: 'stagnant',
-    label: CATEGORY_LABELS.stagnant,
+    label: CATEGORY_SHORT_LABELS.stagnant,
+    shortLabel: CATEGORY_SHORT_LABELS.stagnant,
     icon: <Target className="h-3.5 w-3.5 text-ink-muted" />,
   },
   {
     value: 'avoid',
-    label: CATEGORY_LABELS.avoid,
+    label: CATEGORY_SHORT_LABELS.avoid,
+    shortLabel: CATEGORY_SHORT_LABELS.avoid,
     icon: <AlertTriangle className="h-3.5 w-3.5 text-red-400" />,
   },
   {
     value: 'downtrend',
-    label: CATEGORY_LABELS.downtrend,
+    label: CATEGORY_SHORT_LABELS.downtrend,
+    shortLabel: CATEGORY_SHORT_LABELS.downtrend,
     icon: <ArrowDown className="h-3.5 w-3.5 text-orange-400" />,
   },
 ];
@@ -103,6 +122,11 @@ export function PredictionCardsView({
   onViewDetail,
   allLabel = 'All Cards',
 }: Props) {
+  const activeDefinition =
+    categoryFilter !== 'all'
+      ? CATEGORY_DEFINITIONS[categoryFilter as PredictionCategory]
+      : 'Browse forecasts by classification. Hover a chip for what each label means.';
+
   return (
     <div className="space-y-[var(--insights-space-2,0.75rem)]">
       <div className="insights-controls-row">
@@ -113,7 +137,7 @@ export function PredictionCardsView({
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search by name..."
-            className="w-full rounded-lg border border-border-default bg-surface-inset py-[clamp(0.375rem,0.8vw,0.5rem)] pl-10 pr-3 text-[var(--insights-text-sm,0.875rem)] text-white placeholder-ink-muted outline-none focus:border-accent"
+            className="w-full rounded-lg border border-border-default bg-surface-inset py-[clamp(0.375rem,0.8vw,0.5rem)] pl-10 pr-3 text-[var(--insights-text-sm,0.875rem)] text-ink-primary placeholder-ink-muted outline-none focus:border-accent"
           />
         </div>
 
@@ -122,7 +146,7 @@ export function PredictionCardsView({
             value={sortBy}
             onChange={(e) => onSortByChange(e.target.value as SortField)}
             aria-label="Sort predictions"
-            className="min-w-0 rounded-lg border border-border-default bg-surface-inset px-3 py-[clamp(0.375rem,0.8vw,0.5rem)] text-[var(--insights-text-sm,0.875rem)] text-white outline-none"
+            className="min-w-0 rounded-lg border border-border-default bg-surface-inset px-3 py-[clamp(0.375rem,0.8vw,0.5rem)] text-[var(--insights-text-sm,0.875rem)] text-ink-primary outline-none"
           >
             {SORT_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -141,21 +165,37 @@ export function PredictionCardsView({
         </div>
       </div>
 
-      <div className="scroll-rail scroll-rail-chips -mx-1 px-1 pb-0.5">
-        {CATEGORY_OPTIONS.map((opt) => (
-          <button
-            key={opt.value}
-            onClick={() => onCategoryFilterChange(opt.value)}
-            className={`inline-flex items-center gap-1.5 rounded-full px-[clamp(0.625rem,0.8vw,0.75rem)] py-[clamp(0.3125rem,0.6vw,0.375rem)] text-[var(--insights-text-sm,0.875rem)] font-medium transition-colors ${
-              categoryFilter === opt.value
-                ? 'bg-accent text-white'
-                : 'border border-border-default bg-surface-inset text-ink-muted hover:bg-surface-hover hover:text-ink-secondary'
-            }`}
-          >
-            {opt.icon}
-            {opt.value === 'all' ? allLabel : opt.label}
-          </button>
-        ))}
+      <div>
+        <div className="mb-1.5 flex items-baseline justify-between gap-2">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-ink-muted">
+            Classification
+          </span>
+        </div>
+        <div className="scroll-rail scroll-rail-chips -mx-1 px-1 pb-0.5">
+          {CATEGORY_OPTIONS.map((opt) => {
+            const definition =
+              opt.value === 'all'
+                ? 'Show every scored card for this window'
+                : CATEGORY_DEFINITIONS[opt.value as PredictionCategory];
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                title={definition}
+                onClick={() => onCategoryFilterChange(opt.value)}
+                className={`inline-flex items-center gap-1.5 rounded-full px-[clamp(0.625rem,0.8vw,0.75rem)] py-[clamp(0.3125rem,0.6vw,0.375rem)] text-[var(--insights-text-sm,0.875rem)] font-medium transition-colors ${
+                  categoryFilter === opt.value
+                    ? 'bg-accent text-primary-foreground'
+                    : 'border border-border-default bg-surface-inset text-ink-muted hover:bg-surface-hover hover:text-ink-secondary'
+                }`}
+              >
+                {opt.icon}
+                {opt.value === 'all' ? allLabel : opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-2 max-w-2xl text-xs leading-relaxed text-ink-muted">{activeDefinition}</p>
       </div>
 
       {loading ? (
@@ -199,7 +239,7 @@ export function PredictionCardsView({
               {predictions.length} card{predictions.length !== 1 ? 's' : ''}
             </span>
             <span className="text-border-subtle">|</span>
-            <span>{PREDICTION_WINDOW_LABELS[predictionWindow]} window</span>
+            <span>{PREDICTION_WINDOW_LABELS[predictionWindow]} forecast window</span>
           </div>
           <div className="insights-card-grid">
             {predictions.map((p) => (

@@ -176,14 +176,7 @@ export async function getRawTopMovers(days: number, limit: number): Promise<RawT
        AND p.source = m.source
        AND p.date = m.maxDate
      WHERE COALESCE(p.marketPrice, p.price, 0) >= ?`,
-    [
-      MIN_PRICE,
-      latestDate,
-      `-${days} days`,
-      latestDate,
-      `-${baselineSlackDays} days`,
-      MIN_PRICE,
-    ]
+    [MIN_PRICE, latestDate, `-${days} days`, latestDate, `-${baselineSlackDays} days`, MIN_PRICE]
   );
 
   const prevByUidSource = new Map<string, Map<string, { prevPrice: number; prevDate: string }>>();
@@ -305,10 +298,7 @@ export async function getRawTopMovers(days: number, limit: number): Promise<RawT
     .sort((a, b) => a.changePercent - b.changePercent)
     .slice(0, limit);
 
-  const [gainers, losers] = await Promise.all([
-    enrichMovers(gainerRank),
-    enrichMovers(loserRank),
-  ]);
+  const [gainers, losers] = await Promise.all([enrichMovers(gainerRank), enrichMovers(loserRank)]);
 
   const payload: RawTopMoversResult = { date: latestDate, days, gainers, losers };
   cache.set(cacheKey, { expiresAt: Date.now() + TOP_MOVERS_TTL_MS, payload });

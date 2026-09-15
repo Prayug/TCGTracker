@@ -39,12 +39,20 @@ export function formatApiError(error: unknown, fallback: string): string {
         ? `Backend unavailable (${bodyMsg}). Try again in a moment.`
         : 'Backend unavailable. Try again in a moment.';
     }
+    if (status && status >= 500) {
+      return bodyMsg && !/^Request failed with status code/i.test(bodyMsg)
+        ? bodyMsg
+        : 'Server error. Try again in a moment.';
+    }
     if (bodyMsg) return bodyMsg;
     if (status === 404) {
       return 'API endpoint not found. Check VITE_API_URL and that the backend is deployed.';
     }
-    if (error.message) {
+    if (error.message && !/^Request failed with status code/i.test(error.message)) {
       return error.message;
+    }
+    if (error.message) {
+      return fallback;
     }
   }
 

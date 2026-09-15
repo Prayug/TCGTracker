@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useInsightsApi } from '../hooks/insightsApiContext';
 import { ExternalSignal } from '../types';
+import { formatApiError } from '../../../utils/apiError';
 
 const SOURCE_ICONS: Record<string, React.ReactNode> = {
   news: <Newspaper className="h-3.5 w-3.5 text-sky-400" />,
@@ -62,16 +63,25 @@ export function ExternalSignalsPanel({ cardId, signals: preloaded }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (preloaded) return;
+    if (preloaded) {
+      setSignals(preloaded);
+      setLoading(false);
+      setError(null);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
+    setError(null);
     insightsApi
       .getExternalSignals(cardId)
       .then((res) => {
-        if (!cancelled) setSignals(res.data);
+        if (!cancelled) setSignals(res.data ?? []);
       })
       .catch((err) => {
-        if (!cancelled) setError(err.message || 'Failed to load signals');
+        if (!cancelled) {
+          setSignals([]);
+          setError(formatApiError(err, 'Signals unavailable right now. Try again in a moment.'));
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -90,7 +100,13 @@ export function ExternalSignalsPanel({ cardId, signals: preloaded }: Props) {
   }
 
   if (error) {
-    return <p className="px-3 py-4 text-xs text-red-400">{error}</p>;
+    return (
+      <div className="flex h-24 flex-col items-center justify-center gap-1 px-3 text-center">
+        <Radio className="h-4 w-4 text-ink-muted" />
+        <p className="text-xs text-ink-secondary">Couldn&apos;t load external signals.</p>
+        <p className="text-[11px] text-ink-muted">{error}</p>
+      </div>
+    );
   }
 
   if (signals.length === 0) {

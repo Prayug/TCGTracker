@@ -172,7 +172,10 @@ export function pickLockedFeedSource(
 }
 
 /** Cardmarket EUR finishes are a different series, not TCGPlayer USD. */
-export function isUsdMoverFinish(subTypeName?: string | null, uniqueIdentifier?: string | null): boolean {
+export function isUsdMoverFinish(
+  subTypeName?: string | null,
+  uniqueIdentifier?: string | null
+): boolean {
   const subtype = (subTypeName || '').toLowerCase();
   if (subtype.includes('cardmarket')) return false;
   const uid = (uniqueIdentifier || '').toLowerCase();
