@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BookMarked, Droplets, Loader2, Plus, Scale, Trash2, Waves } from 'lucide-react';
+import { BookMarked, Droplets, Plus, Scale, Trash2, Waves } from 'lucide-react';
 import {
   CrackRegradeRow,
   fetchCrackRegrade,
@@ -81,8 +81,13 @@ export const PopRegimePanel: React.FC = () => {
       />
 
       {loading ? (
-        <div className="flex justify-center py-6">
-          <Loader2 className="h-5 w-5 animate-spin text-accent" />
+        <div className="space-y-1" aria-hidden="true">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex items-center gap-2 rounded-lg py-2">
+              <div className="skeleton h-4 flex-1 rounded" />
+              <div className="skeleton h-4 w-20 rounded" />
+            </div>
+          ))}
         </div>
       ) : rows.length === 0 ? (
         <SlabEmpty>Need population history snapshots (builds as pops refresh).</SlabEmpty>
@@ -150,8 +155,13 @@ export const GradeLadderPanel: React.FC = () => {
         subtitle="Raw → 8 → 9 → 10 economics"
       />
       {loading ? (
-        <div className="flex justify-center py-6">
-          <Loader2 className="h-5 w-5 animate-spin text-accent" />
+        <div className="space-y-1" aria-hidden="true">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex items-center gap-2 rounded-lg py-2">
+              <div className="skeleton h-4 flex-1 rounded" />
+              <div className="skeleton h-4 w-24 rounded" />
+            </div>
+          ))}
         </div>
       ) : rows.length === 0 ? (
         <SlabEmpty>Need PSA 8/9/10 quotes on the same card.</SlabEmpty>
@@ -226,8 +236,13 @@ export const CrackRegradePanel: React.FC = () => {
         subtitle="Alt-grader 10 → PSA after fees"
       />
       {loading ? (
-        <div className="flex justify-center py-6">
-          <Loader2 className="h-5 w-5 animate-spin text-accent" />
+        <div className="space-y-1" aria-hidden="true">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex items-center gap-2 rounded-lg py-2">
+              <div className="skeleton h-4 flex-1 rounded" />
+              <div className="skeleton h-4 w-20 rounded" />
+            </div>
+          ))}
         </div>
       ) : rows.length === 0 ? (
         <SlabEmpty>No cross-grader gaps that clear resubmit costs yet.</SlabEmpty>
