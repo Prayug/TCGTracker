@@ -163,11 +163,13 @@ async function buildLocalFallback(
  */
 router.get('/search', async (req, res) => {
   try {
-    const { query, setId, limit = '100', language = 'en' } = req.query;
+    // Support both 'query' and 'q' parameter names for convenience
+    const { query, q, setId, limit = '100', language = 'en' } = req.query;
+    const searchQuery = query || q;
 
-    if (!query || typeof query !== 'string') {
+    if (!searchQuery || typeof searchQuery !== 'string') {
       return res.status(400).json({
-        error: 'Query parameter is required',
+        error: 'Query parameter is required (use ?query= or ?q=)',
       });
     }
 
@@ -180,16 +182,16 @@ router.get('/search', async (req, res) => {
         : 'en';
 
     let cards: any[] = mapCatalogRowsToPokemonCards(
-      await getCatalogCardsForQuery(query, normalizedSetId, searchLimit, lang)
+      await getCatalogCardsForQuery(searchQuery, normalizedSetId, searchLimit, lang)
     );
 
     if (cards.length === 0) {
       cards = await mapLocalRowsToPokemonCards(
-        await getLocalCardsForQuery(query, normalizedSetId, searchLimit, lang)
+        await getLocalCardsForQuery(searchQuery, normalizedSetId, searchLimit, lang)
       );
     }
 
-    logger.info(`✅ Found ${cards.length} cards matching "${query}" from local database`, {
+    logger.info(`✅ Found ${cards.length} cards matching "${searchQuery}" from local database`, {
       language: lang,
     });
 

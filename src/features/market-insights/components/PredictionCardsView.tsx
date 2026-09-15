@@ -85,6 +85,34 @@ const SORT_OPTIONS: { value: SortField; label: string }[] = [
   { value: 'risk', label: 'Risk Score' },
 ];
 
+function PredictionCardSkeleton() {
+  return (
+    <div
+      className="overflow-hidden rounded-xl border border-border-default bg-surface-raised"
+      aria-hidden="true"
+    >
+      <div className="flex items-start gap-3 p-3">
+        <div className="skeleton h-20 w-14 shrink-0 rounded" />
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="skeleton h-4 w-3/4 rounded" />
+          <div className="skeleton h-3 w-1/2 rounded" />
+          <div className="skeleton h-5 w-20 rounded-full" />
+        </div>
+      </div>
+      <div className="space-y-2 border-t border-border-default bg-surface-inset p-3">
+        <div className="flex justify-between">
+          <div className="skeleton h-3 w-16 rounded" />
+          <div className="skeleton h-4 w-20 rounded" />
+        </div>
+        <div className="flex justify-between">
+          <div className="skeleton h-3 w-20 rounded" />
+          <div className="skeleton h-3 w-12 rounded" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function PredictionCardsView({
   predictions,
   loading,
@@ -159,8 +187,10 @@ export function PredictionCardsView({
       </div>
 
       {loading ? (
-        <div className="flex h-64 items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+        <div className="insights-card-grid">
+          {Array.from({ length: 12 }).map((_, i) => (
+            <PredictionCardSkeleton key={i} />
+          ))}
         </div>
       ) : error ? (
         <div className="flex h-64 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border-default px-6">

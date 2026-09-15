@@ -388,6 +388,13 @@ const initializeDatabaseBody = async (): Promise<void> => {
     'CREATE INDEX IF NOT EXISTS idx_graded_prices_grader ON graded_prices(grader, grade)',
     'CREATE INDEX IF NOT EXISTS idx_graded_price_history_card_date ON graded_price_history(cardId, date)',
     'CREATE INDEX IF NOT EXISTS idx_graded_price_history_lookup ON graded_price_history(cardId, grader, grade, date)',
+    // Performance indexes for pool and predictions endpoints
+    'CREATE INDEX IF NOT EXISTS idx_price_history_source_uid_date ON price_history(source, uniqueIdentifier, date DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_price_history_market_price ON price_history(marketPrice) WHERE marketPrice IS NOT NULL',
+    'CREATE INDEX IF NOT EXISTS idx_card_mappings_pool_lookup ON card_mappings(setId, cardNumber, cardName)',
+    'CREATE INDEX IF NOT EXISTS idx_card_predictions_run_confidence ON card_predictions(run_id, confidence_score DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_card_predictions_run_uid ON card_predictions(run_id, unique_identifier)',
+    'CREATE INDEX IF NOT EXISTS idx_card_mappings_uid_cardid ON card_mappings(uniqueIdentifier, cardId)',
   ];
 
   for (const indexSql of indexes) {

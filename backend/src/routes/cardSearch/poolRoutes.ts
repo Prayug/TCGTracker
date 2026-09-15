@@ -13,6 +13,14 @@ import {
 
 const router = Router();
 
+// In-memory cache for pool results - pool data is relatively stable
+interface PoolCacheEntry {
+  expiresAt: number;
+  rows: any[];
+}
+const POOL_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const poolCache = new Map<string, PoolCacheEntry>();
+
 // Exclude fake "sets" that are actually TCGPlayer product categories
 // These will NEVER have images in the Pokemon API
 const EXCLUDED_FAKE_SET_NAMES = [
@@ -144,12 +152,28 @@ async function mapAndSendPoolCards(
  * don't hang on a graded_prices join.
  */
 router.get('/pool', async (req, res) => {
+  const startTime = Date.now();
   try {
     const db = getDb();
 
     const { limit = '250', minPrice = '0', maxPrice = '100000', includeSlabs } = req.query;
-    const poolLimit = Math.min(parseInt(limit as string) || 250, 10000); // Increased max to 10000 for better pool diversity
+    const poolLimit = Math.min(parseInt(limit as string) || 250, 10000);
     const withSlabs = includeSlabs === '1' || includeSlabs === 'true' || includeSlabs === 'yes';
+    const minP = parseFloat(minPrice as string) || 0;
+    const maxP = parseFloat(maxPrice as string) || 100000;
+
+    // Check cache first - pool data is stable and expensive to compute
+    const cacheKey = `pool:${poolLimit}:${minP}:${maxP}`;
+    const cached = poolCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      logger.info(`Pool cache hit for ${cacheKey}, elapsed: ${Date.now() - startTime}ms`);
+      try {
+        await mapAndSendPoolCards(res, db, cached.rows, withSlabs);
+        return;
+      } catch (mapErr) {
+        logger.error('Error mapping cached pool cards:', mapErr);
+      }
+    }
 
     const imageColumns = await getImageColumnSelectFragment();
     const { exclusionSql, exclusionParams } = buildPackPoolExclusions();
@@ -162,7 +186,7 @@ router.get('/pool', async (req, res) => {
 
     db.all(
       sql,
-      [minPrice, maxPrice, ...exclusionParams, ...sliceLimits],
+      [minP, maxP, ...exclusionParams, ...sliceLimits],
       async (err, rows: any[]) => {
         if (err) {
           logger.error('Error fetching random card pool:', err);
@@ -171,6 +195,13 @@ router.get('/pool', async (req, res) => {
             message: err.message,
           });
         }
+
+        // Cache the raw rows for subsequent requests
+        poolCache.set(cacheKey, {
+          expiresAt: Date.now() + POOL_CACHE_TTL_MS,
+          rows,
+        });
+        logger.info(`Pool query completed in ${Date.now() - startTime}ms, ${rows.length} rows`);
 
         try {
           await mapAndSendPoolCards(res, db, rows, withSlabs);

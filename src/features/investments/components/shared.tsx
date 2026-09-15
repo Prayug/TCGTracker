@@ -126,8 +126,21 @@ export function EmptyState({ message, isError }: { message: string; isError?: bo
 
 export function PanelLoading() {
   return (
-    <div className="flex h-40 items-center justify-center">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+    <div className="space-y-3" aria-hidden="true">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div
+          key={i}
+          className="flex items-center gap-4 rounded-xl border border-border-default bg-surface-raised p-3"
+        >
+          <div className="skeleton h-12 w-9 shrink-0 rounded-md" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="skeleton h-4 w-1/3 rounded" />
+            <div className="skeleton h-3 w-1/4 rounded" />
+          </div>
+          <div className="skeleton h-5 w-16 rounded-full" />
+          <div className="skeleton h-5 w-20 rounded" />
+        </div>
+      ))}
     </div>
   );
 }

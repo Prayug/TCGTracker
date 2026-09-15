@@ -7,6 +7,7 @@ import {
   isPredictionWindow,
   PredictionWindow,
   computeSetAgeDays,
+  CardPredictionRow,
 } from '../services/predictionEngine';
 import { runBacktest, getBacktestResults } from '../services/backtestEngine';
 import { updateActualResults, getForwardTestStatus } from '../services/forwardTestTracker';
@@ -31,6 +32,27 @@ import { AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
+// In-memory cache for predictions with TTL
+interface PredictionsCacheEntry {
+  expiresAt: number;
+  data: CardPredictionRow[];
+  window: PredictionWindow;
+  requestedWindow: PredictionWindow;
+  horizonSupport: any;
+  experimental: boolean;
+}
+const PREDICTIONS_CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes
+const predictionsCache = new Map<string, PredictionsCacheEntry>();
+
+function buildPredictionsCacheKey(
+  limit: number,
+  category: string | undefined,
+  filters: any,
+  window: PredictionWindow
+): string {
+  return JSON.stringify({ limit, category, filters, window });
+}
+
 const asyncHandler =
   (fn: (req: AuthRequest, res: Response) => Promise<any>) => (req: AuthRequest, res: Response) => {
     fn(req, res).catch((err: any) => {
@@ -42,6 +64,7 @@ const asyncHandler =
 router.get(
   '/predictions',
   asyncHandler(async (req, res) => {
+    const startTime = Date.now();
     const limit = Math.min(parseInt(req.query.limit as string) || 100, 500);
     const category = req.query.category as string | undefined;
     const search = req.query.search as string | undefined;
@@ -92,26 +115,56 @@ router.get(
       if (fallback) effectiveWindow = `${fallback}d` as PredictionWindow;
     }
 
-    const predictions = await getLatestPredictions(
-      limit,
-      category,
-      {
-        minPrice,
-        maxPrice,
-        minConfidence,
-        rarities,
-        eras,
-        setIds,
-        releaseDateFrom,
-        releaseDateTo,
-        search,
-        sortBy: sortBy as 'return' | 'confidence' | 'price' | 'name' | 'risk',
-        sortOrder: sortOrder as 'asc' | 'desc',
-        game,
-      },
-      effectiveWindow
-    );
+    const filters: import('../services/predictionEngine').PredictionQueryFilters = {
+      minPrice,
+      maxPrice,
+      minConfidence,
+      rarities,
+      eras,
+      setIds,
+      releaseDateFrom,
+      releaseDateTo,
+      search,
+      sortBy: sortBy as 'return' | 'confidence' | 'price' | 'name' | 'risk',
+      sortOrder: sortOrder as 'asc' | 'desc',
+      game,
+    };
 
+    // Check cache for predictions without search (search results are unique per query)
+    const cacheKey = buildPredictionsCacheKey(limit, category, filters, effectiveWindow);
+    const cached = predictionsCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      logger.info(`Predictions cache hit, elapsed: ${Date.now() - startTime}ms`);
+      // Set cache headers for stale-while-revalidate
+      res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+      return res.json({
+        data: cached.data,
+        count: cached.data.length,
+        window: cached.window,
+        requestedWindow: cached.requestedWindow,
+        horizonSupport: cached.horizonSupport,
+        experimental: cached.experimental,
+        modelVersion: '3.2.0',
+        cached: true,
+      });
+    }
+
+    const predictions = await getLatestPredictions(limit, category, filters, effectiveWindow);
+
+    // Cache the result
+    predictionsCache.set(cacheKey, {
+      expiresAt: Date.now() + PREDICTIONS_CACHE_TTL_MS,
+      data: predictions,
+      window: effectiveWindow,
+      requestedWindow: window,
+      horizonSupport,
+      experimental: horizonSupport.experimental.includes(windowToHorizonDays(effectiveWindow)),
+    });
+
+    logger.info(`Predictions query completed in ${Date.now() - startTime}ms`);
+
+    // Set cache headers for stale-while-revalidate
+    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
     res.json({
       data: predictions,
       count: predictions.length,
@@ -157,6 +210,7 @@ router.post(
 router.get(
   '/overview',
   asyncHandler(async (req, res) => {
+    const startTime = Date.now();
     const db = getDb();
     const gameParam = (req.query.game as string | undefined)?.toLowerCase();
     const game = gameParam === 'onepiece' || gameParam === 'pokemon' ? gameParam : undefined;
@@ -284,6 +338,8 @@ router.get(
     const marketBenchmark90d = calibrationModels[90]?.marketMedianReturn ?? null;
     const marketBenchmark30d = calibrationModels[30]?.marketMedianReturn ?? null;
 
+    logger.info(`Overview query completed in ${Date.now() - startTime}ms`);
+    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
     res.json({
       totalPredictions: statsRow.totalPredictions || 0,
       avgConfidence: statsRow.avgConfidence || 0,
