@@ -27,6 +27,26 @@ function mapRow(r: any): ExternalSignal {
   };
 }
 
+function dbGet<T>(sql: string, params: unknown[]): Promise<T | undefined> {
+  const db = getDb();
+  return new Promise((resolve, reject) => {
+    db.get(sql, params, (err, row) => {
+      if (err) return reject(err);
+      resolve(row as T | undefined);
+    });
+  });
+}
+
+function dbAll<T>(sql: string, params: unknown[]): Promise<T[]> {
+  const db = getDb();
+  return new Promise((resolve, reject) => {
+    db.all(sql, params, (err, rows) => {
+      if (err) return reject(err);
+      resolve((rows || []) as T[]);
+    });
+  });
+}
+
 /**
  * Finds active external market signals relevant to a card. Signals are
  * populated by the scraper pipeline (see services/scrapers/) and matched by:
@@ -38,66 +58,73 @@ export async function searchExternalSignals(
   cardName: string,
   setName: string
 ): Promise<ExternalSignal[]> {
-  const db = getDb();
   try {
-    return await new Promise((resolve, reject) => {
-      db.all(
-        `SELECT * FROM external_market_signals
-         WHERE (expires_at IS NULL OR expires_at >= datetime('now'))
-           AND (
-             (card_name IS NOT NULL AND (
-               LOWER(card_name) = LOWER(?) OR LOWER(?) LIKE LOWER(card_name) || '%'
-             ))
-             OR (card_name IS NULL AND card_id IS NULL AND set_name IS NOT NULL
-                 AND LOWER(set_name) = LOWER(?))
-           )
-         ORDER BY relevance_score DESC, created_at DESC
-         LIMIT 10`,
-        [cardName, cardName, setName],
-        (err, rows: any[]) => {
-          if (err) return reject(err);
-          resolve((rows || []).map(mapRow));
-        }
-      );
-    });
+    const rows = await dbAll<any>(
+      `SELECT * FROM external_market_signals
+       WHERE (expires_at IS NULL OR expires_at >= datetime('now'))
+         AND (
+           (card_name IS NOT NULL AND (
+             LOWER(card_name) = LOWER(?) OR LOWER(?) LIKE LOWER(card_name) || '%'
+           ))
+           OR (card_name IS NULL AND card_id IS NULL AND set_name IS NOT NULL
+               AND LOWER(set_name) = LOWER(?))
+         )
+       ORDER BY relevance_score DESC, created_at DESC
+       LIMIT 10`,
+      [cardName, cardName, setName]
+    );
+    return rows.map(mapRow);
   } catch (err) {
     logger.warn(`External signal search failed for ${cardName}:`, err);
     return [];
   }
 }
 
+async function resolveCardIdentity(cardId: string): Promise<{ cardName: string; setName: string }> {
+  const fromMappings = await dbGet<{ cardName?: string; setName?: string }>(
+    `SELECT cardName, setName FROM card_mappings WHERE cardId = ? LIMIT 1`,
+    [cardId]
+  ).catch(() => undefined);
+
+  if (fromMappings?.cardName || fromMappings?.setName) {
+    return {
+      cardName: fromMappings.cardName ?? '',
+      setName: fromMappings.setName ?? '',
+    };
+  }
+
+  const fromCatalog = await dbGet<{ cardName?: string; setName?: string }>(
+    `SELECT cardName, setName FROM catalog_cards WHERE cardId = ? LIMIT 1`,
+    [cardId]
+  ).catch(() => undefined);
+
+  return {
+    cardName: fromCatalog?.cardName ?? '',
+    setName: fromCatalog?.setName ?? '',
+  };
+}
+
 export async function getExternalSignalsForCard(cardId: string): Promise<ExternalSignal[]> {
-  const db = getDb();
-
-  // Resolve the card's name/set so name-matched and set-level signals are included.
-  const cardInfo: { cardName?: string; setName?: string } = await new Promise((resolve) => {
-    db.get(
-      `SELECT cardName, setName FROM card_mappings WHERE cardId = ? LIMIT 1`,
-      [cardId],
-      (err, row: any) => {
-        if (err || !row) return resolve({});
-        resolve({ cardName: row.cardName, setName: row.setName });
-      }
-    );
-  });
-
-  return new Promise((resolve, reject) => {
-    db.all(
+  try {
+    const { cardName, setName } = await resolveCardIdentity(cardId);
+    const rows = await dbAll<any>(
       `SELECT * FROM external_market_signals
        WHERE (expires_at IS NULL OR expires_at >= datetime('now'))
          AND (
            card_id = ?
-           OR (card_name IS NOT NULL AND LOWER(card_name) = LOWER(?))
+           OR (card_name IS NOT NULL AND ? != '' AND LOWER(card_name) = LOWER(?))
            OR (card_name IS NULL AND card_id IS NULL AND set_name IS NOT NULL
-               AND LOWER(set_name) = LOWER(?))
+               AND ? != '' AND LOWER(set_name) = LOWER(?))
          )
        ORDER BY relevance_score DESC, created_at DESC
        LIMIT 20`,
-      [cardId, cardInfo.cardName ?? '', cardInfo.setName ?? ''],
-      (err, rows: any[]) => {
-        if (err) return reject(err);
-        resolve((rows || []).map(mapRow));
-      }
+      [cardId, cardName, cardName, setName, setName]
     );
-  });
+    return rows.map(mapRow);
+  } catch (err) {
+    // Never 500 the Insights UI for missing tables / transient DB errors —
+    // return an empty list so the panel can show a calm empty state.
+    logger.warn(`External signals lookup failed for ${cardId}:`, err);
+    return [];
+  }
 }

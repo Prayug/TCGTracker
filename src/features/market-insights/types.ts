@@ -27,6 +27,18 @@ export const CATEGORY_SHORT_LABELS: Record<PredictionCategory, string> = {
   downtrend: 'Downtrend',
 };
 
+/** Plain-English definitions for classification chips and detail headers. */
+export const CATEGORY_DEFINITIONS: Record<PredictionCategory, string> = {
+  strong_buy:
+    'Model expects a solid gain with enough confidence to treat as a buy candidate — not a guarantee.',
+  watch_dip: 'Interesting setup, but wait for a pullback before buying.',
+  recovery: 'Price looks beaten down relative to recent history; model sees room to bounce.',
+  momentum: 'Already moving up; model expects the trend to continue near-term.',
+  stagnant: 'Little expected movement — low priority for new capital.',
+  avoid: 'Looks expensive or overheated relative to the forecast; skip or take profits.',
+  downtrend: 'Model expects further decline — higher sell / risk-management priority.',
+};
+
 export const CATEGORY_COLORS: Record<PredictionCategory, string> = {
   strong_buy: 'text-green-400 border-green-500/30 bg-green-500/10',
   watch_dip: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10',
@@ -93,6 +105,12 @@ export const AVAILABLE_RARITIES = [
   'Illustration Rare',
   'Special Illustration Rare',
   'Hyper Rare',
+  'Amazing Rare',
+  'Radiant Rare',
+  'Shiny Rare',
+  'Shiny Ultra Rare',
+  'ACE SPEC Rare',
+  'Trainer Gallery',
   'Rare Holo GX',
   'Rare Holo EX',
   'Rare Holo V',

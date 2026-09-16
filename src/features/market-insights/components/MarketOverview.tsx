@@ -1,5 +1,6 @@
-import { TrendingUp, TrendingDown, Brain, Target, BarChart3 } from 'lucide-react';
+import { TrendingUp, TrendingDown, Layers, Target, BarChart3 } from 'lucide-react';
 import { MarketOverview as MarketOverviewType } from '../types';
+import { formatInsightScore } from '../utils/formatInsightNumbers';
 import { CategoryDonutChart } from './charts/CategoryDonutChart';
 import { ConfidenceDistribution } from './charts/ConfidenceDistribution';
 
@@ -55,14 +56,14 @@ export function MarketOverview({ data, loading, error }: Props) {
 
   const statCards = [
     {
-      icon: <Brain className="h-4 w-4 text-violet-400" />,
-      label: 'Total Predictions',
+      icon: <Layers className="h-4 w-4 text-ink-secondary" />,
+      label: 'Cards scored',
       value: data.totalPredictions.toLocaleString(),
     },
     {
       icon: <Target className="h-4 w-4 text-emerald-400" />,
       label: 'Avg Confidence',
-      value: `${data.avgConfidence}%`,
+      value: formatInsightScore(data.avgConfidence),
     },
     {
       icon: <BarChart3 className="h-4 w-4 text-cyan-400" />,

@@ -13,9 +13,6 @@ import {
   SortField,
   SortDirection,
   InsightsTabType,
-  AVAILABLE_RARITIES,
-  AVAILABLE_OP_RARITIES,
-  AVAILABLE_ERAS,
   HorizonSupportStatus,
   CalibrationHorizonStatus,
   DataQualityStatusResponse,
@@ -27,19 +24,20 @@ function defaultFiltersForGame(isOnePiece: boolean): PredictionFilters {
     return {
       minPrice: 1,
       maxPrice: 10000,
-      minConfidence: 30,
-      rarities: [...AVAILABLE_OP_RARITIES],
+      // Browse defaults are opt-in; scoring already applied investment gates at run time.
+      minConfidence: 15,
+      rarities: [],
       eras: [],
       releaseDateFrom: undefined,
       releaseDateTo: undefined,
     };
   }
   return {
-    minPrice: 2,
+    minPrice: 1,
     maxPrice: 10000,
-    minConfidence: 30,
-    rarities: [...AVAILABLE_RARITIES],
-    eras: [...AVAILABLE_ERAS.map((e) => e.id)],
+    minConfidence: 15,
+    rarities: [],
+    eras: [],
     releaseDateFrom: undefined,
     releaseDateTo: undefined,
   };
