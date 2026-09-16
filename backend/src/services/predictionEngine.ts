@@ -262,6 +262,12 @@ export const DEFAULT_CARD_QUALITY_FILTER: CardQualityFilter = {
     'Illustration Rare',
     'Special Illustration Rare',
     'Hyper Rare',
+    'Amazing Rare',
+    'Radiant Rare',
+    'Shiny Rare',
+    'Shiny Ultra Rare',
+    'ACE SPEC Rare',
+    'Trainer Gallery',
     'Rare Holo GX',
     'Rare Holo EX',
     'Rare Holo V',
@@ -297,6 +303,12 @@ const RARITY_SQL_PATTERNS: Record<string, string> = {
   'Illustration Rare': '%Illustration Rare%',
   'Special Illustration Rare': '%Special Illustration%',
   'Hyper Rare': '%Hyper Rare%',
+  'Amazing Rare': '%Amazing Rare%',
+  'Radiant Rare': '%Radiant Rare%',
+  'Shiny Rare': '%Shiny Rare%',
+  'Shiny Ultra Rare': '%Shiny Ultra Rare%',
+  'ACE SPEC Rare': '%ACE SPEC%',
+  'Trainer Gallery': '%Trainer Gallery%',
   // Older eras (SM/XY/BW) use these labels — without them, era filters look "broken".
   'Rare Holo GX': '%Rare Holo GX%',
   'Rare Holo EX': '%Rare Holo EX%',
@@ -362,6 +374,12 @@ export function isRarityInvestmentWorthy(rarity?: string): boolean {
     'illustration rare',
     'special illustration',
     'hyper rare',
+    'amazing rare',
+    'radiant rare',
+    'shiny rare',
+    'shiny ultra rare',
+    'ace spec',
+    'trainer gallery',
     'rainbow rare',
     'gold rare',
   ];
@@ -2287,7 +2305,7 @@ export async function getLatestPredictions(
   const sortDir = filters?.sortOrder === 'asc' ? 'ASC' : 'DESC';
 
   // Over-fetch so post-filter for tracking quality can still fill the page.
-  const fetchLimit = Math.min(Math.max(limit * 4, limit + 50), 2000);
+  const fetchLimit = Math.min(Math.max(limit * 6, limit + 100), 3000);
   sql += ` ORDER BY ${sortColumn} ${sortDir} LIMIT ?`;
   params.push(fetchLimit);
 
@@ -2326,6 +2344,17 @@ export async function getLatestPredictions(
     })
   );
 
+  // Adaptive tracking thresholds need set age — batch release dates by setId.
+  const uniqueSetIds = [
+    ...new Set(rows.map((r) => r.setId as string | undefined).filter((id): id is string => !!id)),
+  ];
+  const releaseBySetId = new Map<string, string | null>();
+  await Promise.all(
+    uniqueSetIds.map(async (setId) => {
+      releaseBySetId.set(setId, await fetchSetReleaseDate(setId));
+    })
+  );
+
   const mapped: CardPredictionRow[] = [];
   for (let i = 0; i < rows.length; i++) {
     if (mapped.length >= limit) break;
@@ -2336,7 +2365,8 @@ export async function getLatestPredictions(
     const rawHistory = historyByUid.get(resolved.uid) || [];
     const liveQuoteCount = countLiveQuotes(rawHistory);
     const priceHistory = dedupePriceHistoryByDate(rawHistory);
-    if (!hasAdequateTrackingHistory(priceHistory, liveQuoteCount)) {
+    const setReleaseDate = r.setId ? (releaseBySetId.get(r.setId) ?? null) : null;
+    if (!hasAdequateTrackingHistory(priceHistory, liveQuoteCount, { setReleaseDate })) {
       continue;
     }
 

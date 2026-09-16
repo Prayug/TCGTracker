@@ -17,7 +17,7 @@ export function InsightsClarityDemoPage() {
     'return'
   );
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [categoryFilter, setCategoryFilter] = useState('strong_buy');
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const [window, setWindow] = useState<PredictionWindow>('90d');
   const [selected, setSelected] = useState<CardPrediction | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'cards'>('cards');

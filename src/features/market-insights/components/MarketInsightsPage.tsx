@@ -354,8 +354,15 @@ export function MarketInsightsPage({
                       </span>
                     )}
                     <span className="rounded-full bg-surface-hover px-2 py-0.5 text-xs text-ink-muted">
-                      ${filters.minPrice || 0} - ${filters.maxPrice || '∞'} |{' '}
-                      {filters.rarities?.length || 0} rarities
+                      ${filters.minPrice || 0} - ${filters.maxPrice || '∞'} · conf ≥
+                      {filters.minConfidence ?? 0}
+                      {filters.rarities && filters.rarities.length > 0
+                        ? ` · ${filters.rarities.length} rarities`
+                        : ' · all rarities'}
+                      {!isOnePiece &&
+                        (filters.eras && filters.eras.length > 0
+                          ? ` · ${filters.eras.length} eras`
+                          : ' · all eras')}
                     </span>
                   </div>
                   {showFilters ? (
