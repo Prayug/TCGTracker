@@ -456,7 +456,7 @@ export async function runBacktest(
   // Explicit baseline MAE comparison (flat = 0 predicted return; SMA ≈ recent move).
   let flatBaselineMae: number | null = null;
   let smaBaselineMae: number | null = null;
-  let modelMae: number | null = metrics.mae;
+  const modelMae: number | null = metrics.mae;
   let smape: number | null = null;
   let beatsFlatBaseline: boolean | null = null;
   let beatsSmaBaseline: boolean | null = null;
