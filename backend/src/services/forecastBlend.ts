@@ -33,11 +33,7 @@ export interface BlendedForecast {
   residualStd30d: number | null;
 }
 
-function weightFor(
-  tier: ReliabilityTier,
-  beatsBaseline: boolean,
-  approach: string
-): number {
+function weightFor(tier: ReliabilityTier, beatsBaseline: boolean, approach: string): number {
   // When the series does not support beating flat, trust flat/statistical exclusively —
   // mixing in feature scores only injects bias and inflates MAE.
   if (tier === 'insufficient') return 1;

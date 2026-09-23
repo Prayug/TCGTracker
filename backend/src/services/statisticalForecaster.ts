@@ -354,7 +354,10 @@ function detectFlags(series: SeriesPoint[], dailyVol: number): string[] {
   const vols = series.map((p) => p.volume).filter((v): v is number => v != null);
   if (vols.length >= 3 && mean(vols.slice(-3)) < 2) flags.push('low_volume');
   const span = daysBetween(series[0].date, series[series.length - 1].date);
-  const ageDays = daysBetween(series[series.length - 1].date, new Date().toISOString().slice(0, 10));
+  const ageDays = daysBetween(
+    series[series.length - 1].date,
+    new Date().toISOString().slice(0, 10)
+  );
   if (ageDays > 14) flags.push('stale_quote');
   if (span < 45) flags.push('short_span');
   return flags;
@@ -379,7 +382,10 @@ function reliabilityFrom(params: {
   // even when flat wins (that itself is an honest finding).
   if (points >= 24 && spanDays >= 120 && (localMae ?? 1) < 0.2 && volScore >= 30) {
     if (beatsBaseline) {
-      return { tier: 'high', reason: 'Long history; model beats flat baseline on local walk-forward' };
+      return {
+        tier: 'high',
+        reason: 'Long history; model beats flat baseline on local walk-forward',
+      };
     }
     return {
       tier: 'medium',
@@ -481,8 +487,7 @@ export function forecastFromHistory(
   const residualScale = 1 + (best.mae ?? 0.1) * 2;
   const outHorizons: Record<number, HorizonForecast> = {};
   for (const days of horizons) {
-    let expectedReturn =
-      tier === 'insufficient' ? 0 : predictReturn(series, days, approach);
+    let expectedReturn = tier === 'insufficient' ? 0 : predictReturn(series, days, approach);
     // Extra dampening for speculative flags.
     if (flags.includes('recent_spike') || flags.includes('low_volume')) {
       expectedReturn *= 0.5;

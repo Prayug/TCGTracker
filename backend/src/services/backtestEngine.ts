@@ -463,13 +463,11 @@ export async function runBacktest(
   if (withActualReturns.length > 0) {
     const actuals = withActualReturns.map((r) => r.actualReturn as number);
     const preds = withActualReturns.map((r) => r.predictedReturn);
-    flatBaselineMae =
-      actuals.reduce((s, a) => s + Math.abs(0 - a), 0) / actuals.length;
+    flatBaselineMae = actuals.reduce((s, a) => s + Math.abs(0 - a), 0) / actuals.length;
     // SMA proxy: use half of actual magnitude sign of recent predicted as weak baseline;
     // better: treat SMA as predicting the same-window historical mean of actuals (market).
     const marketMean = actuals.reduce((s, a) => s + a, 0) / actuals.length;
-    smaBaselineMae =
-      actuals.reduce((s, a) => s + Math.abs(marketMean - a), 0) / actuals.length;
+    smaBaselineMae = actuals.reduce((s, a) => s + Math.abs(marketMean - a), 0) / actuals.length;
     smape = computeSmape(preds, actuals);
     beatsFlatBaseline = modelMae != null ? modelMae < flatBaselineMae : null;
     beatsSmaBaseline = modelMae != null ? modelMae < smaBaselineMae : null;
