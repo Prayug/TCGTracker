@@ -17,14 +17,15 @@ describe('prediction tracking quality', () => {
     expect(deduped[0].price).toBe(150);
   });
 
-  it('counts live tcgdex quotes by distinct day', () => {
+  it('counts tracked market quotes by distinct day', () => {
     expect(
       countLiveQuotes([
         { date: '2026-06-01', price: 1, source: 'tcgdex' },
         { date: '2026-06-01', price: 2, source: 'tcgdex' },
         { date: '2026-06-02', price: 3, source: 'catalog_fallback' },
+        { date: '2026-06-03', price: 4, source: 'other' },
       ])
-    ).toBe(1);
+    ).toBe(2); // tcgdex day + catalog_fallback day; 'other' ignored
   });
 
   it('rejects cliffy step-function series like Sharpedo holofoil', () => {

@@ -30,6 +30,9 @@ import {
   DEFAULT_CARD_QUALITY_FILTER,
 } from './predictionEngine';
 import { CalibrationModel, strongBuyThresholdForHorizon } from './returnCalibration';
+import { blendFeatureAndStatisticalForecast } from './forecastBlend';
+import { PREDICTION_SOURCES_SQL } from './predictionSources';
+import { computeSmape } from './statisticalForecaster';
 
 export interface BacktestCardResult {
   cardId: string;
@@ -103,6 +106,18 @@ export interface BacktestResult {
   baselineAvgReturn: number | null;
   /** top10AvgReturn - baselineAvgReturn: does picking the model's top picks add value? */
   modelAlpha: number | null;
+  /** MAE of flat (0-return) baseline on the same samples. */
+  flatBaselineMae: number | null;
+  /** MAE of SMA baseline on the same samples. */
+  smaBaselineMae: number | null;
+  /** Model MAE (same as mape when defined as mean abs return error). */
+  modelMae: number | null;
+  /** Symmetric MAPE on predicted vs actual returns. */
+  smape: number | null;
+  /** True when modelMae < flatBaselineMae. */
+  beatsFlatBaseline: boolean | null;
+  /** True when modelMae < smaBaselineMae. */
+  beatsSmaBaseline: boolean | null;
 }
 
 function fetchPriceHistoryUpToDate(
@@ -113,24 +128,22 @@ function fetchPriceHistoryUpToDate(
   return new Promise((resolve, reject) => {
     db.all(
       `SELECT date, price, marketPrice, volume, source FROM price_history
-       WHERE uniqueIdentifier = ? AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
+       WHERE uniqueIdentifier = ? AND source IN (${PREDICTION_SOURCES_SQL})
        AND date <= ?
        ORDER BY date ASC`,
       [uniqueIdentifier, cutoffDate],
       (err, rows: any[]) => {
         if (err) return reject(err);
-        // Prefer live TCGdex quotes over catalog/legacy dumps on duplicate days.
-        resolve(
-          dedupePriceHistoryByDate(
-            rows.map((r) => ({
-              date: r.date,
-              price: r.price ?? 0,
-              marketPrice: r.marketPrice ?? r.price,
-              volume: r.volume,
-              source: r.source,
-            }))
-          )
-        );
+        const mapped = rows.map((r) => ({
+          date: r.date,
+          price: r.price ?? 0,
+          marketPrice: r.marketPrice ?? r.price,
+          volume: r.volume,
+          source: r.source,
+        }));
+        const sold = mapped.filter((r) => r.source === 'pricecharting_sold');
+        const chosen = sold.length >= 8 ? sold : mapped;
+        resolve(dedupePriceHistoryByDate(chosen));
       }
     );
   });
@@ -149,7 +162,7 @@ function fetchFuturePrice(
 
     db.all(
       `SELECT date, marketPrice, price, source FROM price_history
-       WHERE uniqueIdentifier = ? AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
+       WHERE uniqueIdentifier = ? AND source IN (${PREDICTION_SOURCES_SQL})
        AND date >= ? AND date <= ?
        ORDER BY date ASC`,
       [uniqueIdentifier, startDate, targetStr],
@@ -215,7 +228,7 @@ export async function runBacktest(
           AND EXISTS (
             SELECT 1 FROM price_history ph
             WHERE ph.uniqueIdentifier = cm2.uniqueIdentifier
-              AND ph.source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
+              AND ph.source IN (${PREDICTION_SOURCES_SQL})
           )
         ORDER BY RANDOM() LIMIT ?
       )`;
@@ -277,7 +290,24 @@ export async function runBacktest(
         dataQualityScore,
       };
 
-      const expectedReturns = computeExpectedReturns(scores, 0, calibrationModels);
+      const featureReturns = computeExpectedReturns(scores, 0, calibrationModels);
+      const blended = blendFeatureAndStatisticalForecast(
+        priceHistory.map((p) => ({
+          date: p.date,
+          price: p.marketPrice ?? p.price,
+          volume: p.volume,
+        })),
+        featureReturns
+      );
+      const expectedReturns = {
+        expected7dReturn: blended.expected7dReturn,
+        expected30dReturn: blended.expected30dReturn,
+        expected90dReturn: blended.expected90dReturn,
+        expected180dReturn: blended.expected180dReturn,
+        expected365dReturn: blended.expected365dReturn,
+        rawSignal: featureReturns.rawSignal,
+        residualStd30d: blended.residualStd30d,
+      };
       const predictedReturn = expectedReturnForWindow(expectedReturns, windowDays);
 
       const futurePrice = await fetchFuturePrice(uid, backtestDate, windowDays);
@@ -423,6 +453,28 @@ export async function runBacktest(
       ? top10AvgReturn - baselineAvgReturn
       : null;
 
+  // Explicit baseline MAE comparison (flat = 0 predicted return; SMA ≈ recent move).
+  let flatBaselineMae: number | null = null;
+  let smaBaselineMae: number | null = null;
+  let modelMae: number | null = metrics.mae;
+  let smape: number | null = null;
+  let beatsFlatBaseline: boolean | null = null;
+  let beatsSmaBaseline: boolean | null = null;
+  if (withActualReturns.length > 0) {
+    const actuals = withActualReturns.map((r) => r.actualReturn as number);
+    const preds = withActualReturns.map((r) => r.predictedReturn);
+    flatBaselineMae =
+      actuals.reduce((s, a) => s + Math.abs(0 - a), 0) / actuals.length;
+    // SMA proxy: use half of actual magnitude sign of recent predicted as weak baseline;
+    // better: treat SMA as predicting the same-window historical mean of actuals (market).
+    const marketMean = actuals.reduce((s, a) => s + a, 0) / actuals.length;
+    smaBaselineMae =
+      actuals.reduce((s, a) => s + Math.abs(marketMean - a), 0) / actuals.length;
+    smape = computeSmape(preds, actuals);
+    beatsFlatBaseline = modelMae != null ? modelMae < flatBaselineMae : null;
+    beatsSmaBaseline = modelMae != null ? modelMae < smaBaselineMae : null;
+  }
+
   const categories: PredictionCategory[] = [
     'strong_buy',
     'watch_dip',
@@ -468,6 +520,12 @@ export async function runBacktest(
     hitRate: metrics.hitRate,
     baselineAvgReturn,
     modelAlpha,
+    flatBaselineMae,
+    smaBaselineMae,
+    modelMae,
+    smape,
+    beatsFlatBaseline,
+    beatsSmaBaseline,
   };
 
   await saveBacktestResult(result);
@@ -598,7 +656,7 @@ export async function runWalkForwardValidation(
   const dateRange: { minDate: string; maxDate: string } = await new Promise((resolve, reject) => {
     db.get(
       `SELECT MIN(date) as minDate, MAX(date) as maxDate FROM price_history
-       WHERE source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')`,
+       WHERE source IN (${PREDICTION_SOURCES_SQL})`,
       [],
       (err, row: any) => {
         if (err) return reject(err);

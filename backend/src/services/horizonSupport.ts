@@ -41,8 +41,12 @@ export async function getPriceHistorySpanDays(): Promise<{
       db.get(
         `SELECT MIN(date) AS minDate, MAX(date) AS maxDate,
                 CAST(julianday(MAX(date)) - julianday(MIN(date)) AS INTEGER) AS days
-         FROM price_history
-         WHERE source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')`,
+         FROM (
+           SELECT date FROM price_history
+           WHERE source IN ('pricecharting_sold', 'tcgcsv', 'tcgdex', 'catalog_fallback')
+           UNION ALL
+           SELECT date FROM onepiece_price_history
+         )`,
         [],
         (err, r) => (err ? reject(err) : resolve(r as any))
       );
