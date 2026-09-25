@@ -345,8 +345,11 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
     showToast(nowOn ? 'Added to wishlist' : 'Removed from wishlist', nowOn ? 'success' : 'info');
   };
 
+  const historyReq = useRef(0);
+
   const fetchPriceHistory = async () => {
     if (!card) return;
+    const requestId = ++historyReq.current;
     setIsLoadingHistory(true);
     try {
       const history = isOnePiece
@@ -360,6 +363,7 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
             productId: (card as PokemonCard).tcgplayer?.productId,
             variant: selectedVariant,
           });
+      if (requestId !== historyReq.current) return;
       if (history?.length > 0) {
         setPriceHistory(history);
         setHasRealData(true);
@@ -368,10 +372,11 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
         setHasRealData(false);
       }
     } catch {
+      if (requestId !== historyReq.current) return;
       setPriceHistory([]);
       setHasRealData(false);
     } finally {
-      setIsLoadingHistory(false);
+      if (requestId === historyReq.current) setIsLoadingHistory(false);
     }
   };
 

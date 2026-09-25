@@ -21,6 +21,14 @@ export const SOURCE_PRIORITY: MarketSource[] = [
   'tcgcsv',
 ];
 
+/** SQL fragment: lower rank is the preferred feed. Column must be a trusted identifier. */
+export function sqlSourceRankCase(column: string): string {
+  const whens = SOURCE_PRIORITY.map((source, index) => `WHEN '${source}' THEN ${index}`).join(' ');
+  return `CASE ${column} ${whens} ELSE ${SOURCE_PRIORITY.length} END`;
+}
+
+export const DISPLAY_PRICE_SOURCE_SQL = SOURCE_PRIORITY.map((source) => `'${source}'`).join(', ');
+
 /**
  * Feeds used to rank raw top movers, in preference order.
  * Both endpoints of a window must come from the SAME feed — never TCGdex-today

@@ -1,11 +1,8 @@
 import { getDb } from '../db/database';
 import { logger } from '../utils/logger';
 import { resolveHistoryPointPrice } from '../utils/resolveListingPrice';
-import {
-  computePriceChanges as computePriceChangesFromHistory,
-  computeVolatility as computeVolatilityFromHistory,
-  getLatestPrice,
-} from './marketAnalyzer';
+import { computePriceChanges as computePriceChangesFromHistory } from './marketAnalyzer';
+import { pickPreferredSourceRow, sourceRank } from './topMoversQuality';
 
 interface EnrichedCard {
   investmentData?: {
@@ -241,27 +238,63 @@ function mapSuggestedAction(action: string): 'BUY' | 'HOLD' | 'SELL' | 'WATCH' {
   return 'WATCH';
 }
 
-function computePriceChangesLocal(prices: number[]): {
-  change30d: number;
-  change90d: number;
-  change1y: number;
-} {
-  if (prices.length === 0) return { change30d: 0, change90d: 0, change1y: 0 };
-  const current = prices[prices.length - 1];
-  if (!current || current <= 0) return { change30d: 0, change90d: 0, change1y: 0 };
+type DailyQuoteRow = {
+  date: string;
+  source: string;
+  price?: number | null;
+  marketPrice?: number | null;
+  lowPrice?: number | null;
+  highPrice?: number | null;
+};
 
-  const getChange = (daysBack: number): number => {
-    const idx = Math.max(0, prices.length - 1 - daysBack);
-    const past = prices[idx];
-    if (!past || past <= 0) return 0;
-    return ((current - past) / past) * 100;
-  };
+/**
+ * One quote per calendar day. Same-day feeds keep the preferred source
+ * (catalog over a frozen tcgcsv carry-forward), never the higher dollar amount.
+ */
+export function collapsePreferredDailyQuotes(rows: DailyQuoteRow[]): PriceHistoryRow[] {
+  const byDate = new Map<string, DailyQuoteRow[]>();
+  for (const row of rows) {
+    const date = row.date.includes('T') ? row.date.split('T')[0] : row.date;
+    const group = byDate.get(date);
+    if (group) group.push(row);
+    else byDate.set(date, [row]);
+  }
 
-  return {
-    change30d: getChange(30),
-    change90d: getChange(90),
-    change1y: getChange(365),
-  };
+  const series: PriceHistoryRow[] = [];
+  for (const date of [...byDate.keys()].sort()) {
+    const best = pickPreferredSourceRow(byDate.get(date) || []);
+    if (!best) continue;
+    const repaired = resolveHistoryPointPrice(best);
+    if (repaired <= 0) continue;
+    series.push({ date, price: repaired, marketPrice: repaired });
+  }
+  return series;
+}
+
+/**
+ * Latest display price per card. Each variant keeps its preferred source,
+ * then the strongest of those variant quotes is the browse price.
+ */
+export function pickPreferredSnapshotPrices(
+  rows: Array<DailyQuoteRow & { cardId: string; uniqueIdentifier: string }>
+): Map<string, number> {
+  const byVariant = new Map<string, (typeof rows)[number]>();
+  for (const row of rows) {
+    const key = `${row.cardId}||${row.uniqueIdentifier}`;
+    const existing = byVariant.get(key);
+    if (!existing || sourceRank(row.source) < sourceRank(existing.source)) {
+      byVariant.set(key, row);
+    }
+  }
+
+  const prices = new Map<string, number>();
+  for (const row of byVariant.values()) {
+    const resolved = resolveHistoryPointPrice(row);
+    if (resolved <= 0) continue;
+    const existing = prices.get(row.cardId) || 0;
+    if (resolved > existing) prices.set(row.cardId, resolved);
+  }
+  return prices;
 }
 
 function computeVolatilityLocal(prices: number[]): number {
@@ -356,13 +389,15 @@ async function fetchLatestSnapshots(cardIds: string[]): Promise<Map<string, numb
 
     const rows: Array<{
       cardId: string;
+      uniqueIdentifier: string;
+      source: string;
       marketPrice: number | null;
       lowPrice: number | null;
       highPrice: number | null;
       date: string;
     }> = await new Promise((resolve, reject) => {
       db.all(
-        `SELECT cm.cardId, ph.marketPrice, ph.lowPrice, ph.highPrice, ph.date
+        `SELECT cm.cardId, cm.uniqueIdentifier, ph.source, ph.marketPrice, ph.lowPrice, ph.highPrice, ph.date
          FROM price_history ph
          JOIN card_mappings cm ON cm.uniqueIdentifier = ph.uniqueIdentifier
          WHERE cm.cardId IN (${placeholders})
@@ -387,12 +422,9 @@ async function fetchLatestSnapshots(cardIds: string[]): Promise<Map<string, numb
       );
     });
 
-    for (const row of rows) {
-      const resolved = resolveHistoryPointPrice(row);
-      if (resolved <= 0) continue;
-      const existing = map.get(row.cardId) || 0;
-      // Prefer the strongest coherent snap when multiple variants share the latest date.
-      if (resolved > existing) map.set(row.cardId, resolved);
+    for (const [cardId, price] of pickPreferredSnapshotPrices(rows)) {
+      const existing = map.get(cardId) || 0;
+      if (price > existing) map.set(cardId, price);
     }
   }
 
@@ -457,9 +489,10 @@ async function fetchPriceHistories(identifiers: string[]): Promise<Map<string, P
       marketPrice: number | null;
       lowPrice: number | null;
       highPrice: number | null;
+      source: string;
     }> = await new Promise((resolve, reject) => {
       db.all(
-        `SELECT uniqueIdentifier, date, price, marketPrice, lowPrice, highPrice
+        `SELECT uniqueIdentifier, date, price, marketPrice, lowPrice, highPrice, source
            FROM price_history
            WHERE uniqueIdentifier IN (${placeholders})
              AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
@@ -472,15 +505,14 @@ async function fetchPriceHistories(identifiers: string[]): Promise<Map<string, P
       );
     });
 
+    const grouped = new Map<string, typeof rows>();
     for (const row of rows) {
-      const existing = map.get(row.uniqueIdentifier) || [];
-      const repaired = resolveHistoryPointPrice(row);
-      existing.push({
-        date: row.date,
-        price: repaired,
-        marketPrice: repaired,
-      });
-      map.set(row.uniqueIdentifier, existing);
+      const existing = grouped.get(row.uniqueIdentifier) || [];
+      existing.push(row);
+      grouped.set(row.uniqueIdentifier, existing);
+    }
+    for (const [uniqueIdentifier, series] of grouped) {
+      map.set(uniqueIdentifier, collapsePreferredDailyQuotes(series));
     }
   }
 
@@ -534,7 +566,16 @@ export async function enrichCardsWithInvestmentData<T extends { id?: string; car
 
       // Build marketAnalysis from prediction + price data
       const prices = priceHistory.map((p) => p.price).filter((p) => p > 0);
-      const { change30d, change90d, change1y } = computePriceChangesLocal(prices);
+      const changes = computePriceChangesFromHistory(
+        priceHistory.map((point) => ({
+          date: point.date,
+          price: point.price,
+          marketPrice: point.marketPrice ?? point.price,
+        }))
+      );
+      const change30d = changes.change30d ?? 0;
+      const change90d = changes.change90d ?? 0;
+      const change1y = changes.change1y ?? 0;
       const volatility = computeVolatilityLocal(prices);
       const fairValue = computeFairValue(prices);
 

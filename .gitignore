@@ -65,3 +65,7 @@ backend/*.db-*
 .vercel
 .env.vercel
 .env*
+
+# Generated / local eval output
+*.tsbuildinfo
+backend/prediction-eval-results.json
