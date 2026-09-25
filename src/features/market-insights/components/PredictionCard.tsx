@@ -157,6 +157,18 @@ export function PredictionCard({
 
         <div className="flex items-center justify-between gap-2 text-[10px] text-ink-muted">
           <span title="Model confidence 0–100">Conf {confidenceText}/100</span>
+          {prediction.reliability && prediction.reliability !== 'high' && (
+            <span
+              className={
+                prediction.reliability === 'insufficient' || prediction.reliability === 'low'
+                  ? 'text-orange-400'
+                  : 'text-amber-300'
+              }
+              title={prediction.reliabilityReason || 'Forecast reliability'}
+            >
+              {prediction.reliability}
+            </span>
+          )}
           <div className="flex items-center gap-1">
             {signalCount > 0 && (
               <button

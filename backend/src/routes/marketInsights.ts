@@ -2,11 +2,13 @@ import { Router, Response } from 'express';
 import { getDb } from '../db/database';
 import { logger } from '../utils/logger';
 import {
-  runPredictions,
   getLatestPredictions,
   isPredictionWindow,
   PredictionWindow,
   computeSetAgeDays,
+  MODEL_VERSION,
+  startPredictionsInBackground,
+  getPredictionRunStatus,
 } from '../services/predictionEngine';
 import { runBacktest, getBacktestResults } from '../services/backtestEngine';
 import { updateActualResults, getForwardTestStatus } from '../services/forwardTestTracker';
@@ -119,7 +121,7 @@ router.get(
       requestedWindow: window,
       horizonSupport,
       experimental: horizonSupport.experimental.includes(windowToHorizonDays(effectiveWindow)),
-      modelVersion: '3.2.0',
+      modelVersion: MODEL_VERSION,
     });
   })
 );
@@ -424,6 +426,14 @@ router.get(
         explanation: prediction.explanation,
         riskFactors: prediction.risk_factors,
         externalSignals: prediction.external_signals_json,
+        forecastApproach: prediction.forecast_approach || undefined,
+        reliability: prediction.reliability || undefined,
+        reliabilityReason: prediction.reliability_reason || undefined,
+        lastHistoryDate: prediction.last_history_date || null,
+        historyPoints: prediction.history_points ?? undefined,
+        beatsBaseline:
+          prediction.beats_baseline == null ? undefined : Boolean(prediction.beats_baseline),
+        modelVersion: prediction.model_version,
       },
       result: result
         ? {
@@ -442,12 +452,7 @@ router.get(
 router.get(
   '/run-status',
   asyncHandler(async (_req, res) => {
-    res.json({
-      running: false,
-      startedAt: null,
-      last: null,
-      progress: null,
-    });
+    res.json(getPredictionRunStatus());
   })
 );
 
@@ -455,21 +460,36 @@ router.post(
   '/run-predictions',
   asyncHandler(async (_req, res) => {
     logger.info('Manual prediction run requested');
-    const result = await runPredictions();
-    // Best-effort: resolve any matured forward-test windows after a new run.
-    try {
-      const ft = await updateActualResults();
-      logger.info(`Forward-test update after prediction run: ${ft.updated} rows`);
-    } catch (err) {
-      logger.warn('Forward-test update after prediction run failed:', err);
+    const kickoff = startPredictionsInBackground();
+    if (kickoff.alreadyRunning) {
+      return res.status(202).json({
+        success: true,
+        started: false,
+        alreadyRunning: true,
+        message: 'Prediction run already in progress',
+        status: getPredictionRunStatus(),
+      });
     }
+    // Resolve matured forward-test windows after the background run finishes.
+    void (async () => {
+      try {
+        // Wait until the lock clears by polling status briefly.
+        for (let i = 0; i < 3600; i++) {
+          await new Promise((r) => setTimeout(r, 1000));
+          if (!getPredictionRunStatus().running) break;
+        }
+        const ft = await updateActualResults();
+        logger.info(`Forward-test update after prediction run: ${ft.updated} rows`);
+      } catch (err) {
+        logger.warn('Forward-test update after prediction run failed:', err);
+      }
+    })();
     res.status(202).json({
       success: true,
-      runId: result.runId,
-      total: result.total,
-      succeeded: result.succeeded,
-      failed: result.failed,
-      message: `Prediction run complete: ${result.succeeded} predictions generated, ${result.failed} skipped`,
+      started: true,
+      alreadyRunning: false,
+      message: 'Prediction run started in background',
+      status: getPredictionRunStatus(),
     });
   })
 );

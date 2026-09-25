@@ -30,6 +30,9 @@ import {
   type HorizonDays,
   type HorizonSupportStatus,
 } from './horizonSupport';
+import { blendFeatureAndStatisticalForecast } from './forecastBlend';
+import { PREDICTION_SOURCES_SQL } from './predictionSources';
+import type { ReliabilityTier } from './statisticalForecaster';
 
 // --- Utility helpers for smooth interpolation ---
 
@@ -133,6 +136,15 @@ export interface CardPrediction {
   gradingPremiumPotential?: number;
   /** Raw composite signal (~[-1, 1]) used for calibration. */
   signalScore?: number;
+  /** Statistical approach selected by local walk-forward. */
+  forecastApproach?: string;
+  reliability?: ReliabilityTier;
+  reliabilityReason?: string;
+  lastHistoryDate?: string | null;
+  historyPoints?: number;
+  beatsBaseline?: boolean;
+  /** Weight given to statistical forecast vs feature scores. */
+  statisticalWeight?: number;
 }
 
 export interface CardPredictionRow {
@@ -180,9 +192,19 @@ export interface CardPredictionRow {
   gradingScore?: number;
   gradingPremiumPotential?: number;
   signalScore?: number;
+  forecastApproach?: string;
+  reliability?: ReliabilityTier;
+  reliabilityReason?: string;
+  lastHistoryDate?: string | null;
+  historyPoints?: number;
+  beatsBaseline?: boolean;
+  statisticalWeight?: number;
+  /** ISO timestamp of the prediction run that produced this row. */
+  runCreatedAt?: string | null;
 }
 
-const MODEL_VERSION = '4.0.0';
+const MODEL_VERSION = '5.0.0';
+export { MODEL_VERSION };
 
 // --- Seasonality ---
 
@@ -413,9 +435,11 @@ export function hasMeaningfulPriceMovement(
 }
 
 const HISTORY_SOURCE_PRIORITY: Record<string, number> = {
-  tcgdex: 0,
-  catalog_fallback: 1,
-  tcgcsv: 2,
+  // Sold-guide comps beat listing markets for forecasting.
+  pricecharting_sold: 0,
+  tcgdex: 1,
+  catalog_fallback: 2,
+  tcgcsv: 3,
 };
 
 export type SourcedPricePoint = PricePoint & { source?: string };
@@ -455,7 +479,9 @@ export function dedupePriceHistoryByDate(rows: SourcedPricePoint[]): PricePoint[
 export function countLiveQuotes(rows: SourcedPricePoint[]): number {
   const days = new Set<string>();
   for (const row of rows) {
-    if ((row.source || '') !== 'tcgdex') continue;
+    const source = row.source || '';
+    // Sold-guide comps and live listing feeds both count as tracked market quotes.
+    if (!['tcgdex', 'tcgcsv', 'pricecharting_sold', 'catalog_fallback'].includes(source)) continue;
     const price = row.price ?? row.marketPrice ?? 0;
     if (price <= 0) continue;
     days.add(row.date.includes('T') ? row.date.split('T')[0] : row.date);
@@ -512,7 +538,24 @@ export function hasAdequateTrackingHistory(
     computeSetAgeDays(options.setReleaseDate) < 90
       ? 7
       : 21);
-  const cliffPct = options.cliffPct ?? 50;
+
+  // Monthly sold-guide series routinely moves >50% between samples during
+  // mania cycles; scale the cliff gate by median sampling gap.
+  let cliffPct = options.cliffPct ?? 50;
+  if (options.cliffPct == null && priceHistory.length >= 3) {
+    const gaps: number[] = [];
+    for (let i = 1; i < priceHistory.length; i++) {
+      const a = Date.parse(priceHistory[i - 1].date);
+      const b = Date.parse(priceHistory[i].date);
+      if (Number.isFinite(a) && Number.isFinite(b) && b > a) {
+        gaps.push((b - a) / 86400000);
+      }
+    }
+    gaps.sort((x, y) => x - y);
+    const medianGap = gaps.length ? gaps[Math.floor(gaps.length / 2)] : 1;
+    if (medianGap >= 20) cliffPct = 180; // monthly-ish
+    else if (medianGap >= 6) cliffPct = 100; // weekly-ish
+  }
 
   if (priceHistory.length < minPoints) return false;
   if (liveQuoteCount < minLive) return false;
@@ -1603,15 +1646,16 @@ function fetchCardPriceHistory(uniqueIdentifier: string): Promise<SourcedPricePo
         [catalogId],
         (err, rows: any[]) => {
           if (err) return reject(err);
-          resolve(
-            (rows || []).map((r) => ({
-              date: r.date,
-              price: r.marketPrice ?? r.inventoryPrice ?? 0,
-              marketPrice: r.marketPrice ?? r.inventoryPrice,
-              volume: undefined,
-              source: r.source || 'optcg',
-            }))
-          );
+          const mapped = (rows || []).map((r) => ({
+            date: r.date,
+            price: r.marketPrice ?? r.inventoryPrice ?? 0,
+            marketPrice: r.marketPrice ?? r.inventoryPrice,
+            volume: undefined,
+            source: r.source || 'optcg',
+          }));
+          // Prefer sold-guide-only series when deep enough; never mix with listing quotes.
+          const sold = mapped.filter((r) => r.source === 'pricecharting_sold');
+          resolve(sold.length >= 8 ? sold : mapped);
         }
       );
     });
@@ -1620,20 +1664,22 @@ function fetchCardPriceHistory(uniqueIdentifier: string): Promise<SourcedPricePo
   return new Promise((resolve, reject) => {
     db.all(
       `SELECT date, price, marketPrice, volume, source FROM price_history
-       WHERE uniqueIdentifier = ? AND source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
+       WHERE uniqueIdentifier = ? AND source IN (${PREDICTION_SOURCES_SQL})
        ORDER BY date ASC`,
       [uniqueIdentifier],
       (err, rows: any[]) => {
         if (err) return reject(err);
-        resolve(
-          rows.map((r) => ({
-            date: r.date,
-            price: r.price ?? 0,
-            marketPrice: r.marketPrice ?? r.price,
-            volume: r.volume,
-            source: r.source,
-          }))
-        );
+        const mapped = rows.map((r) => ({
+          date: r.date,
+          price: r.price ?? 0,
+          marketPrice: r.marketPrice ?? r.price,
+          volume: r.volume,
+          source: r.source,
+        }));
+        // Prefer sold-guide-only when we have a usable history — mixing with
+        // TCGPlayer listing snapshots creates false cliffs (sold ≠ ask).
+        const sold = mapped.filter((r) => r.source === 'pricecharting_sold');
+        resolve(sold.length >= 8 ? sold : mapped);
       }
     );
   });
@@ -1667,12 +1713,12 @@ function fetchPokemonCards(
              SELECT COALESCE(ph2.marketPrice, ph2.price)
              FROM price_history ph2
              WHERE ph2.uniqueIdentifier = ph.uniqueIdentifier
-               AND ph2.source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
+               AND ph2.source IN (${PREDICTION_SOURCES_SQL})
              ORDER BY ph2.date DESC
              LIMIT 1
            ) AS latest_price
          FROM price_history ph
-         WHERE ph.source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')
+         WHERE ph.source IN (${PREDICTION_SOURCES_SQL})
          GROUP BY ph.uniqueIdentifier
          HAVING data_point_count >= 1
            AND latest_price >= ?
@@ -1869,8 +1915,29 @@ export async function predictSingleCard(
     const models = calibrationModels ?? (await getCalibrationModels());
 
     const seasonalityAdjustment = computeSeasonalityAdjustment(card.cardName, card.setName);
-    const expectedReturns = computeExpectedReturns(scores, seasonalityAdjustment, models);
+    const featureReturns = computeExpectedReturns(scores, seasonalityAdjustment, models);
+    const blended = blendFeatureAndStatisticalForecast(
+      priceHistory.map((p) => ({
+        date: p.date,
+        price: p.marketPrice ?? p.price,
+        volume: p.volume,
+      })),
+      featureReturns
+    );
+    const expectedReturns = {
+      expected7dReturn: blended.expected7dReturn,
+      expected30dReturn: blended.expected30dReturn,
+      expected90dReturn: blended.expected90dReturn,
+      expected180dReturn: blended.expected180dReturn,
+      expected365dReturn: blended.expected365dReturn,
+      rawSignal: featureReturns.rawSignal,
+      residualStd30d: blended.residualStd30d,
+    };
     const horizonStatus = options?.horizonSupport ?? (await getHorizonSupportStatus());
+    // Insufficient local history → do not emit a directional call.
+    if (blended.forecast.reliability === 'insufficient') {
+      return null;
+    }
     const honestReturn = (days: HorizonDays, value: number): number | null =>
       horizonStatus.unsupported.includes(days) ? null : value;
 
@@ -1880,7 +1947,7 @@ export async function predictSingleCard(
     // Adaptive confidence scoring — use set-age-aware thresholds so newer cards
     // aren't penalized as heavily for having less historical data.
     const adaptiveMinDP = getAdaptiveMinDataPoints(setReleaseDate);
-    const confidenceScore = computeCalibratedConfidence({
+    let confidenceScore = computeCalibratedConfidence({
       trendScore,
       demandScore,
       liquidityScore,
@@ -1891,6 +1958,15 @@ export async function predictSingleCard(
       residualStd30d: expectedReturns.residualStd30d,
       monthlyVolatility: volatility.monthlyVolatility,
     });
+    // Reliability gate: low-tier forecasts cannot claim high confidence.
+    if (blended.forecast.reliability === 'low') {
+      confidenceScore = Math.min(confidenceScore, 55);
+    } else if (blended.forecast.reliability === 'medium') {
+      confidenceScore = Math.min(confidenceScore, 75);
+    }
+    if (blended.forecast.flags.includes('stale_quote')) {
+      confidenceScore = Math.min(confidenceScore, 40);
+    }
 
     if (confidenceScore < filter.minConfidence) return null;
 
@@ -1914,62 +1990,85 @@ export async function predictSingleCard(
       )
     );
 
-    const er7 =
-      honestReturn(7, expectedReturns.expected7dReturn) ?? expectedReturns.expected7dReturn;
-    const er30 =
-      honestReturn(30, expectedReturns.expected30dReturn) ?? expectedReturns.expected30dReturn;
-    const er90 =
-      honestReturn(90, expectedReturns.expected90dReturn) ?? expectedReturns.expected90dReturn;
+    const er7 = honestReturn(7, expectedReturns.expected7dReturn);
+    const er30 = honestReturn(30, expectedReturns.expected30dReturn);
+    const er90 = honestReturn(90, expectedReturns.expected90dReturn);
     const er180 = honestReturn(180, expectedReturns.expected180dReturn);
     const er365 = honestReturn(365, expectedReturns.expected365dReturn);
 
-    const predicted7d = computePriceRanges(
-      currentPrice,
-      er7,
-      volatility.dailyVolatility,
-      7,
-      confidenceScore,
-      historicalReturns30d
-    );
-    const predicted30d = computePriceRanges(
-      currentPrice,
-      er30,
-      volatility.dailyVolatility,
-      30,
-      confidenceScore,
-      historicalReturns30d
-    );
-    const predicted90d = computePriceRanges(
-      currentPrice,
-      er90,
-      volatility.dailyVolatility,
-      90,
-      confidenceScore,
-      historicalReturns90d
-    );
+    // Prefer statistical uncertainty bands when the blend leaned on them.
+    const statBand = (days: 7 | 30 | 90 | 180 | 365, fallbackReturn: number | null) => {
+      const h = blended.forecast.horizons[days];
+      if (fallbackReturn == null) {
+        return { low: currentPrice, mid: currentPrice, high: currentPrice };
+      }
+      if (h && blended.statisticalWeight >= 0.4) {
+        return { low: h.low, mid: h.predictedMid, high: h.high };
+      }
+      return null;
+    };
+
+    const predicted7d =
+      er7 == null
+        ? { low: currentPrice, mid: currentPrice, high: currentPrice }
+        : (statBand(7, er7) ??
+          computePriceRanges(
+            currentPrice,
+            er7,
+            volatility.dailyVolatility,
+            7,
+            confidenceScore,
+            historicalReturns30d
+          ));
+    const predicted30d =
+      er30 == null
+        ? { low: currentPrice, mid: currentPrice, high: currentPrice }
+        : (statBand(30, er30) ??
+          computePriceRanges(
+            currentPrice,
+            er30,
+            volatility.dailyVolatility,
+            30,
+            confidenceScore,
+            historicalReturns30d
+          ));
+    const predicted90d =
+      er90 == null
+        ? { low: currentPrice, mid: currentPrice, high: currentPrice }
+        : (statBand(90, er90) ??
+          computePriceRanges(
+            currentPrice,
+            er90,
+            volatility.dailyVolatility,
+            90,
+            confidenceScore,
+            historicalReturns90d
+          ));
     const zeroBand = { low: currentPrice, mid: currentPrice, high: currentPrice };
     const predicted180d =
       er180 == null
         ? zeroBand
-        : computePriceRanges(
+        : (statBand(180, er180) ??
+          computePriceRanges(
             currentPrice,
             er180,
             volatility.dailyVolatility,
             180,
             confidenceScore,
             historicalReturns90d
-          );
+          ));
     const predicted365d =
       er365 == null
         ? zeroBand
-        : computePriceRanges(
+        : (statBand(365, er365) ??
+          computePriceRanges(
             currentPrice,
             er365,
             volatility.dailyVolatility,
             365,
             confidenceScore,
             historicalReturns90d
-          );
+          ));
 
     const externalSignalsJson = JSON.stringify(externalSignals);
 
@@ -2002,27 +2101,128 @@ export async function predictSingleCard(
       predicted90d,
       predicted180d,
       predicted365d,
-      expected7dReturn: er7,
-      expected30dReturn: er30,
-      expected90dReturn: er90,
+      expected7dReturn: er7 ?? 0,
+      expected30dReturn: er30 ?? 0,
+      expected90dReturn: er90 ?? 0,
       expected180dReturn: er180 ?? 0,
       expected365dReturn: er365 ?? 0,
       confidenceScore,
       riskScore,
       category,
       suggestedAction,
-      explanation,
+      explanation:
+        blended.forecast.reliability !== 'high'
+          ? `${explanation} [${blended.forecast.reliability}: ${blended.forecast.reliabilityReason}]`
+          : explanation,
       riskFactors,
       externalSignals: externalSignalsJson,
       modelVersion: MODEL_VERSION,
       gradingScore,
       gradingPremiumPotential,
       signalScore: expectedReturns.rawSignal,
+      forecastApproach: blended.forecast.approach,
+      reliability: blended.forecast.reliability,
+      reliabilityReason: blended.forecast.reliabilityReason,
+      lastHistoryDate: blended.forecast.lastHistoryDate,
+      historyPoints: blended.forecast.historyPoints,
+      beatsBaseline: blended.forecast.beatsBaseline,
+      statisticalWeight: blended.statisticalWeight,
     };
   } catch (err) {
     logger.error(`Prediction failed for card ${card.cardId}:`, err);
     return null;
   }
+}
+
+export type PredictionRunPhase = 'starting' | 'loading' | 'scoring' | 'finishing';
+
+export type PredictionRunProgress = {
+  phase: PredictionRunPhase;
+  total: number;
+  processed: number;
+  succeeded: number;
+  failed: number;
+};
+
+type PredictionRunMeta = {
+  running: boolean;
+  startedAt: string | null;
+  last: {
+    runId: number;
+    total: number;
+    succeeded: number;
+    failed: number;
+  } | null;
+  progress: PredictionRunProgress | null;
+};
+
+let predictionRunLock: Promise<{
+  runId: number;
+  total: number;
+  succeeded: number;
+  failed: number;
+}> | null = null;
+let predictionRunMeta: PredictionRunMeta = {
+  running: false,
+  startedAt: null,
+  last: null,
+  progress: null,
+};
+
+export function getPredictionRunStatus(): PredictionRunMeta {
+  return {
+    ...predictionRunMeta,
+    progress: predictionRunMeta.progress ? { ...predictionRunMeta.progress } : null,
+    last: predictionRunMeta.last ? { ...predictionRunMeta.last } : null,
+  };
+}
+
+/** Fire-and-forget so long raw prediction runs are not killed by HTTP timeouts. */
+export function startPredictionsInBackground(): { started: boolean; alreadyRunning: boolean } {
+  if (predictionRunLock) {
+    return { started: false, alreadyRunning: true };
+  }
+  predictionRunMeta = {
+    running: true,
+    startedAt: new Date().toISOString(),
+    last: predictionRunMeta.last,
+    progress: { phase: 'starting', total: 0, processed: 0, succeeded: 0, failed: 0 },
+  };
+  predictionRunLock = runPredictions()
+    .then((last) => {
+      predictionRunMeta = {
+        running: false,
+        startedAt: null,
+        last: {
+          runId: last.runId,
+          total: last.total,
+          succeeded: last.succeeded,
+          failed: last.failed,
+        },
+        progress: {
+          phase: 'finishing',
+          total: last.total,
+          processed: last.total,
+          succeeded: last.succeeded,
+          failed: last.failed,
+        },
+      };
+      return last;
+    })
+    .catch((err) => {
+      logger.error('Background prediction run failed', { error: (err as Error).message });
+      predictionRunMeta = {
+        running: false,
+        startedAt: null,
+        last: predictionRunMeta.last,
+        progress: predictionRunMeta.progress,
+      };
+      return { runId: 0, total: 0, succeeded: 0, failed: 0 };
+    })
+    .finally(() => {
+      predictionRunLock = null;
+    });
+  return { started: true, alreadyRunning: false };
 }
 
 export async function runPredictions(): Promise<{
@@ -2065,8 +2265,10 @@ export async function runPredictions(): Promise<{
     expected_180d_return, expected_365d_return,
     confidence_score, risk_score, category, suggested_action,
     explanation, risk_factors, external_signals_json, model_version,
-    unique_identifier, variant_key, signal_score
-  ) VALUES (?, ?, date('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    unique_identifier, variant_key, signal_score,
+    forecast_approach, reliability, reliability_reason,
+    last_history_date, history_points, beats_baseline, forecast_meta_json
+  ) VALUES (?, ?, date('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
   for (const card of cards) {
     try {
@@ -2119,6 +2321,16 @@ export async function runPredictions(): Promise<{
             prediction.uniqueIdentifier || null,
             prediction.variantKey || null,
             prediction.signalScore ?? null,
+            prediction.forecastApproach ?? null,
+            prediction.reliability ?? null,
+            prediction.reliabilityReason ?? null,
+            prediction.lastHistoryDate ?? null,
+            prediction.historyPoints ?? null,
+            prediction.beatsBaseline == null ? null : prediction.beatsBaseline ? 1 : 0,
+            JSON.stringify({
+              statisticalWeight: prediction.statisticalWeight ?? null,
+              flags: [],
+            }),
           ],
           function (err) {
             if (err) reject(err);
@@ -2216,8 +2428,10 @@ export async function getLatestPredictions(
 
   let sql = `
     SELECT cp.*,
+           pr.created_at AS run_created_at,
            ${CARD_METADATA_SELECT}
     FROM card_predictions cp
+    LEFT JOIN prediction_runs pr ON pr.id = cp.run_id
     ${CARD_METADATA_JOIN}
     WHERE cp.run_id = (SELECT MAX(id) FROM prediction_runs)
   `;
@@ -2413,6 +2627,13 @@ export async function getLatestPredictions(
       externalSignals: r.external_signals_json,
       modelVersion: r.model_version,
       signalScore: r.signal_score ?? undefined,
+      forecastApproach: r.forecast_approach ?? undefined,
+      reliability: r.reliability ?? undefined,
+      reliabilityReason: r.reliability_reason ?? undefined,
+      lastHistoryDate: r.last_history_date ?? null,
+      historyPoints: r.history_points ?? undefined,
+      beatsBaseline: r.beats_baseline == null ? undefined : Boolean(r.beats_baseline),
+      runCreatedAt: r.run_created_at ?? null,
     });
   }
 

@@ -194,6 +194,16 @@ export interface CardPrediction {
   gradingPremiumPotential?: number;
   /** Raw composite signal (~[-1, 1]) used for calibration. */
   signalScore?: number;
+  /** Statistical approach selected by local walk-forward. */
+  forecastApproach?: string;
+  /** high | medium | low | insufficient */
+  reliability?: 'high' | 'medium' | 'low' | 'insufficient';
+  reliabilityReason?: string;
+  lastHistoryDate?: string | null;
+  historyPoints?: number;
+  beatsBaseline?: boolean;
+  /** ISO timestamp of the prediction run. */
+  runCreatedAt?: string | null;
 }
 
 export interface BacktestResult {

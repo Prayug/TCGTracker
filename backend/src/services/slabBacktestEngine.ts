@@ -297,6 +297,12 @@ export async function runSlabBacktest(
     hitRate: metrics.hitRate,
     baselineAvgReturn,
     modelAlpha,
+    flatBaselineMae: null,
+    smaBaselineMae: null,
+    modelMae: metrics.mae,
+    smape: null,
+    beatsFlatBaseline: null,
+    beatsSmaBaseline: null,
   };
 
   await saveSlabBacktestResult(result);

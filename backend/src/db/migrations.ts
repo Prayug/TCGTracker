@@ -2438,6 +2438,47 @@ export const migrations: Migration[] = [
       });
     },
   },
+  {
+    id: 42,
+    name: 'card_predictions_forecast_meta',
+    up: async (db: Database) => {
+      const run = (sql: string) =>
+        new Promise<void>((resolve, reject) => {
+          db.run(sql, (err) => (err ? reject(err) : resolve()));
+        });
+      const columnExists = async (table: string, column: string): Promise<boolean> => {
+        const rows: Array<{ name: string }> = await new Promise((resolve, reject) => {
+          db.all(`PRAGMA table_info(${table})`, (err, r) => (err ? reject(err) : resolve(r as any)));
+        });
+        return rows.some((r) => r.name === column);
+      };
+      if (!(await columnExists('card_predictions', 'forecast_approach'))) {
+        await run('ALTER TABLE card_predictions ADD COLUMN forecast_approach TEXT');
+      }
+      if (!(await columnExists('card_predictions', 'reliability'))) {
+        await run('ALTER TABLE card_predictions ADD COLUMN reliability TEXT');
+      }
+      if (!(await columnExists('card_predictions', 'reliability_reason'))) {
+        await run('ALTER TABLE card_predictions ADD COLUMN reliability_reason TEXT');
+      }
+      if (!(await columnExists('card_predictions', 'last_history_date'))) {
+        await run('ALTER TABLE card_predictions ADD COLUMN last_history_date TEXT');
+      }
+      if (!(await columnExists('card_predictions', 'history_points'))) {
+        await run('ALTER TABLE card_predictions ADD COLUMN history_points INTEGER');
+      }
+      if (!(await columnExists('card_predictions', 'beats_baseline'))) {
+        await run('ALTER TABLE card_predictions ADD COLUMN beats_baseline INTEGER');
+      }
+      if (!(await columnExists('card_predictions', 'forecast_meta_json'))) {
+        await run('ALTER TABLE card_predictions ADD COLUMN forecast_meta_json TEXT');
+      }
+      logger.info('Migration 42: card_predictions forecast metadata columns');
+    },
+    down: async () => {
+      // SQLite cannot DROP COLUMN portably; leave columns in place.
+    },
+  },
 ];
 
 // Run pending migrations

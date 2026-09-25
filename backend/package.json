@@ -17,6 +17,7 @@
     "sample-cards": "ts-node src/scripts/sampleCards.ts",
     "upload-db-to-cloud": "ts-node src/scripts/uploadDbToCloud.ts",
     "restore-db-from-cloud": "ts-node src/scripts/restoreDbFromCloud.ts",
+    "evaluate-predictions": "ts-node src/scripts/evaluatePredictionOverhaul.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",

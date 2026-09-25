@@ -219,6 +219,52 @@ export function PredictionDetailPanel({
               )}
             </div>
 
+            {(prediction.reliability ||
+              prediction.lastHistoryDate ||
+              prediction.runCreatedAt ||
+              prediction.forecastApproach) && (
+              <div className="mb-4 rounded-xl border border-border-default bg-surface-inset px-3 py-2.5 text-xs text-ink-secondary">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  {prediction.reliability && (
+                    <span
+                      className={
+                        prediction.reliability === 'high'
+                          ? 'text-emerald-400'
+                          : prediction.reliability === 'medium'
+                            ? 'text-amber-300'
+                            : 'text-orange-400'
+                      }
+                      title={prediction.reliabilityReason}
+                    >
+                      Reliability: {prediction.reliability}
+                    </span>
+                  )}
+                  {prediction.forecastApproach && (
+                    <span className="text-ink-muted">Model: {prediction.forecastApproach}</span>
+                  )}
+                  {prediction.beatsBaseline === false && (
+                    <span className="text-ink-muted">Did not beat flat baseline locally</span>
+                  )}
+                </div>
+                <div className="mt-1 flex flex-wrap gap-x-3 text-[11px] text-ink-muted">
+                  {prediction.lastHistoryDate && (
+                    <span>Last market quote: {prediction.lastHistoryDate}</span>
+                  )}
+                  {prediction.historyPoints != null && (
+                    <span>{prediction.historyPoints} history points</span>
+                  )}
+                  {prediction.runCreatedAt && (
+                    <span>
+                      Forecast updated: {new Date(prediction.runCreatedAt).toLocaleString()}
+                    </span>
+                  )}
+                </div>
+                {prediction.reliabilityReason && (
+                  <p className="mt-1 text-[11px] text-ink-muted">{prediction.reliabilityReason}</p>
+                )}
+              </div>
+            )}
+
             <div className="mb-4 space-y-3">
               <div>
                 <h3 className="text-xs font-medium text-ink-secondary">Forecast by horizon</h3>
