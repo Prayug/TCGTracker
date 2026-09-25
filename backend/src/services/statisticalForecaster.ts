@@ -216,16 +216,6 @@ export function predictReturn(
   }
 }
 
-function percentile(sorted: number[], p: number): number {
-  if (sorted.length === 0) return 0;
-  const idx = clamp(p, 0, 1) * (sorted.length - 1);
-  const lo = Math.floor(idx);
-  const hi = Math.ceil(idx);
-  if (lo === hi) return sorted[lo];
-  const t = idx - lo;
-  return sorted[lo] * (1 - t) + sorted[hi] * t;
-}
-
 export function computeSmape(predicted: number[], actual: number[]): number | null {
   if (predicted.length === 0 || predicted.length !== actual.length) return null;
   let sum = 0;
