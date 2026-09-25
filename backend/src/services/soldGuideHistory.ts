@@ -84,10 +84,17 @@ async function upsertGradedHistory(
            productId = COALESCE(excluded.productId, graded_price_history.productId)`
       );
       for (const p of points) {
-        stmt.run(cardId, variantKey || 'normal', p.date, p.price, productId, (err: Error | null) => {
-          if (err) logger.warn('graded sold-guide upsert failed', { err: err.message });
-          else upserted++;
-        });
+        stmt.run(
+          cardId,
+          variantKey || 'normal',
+          p.date,
+          p.price,
+          productId,
+          (err: Error | null) => {
+            if (err) logger.warn('graded sold-guide upsert failed', { err: err.message });
+            else upserted++;
+          }
+        );
       }
       stmt.finalize((err) => {
         if (err) {

@@ -42,12 +42,7 @@ describe('statisticalForecaster', () => {
   });
 
   it('mean reversion pulls toward the recent mean after a dip', () => {
-    const series = makeSeries('2024-01-01', [
-      ...Array.from({ length: 16 }, () => 20),
-      12,
-      12,
-      12,
-    ]);
+    const series = makeSeries('2024-01-01', [...Array.from({ length: 16 }, () => 20), 12, 12, 12]);
     const ret = predictReturn(series, 30, 'mean_reversion');
     expect(ret).toBeGreaterThan(0);
   });
@@ -69,9 +64,13 @@ describe('statisticalForecaster', () => {
       Array.from({ length: 36 }, (_, i) => 25 + ((i * 7) % 5) * 0.01)
     );
     const best = selectBestApproach(series, 30);
-    expect(['baseline_flat', 'baseline_sma', 'mean_reversion', 'hybrid', 'ewma_momentum']).toContain(
-      best.approach
-    );
+    expect([
+      'baseline_flat',
+      'baseline_sma',
+      'mean_reversion',
+      'hybrid',
+      'ewma_momentum',
+    ]).toContain(best.approach);
     expect(best.mae).not.toBeNull();
   });
 

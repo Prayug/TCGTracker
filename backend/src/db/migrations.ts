@@ -2448,7 +2448,9 @@ export const migrations: Migration[] = [
         });
       const columnExists = async (table: string, column: string): Promise<boolean> => {
         const rows: Array<{ name: string }> = await new Promise((resolve, reject) => {
-          db.all(`PRAGMA table_info(${table})`, (err, r) => (err ? reject(err) : resolve(r as any)));
+          db.all(`PRAGMA table_info(${table})`, (err, r) =>
+            err ? reject(err) : resolve(r as any)
+          );
         });
         return rows.some((r) => r.name === column);
       };

@@ -553,7 +553,8 @@ export function hasAdequateTrackingHistory(
     }
     gaps.sort((x, y) => x - y);
     const medianGap = gaps.length ? gaps[Math.floor(gaps.length / 2)] : 1;
-    if (medianGap >= 20) cliffPct = 180; // monthly-ish
+    if (medianGap >= 20)
+      cliffPct = 180; // monthly-ish
     else if (medianGap >= 6) cliffPct = 100; // weekly-ish
   }
 

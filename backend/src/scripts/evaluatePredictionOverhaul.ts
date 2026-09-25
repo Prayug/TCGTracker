@@ -24,8 +24,7 @@ import { logger } from '../utils/logger';
 import { searchBestProduct, fetchPriceChartingHtml } from '../services/priceChartingClient';
 import { parseSoldGuideSeries } from '../services/soldGuideHistory';
 
-const STORE_MEDIA =
-  '/cursor/stores/bc-1d87d8a1-ce53-4c5f-afa2-b85f070fa22e/media';
+const STORE_MEDIA = '/cursor/stores/bc-1d87d8a1-ce53-4c5f-afa2-b85f070fa22e/media';
 
 type SeedCard = {
   cardId: string;
@@ -166,15 +165,7 @@ async function seedMappings(): Promise<Array<SeedCard & { uid: string }>> {
         `INSERT OR REPLACE INTO onepiece_catalog
            (catalogId, cardSetId, cardImageId, cardName, setId, setName, rarity, syncedAt)
          VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
-        [
-          catalogId,
-          catalogId,
-          catalogId,
-          card.cardName,
-          card.setId,
-          card.setName,
-          card.rarity,
-        ]
+        [catalogId, catalogId, catalogId, card.cardName, card.setId, card.setName, card.rarity]
       );
       out.push({ ...card, cardId: uid, uid });
       continue;
@@ -527,7 +518,9 @@ async function main() {
       '',
       '## Approach selection (30d walk-forward per card)',
       ...approachTables.map((row: any) => {
-        const best = (row.comparison || []).slice().sort((a: any, b: any) => (a.mae ?? 9) - (b.mae ?? 9))[0];
+        const best = (row.comparison || [])
+          .slice()
+          .sort((a: any, b: any) => (a.mae ?? 9) - (b.mae ?? 9))[0];
         return `- **${row.cardName}** (${row.points} pts, ${row.span}): selected \`${row.selected}\`, reliability=${row.reliability}, localMae=${row.localMae?.toFixed?.(4) ?? 'n/a'}, baselineMae=${row.baselineMae?.toFixed?.(4) ?? 'n/a'}, beatsBaseline=${row.beatsBaseline}, bestMAEApproach=${best?.approach}`;
       }),
       '',
@@ -563,7 +556,19 @@ async function main() {
     fs.writeFileSync(path.join(STORE_MEDIA, 'prediction-backtest-summary.md'), md);
   }
 
-  console.log(JSON.stringify({ ok: true, localOut, modelVersion: MODEL_VERSION, backtestSummary, liveCount: livePredictions.length }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        ok: true,
+        localOut,
+        modelVersion: MODEL_VERSION,
+        backtestSummary,
+        liveCount: livePredictions.length,
+      },
+      null,
+      2
+    )
+  );
 }
 
 main().catch((err) => {
