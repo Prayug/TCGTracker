@@ -1,7 +1,4 @@
-import {
-  collapsePreferredDailyQuotes,
-  pickPreferredSnapshotPrices,
-} from '../cardEnrichment';
+import { collapsePreferredDailyQuotes, pickPreferredSnapshotPrices } from '../cardEnrichment';
 
 describe('preferred daily price series', () => {
   it('keeps the catalog quote when a frozen tcgcsv carry-forward shares the day', () => {
