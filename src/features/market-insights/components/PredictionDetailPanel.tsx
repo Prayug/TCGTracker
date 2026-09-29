@@ -15,6 +15,7 @@ import { useInsightsApi } from '../hooks/insightsApiContext';
 import { formatInsightScore, insightScoreValue } from '../utils/formatInsightNumbers';
 import { ExternalSignalsPanel } from './ExternalSignalsPanel';
 import { parseExternalSignalsJson } from '../utils/parseExternalSignals';
+import { BuyThesisPanel } from '../../buy-thesis/components/BuyThesisPanel';
 
 interface Props {
   prediction: CardPrediction | null;
@@ -264,6 +265,10 @@ export function PredictionDetailPanel({
                 )}
               </div>
             )}
+
+            <div className="mb-4">
+              <BuyThesisPanel cardId={prediction.cardId} compact />
+            </div>
 
             <div className="mb-4 space-y-3">
               <div>

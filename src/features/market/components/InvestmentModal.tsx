@@ -30,6 +30,7 @@ import { GradedMultiPriceChart, gradedSeriesKey } from './GradedMultiPriceChart'
 import { GradedPriceCards } from './GradedPriceCards';
 import { headlineGradedPrice } from './gradedPriceDisplay';
 import { cn } from '@/lib/utils';
+import { BuyThesisPanel } from '../../buy-thesis/components/BuyThesisPanel';
 
 interface InvestmentModalProps {
   card: PokemonCard | OnePieceCard | null;
@@ -734,6 +735,12 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
                   )}
                 </div>
               </section>
+
+              {!isOnePiece && (
+                <section>
+                  <BuyThesisPanel cardId={card.id} />
+                </section>
+              )}
 
               <section>
                 <div className="mb-3 flex items-baseline justify-between gap-3">
