@@ -146,6 +146,27 @@ describe('buyThesis analyzeBuyThesis', () => {
       expect(s.evidence).toBeDefined();
     }
     expect(result.reasoning.headline).toContain(result.categoryLabel);
+    expect(result.reasoning.meaning.length).toBeGreaterThan(20);
+    expect(result.reasoning.confidenceBlurb.toLowerCase()).toMatch(/sure|confidence|sure/);
+    // Hero copy should not lead with score soup
+    expect(result.reasoning.headline).not.toMatch(/opportunity \d+\/100/i);
+  });
+
+  it('writes plain-English why/risk sentences with concrete figures when available', () => {
+    const prices = Array.from({ length: 60 }, (_, i) => 40 + Math.sin(i / 6));
+    const end = new Date();
+    const history = prices.map((price, i) => {
+      const d = new Date(end);
+      d.setUTCDate(d.getUTCDate() - (prices.length - 1 - i));
+      return { date: d.toISOString().slice(0, 10), price, marketPrice: price, volume: 30 };
+    });
+    const result = analyzeBuyThesis({
+      meta,
+      priceHistory: history,
+    });
+    for (const line of [...result.reasoning.whyBuy, ...result.reasoning.whyNot]) {
+      expect(line.endsWith('.') || line.endsWith('!')).toBe(true);
+    }
   });
 
   it('penalizes source inconsistency', () => {

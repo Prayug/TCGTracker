@@ -75,6 +75,7 @@ export function BuyThesisPanel({ cardId, compact = false, className }: Props) {
   const [analysis, setAnalysis] = useState<BuyThesisAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showScores, setShowScores] = useState(false);
   const [showCalc, setShowCalc] = useState(false);
   const [showSignals, setShowSignals] = useState(false);
 
@@ -127,89 +128,75 @@ export function BuyThesisPanel({ cardId, compact = false, className }: Props) {
 
   if (!analysis) return null;
 
-  const confColor =
-    analysis.confidence.tier === 'high'
-      ? 'text-emerald-400'
-      : analysis.confidence.tier === 'medium'
-        ? 'text-amber-300'
-        : 'text-orange-400';
+  const meaning = analysis.reasoning.meaning || analysis.reasoning.headline;
+  const confidenceBlurb =
+    analysis.reasoning.confidenceBlurb ||
+    `Confidence: ${analysis.confidence.tier} (${Math.round(analysis.confidence.score)}/100).`;
+
+  const whyAttractive = analysis.reasoning.whyBuy.slice(0, compact ? 2 : 3);
+  const risks = analysis.reasoning.whyNot.slice(0, compact ? 2 : 3);
 
   return (
     <div
       className={cn(
-        'rounded-xl border border-border-default bg-surface-raised/80 p-4 space-y-3',
+        'rounded-xl border border-border-default bg-surface-raised/80 p-4 space-y-4',
         className
       )}
     >
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">
-            Buy thesis
-          </p>
-          <div className="mt-1.5 flex flex-wrap items-center gap-2">
-            <span
-              className={cn(
-                'inline-block rounded-full border px-2.5 py-0.5 text-xs font-medium',
-                BUY_CATEGORY_COLORS[analysis.category]
-              )}
-            >
-              {analysis.categoryLabel}
+      {/* Hero: recommendation + meaning */}
+      <div>
+        <p className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">
+          Buy thesis
+        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <span
+            className={cn(
+              'inline-block rounded-full border px-3 py-1 text-sm font-semibold',
+              BUY_CATEGORY_COLORS[analysis.category]
+            )}
+          >
+            {analysis.categoryLabel}
+          </span>
+          {analysis.currentPrice != null && (
+            <span className="font-mono text-sm tabular-nums text-ink-secondary">
+              ${analysis.currentPrice.toFixed(2)}
             </span>
-            <span
-              className={cn('text-xs font-medium', confColor)}
-              title={analysis.confidence.reasons.join('; ')}
-            >
-              {analysis.confidence.tier} confidence ({Math.round(analysis.confidence.score)})
-            </span>
-          </div>
+          )}
         </div>
-        <div className="text-right">
-          <p className="text-[10px] uppercase tracking-wider text-ink-muted">Opportunity</p>
-          <p className="font-mono text-xl font-semibold tabular-nums text-ink-primary">
-            {Math.round(analysis.scores.opportunity)}
-            <span className="text-sm text-ink-muted">/100</span>
-          </p>
-        </div>
+        <p className="mt-2.5 text-sm leading-relaxed text-ink-primary">{meaning}</p>
+        <p className="mt-2 text-xs leading-relaxed text-ink-muted">{confidenceBlurb}</p>
       </div>
 
-      <p className="text-xs leading-relaxed text-ink-secondary">{analysis.reasoning.headline}</p>
-
       {analysis.fairValue && (
-        <div className="rounded-lg bg-surface-inset px-3 py-2 text-xs">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="text-ink-muted">Fair value range</span>
-            <span className="font-mono tabular-nums text-ink-primary">
-              ${analysis.fairValue.low.toFixed(2)} – ${analysis.fairValue.high.toFixed(2)}
-            </span>
-          </div>
-          <p className="mt-0.5 text-[10px] text-ink-muted">
-            Mid ${analysis.fairValue.mid.toFixed(2)} ·{' '}
-            {analysis.fairValue.method.replace(/_/g, ' ')}
-          </p>
-        </div>
+        <p className="text-xs text-ink-secondary">
+          Recent fair range roughly{' '}
+          <span className="font-mono tabular-nums text-ink-primary">
+            ${analysis.fairValue.low.toFixed(2)}–${analysis.fairValue.high.toFixed(2)}
+          </span>
+          <span className="text-ink-muted"> (typical ~${analysis.fairValue.mid.toFixed(2)})</span>
+        </p>
       )}
 
-      <div className={cn('grid gap-3', compact ? 'grid-cols-1' : 'grid-cols-2')}>
+      {/* Why / Risks — plain English */}
+      <div className={cn('grid gap-4', compact ? 'grid-cols-1' : 'sm:grid-cols-2')}>
         <div>
-          <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-emerald-400/80">
-            Why
+          <p className="mb-2 text-[11px] font-medium text-emerald-400/90">
+            Why it looks attractive
           </p>
-          <ul className="space-y-1">
-            {analysis.reasoning.whyBuy.slice(0, compact ? 2 : 4).map((line) => (
-              <li key={line} className="text-xs leading-snug text-ink-secondary">
-                · {line}
+          <ul className="space-y-2">
+            {whyAttractive.map((line) => (
+              <li key={line} className="text-sm leading-snug text-ink-secondary">
+                {line}
               </li>
             ))}
           </ul>
         </div>
         <div>
-          <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-red-400/80">
-            Risks
-          </p>
-          <ul className="space-y-1">
-            {analysis.reasoning.whyNot.slice(0, compact ? 2 : 4).map((line) => (
-              <li key={line} className="text-xs leading-snug text-ink-secondary">
-                · {line}
+          <p className="mb-2 text-[11px] font-medium text-red-400/90">Risks</p>
+          <ul className="space-y-2">
+            {risks.map((line) => (
+              <li key={line} className="text-sm leading-snug text-ink-secondary">
+                {line}
               </li>
             ))}
           </ul>
@@ -217,59 +204,78 @@ export function BuyThesisPanel({ cardId, compact = false, className }: Props) {
       </div>
 
       {analysis.fakeOpportunityFlags.filter((f) => f.severity !== 'info').length > 0 && (
-        <div className="space-y-1">
+        <div className="space-y-1.5">
           {analysis.fakeOpportunityFlags
             .filter((f) => f.severity !== 'info')
-            .slice(0, 3)
+            .slice(0, 2)
             .map((f) => (
-              <div key={f.id} className="flex items-start gap-1.5 text-[11px] text-amber-300/90">
-                <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+              <div key={f.id} className="flex items-start gap-1.5 text-xs text-amber-300/90">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span>{f.message}</span>
               </div>
             ))}
         </div>
       )}
 
-      <div className="space-y-2">
-        {scoreEntries()
-          .filter((e) =>
-            compact ? e.key === 'opportunity' || e.key === 'risk' || e.key === 'liquidity' : true
-          )
-          .map((e) => (
-            <ScoreBar
-              key={e.key}
-              label={e.label}
-              value={analysis.scores[e.key]}
-              invert={e.invert}
-              hint={e.hint}
-            />
-          ))}
-      </div>
-
       {analysis.invalidation.length > 0 && (
-        <div className="rounded-lg border border-border-subtle px-3 py-2">
-          <p className="mb-1.5 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-ink-muted">
-            <Shield className="h-3 w-3" />
+        <div>
+          <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-ink-muted">
+            <Shield className="h-3.5 w-3.5" />
             What would change this rating?
           </p>
-          <ul className="space-y-1">
-            {analysis.invalidation.slice(0, compact ? 2 : 4).map((c) => (
-              <li key={c.id} className="text-[11px] leading-snug text-ink-secondary">
-                · {c.description}
+          <ul className="space-y-1.5">
+            {analysis.invalidation.slice(0, compact ? 2 : 3).map((c) => (
+              <li key={c.id} className="text-xs leading-snug text-ink-secondary">
+                {c.description}
               </li>
             ))}
           </ul>
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2 pt-1">
+      {/* Quiet secondary: scores collapsed by default */}
+      <div className="border-t border-border-subtle pt-3">
+        <button
+          type="button"
+          onClick={() => setShowScores((v) => !v)}
+          className="flex w-full items-center justify-between text-left text-[11px] text-ink-muted hover:text-ink-secondary"
+        >
+          <span>
+            Score breakdown
+            <span className="ml-1.5 font-mono tabular-nums text-ink-muted/80">
+              opp {Math.round(analysis.scores.opportunity)} · risk{' '}
+              {Math.round(analysis.scores.risk)}
+            </span>
+          </span>
+          {showScores ? (
+            <ChevronUp className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronDown className="h-3.5 w-3.5" />
+          )}
+        </button>
+        {showScores && (
+          <div className="mt-3 space-y-2">
+            {scoreEntries().map((e) => (
+              <ScoreBar
+                key={e.key}
+                label={e.label}
+                value={analysis.scores[e.key]}
+                invert={e.invert}
+                hint={e.hint}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-3">
         <button
           type="button"
           onClick={() => setShowSignals((v) => !v)}
           className="inline-flex items-center gap-1 text-[11px] text-ink-muted hover:text-ink-primary"
         >
           {showSignals ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-          Signals ({analysis.signals.length})
+          Underlying signals
         </button>
         <button
           type="button"
@@ -277,38 +283,39 @@ export function BuyThesisPanel({ cardId, compact = false, className }: Props) {
           className="inline-flex items-center gap-1 text-[11px] text-ink-muted hover:text-ink-primary"
         >
           {showCalc ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-          Calc details
+          Data notes
         </button>
       </div>
 
       {showSignals && (
-        <ul className="max-h-48 space-y-1.5 overflow-y-auto rounded-lg bg-surface-inset p-2">
+        <ul className="max-h-48 space-y-2 overflow-y-auto rounded-lg bg-surface-inset p-2.5">
           {analysis.signals
             .slice()
             .sort((a, b) => Math.abs(b.strength) - Math.abs(a.strength))
             .map((s) => (
-              <li key={s.id} className="text-[11px]">
+              <li key={s.id} className="text-xs leading-snug">
                 <span className={s.bullish ? 'text-emerald-400' : 'text-red-300'}>
-                  {s.bullish ? '▲' : '▼'} {s.label}
+                  {s.bullish ? 'Supports buy' : 'Caution'} · {s.label}
                 </span>
-                <span className="text-ink-muted"> · str {s.strength.toFixed(2)}</span>
-                <p className="text-ink-secondary">{s.summary}</p>
+                <p className="mt-0.5 text-ink-secondary">{s.summary}</p>
               </li>
             ))}
         </ul>
       )}
 
       {showCalc && (
-        <div className="space-y-1.5 rounded-lg bg-surface-inset p-2 text-[11px] text-ink-muted">
+        <div className="space-y-1.5 rounded-lg bg-surface-inset p-2.5 text-[11px] text-ink-muted">
           <p className="flex items-start gap-1">
             <Info className="mt-0.5 h-3 w-3 shrink-0" />
-            Prediction used as one signal: {analysis.predictionUsed ? 'yes' : 'no'}
+            Price forecast used as one input: {analysis.predictionUsed ? 'yes' : 'no'}
           </p>
-          {analysis.comparables && <p>Peers: {analysis.comparables.summary}</p>}
+          {analysis.comparables && <p>{analysis.comparables.summary}</p>}
           {analysis.dataLimitations.slice(0, 4).map((d) => (
             <p key={d}>· {d}</p>
           ))}
-          <p className="pt-1 text-[10px] italic">{analysis.reasoning.disclaimer}</p>
+          <p className="pt-1 text-[10px] italic text-ink-muted/90">
+            {analysis.reasoning.disclaimer}
+          </p>
         </div>
       )}
     </div>

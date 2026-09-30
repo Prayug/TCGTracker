@@ -200,6 +200,8 @@ for (const ex of examples) {
     confidence: analysis.confidence,
     fairValue: analysis.fairValue,
     headline: analysis.reasoning.headline,
+    meaning: analysis.reasoning.meaning,
+    confidenceBlurb: analysis.reasoning.confidenceBlurb,
     whyBuy: analysis.reasoning.whyBuy,
     whyNot: analysis.reasoning.whyNot,
     flags: analysis.fakeOpportunityFlags.map((f) => f.id),

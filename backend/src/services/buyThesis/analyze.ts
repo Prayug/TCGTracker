@@ -92,6 +92,9 @@ export function analyzeBuyThesis(input: AnalyzeBuyThesisInput): BuyThesisAnalysi
     signals,
     flags,
     currentPrice: features.currentPrice,
+    fairValue,
+    confidenceTier: confidence.tier,
+    confidenceReasons: confidence.reasons,
   });
 
   const invalidation = buildInvalidationConditions({ features, scores, category });

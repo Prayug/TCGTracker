@@ -108,9 +108,16 @@ export interface FakeOpportunityFlag {
 }
 
 export interface BuyThesisReasoning {
-  whyBuy: string[];
-  whyNot: string[];
+  /** Short label line, e.g. "Buy · $90.29" */
   headline: string;
+  /** One sentence: what the recommendation means for a collector */
+  meaning: string;
+  /** Plain-English confidence, e.g. "We're moderately sure because…" */
+  confidenceBlurb: string;
+  /** Short sentences — why it looks attractive */
+  whyBuy: string[];
+  /** Short sentences — risks / why not */
+  whyNot: string[];
   disclaimer: string;
 }
 

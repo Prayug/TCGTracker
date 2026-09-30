@@ -72,9 +72,11 @@ export interface BuyThesisAnalysis {
     relativeValuePct: number | null;
   } | null;
   reasoning: {
+    headline: string;
+    meaning?: string;
+    confidenceBlurb?: string;
     whyBuy: string[];
     whyNot: string[];
-    headline: string;
     disclaimer: string;
   };
   predictionUsed: boolean;
