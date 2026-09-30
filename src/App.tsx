@@ -45,6 +45,11 @@ const DealsPage = lazy(() =>
     default: m.DealsPage,
   }))
 );
+const MoneyFlowPage = lazy(() =>
+  import('./features/money-flow/components/MoneyFlowPage').then((m) => ({
+    default: m.MoneyFlowPage,
+  }))
+);
 const VaultView = lazy(() =>
   import('./features/vault/components/VaultView').then((m) => ({ default: m.VaultView }))
 );
@@ -142,13 +147,19 @@ function ShellPage({
   children,
   wide,
   fluid,
+  flush,
+  plain,
+  atmosphere,
 }: {
   children: ReactNode;
   wide?: boolean;
   fluid?: boolean;
+  flush?: boolean;
+  plain?: boolean;
+  atmosphere?: 'default' | 'subtle';
 }) {
   return (
-    <PageShell wide={wide} fluid={fluid}>
+    <PageShell wide={wide} fluid={fluid} flush={flush} plain={plain} atmosphere={atmosphere}>
       {children}
     </PageShell>
   );
@@ -210,6 +221,14 @@ function AppRoutes() {
                 element={
                   <ShellPage wide>
                     <DealsPage />
+                  </ShellPage>
+                }
+              />
+              <Route
+                path="/money-flow"
+                element={
+                  <ShellPage fluid flush plain atmosphere="subtle">
+                    <MoneyFlowPage />
                   </ShellPage>
                 }
               />

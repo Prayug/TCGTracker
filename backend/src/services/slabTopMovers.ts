@@ -114,20 +114,28 @@ export function seriesHasSingleProduct(
   return ids.size <= 1;
 }
 
-export async function getSlabTopMovers(days: number, limit: number): Promise<SlabTopMoversResult> {
-  const cacheKey = `v2:${days}:${limit}`;
-  const cached = cache.get(cacheKey);
+export interface QualifiedSlabMoversResult {
+  date: string | null;
+  days: number;
+  movers: SlabMoverEntry[];
+}
+
+const universeCache = new Map<string, { expiresAt: number; payload: QualifiedSlabMoversResult }>();
+
+/**
+ * Full qualified PSA 10 mover universe (same gates as /top-slab-movers).
+ */
+export async function listQualifiedSlabMovers(days: number): Promise<QualifiedSlabMoversResult> {
+  const cacheKey = `universe:v2:${days}`;
+  const cached = universeCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.payload;
   }
 
-  const empty = (date: string | null): SlabTopMoversResult => ({
+  const empty = (date: string | null): QualifiedSlabMoversResult => ({
     date,
     days,
-    grader: 'PSA',
-    grade: '10',
-    gainers: [],
-    losers: [],
+    movers: [],
   });
 
   const latestRow = await dbGet<{ maxDate: string }>(
@@ -138,7 +146,7 @@ export async function getSlabTopMovers(days: number, limit: number): Promise<Sla
   const latestDate = latestRow?.maxDate;
   if (!latestDate) {
     const payload = empty(null);
-    cache.set(cacheKey, { expiresAt: Date.now() + TOP_MOVERS_TTL_MS, payload });
+    universeCache.set(cacheKey, { expiresAt: Date.now() + TOP_MOVERS_TTL_MS, payload });
     return payload;
   }
 
@@ -173,14 +181,14 @@ export async function getSlabTopMovers(days: number, limit: number): Promise<Sla
 
   if (currentRows.length === 0) {
     const payload = empty(latestDate);
-    cache.set(cacheKey, { expiresAt: Date.now() + TOP_MOVERS_TTL_MS, payload });
+    universeCache.set(cacheKey, { expiresAt: Date.now() + TOP_MOVERS_TTL_MS, payload });
     return payload;
   }
 
   const prevDate = prevDateRow?.prevDate;
   if (!prevDate || calendarDaysBetween(prevDate, latestDate) < minSpan) {
     const payload = empty(latestDate);
-    cache.set(cacheKey, { expiresAt: Date.now() + TOP_MOVERS_TTL_MS, payload });
+    universeCache.set(cacheKey, { expiresAt: Date.now() + TOP_MOVERS_TTL_MS, payload });
     return payload;
   }
 
@@ -242,7 +250,7 @@ export async function getSlabTopMovers(days: number, limit: number): Promise<Sla
 
   if (candidates.length === 0) {
     const payload = empty(latestDate);
-    cache.set(cacheKey, { expiresAt: Date.now() + TOP_MOVERS_TTL_MS, payload });
+    universeCache.set(cacheKey, { expiresAt: Date.now() + TOP_MOVERS_TTL_MS, payload });
     return payload;
   }
 
@@ -287,16 +295,28 @@ export async function getSlabTopMovers(days: number, limit: number): Promise<Sla
   });
 
   survivors.sort((a, b) => b.changePercent - a.changePercent);
-  const gainerRank = survivors.filter((e) => e.changePercent > 0).slice(0, limit);
-  const loserRank = survivors
+  const movers = await enrichMovers(survivors);
+  const payload: QualifiedSlabMoversResult = { date: latestDate, days, movers };
+  universeCache.set(cacheKey, { expiresAt: Date.now() + TOP_MOVERS_TTL_MS, payload });
+  return payload;
+}
+
+export async function getSlabTopMovers(days: number, limit: number): Promise<SlabTopMoversResult> {
+  const cacheKey = `v2:${days}:${limit}`;
+  const cached = cache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.payload;
+  }
+
+  const universe = await listQualifiedSlabMovers(days);
+  const gainers = universe.movers.filter((e) => e.changePercent > 0).slice(0, limit);
+  const losers = universe.movers
     .filter((e) => e.changePercent < 0)
     .sort((a, b) => a.changePercent - b.changePercent)
     .slice(0, limit);
 
-  const [gainers, losers] = await Promise.all([enrichMovers(gainerRank), enrichMovers(loserRank)]);
-
   const payload: SlabTopMoversResult = {
-    date: latestDate,
+    date: universe.date,
     days,
     grader: 'PSA',
     grade: '10',

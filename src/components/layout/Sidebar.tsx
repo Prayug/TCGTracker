@@ -17,6 +17,7 @@ import {
   Settings,
   Swords,
   TrendingUp,
+  Waves,
 } from 'lucide-react';
 import { useGame, GameType } from '../../contexts/GameContext';
 import { cn } from '@/lib/utils';
@@ -44,6 +45,7 @@ const NAV_GROUPS: {
     label: 'Market',
     items: [
       { to: '/prices', label: 'Slabs', icon: Layers },
+      { to: '/money-flow', label: 'Money Flow', icon: Waves },
       { to: '/market-insights', label: 'Insights', icon: TrendingUp },
       { to: '/investments', label: 'Investments', icon: LineChart },
       { to: '/deals', label: 'Deals', icon: Percent },
