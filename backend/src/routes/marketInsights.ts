@@ -29,6 +29,11 @@ import {
 } from '../services/returnCalibration';
 import { getHorizonSupportStatus, windowToHorizonDays } from '../services/horizonSupport';
 import { runDataQualityChecks, getLatestDataQualityChecks } from '../services/dataQualityService';
+import {
+  getBuyThesisForCard,
+  runBuyThesisBacktestForCard,
+  getLatestBuyThesisBacktest,
+} from '../services/buyThesis';
 import { AuthRequest } from '../middleware/auth';
 
 const router = Router();
@@ -716,6 +721,42 @@ router.get(
     });
 
     res.json({ explanation: aiExplanation, cached: false });
+  })
+);
+
+/**
+ * Structured buy thesis — signals, scores, confidence, invalidation.
+ * Deterministic analysis from measurable market data (not LLM).
+ */
+router.get(
+  '/buy-thesis/:cardId',
+  asyncHandler(async (req, res) => {
+    const { cardId } = req.params;
+    if (!cardId || cardId.length > 200) {
+      return res.status(400).json({ error: 'Invalid cardId' });
+    }
+    const analysis = await getBuyThesisForCard(cardId);
+    if (!analysis) {
+      return res.status(404).json({ error: 'Card not found or no market data' });
+    }
+    res.json(analysis);
+  })
+);
+
+router.get(
+  '/buy-thesis/:cardId/backtest',
+  asyncHandler(async (req, res) => {
+    const { cardId } = req.params;
+    const refresh = req.query.refresh === '1' || req.query.refresh === 'true';
+    if (!refresh) {
+      const cached = await getLatestBuyThesisBacktest(cardId);
+      if (cached) return res.json({ ...cached, cached: true });
+    }
+    const result = await runBuyThesisBacktestForCard(cardId);
+    if (!result) {
+      return res.status(404).json({ error: 'Insufficient history for buy-thesis backtest' });
+    }
+    res.json({ ...result, cached: false });
   })
 );
 

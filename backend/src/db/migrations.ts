@@ -2481,6 +2481,44 @@ export const migrations: Migration[] = [
       // SQLite cannot DROP COLUMN portably; leave columns in place.
     },
   },
+  {
+    id: 43,
+    name: 'create_buy_thesis_backtests',
+    up: async (db: Database) => {
+      return new Promise((resolve, reject) => {
+        db.run(
+          `CREATE TABLE IF NOT EXISTS buy_thesis_backtests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            card_id TEXT NOT NULL,
+            sample_dates INTEGER NOT NULL DEFAULT 0,
+            payload_json TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )`,
+          (err) => {
+            if (err) return reject(err);
+            db.run(
+              `CREATE INDEX IF NOT EXISTS idx_buy_thesis_backtests_card
+               ON buy_thesis_backtests(card_id)`,
+              (idxErr) => {
+                if (idxErr) reject(idxErr);
+                else {
+                  logger.info('Migration 43: buy_thesis_backtests table');
+                  resolve();
+                }
+              }
+            );
+          }
+        );
+      });
+    },
+    down: async (db: Database) => {
+      return new Promise((resolve, reject) => {
+        db.run('DROP TABLE IF EXISTS buy_thesis_backtests', (err) =>
+          err ? reject(err) : resolve()
+        );
+      });
+    },
+  },
 ];
 
 // Run pending migrations
