@@ -58,6 +58,12 @@ function getNavCommands(isOnePiece: boolean): NavCommand[] {
       shortcut: 'G P',
     },
     {
+      label: 'Money Flow',
+      to: '/money-flow',
+      keywords: 'money flow capital rotation vintage modern gold star shining movers',
+      icon: Layers,
+    },
+    {
       label: 'Investments',
       to: '/investments',
       keywords: 'investments opportunities movers buyouts similar slabs external factors invest',

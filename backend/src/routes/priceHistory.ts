@@ -415,6 +415,21 @@ router.get('/onepiece/:catalogId', async (req: Request, res: Response): Promise<
   }
 });
 
+// Hobby capital rotation across era / finish / special cohorts
+router.get('/money-flow', async (req: Request, res: Response) => {
+  const requestedDays = parseInt(req.query.days as string, 10) || 7;
+  const days = requestedDays === 30 ? 30 : 7;
+  try {
+    const { getMoneyFlow } = await import('../services/moneyFlowService');
+    const payload = await getMoneyFlow(days);
+    res.setHeader('Cache-Control', `public, max-age=${Math.floor(TOP_MOVERS_TTL_MS / 1000)}`);
+    res.json(payload);
+  } catch (error) {
+    logger.error('Money flow query failed', { error: (error as Error).message });
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
 // Get top movers (cards with the biggest price changes over a period)
 router.get('/top-movers', async (req: Request, res: Response) => {
   const requestedDays = parseInt(req.query.days as string, 10) || 7;

@@ -100,18 +100,29 @@ const dbAll = <T>(sql: string, params: unknown[] = []): Promise<T[]> =>
     });
   });
 
-export async function getRawTopMovers(days: number, limit: number): Promise<RawTopMoversResult> {
-  const cacheKey = `v5:${days}:${limit}`;
-  const cached = cache.get(cacheKey);
+export interface QualifiedRawMoversResult {
+  date: string | null;
+  days: number;
+  movers: RawMoverEntry[];
+}
+
+const universeCache = new Map<string, { expiresAt: number; payload: QualifiedRawMoversResult }>();
+
+/**
+ * Full qualified raw-mover universe (same gates as /top-movers), not truncated to top-N.
+ * Money-flow aggregates over this set so cohort medians are not biased to extremes only.
+ */
+export async function listQualifiedRawMovers(days: number): Promise<QualifiedRawMoversResult> {
+  const cacheKey = `universe:v5:${days}`;
+  const cached = universeCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.payload;
   }
 
-  const empty = (date: string | null): RawTopMoversResult => ({
+  const empty = (date: string | null): QualifiedRawMoversResult => ({
     date,
     days,
-    gainers: [],
-    losers: [],
+    movers: [],
   });
 
   const latestRow = await dbGet<{ maxDate: string }>(
@@ -122,7 +133,7 @@ export async function getRawTopMovers(days: number, limit: number): Promise<RawT
   const latestDate = latestRow?.maxDate;
   if (!latestDate) {
     const payload = empty(null);
-    cache.set(cacheKey, { expiresAt: Date.now() + TOP_MOVERS_TTL_MS, payload });
+    universeCache.set(cacheKey, { expiresAt: Date.now() + TOP_MOVERS_TTL_MS, payload });
     return payload;
   }
 
@@ -146,7 +157,7 @@ export async function getRawTopMovers(days: number, limit: number): Promise<RawT
 
   if (currentRows.length === 0) {
     const payload = empty(latestDate);
-    cache.set(cacheKey, { expiresAt: Date.now() + TOP_MOVERS_TTL_MS, payload });
+    universeCache.set(cacheKey, { expiresAt: Date.now() + TOP_MOVERS_TTL_MS, payload });
     return payload;
   }
 
@@ -248,7 +259,7 @@ export async function getRawTopMovers(days: number, limit: number): Promise<RawT
 
   if (candidates.length === 0) {
     const payload = empty(latestDate);
-    cache.set(cacheKey, { expiresAt: Date.now() + TOP_MOVERS_TTL_MS, payload });
+    universeCache.set(cacheKey, { expiresAt: Date.now() + TOP_MOVERS_TTL_MS, payload });
     return payload;
   }
 
@@ -292,15 +303,32 @@ export async function getRawTopMovers(days: number, limit: number): Promise<RawT
   });
 
   survivors.sort((a, b) => b.changePercent - a.changePercent);
-  const gainerRank = survivors.filter((e) => e.changePercent > 0).slice(0, limit);
-  const loserRank = survivors
+  const movers = await enrichMovers(survivors);
+  const payload: QualifiedRawMoversResult = { date: latestDate, days, movers };
+  universeCache.set(cacheKey, { expiresAt: Date.now() + TOP_MOVERS_TTL_MS, payload });
+  return payload;
+}
+
+export async function getRawTopMovers(days: number, limit: number): Promise<RawTopMoversResult> {
+  const cacheKey = `v5:${days}:${limit}`;
+  const cached = cache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.payload;
+  }
+
+  const universe = await listQualifiedRawMovers(days);
+  const gainers = universe.movers.filter((e) => e.changePercent > 0).slice(0, limit);
+  const losers = universe.movers
     .filter((e) => e.changePercent < 0)
     .sort((a, b) => a.changePercent - b.changePercent)
     .slice(0, limit);
 
-  const [gainers, losers] = await Promise.all([enrichMovers(gainerRank), enrichMovers(loserRank)]);
-
-  const payload: RawTopMoversResult = { date: latestDate, days, gainers, losers };
+  const payload: RawTopMoversResult = {
+    date: universe.date,
+    days,
+    gainers,
+    losers,
+  };
   cache.set(cacheKey, { expiresAt: Date.now() + TOP_MOVERS_TTL_MS, payload });
   return payload;
 }
