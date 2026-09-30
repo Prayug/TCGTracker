@@ -92,3 +92,14 @@ export const BUY_CATEGORY_COLORS: Record<BuyCategory, string> = {
   high_risk: 'bg-orange-500/15 text-orange-300 border-orange-500/30',
   insufficient_data: 'bg-surface-inset text-ink-muted border-border-subtle',
 };
+
+/** Fallback labels if API is an older build */
+export const BUY_CATEGORY_LABELS: Record<BuyCategory, string> = {
+  strong_buy: 'Buy it',
+  buy: 'Worth picking up',
+  watch: 'Wait / watch',
+  hold_fair_value: 'Hold',
+  avoid: 'Skip for now',
+  high_risk: 'Risky chase',
+  insufficient_data: 'Not enough sales',
+};

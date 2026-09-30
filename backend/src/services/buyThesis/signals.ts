@@ -199,7 +199,7 @@ export function buildSignals(input: {
         flags.push({
           id: 'grading_thin_liquidity',
           severity: 'warn',
-          message: 'Attractive grading spread but thin sold comps — ROI may not be realizable.',
+          message: 'Grading only pays if it 10s and someone actually buys the slab.',
           evidence: { netRoiPct: round2(netRoi), soldListings: g?.soldListings ?? 0 },
         });
       }
@@ -329,7 +329,7 @@ export function buildSignals(input: {
       flags.push({
         id: 'buyout_looking',
         severity: Math.abs(strength) > 0.6 ? 'critical' : 'warn',
-        message: 'Price action resembles a thin-market spike or buyout.',
+        message: 'Looks like a sudden run-up — buying now can mean paying chase.',
         evidence: { maxSpike14d: spike, robustSpikeZ: z, volumeSpikeRatio: volSpike },
       });
     }
@@ -348,7 +348,7 @@ export function buildSignals(input: {
     flags.push({
       id: 'stale_data',
       severity: f.daysSinceLastQuote > 30 ? 'critical' : 'warn',
-      message: 'Market data is stale — opportunity may be outdated.',
+      message: 'Price tag may be stale — confirm with a recent sale before you buy.',
       evidence: { daysSinceLastQuote: f.daysSinceLastQuote },
     });
   }
@@ -368,7 +368,7 @@ export function buildSignals(input: {
     flags.push({
       id: 'thin_volume',
       severity: 'warn',
-      message: 'Thin trading history reduces reliability of any buy signal.',
+      message: 'Thin sales history — take with a grain of salt.',
       evidence: { historyLength: f.historyLength, avgVolume30d: f.avgVolume30d },
     });
   }
@@ -385,7 +385,7 @@ export function buildSignals(input: {
     flags.push({
       id: 'source_inconsistency',
       severity: f.sourceSpreadPct > 30 ? 'critical' : 'warn',
-      message: 'Listing sources disagree — fair value is uncertain.',
+      message: "Different shops disagree on price — don't grab the first listing.",
       evidence: { sourceSpreadPct: f.sourceSpreadPct },
     });
   }
@@ -394,7 +394,7 @@ export function buildSignals(input: {
     flags.push({
       id: 'outlier_spike',
       severity: 'warn',
-      message: 'Latest move is a statistical outlier vs this card’s own history.',
+      message: 'One weird print jumped the price — wait for it to settle.',
       evidence: { robustSpikeZ: f.robustSpikeZ },
     });
     signals.push({
@@ -489,7 +489,7 @@ export function buildSignals(input: {
         flags.push({
           id: 'strong_forecast_low_confidence',
           severity: 'info',
-          message: 'Forecast magnitude is notable but prediction confidence is low.',
+          message: 'Chart lean is interesting, but we would not bet the binder on it alone.',
           evidence: { expectedReturn: ret, confidence: p.confidence },
         });
       }

@@ -147,9 +147,14 @@ describe('buyThesis analyzeBuyThesis', () => {
     }
     expect(result.reasoning.headline).toContain(result.categoryLabel);
     expect(result.reasoning.meaning.length).toBeGreaterThan(20);
-    expect(result.reasoning.confidenceBlurb.toLowerCase()).toMatch(/sure|confidence|sure/);
-    // Hero copy should not lead with score soup
+    expect(result.reasoning.meaning.toLowerCase()).toMatch(
+      /i'd|i would|pass|wait|hold|hard to say|pick|buy|skip|flip|chase/i
+    );
+    expect(result.reasoning.confidenceBlurb.toLowerCase()).toMatch(
+      /salt|trust|guide|gospel|guessing|sales/i
+    );
     expect(result.reasoning.headline).not.toMatch(/opportunity \d+\/100/i);
+    expect(result.categoryLabel).not.toMatch(/Strong Buy|Insufficient Data|Fair Value/i);
   });
 
   it('writes plain-English why/risk sentences with concrete figures when available', () => {

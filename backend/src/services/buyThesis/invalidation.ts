@@ -1,6 +1,5 @@
 /**
- * Programmatic invalidation conditions from the card's own history.
- * "What would change this rating?"
+ * Programmatic invalidation — collector-facing "what would change my mind?"
  */
 
 import { percentile, round2 } from './stats';
@@ -23,7 +22,7 @@ export function buildInvalidationConditions(input: {
     if (category === 'strong_buy' || category === 'buy' || category === 'watch') {
       conditions.push({
         id: 'price_above_fair_band',
-        description: `Price rising above $${upsideBreak} (≈8% over trimmed fair) would weaken the value case`,
+        description: `If it runs past about $${upsideBreak}, it's less of a deal — I'd wait for a dip.`,
         metric: 'currentPrice',
         currentValue: price,
         threshold: upsideBreak,
@@ -33,7 +32,7 @@ export function buildInvalidationConditions(input: {
     if (category === 'avoid' || category === 'high_risk' || category === 'hold_fair_value') {
       conditions.push({
         id: 'price_below_fair_band',
-        description: `Price falling below $${downsideBreak} (≈8% under trimmed fair) would improve value`,
+        description: `If it comes down under about $${downsideBreak}, I'd look again.`,
         metric: 'currentPrice',
         currentValue: price,
         threshold: downsideBreak,
@@ -42,7 +41,6 @@ export function buildInvalidationConditions(input: {
     }
   }
 
-  // Volatility percentile of this card's own day-moves
   const moves: number[] = [];
   for (let i = 1; i < f.priceHistory.length; i++) {
     const prev = f.priceHistory[i - 1].marketPrice ?? f.priceHistory[i - 1].price;
@@ -53,7 +51,7 @@ export function buildInvalidationConditions(input: {
   if (p90Move != null && (category === 'strong_buy' || category === 'buy')) {
     conditions.push({
       id: 'volatility_break',
-      description: `A single-day move beyond ${p90Move.toFixed(1)}% (this card’s 90th pct) would raise risk`,
+      description: `A single wild day beyond ~${p90Move.toFixed(0)}% would make me treat this as a chase.`,
       metric: 'absDayMovePct',
       currentValue: f.maxSpike14d,
       threshold: round2(p90Move),
@@ -66,7 +64,7 @@ export function buildInvalidationConditions(input: {
     if (category === 'strong_buy' || category === 'buy' || category === 'watch') {
       conditions.push({
         id: 'lose_ma30',
-        description: `Closing below 30d MA ($${ma30.toFixed(2)}) would weaken momentum`,
+        description: `If it slips under about $${ma30.toFixed(2)} (recent month average), I'd stop adding.`,
         metric: 'priceVsMa30',
         currentValue: price,
         threshold: round2(ma30),
@@ -75,7 +73,7 @@ export function buildInvalidationConditions(input: {
     } else if (category === 'avoid' || category === 'high_risk') {
       conditions.push({
         id: 'reclaim_ma30',
-        description: `Reclaiming 30d MA ($${ma30.toFixed(2)}) would reduce downtrend pressure`,
+        description: `If it climbs back over about $${ma30.toFixed(2)}, the chart starts looking healthier.`,
         metric: 'priceVsMa30',
         currentValue: price,
         threshold: round2(ma30),
@@ -88,7 +86,7 @@ export function buildInvalidationConditions(input: {
     const need = round2(Math.max(5, f.avgVolume30d * 2));
     conditions.push({
       id: 'liquidity_improve',
-      description: `Sustained volume above ~${need} would improve liquidity confidence`,
+      description: `More regular sales (busier than ~${need} lately) would make the market easier to trust.`,
       metric: 'avgVolume30d',
       currentValue: f.avgVolume30d,
       threshold: need,
@@ -102,7 +100,7 @@ export function buildInvalidationConditions(input: {
     if (p10 != null && p90 != null && price != null) {
       conditions.push({
         id: 'leave_history_band',
-        description: `Leaving the historical $${p10.toFixed(2)}–$${p90.toFixed(2)} band (10th–90th) would re-rate the thesis`,
+        description: `Leaving its usual $${p10.toFixed(2)}–$${p90.toFixed(2)} neighborhood would change this advice.`,
         metric: 'currentPrice',
         currentValue: price,
         threshold: price < (p10 + p90) / 2 ? p10 : p90,

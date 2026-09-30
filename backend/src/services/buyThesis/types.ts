@@ -176,14 +176,15 @@ export interface BuyThesisAnalysis {
   dataLimitations: string[];
 }
 
+/** Collector-facing labels (API category codes unchanged). */
 export const BUY_CATEGORY_LABELS: Record<BuyCategory, string> = {
-  strong_buy: 'Strong Buy',
-  buy: 'Buy',
-  watch: 'Watch',
-  hold_fair_value: 'Hold · Fair Value',
-  avoid: 'Avoid',
-  high_risk: 'High Risk',
-  insufficient_data: 'Insufficient Data',
+  strong_buy: 'Buy it',
+  buy: 'Worth picking up',
+  watch: 'Wait / watch',
+  hold_fair_value: 'Hold',
+  avoid: 'Skip for now',
+  high_risk: 'Risky chase',
+  insufficient_data: 'Not enough sales',
 };
 
 export const DEFAULT_SCORE_WEIGHTS: ScoreWeights = {
