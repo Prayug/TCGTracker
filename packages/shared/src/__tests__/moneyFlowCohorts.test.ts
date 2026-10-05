@@ -192,6 +192,6 @@ describe('money-flow relevance filter', () => {
         confidence: 'medium',
         exemplarName: 'Rayquaza ☆',
       })
-    ).toMatch(/Getting chased|chased/i);
+    ).toMatch(/Chased at \+6\.2%/i);
   });
 });

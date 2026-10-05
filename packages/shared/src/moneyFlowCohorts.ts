@@ -302,7 +302,7 @@ export function isMoneyFlowRelevantPrint(input: {
   return true;
 }
 
-/** Plain-English collector line for a cohort row. */
+/** Short collector line — used as expand detail, not a wall of prose. */
 export function storyForCohort(input: {
   label: string;
   rotation: MoneyFlowRotation;
@@ -312,34 +312,21 @@ export function storyForCohort(input: {
   confidence: MoneyFlowConfidence;
   exemplarName?: string | null;
 }): string {
-  if (input.sampleSize === 0) {
-    return `Not enough ${input.label.toLowerCase()} movers this window.`;
-  }
+  if (input.sampleSize === 0) return 'No chase prints measured.';
   const pct =
     input.medianReturnPct == null
-      ? null
+      ? '—'
       : `${input.medianReturnPct > 0 ? '+' : ''}${input.medianReturnPct.toFixed(1)}%`;
-  const rising =
-    input.breadthUpPct == null ? null : `${Math.round(input.breadthUpPct)}% of prints rising`;
-  const tip = input.exemplarName ? ` e.g. ${input.exemplarName}` : '';
-  const thin =
-    input.confidence === 'thin' || input.confidence === 'low'
-      ? ' Small sample — treat as a hint, not a call.'
-      : '';
-
+  const rise =
+    input.breadthUpPct == null ? null : `${Math.round(input.breadthUpPct)}% rising together`;
+  const tip = input.exemplarName ? ` · ${input.exemplarName}` : '';
   if (input.rotation === 'into') {
-    return `${input.label} is getting chased${pct ? ` (about ${pct} median)` : ''}${
-      rising ? ` — ${rising}` : ''
-    }.${tip}${thin}`;
+    return `Chased at ${pct}${rise ? ` · ${rise}` : ''}${tip}`;
   }
   if (input.rotation === 'out') {
-    return `${input.label} is cooling${pct ? ` (about ${pct} median)` : ''}${
-      rising ? ` — only ${rising}` : ''
-    }.${tip}${thin}`;
+    return `Cooling at ${pct}${rise ? ` · ${rise}` : ''}${tip}`;
   }
-  return `${input.label} looks mixed${pct ? ` (${pct} median)` : ''}${
-    rising ? ` — ${rising}` : ''
-  }.${thin}`;
+  return `Mixed at ${pct}${rise ? ` · ${rise}` : ''}${tip}`;
 }
 
 export interface MoneyFlowMemberInput {

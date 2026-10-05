@@ -32,13 +32,9 @@ export type TaggedMover = {
 };
 
 function dataNoteFor(sampleSize: number, confidence: MoneyFlowCohort['confidence']): string | null {
-  if (sampleSize === 0) return 'No chase-worthy movers in this cohort for the window.';
-  if (confidence === 'thin') {
-    return `Only ${sampleSize} prints — treat as a hint.`;
-  }
-  if (confidence === 'low') {
-    return `Small sample (${sampleSize}) — direction may shift.`;
-  }
+  if (sampleSize === 0) return 'No chase prints in this group.';
+  if (confidence === 'thin') return `Only ${sampleSize} prints — hint, not a call.`;
+  if (confidence === 'low') return `${sampleSize} prints — small sample.`;
   return null;
 }
 
@@ -136,16 +132,15 @@ function buildHeadline(
 
   let summary: string;
   if (rawSampleSize + slabSampleSize === 0) {
-    summary =
-      'Not enough chase-worthy price moves this window — try 30d, or wait for more graded/raw history.';
+    summary = 'No chase movers this window.';
   } else if (intoLabels.length === 0 && outLabels.length === 0) {
-    summary = 'No clear rotation yet — cohorts are mixed across eras and finishes.';
+    summary = 'No clear rotation.';
   } else if (intoLabels.length && outLabels.length) {
-    summary = `Collectors are chasing ${intoLabels[0]} while ${outLabels[0]} cools.`;
+    summary = `${intoLabels[0]} up · ${outLabels[0]} down`;
   } else if (intoLabels.length) {
-    summary = `Collectors are leaning into ${intoLabels.join(', ')}.`;
+    summary = `Into ${intoLabels.join(', ')}`;
   } else {
-    summary = `${outLabels.join(', ')} ${outLabels.length === 1 ? 'is' : 'are'} cooling off.`;
+    summary = `Out of ${outLabels.join(', ')}`;
   }
 
   return {
