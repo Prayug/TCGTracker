@@ -6,9 +6,11 @@ import {
   confidenceFromSample,
   detectSpecialCohorts,
   isGoldStarPrint,
+  isMoneyFlowRelevantPrint,
   isShiningPrint,
   isSirAltPrint,
   median,
+  storyForCohort,
   trimmedMean,
 } from '../moneyFlowCohorts';
 
@@ -122,5 +124,74 @@ describe('cohort aggregation', () => {
         confidence: 'thin',
       })
     ).toBe('neutral');
+    expect(
+      classifyRotation({
+        shareOfGainers: 0.5,
+        shareOfLosers: 0.1,
+        medianReturnPct: 8,
+        sampleSize: 5,
+        confidence: 'thin',
+        breadthUpPct: 80,
+      })
+    ).toBe('into');
+  });
+});
+
+describe('money-flow relevance filter', () => {
+  it('drops bulk commons and sub-floor slabs', () => {
+    expect(
+      isMoneyFlowRelevantPrint({
+        rarity: 'Common',
+        name: 'Caterpie',
+        currentPrice: 1.5,
+        finish: 'raw',
+      })
+    ).toBe(false);
+    expect(
+      isMoneyFlowRelevantPrint({
+        rarity: 'Uncommon',
+        name: 'Pidgeotto',
+        currentPrice: 12,
+        finish: 'raw',
+      })
+    ).toBe(false);
+    expect(
+      isMoneyFlowRelevantPrint({
+        rarity: 'Common',
+        name: 'Weird expensive common',
+        currentPrice: 55,
+        finish: 'raw',
+      })
+    ).toBe(true);
+    expect(
+      isMoneyFlowRelevantPrint({
+        rarity: 'Rare Holo',
+        name: 'Charizard',
+        currentPrice: 15,
+        finish: 'psa10',
+      })
+    ).toBe(false);
+    expect(
+      isMoneyFlowRelevantPrint({
+        rarity: 'Rare Holo',
+        name: 'Charizard',
+        currentPrice: 80,
+        finish: 'psa10',
+      })
+    ).toBe(true);
+  });
+
+  it('writes collector-facing stories', () => {
+    expect(
+      storyForCohort({
+        label: 'Vintage · PSA 10',
+        rotation: 'into',
+        medianReturnPct: 6.2,
+        breadthUpPct: 71,
+        sampleSize: 34,
+        confidence: 'medium',
+        exemplarName: 'Rayquaza ☆',
+      })
+    ).toMatch(/Getting chased|chased/i);
   });
 });

@@ -1,11 +1,13 @@
 import {
   classifyMoneyFlowEra,
   detectSpecialCohorts,
+  isMoneyFlowRelevantPrint,
   type MoneyFlowEra,
   type MoneyFlowFinish,
   type MoneyFlowSpecial,
 } from '@tcgtracker/shared';
 import { buildMoneyFlowFromTagged, type TaggedMover } from '../moneyFlowAggregate';
+
 function member(partial: {
   changePercent: number;
   currentPrice: number;
@@ -14,6 +16,7 @@ function member(partial: {
   finish: MoneyFlowFinish;
   specials?: MoneyFlowSpecial[];
   name?: string;
+  rarity?: string | null;
 }): TaggedMover {
   return {
     changePercent: partial.changePercent,
@@ -33,7 +36,7 @@ function member(partial: {
       cardId: null,
       setId: null,
       setName: null,
-      rarity: null,
+      rarity: partial.rarity ?? null,
       finish: partial.finish,
     },
   };
@@ -44,7 +47,9 @@ describe('moneyFlowService aggregation', () => {
     const flow = buildMoneyFlowFromTagged(7, []);
     expect(flow.eras.every((c) => c.sampleSize === 0)).toBe(true);
     expect(flow.eras.every((c) => c.medianReturnPct === null)).toBe(true);
-    expect(flow.headline.summary).toMatch(/Not enough qualified/i);
+    expect(flow.eras.every((c) => typeof c.story === 'string' && c.story.length > 0)).toBe(true);
+    expect(flow.headline.summary).toMatch(/Not enough chase/i);
+    expect(flow.headline.filteredOutCount).toBe(0);
     expect(flow.rotationInto).toEqual([]);
     expect(flow.rotationOut).toEqual([]);
   });
@@ -61,6 +66,7 @@ describe('moneyFlowService aggregation', () => {
           finish: 'psa10',
           specials: i < 5 ? ['gold_star'] : [],
           name: `Vintage Gem ${i}`,
+          rarity: 'Rare Holo',
         })
       );
     }
@@ -74,34 +80,57 @@ describe('moneyFlowService aggregation', () => {
           finish: 'raw',
           specials: i < 5 ? ['sir_alt'] : [],
           name: `Modern Chase ${i}`,
+          rarity: 'Special Illustration Rare',
         })
       );
     }
 
-    const flow = buildMoneyFlowFromTagged(7, tagged, '2026-09-30');
+    const flow = buildMoneyFlowFromTagged(7, tagged, '2026-09-30', 12);
     const vintage = flow.eras.find((c) => c.key === 'vintage')!;
     const modern = flow.eras.find((c) => c.key === 'modern')!;
     expect(vintage.medianReturnPct).toBeGreaterThan(0);
     expect(modern.medianReturnPct).toBeLessThan(0);
     expect(vintage.rotation).toBe('into');
     expect(modern.rotation).toBe('out');
-    expect(flow.rotationInto.some((c) => c.key === 'vintage' || c.key.includes('vintage'))).toBe(
-      true
-    );
-    expect(flow.rotationOut.some((c) => c.key === 'modern' || c.key.includes('modern'))).toBe(true);
-    expect(flow.headline.summary).toMatch(/rotat/i);
+    expect(vintage.story).toMatch(/chased|Vintage/i);
+    expect(flow.rotationInto.length).toBeGreaterThan(0);
+    expect(flow.rotationInto.length).toBeLessThanOrEqual(3);
+    expect(flow.rotationOut.some((c) => c.key.includes('modern') || c.key === 'modern')).toBe(true);
+    expect(flow.headline.summary).toMatch(/chasing|cooling/i);
+    expect(flow.headline.filteredOutCount).toBe(12);
+
+    const intoKeys = flow.rotationInto.map((c) => c.key);
+    if (intoKeys.includes('vintage|psa10')) {
+      expect(intoKeys.includes('vintage')).toBe(false);
+    }
 
     const gold = flow.specials.find((c) => c.key === 'gold_star')!;
     expect(gold.sampleSize).toBe(5);
     expect(gold.confidence).toBe('thin');
-    expect(gold.dataNote).toMatch(/Thin sample/i);
+    expect(gold.dataNote).toMatch(/Only 5|hint/i);
   });
 
-  it('classifies eras and specials from catalog metadata helpers', () => {
+  it('classifies eras and keeps bulk commons out of relevance', () => {
     expect(classifyMoneyFlowEra({ id: 'ex11', name: 'Delta Species' })).toBe('vintage');
     expect(classifyMoneyFlowEra({ id: 'sv3', name: 'Obsidian Flames' })).toBe('modern');
     expect(
       detectSpecialCohorts({ name: 'Shining Charizard', rarity: 'Rare Shining', era: 'vintage' })
     ).toContain('shining');
+    expect(
+      isMoneyFlowRelevantPrint({
+        rarity: 'Common',
+        name: 'Pidgey',
+        currentPrice: 2,
+        finish: 'raw',
+      })
+    ).toBe(false);
+    expect(
+      isMoneyFlowRelevantPrint({
+        rarity: 'Rare Holo',
+        name: 'Charizard',
+        currentPrice: 45,
+        finish: 'raw',
+      })
+    ).toBe(true);
   });
 });

@@ -6,42 +6,46 @@
   --mf-into: #d4b36a;
   --mf-out: #8a9aa8;
   --mf-void: #050505;
-  --mf-panel: #0c0c0c;
   --mf-line: rgba(243, 239, 230, 0.1);
   color: var(--mf-ink);
   background:
-    radial-gradient(ellipse 90% 55% at 50% -10%, rgba(201, 164, 92, 0.14), transparent 55%),
-    radial-gradient(ellipse 60% 40% at 100% 80%, rgba(138, 154, 168, 0.08), transparent 50%),
-    linear-gradient(180deg, #080808 0%, var(--mf-void) 40%, #0a0a0a 100%);
+    radial-gradient(ellipse 90% 50% at 50% -8%, rgba(201, 164, 92, 0.12), transparent 55%),
+    linear-gradient(180deg, #080808 0%, var(--mf-void) 45%, #0a0a0a 100%);
   min-height: calc(100dvh - 3.5rem);
 }
 
 .money-flow__hero {
-  position: relative;
-  overflow: hidden;
-  padding: clamp(2.5rem, 6vw, 4.5rem) clamp(1.25rem, 4vw, 3rem) clamp(2rem, 4vw, 3rem);
+  padding: clamp(2rem, 5vw, 3.5rem) clamp(1.25rem, 4vw, 3rem) clamp(1.5rem, 3vw, 2.25rem);
   border-bottom: 1px solid var(--mf-line);
 }
 
 .money-flow__brand {
   font-family: 'Outfit', 'Jost', system-ui, sans-serif;
   font-weight: 700;
-  font-size: clamp(1.75rem, 4.5vw, 2.75rem);
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
   letter-spacing: -0.03em;
-  color: var(--mf-ink);
   line-height: 1.05;
+  margin: 0;
 }
 
 .money-flow__brand span {
   color: var(--mf-metal);
 }
 
+.money-flow__title {
+  margin: 0.55rem 0 0;
+  font-family: 'Outfit', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: clamp(1.15rem, 2.4vw, 1.45rem);
+  letter-spacing: -0.02em;
+  color: var(--mf-ink);
+}
+
 .money-flow__lede {
-  margin-top: 0.85rem;
-  max-width: 34rem;
+  margin: 0.65rem 0 0;
+  max-width: 38rem;
   font-family: 'Jost', system-ui, sans-serif;
-  font-weight: 400;
-  font-size: clamp(1rem, 2.2vw, 1.2rem);
+  font-size: clamp(0.98rem, 2vw, 1.12rem);
   line-height: 1.45;
   color: var(--mf-ink-muted);
 }
@@ -50,7 +54,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  margin-top: 1.5rem;
+  margin-top: 1.35rem;
   align-items: center;
 }
 
@@ -60,9 +64,9 @@
   background: transparent;
   color: var(--mf-ink-muted);
   font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 0.75rem;
-  letter-spacing: 0.04em;
-  padding: 0.45rem 0.85rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  padding: 0.45rem 0.8rem;
   cursor: pointer;
   transition:
     color 0.2s ease,
@@ -84,7 +88,7 @@
 .money-flow__meta {
   margin-left: auto;
   font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   color: var(--mf-ink-muted);
 }
 
@@ -95,7 +99,7 @@
   border-bottom: 1px solid var(--mf-line);
 }
 
-@media (min-width: 900px) {
+@media (min-width: 960px) {
   .money-flow__streams {
     grid-template-columns: 1fr 1px 1fr;
   }
@@ -103,16 +107,16 @@
 
 .money-flow__stream {
   position: relative;
-  padding: clamp(1.75rem, 4vw, 2.75rem) clamp(1.25rem, 4vw, 3rem);
+  padding: clamp(1.5rem, 3.5vw, 2.4rem) clamp(1.25rem, 4vw, 2.75rem);
   overflow: hidden;
 }
 
 .money-flow__stream--into {
-  background: linear-gradient(180deg, rgba(201, 164, 92, 0.07), transparent 70%);
+  background: linear-gradient(180deg, rgba(201, 164, 92, 0.07), transparent 72%);
 }
 
 .money-flow__stream--out {
-  background: linear-gradient(180deg, rgba(138, 154, 168, 0.06), transparent 70%);
+  background: linear-gradient(180deg, rgba(138, 154, 168, 0.06), transparent 72%);
 }
 
 .money-flow__stream-divider {
@@ -120,7 +124,7 @@
   background: var(--mf-line);
 }
 
-@media (min-width: 900px) {
+@media (min-width: 960px) {
   .money-flow__stream-divider {
     display: block;
   }
@@ -128,10 +132,10 @@
 
 .money-flow__stream-label {
   font-family: 'Outfit', system-ui, sans-serif;
-  font-size: 0.8rem;
-  letter-spacing: 0.18em;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  margin-bottom: 1.25rem;
+  margin: 0 0 1.1rem;
 }
 
 .money-flow__stream--into .money-flow__stream-label {
@@ -146,7 +150,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0.35;
+  opacity: 0.28;
   background: repeating-linear-gradient(
     180deg,
     transparent 0,
@@ -177,34 +181,53 @@
   }
 }
 
-.money-flow__cohort-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.75rem 1rem;
-  align-items: end;
-  padding: 0.9rem 0;
+.money-flow__story {
+  position: relative;
+  z-index: 1;
+  padding: 1rem 0 1.15rem;
   border-top: 1px solid var(--mf-line);
+  animation: mf-rise 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.money-flow__cohort-row:first-of-type {
+.money-flow__story:first-of-type {
   border-top: none;
+  padding-top: 0;
+}
+
+.money-flow__story-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
 }
 
 .money-flow__cohort-name {
   font-family: 'Outfit', system-ui, sans-serif;
-  font-size: 1.15rem;
+  font-size: 1.2rem;
   font-weight: 600;
   letter-spacing: -0.02em;
+  margin: 0 0 0.35rem;
 }
 
-.money-flow__cohort-stats {
+.money-flow__tag {
+  display: inline-block;
   font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 0.72rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--mf-ink-muted);
-  margin-top: 0.35rem;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.65rem;
+  border: 1px solid var(--mf-line);
+  padding: 0.15rem 0.4rem;
+}
+
+.money-flow__tag--into {
+  color: var(--mf-into);
+  border-color: rgba(201, 164, 92, 0.35);
+}
+
+.money-flow__tag--out {
+  color: var(--mf-out);
+  border-color: rgba(138, 154, 168, 0.35);
 }
 
 .money-flow__pct {
@@ -212,112 +235,110 @@
   font-size: 1.35rem;
   font-weight: 600;
   letter-spacing: -0.03em;
+  white-space: nowrap;
 }
 
-.money-flow__stream--into .money-flow__pct {
+.money-flow__story--into .money-flow__pct {
   color: var(--mf-into);
 }
 
-.money-flow__stream--out .money-flow__pct {
+.money-flow__story--out .money-flow__pct {
   color: var(--mf-out);
 }
 
-.money-flow__bar {
-  margin-top: 0.65rem;
-  height: 3px;
-  background: rgba(243, 239, 230, 0.08);
-  overflow: hidden;
+.money-flow__story-copy {
+  margin: 0.55rem 0 0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: var(--mf-ink-muted);
+  max-width: 36rem;
 }
 
-.money-flow__bar > span {
-  display: block;
-  height: 100%;
-  transform-origin: left center;
-  animation: mf-grow 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.money-flow__stream--into .money-flow__bar > span {
-  background: var(--mf-into);
-}
-
-.money-flow__stream--out .money-flow__bar > span {
-  background: var(--mf-out);
-}
-
-@keyframes mf-grow {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .money-flow__bar > span {
-    animation: none;
-  }
+.money-flow__cohort-stats {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.68rem;
+  color: var(--mf-ink-muted);
+  margin-top: 0.45rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
 }
 
 .money-flow__note {
-  margin-top: 0.4rem;
+  margin: 0.35rem 0 0;
   font-size: 0.75rem;
   color: var(--mf-ink-muted);
   font-style: italic;
 }
 
-.money-flow__exemplars {
-  display: flex;
+.money-flow__ex-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 0.65rem;
   margin-top: 0.85rem;
 }
 
-.money-flow__exemplar {
-  width: 52px;
-  height: 72px;
+.money-flow__ex-card {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.money-flow__ex-card img,
+.money-flow__ex-ph {
+  width: 44px;
+  height: 62px;
   object-fit: cover;
   border: 1px solid var(--mf-line);
   background: #111;
-  animation: mf-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.money-flow__exemplar:nth-child(2) {
-  animation-delay: 0.08s;
+.money-flow__ex-name {
+  font-size: 0.82rem;
+  font-weight: 500;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.money-flow__exemplar:nth-child(3) {
-  animation-delay: 0.16s;
+.money-flow__ex-sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.2rem;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.65rem;
+  color: var(--mf-ink-muted);
 }
 
-@keyframes mf-rise {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.money-flow__ex-sub .is-up {
+  color: var(--mf-into);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .money-flow__exemplar {
-    animation: none;
-  }
+.money-flow__ex-sub .is-down {
+  color: var(--mf-out);
 }
 
-.money-flow__eras {
-  padding: clamp(1.75rem, 4vw, 2.75rem) clamp(1.25rem, 4vw, 3rem);
+.money-flow__eras,
+.money-flow__specials {
+  padding: clamp(1.5rem, 3.5vw, 2.5rem) clamp(1.25rem, 4vw, 2.75rem);
   border-bottom: 1px solid var(--mf-line);
+}
+
+.money-flow__specials {
+  border-bottom: none;
+  padding-bottom: clamp(2.5rem, 5vw, 4rem);
 }
 
 .money-flow__section-title {
   font-family: 'Outfit', system-ui, sans-serif;
-  font-size: 0.8rem;
-  letter-spacing: 0.18em;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--mf-metal);
-  margin-bottom: 1.25rem;
+  margin: 0 0 1.1rem;
 }
 
 .money-flow__era-grid {
@@ -334,8 +355,8 @@
 
 .money-flow__era-col {
   position: relative;
-  min-height: 220px;
-  padding: 1rem 0.25rem 0;
+  min-height: 200px;
+  padding: 0.75rem 0.2rem 0;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -345,10 +366,10 @@
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 2.75rem;
+  bottom: 5.5rem;
   border-top: 1px solid var(--mf-line);
   background: linear-gradient(180deg, transparent, var(--mf-metal-soft));
-  transition: height 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: height 0.75s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .money-flow__era-fill--down {
@@ -367,34 +388,29 @@
   position: relative;
   z-index: 1;
   font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   color: var(--mf-ink-muted);
-  margin-top: 0.25rem;
+  margin-top: 0.2rem;
 }
 
-.money-flow__specials {
-  padding: clamp(1.75rem, 4vw, 2.75rem) clamp(1.25rem, 4vw, 3rem) clamp(3rem, 6vw, 4rem);
+.money-flow__era-story {
+  position: relative;
+  z-index: 1;
+  margin: 0.45rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--mf-ink-muted);
 }
 
-.money-flow__special-list {
+.money-flow__special-grid {
   display: grid;
-  gap: 0;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0 1.5rem;
 }
 
-.money-flow__special-item {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
-  gap: 1rem;
-  align-items: center;
-  padding: 1.1rem 0;
+.money-flow__special-grid .money-flow__story {
   border-top: 1px solid var(--mf-line);
-}
-
-@media (max-width: 700px) {
-  .money-flow__special-item {
-    grid-template-columns: 1fr;
-    gap: 0.5rem;
-  }
+  padding-top: 1rem;
 }
 
 .money-flow__empty {
@@ -403,15 +419,65 @@
   color: var(--mf-ink-muted);
 }
 
-.money-flow__confidence {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 0.65rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--mf-ink-muted);
-}
-
 .money-flow__confidence--thin,
 .money-flow__confidence--low {
   color: #c4a070;
+}
+
+.money-flow__skeleton {
+  padding: 2rem clamp(1.25rem, 4vw, 2.75rem);
+}
+
+.money-flow__skel-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+@media (max-width: 700px) {
+  .money-flow__skel-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.money-flow__skel-block {
+  height: 140px;
+  background: linear-gradient(
+    90deg,
+    rgba(243, 239, 230, 0.04),
+    rgba(201, 164, 92, 0.08),
+    rgba(243, 239, 230, 0.04)
+  );
+  background-size: 200% 100%;
+  animation: mf-shimmer 1.4s ease infinite;
+}
+
+@keyframes mf-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+@keyframes mf-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .money-flow__story,
+  .money-flow__skel-block,
+  .money-flow__era-fill {
+    animation: none;
+    transition: none;
+  }
 }

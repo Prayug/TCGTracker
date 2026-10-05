@@ -1,11 +1,14 @@
 /**
- * Hobby capital rotation — loads qualified raw + PSA 10 movers, then aggregates
- * into era / finish / special cohorts via moneyFlowAggregate.
+ * Hobby capital rotation — loads qualified raw + PSA 10 movers (chase floors),
+ * drops bulk commons, then aggregates via moneyFlowAggregate.
  */
 
 import {
+  MONEY_FLOW_PSA10_MIN_PRICE,
+  MONEY_FLOW_RAW_MIN_PRICE,
   classifyMoneyFlowEra,
   detectSpecialCohorts,
+  isMoneyFlowRelevantPrint,
   type MoneyFlowFinish,
   type MoneyFlowResponse,
 } from '@tcgtracker/shared';
@@ -16,8 +19,11 @@ import { listQualifiedSlabMovers, type SlabMoverEntry } from './slabTopMovers';
 export type { TaggedMover } from './moneyFlowAggregate';
 export { buildMoneyFlowFromTagged } from './moneyFlowAggregate';
 
-const FLOW_TTL_MS = 10 * 60 * 1000;
+const FLOW_TTL_MS = 15 * 60 * 1000;
 const cache = new Map<string, { expiresAt: number; payload: MoneyFlowResponse }>();
+
+/** Smaller path-filter pool than top-movers — money-flow cares about cohorts, not every $1 print. */
+const FLOW_CANDIDATE_POOL = 180;
 
 function toTagged(entry: RawMoverEntry | SlabMoverEntry, finish: MoneyFlowFinish): TaggedMover {
   const era = classifyMoneyFlowEra({ id: entry.setId, name: entry.setName });
@@ -52,27 +58,43 @@ function toTagged(entry: RawMoverEntry | SlabMoverEntry, finish: MoneyFlowFinish
 
 export async function getMoneyFlow(days: number): Promise<MoneyFlowResponse> {
   const windowDays = days === 30 ? 30 : 7;
-  const cacheKey = `v1:${windowDays}`;
+  const cacheKey = `v2:${windowDays}`;
   const cached = cache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.payload;
   }
 
   const [rawUniverse, slabUniverse] = await Promise.all([
-    listQualifiedRawMovers(windowDays),
-    listQualifiedSlabMovers(windowDays),
+    listQualifiedRawMovers(windowDays, {
+      minPrice: MONEY_FLOW_RAW_MIN_PRICE,
+      minAbsDollar: 2,
+      candidatePool: FLOW_CANDIDATE_POOL,
+      cacheNamespace: 'money-flow',
+    }),
+    listQualifiedSlabMovers(windowDays, {
+      minPrice: MONEY_FLOW_PSA10_MIN_PRICE,
+      minAbsDollar: 5,
+      candidatePool: FLOW_CANDIDATE_POOL,
+      cacheNamespace: 'money-flow',
+    }),
   ]);
 
-  const tagged: TaggedMover[] = [
-    ...rawUniverse.movers.map((m) => toTagged(m, 'raw')),
-    ...slabUniverse.movers.map((m) => toTagged(m, 'psa10')),
-  ];
+  const rawTagged = rawUniverse.movers.map((m) => toTagged(m, 'raw'));
+  const slabTagged = slabUniverse.movers.map((m) => toTagged(m, 'psa10'));
+  const beforeFilter = rawTagged.length + slabTagged.length;
+
+  const tagged: TaggedMover[] = [...rawTagged, ...slabTagged].filter((m) =>
+    isMoneyFlowRelevantPrint({
+      rarity: m.exemplar.rarity,
+      name: m.exemplar.productName,
+      currentPrice: m.currentPrice,
+      finish: m.finish,
+    })
+  );
+  const filteredOutCount = Math.max(0, beforeFilter - tagged.length);
 
   const asOfDate = rawUniverse.date || slabUniverse.date;
-  const payload = buildMoneyFlowFromTagged(windowDays, tagged, asOfDate);
-  // Prefer exact universe sizes from loaders (same as tagged counts for finishes).
-  payload.headline.rawSampleSize = rawUniverse.movers.length;
-  payload.headline.slabSampleSize = slabUniverse.movers.length;
+  const payload = buildMoneyFlowFromTagged(windowDays, tagged, asOfDate, filteredOutCount);
 
   cache.set(cacheKey, { expiresAt: Date.now() + FLOW_TTL_MS, payload });
   return payload;

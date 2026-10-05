@@ -1,34 +1,40 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { fetchMoneyFlow, type MoneyFlowResponse } from '../../../services/moneyFlowApi';
 
+/** Keep last good payload while refetching so window switches feel instant. */
 export function useMoneyFlow(days: 7 | 30) {
   const [data, setData] = useState<MoneyFlowResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hasDataRef = useRef(false);
 
-  const reload = useCallback(() => {
+  useEffect(() => {
     const ac = new AbortController();
-    setLoading(true);
     setError(null);
+    if (hasDataRef.current) setRefreshing(true);
+    else setLoading(true);
+
     fetchMoneyFlow(days)
       .then((payload) => {
-        if (!ac.signal.aborted) setData(payload);
+        if (ac.signal.aborted) return;
+        setData(payload);
+        hasDataRef.current = true;
+        setError(null);
       })
       .catch((err: unknown) => {
         if (ac.signal.aborted) return;
         setError((err as Error)?.message || 'Could not load money flow');
-        setData(null);
+        if (!hasDataRef.current) setData(null);
       })
       .finally(() => {
-        if (!ac.signal.aborted) setLoading(false);
+        if (ac.signal.aborted) return;
+        setLoading(false);
+        setRefreshing(false);
       });
+
     return () => ac.abort();
   }, [days]);
 
-  useEffect(() => {
-    const cancel = reload();
-    return cancel;
-  }, [reload]);
-
-  return { data, loading, error, reload };
+  return { data, loading, refreshing, error };
 }

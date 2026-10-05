@@ -114,6 +114,13 @@ export function seriesHasSingleProduct(
   return ids.size <= 1;
 }
 
+export interface QualifiedSlabMoversOptions {
+  minPrice?: number;
+  minAbsDollar?: number;
+  candidatePool?: number;
+  cacheNamespace?: string;
+}
+
 export interface QualifiedSlabMoversResult {
   date: string | null;
   days: number;
@@ -125,8 +132,14 @@ const universeCache = new Map<string, { expiresAt: number; payload: QualifiedSla
 /**
  * Full qualified PSA 10 mover universe (same gates as /top-slab-movers).
  */
-export async function listQualifiedSlabMovers(days: number): Promise<QualifiedSlabMoversResult> {
-  const cacheKey = `universe:v2:${days}`;
+export async function listQualifiedSlabMovers(
+  days: number,
+  options: QualifiedSlabMoversOptions = {}
+): Promise<QualifiedSlabMoversResult> {
+  const minPrice = options.minPrice ?? MIN_PRICE;
+  const minAbsDollar = options.minAbsDollar ?? MIN_ABS_DOLLAR;
+  const candidatePool = options.candidatePool ?? CANDIDATE_POOL;
+  const cacheKey = `universe:v3:${options.cacheNamespace || 'default'}:${days}:${minPrice}:${minAbsDollar}:${candidatePool}`;
   const cached = universeCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.payload;
@@ -165,7 +178,7 @@ export async function listQualifiedSlabMovers(days: number): Promise<QualifiedSl
          AND grade = '10'
          AND price >= ?
          AND COALESCE(verified, 0) = 1`,
-      [latestDate, MIN_PRICE]
+      [latestDate, minPrice]
     ),
     dbGet<{ prevDate: string }>(
       `SELECT MAX(date) AS prevDate
@@ -175,7 +188,7 @@ export async function listQualifiedSlabMovers(days: number): Promise<QualifiedSl
          AND price >= ?
          AND date <= date(?, ?)
          AND date >= date(?, ?)`,
-      [MIN_PRICE, latestDate, `-${days} days`, latestDate, `-${baselineSlackDays} days`]
+      [minPrice, latestDate, `-${days} days`, latestDate, `-${baselineSlackDays} days`]
     ),
   ]);
 
@@ -199,7 +212,7 @@ export async function listQualifiedSlabMovers(days: number): Promise<QualifiedSl
        AND grader = 'psa'
        AND grade = '10'
        AND price >= ?`,
-    [prevDate, MIN_PRICE]
+    [prevDate, minPrice]
   );
 
   const prevByCard = new Map<string, { price: number; productId: string | null }>();
@@ -224,10 +237,10 @@ export async function listQualifiedSlabMovers(days: number): Promise<QualifiedSl
   for (const current of currentRows) {
     const key = seriesKey(current.cardId, current.variantKey);
     const prev = prevByCard.get(key);
-    if (!(prev != null && prev.price >= MIN_PRICE)) continue;
+    if (!(prev != null && prev.price >= minPrice)) continue;
     if (!productIdsMatch(current.productId, prev.productId)) continue;
     const absDollar = Math.abs(current.price - prev.price);
-    if (absDollar < MIN_ABS_DOLLAR) continue;
+    if (absDollar < minAbsDollar) continue;
     const changePct = ((current.price - prev.price) / prev.price) * 100;
     if (!Number.isFinite(changePct) || Math.abs(changePct) > maxEndpointPct) continue;
     ranked.push({
@@ -244,8 +257,8 @@ export async function listQualifiedSlabMovers(days: number): Promise<QualifiedSl
 
   ranked.sort((a, b) => Math.abs(b.changePercent) - Math.abs(a.changePercent));
   const candidates = [
-    ...ranked.filter((e) => e.changePercent > 0).slice(0, CANDIDATE_POOL),
-    ...ranked.filter((e) => e.changePercent < 0).slice(0, CANDIDATE_POOL),
+    ...ranked.filter((e) => e.changePercent > 0).slice(0, candidatePool),
+    ...ranked.filter((e) => e.changePercent < 0).slice(0, candidatePool),
   ];
 
   if (candidates.length === 0) {
@@ -275,7 +288,7 @@ export async function listQualifiedSlabMovers(days: number): Promise<QualifiedSl
        AND date >= ?
        AND date <= ?
        AND price >= ?`,
-    [...ids, earliestPrev, latestDate, MIN_PRICE]
+    [...ids, earliestPrev, latestDate, minPrice]
   );
 
   const series = new Map<string, { date: string; price: number; productId: string | null }[]>();

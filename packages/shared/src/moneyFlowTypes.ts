@@ -47,6 +47,8 @@ export interface MoneyFlowCohort {
   /** Sum of (current − previous) across members; positive = capital into. */
   netDollarMove: number;
   rotation: MoneyFlowRotation;
+  /** Collector-facing one-liner — prefer this over raw stats in UI. */
+  story: string;
   /** Honest thin-data copy when confidence is thin / sample is empty. */
   dataNote: string | null;
   exemplars: MoneyFlowExemplar[];
@@ -61,6 +63,8 @@ export interface MoneyFlowHeadline {
   asOfDate: string | null;
   rawSampleSize: number;
   slabSampleSize: number;
+  /** How many movers were dropped as bulk/common/sub-floor before aggregating. */
+  filteredOutCount: number;
 }
 
 export interface MoneyFlowResponse {
