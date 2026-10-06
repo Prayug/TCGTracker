@@ -1,94 +1,62 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import type { MoneyFlowCohort, MoneyFlowEra, MoneyFlowWindowDays } from '@tcgtracker/shared';
 import { useMoneyFlow } from '../hooks/useMoneyFlow';
 import '../money-flow.css';
-import { BreadthBuckets } from './BreadthBuckets';
-import { EraPerformance } from './EraPerformance';
-import { IndividualMovers } from './IndividualMovers';
-import { MarketHeader } from './MarketHeader';
-import { MarketInsights } from './MarketInsights';
-import { MarketSummary } from './MarketSummary';
-import { MoneyFlowHeatmap, type HeatFilter } from './MoneyFlowHeatmap';
-import { MoverTable } from './MoverTable';
-import { RawVsGraded } from './RawVsGraded';
-import { SpecialPrintMomentum } from './SpecialPrintMomentum';
+import { EraEditorial } from './EraEditorial';
+import { FinishContinuum } from './FinishContinuum';
+import { MarketFeed } from './MarketFeed';
+import { MarketMap, type MapFilter } from './MarketMap';
+import { MoneyRails } from './MoneyRails';
+import { OpeningStrip } from './OpeningStrip';
 
 export function MoneyFlowPage() {
   const [days, setDays] = useState<MoneyFlowWindowDays>(7);
-  const [filter, setFilter] = useState<HeatFilter>(null);
+  const [filter, setFilter] = useState<MapFilter>(null);
   const { data, loading, refreshing, error } = useMoneyFlow(days);
 
-  const filteredActive = useMemo(() => data?.mostActive ?? [], [data]);
-
-  const onSelectCohort = (c: MoneyFlowCohort) => {
-    setFilter({
-      era: c.era,
-      finish: c.finish,
-      cohortId: c.id,
-    });
+  const onPickCohort = (c: MoneyFlowCohort) => {
+    setFilter((prev) => (prev?.cohortId === c.id ? null : { cohortId: c.id, label: c.label }));
   };
 
   const onSelectEra = (era: MoneyFlowEra) => {
-    setFilter((prev) => (prev?.era === era && !prev.finish ? null : { era }));
+    const label = era === 'mid' ? 'Mid-era' : era === 'vintage' ? 'Vintage' : 'Modern';
+    setFilter((prev) => (prev?.label === label ? null : { cohortId: `era:${era}`, label }));
   };
 
   return (
-    <div className="mf-term">
-      <MarketHeader data={data} days={days} onDaysChange={setDays} refreshing={refreshing} />
-
+    <div className="mf-ed">
       {loading && !data ? (
-        <div className="mf-term__skeleton" aria-busy="true" aria-label="Loading money flow">
-          <div className="mf-term__skel" />
-          <div className="mf-term__skel is-tall" />
+        <div className="mf-ed__loading" aria-busy="true">
+          Loading market tape…
         </div>
       ) : error && !data ? (
-        <div className="mf-term__empty">{error}</div>
+        <div className="mf-ed__loading">{error}</div>
       ) : !data ? (
-        <div className="mf-term__empty">No data yet.</div>
+        <div className="mf-ed__loading">No data yet.</div>
       ) : (
         <>
-          <MarketSummary summary={data.summary} />
-
-          <div className="mf-term__grid-2">
-            <MoneyFlowHeatmap
-              eraFinishes={data.eraFinishes}
-              eras={data.eras}
-              filter={filter}
-              onFilter={setFilter}
-            />
-            <div className="mf-term__stack">
-              <BreadthBuckets buckets={data.breadthBuckets} />
-              <MarketInsights insights={data.insights} />
-            </div>
-          </div>
-
-          <MoverTable
+          <OpeningStrip data={data} days={days} onDaysChange={setDays} refreshing={refreshing} />
+          <MarketMap
+            eraFinishes={data.eraFinishes}
+            specials={data.specials}
+            filter={filter}
+            onFilter={setFilter}
+          />
+          <MoneyRails
             into={data.rotationInto}
             out={data.rotationOut}
-            active={filteredActive}
             filter={filter}
-            onSelect={onSelectCohort}
-            windowDays={days}
+            onPick={onPickCohort}
           />
-
-          <EraPerformance
-            eras={data.eras}
-            eraFinishes={data.eraFinishes}
-            filter={filter}
-            onSelect={onSelectEra}
-          />
-
-          <div className="mf-term__grid-2">
-            <SpecialPrintMomentum specials={data.specials} />
-            <RawVsGraded finishes={data.finishes} />
-          </div>
-
-          <IndividualMovers
+          <EraEditorial eras={data.eras} eraFinishes={data.eraFinishes} onSelectEra={onSelectEra} />
+          <FinishContinuum finishes={data.finishes} />
+          <MarketFeed
             gainers={data.topGainers}
             losers={data.topLosers}
             filter={filter}
             windowDays={days}
           />
+          {data.insights[0] ? <p className="mf-ed__footnote">{data.insights[0].text}</p> : null}
         </>
       )}
     </div>
