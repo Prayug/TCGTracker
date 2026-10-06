@@ -3,19 +3,26 @@
  */
 
 import {
+  MONEY_FLOW_ERA_LABELS,
   MONEY_FLOW_ERAS,
+  MONEY_FLOW_FINISH_LABELS,
   MONEY_FLOW_FINISHES,
   MONEY_FLOW_SPECIALS,
   aggregateCohortReturns,
   classifyRotation,
   cohortKey,
   labelForCohort,
+  median,
   round2,
   storyForCohort,
+  type MoneyFlowBreadthBucket,
   type MoneyFlowCohort,
   type MoneyFlowEra,
   type MoneyFlowExemplar,
   type MoneyFlowFinish,
+  type MoneyFlowInsight,
+  type MoneyFlowMarketSummary,
+  type MoneyFlowMoverRow,
   type MoneyFlowResponse,
   type MoneyFlowSpecial,
 } from '@tcgtracker/shared';
@@ -290,6 +297,20 @@ export function buildMoneyFlowFromTagged(
   const rawSampleSize = tagged.filter((m) => m.finish === 'raw').length;
   const slabSampleSize = tagged.filter((m) => m.finish === 'psa10').length;
 
+  const summary = buildMarketSummary(tagged, rotationInto, rotationOut);
+  const breadthBuckets = buildBreadthBuckets(tagged);
+  const insights = buildInsights({
+    rotationInto,
+    rotationOut,
+    eras,
+    finishes,
+    specials,
+    eraFinishes,
+    summary,
+  });
+  const mostActive = pickMostActive([...eraFinishes, ...specials, ...eras], 6);
+  const { topGainers, topLosers } = pickIndividualMovers(tagged, 12);
+
   return {
     days,
     date,
@@ -303,11 +324,198 @@ export function buildMoneyFlowFromTagged(
       slabSampleSize,
       filteredOutCount
     ),
+    summary,
+    breadthBuckets,
+    insights,
     eras,
     finishes,
     eraFinishes,
     specials,
     rotationInto,
     rotationOut,
+    mostActive,
+    topGainers,
+    topLosers,
   };
+}
+
+function segmentLabelFor(m: TaggedMover): string {
+  return `${MONEY_FLOW_ERA_LABELS[m.era]} · ${MONEY_FLOW_FINISH_LABELS[m.finish]}`;
+}
+
+function buildMarketSummary(
+  tagged: TaggedMover[],
+  into: MoneyFlowCohort[],
+  out: MoneyFlowCohort[]
+): MoneyFlowMarketSummary {
+  const risingCount = tagged.filter((m) => m.changePercent > 0).length;
+  const fallingCount = tagged.filter((m) => m.changePercent < 0).length;
+  const flatCount = tagged.length - risingCount - fallingCount;
+  const intoWeight = into.reduce((s, c) => s + Math.abs(c.medianReturnPct ?? 0), 0);
+  const outWeight = out.reduce((s, c) => s + Math.abs(c.medianReturnPct ?? 0), 0);
+  const total = intoWeight + outWeight;
+  const chasedSharePct = total > 0 ? round2((intoWeight / total) * 100) : risingCount > 0 ? 50 : 0;
+  const cooledSharePct = total > 0 ? round2(100 - chasedSharePct) : fallingCount > 0 ? 50 : 0;
+
+  const scored = [...into, ...out].filter((c) => c.sampleSize > 0 && c.medianReturnPct != null);
+  const strongest = [...scored].sort((a, b) => (b.medianReturnPct ?? 0) - (a.medianReturnPct ?? 0))[0];
+  const weakest = [...scored].sort((a, b) => (a.medianReturnPct ?? 0) - (b.medianReturnPct ?? 0))[0];
+
+  return {
+    chasedSharePct,
+    cooledSharePct,
+    medianMovePct: median(tagged.map((m) => m.changePercent)),
+    risingCount,
+    fallingCount,
+    flatCount,
+    trackedCount: tagged.length,
+    strongestLabel: strongest?.label ?? null,
+    strongestMovePct: strongest?.medianReturnPct ?? null,
+    weakestLabel: weakest?.label ?? null,
+    weakestMovePct: weakest?.medianReturnPct ?? null,
+  };
+}
+
+const BREADTH_SPECS: Array<{
+  key: string;
+  label: string;
+  minPct: number | null;
+  maxPct: number | null;
+}> = [
+  { key: 'lt_n10', label: '<−10%', minPct: null, maxPct: -10 },
+  { key: 'n10_n5', label: '−10–5%', minPct: -10, maxPct: -5 },
+  { key: 'n5_0', label: '−5–0%', minPct: -5, maxPct: 0 },
+  { key: '0_5', label: '0–5%', minPct: 0, maxPct: 5 },
+  { key: '5_10', label: '5–10%', minPct: 5, maxPct: 10 },
+  { key: 'gt_10', label: '10%+', minPct: 10, maxPct: null },
+];
+
+function buildBreadthBuckets(tagged: TaggedMover[]): MoneyFlowBreadthBucket[] {
+  const n = tagged.length || 1;
+  return BREADTH_SPECS.map((spec) => {
+    const count = tagged.filter((m) => {
+      const v = m.changePercent;
+      const geMin = spec.minPct == null || v >= spec.minPct;
+      const ltMax = spec.maxPct == null || v < spec.maxPct;
+      return geMin && ltMax;
+    }).length;
+    return {
+      key: spec.key,
+      label: spec.label,
+      minPct: spec.minPct,
+      maxPct: spec.maxPct,
+      count,
+      sharePct: round2((count / n) * 100),
+    };
+  });
+}
+
+function pickMostActive(cohorts: MoneyFlowCohort[], limit: number): MoneyFlowCohort[] {
+  return [...cohorts]
+    .filter((c) => c.sampleSize > 0 && c.medianReturnPct != null)
+    .sort((a, b) => {
+      const score = (c: MoneyFlowCohort) =>
+        Math.abs(c.medianReturnPct ?? 0) * Math.sqrt(c.sampleSize) + Math.abs(c.netDollarMove) / 500;
+      return score(b) - score(a);
+    })
+    .slice(0, limit);
+}
+
+function pickIndividualMovers(
+  tagged: TaggedMover[],
+  limit: number
+): { topGainers: MoneyFlowMoverRow[]; topLosers: MoneyFlowMoverRow[] } {
+  const toRow = (m: TaggedMover, idx: number): MoneyFlowMoverRow => ({
+    id: `${m.exemplar.cardId || m.exemplar.productName}-${m.finish}-${idx}`,
+    productName: m.exemplar.productName,
+    changePercent: m.changePercent,
+    currentPrice: m.currentPrice,
+    previousPrice: m.previousPrice,
+    absDollarMove: Math.abs(m.dollarMove),
+    imageSmall: m.exemplar.imageSmall,
+    cardId: m.exemplar.cardId,
+    setName: m.exemplar.setName,
+    finish: m.finish,
+    era: m.era,
+    segmentLabel: segmentLabelFor(m),
+  });
+
+  const byAbsDollar = [...tagged].sort((a, b) => Math.abs(b.dollarMove) - Math.abs(a.dollarMove));
+  const gainers = byAbsDollar
+    .filter((m) => m.changePercent > 0)
+    .slice(0, limit)
+    .map(toRow);
+  const losers = byAbsDollar
+    .filter((m) => m.changePercent < 0)
+    .slice(0, limit)
+    .map(toRow);
+  return { topGainers: gainers, topLosers: losers };
+}
+
+function buildInsights(input: {
+  rotationInto: MoneyFlowCohort[];
+  rotationOut: MoneyFlowCohort[];
+  eras: MoneyFlowCohort[];
+  finishes: MoneyFlowCohort[];
+  specials: MoneyFlowCohort[];
+  eraFinishes: MoneyFlowCohort[];
+  summary: MoneyFlowMarketSummary;
+}): MoneyFlowInsight[] {
+  const out: MoneyFlowInsight[] = [];
+  const { rotationInto, rotationOut, finishes, specials, eraFinishes, summary } = input;
+
+  if (rotationInto[0] && rotationOut[0]) {
+    out.push({
+      id: 'rotation',
+      text: `${rotationInto[0].label} leads money in (${formatSigned(rotationInto[0].medianReturnPct)}); ${rotationOut[0].label} leads money out (${formatSigned(rotationOut[0].medianReturnPct)}).`,
+    });
+  } else if (rotationInto[0]) {
+    out.push({
+      id: 'rotation-in',
+      text: `Capital concentrates into ${rotationInto[0].label} at ${formatSigned(rotationInto[0].medianReturnPct)}.`,
+    });
+  } else if (rotationOut[0]) {
+    out.push({
+      id: 'rotation-out',
+      text: `Cooling concentrates in ${rotationOut[0].label} at ${formatSigned(rotationOut[0].medianReturnPct)}.`,
+    });
+  }
+
+  const breadthLeader = [...specials, ...eraFinishes]
+    .filter((c) => c.sampleSize >= 5 && c.breadthUpPct != null)
+    .sort((a, b) => (b.breadthUpPct ?? 0) - (a.breadthUpPct ?? 0))[0];
+  if (breadthLeader) {
+    out.push({
+      id: 'breadth',
+      text: `${breadthLeader.label} has the strongest breadth — ${Math.round(breadthLeader.breadthUpPct ?? 0)}% of prints rising (n=${breadthLeader.sampleSize}).`,
+    });
+  }
+
+  const raw = finishes.find((c) => c.key === 'raw');
+  const psa = finishes.find((c) => c.key === 'psa10');
+  if (raw?.medianReturnPct != null && psa?.medianReturnPct != null) {
+    const spread = round2(psa.medianReturnPct - raw.medianReturnPct);
+    out.push({
+      id: 'spread',
+      text:
+        spread >= 0
+          ? `PSA 10 leads raw by ${formatSigned(spread)} (PSA 10 ${formatSigned(psa.medianReturnPct)} vs raw ${formatSigned(raw.medianReturnPct)}).`
+          : `Raw leads PSA 10 by ${formatSigned(-spread)} (raw ${formatSigned(raw.medianReturnPct)} vs PSA 10 ${formatSigned(psa.medianReturnPct)}).`,
+    });
+  }
+
+  if (summary.trackedCount > 0 && summary.medianMovePct != null) {
+    out.push({
+      id: 'tape',
+      text: `Tape: ${summary.risingCount} rising / ${summary.fallingCount} falling · median ${formatSigned(summary.medianMovePct)} across ${summary.trackedCount} chase prints.`,
+    });
+  }
+
+  return out.slice(0, 4);
+}
+
+function formatSigned(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return '—';
+  const sign = value > 0 ? '+' : '';
+  return `${sign}${value.toFixed(1)}%`;
 }

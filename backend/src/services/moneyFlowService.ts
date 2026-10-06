@@ -9,6 +9,7 @@ import {
   classifyMoneyFlowEra,
   detectSpecialCohorts,
   isMoneyFlowRelevantPrint,
+  normalizeMoneyFlowDays,
   type MoneyFlowFinish,
   type MoneyFlowResponse,
 } from '@tcgtracker/shared';
@@ -57,8 +58,8 @@ function toTagged(entry: RawMoverEntry | SlabMoverEntry, finish: MoneyFlowFinish
 }
 
 export async function getMoneyFlow(days: number): Promise<MoneyFlowResponse> {
-  const windowDays = days === 30 ? 30 : 7;
-  const cacheKey = `v2:${windowDays}`;
+  const windowDays = normalizeMoneyFlowDays(days);
+  const cacheKey = `v3:${windowDays}`;
   const cached = cache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.payload;

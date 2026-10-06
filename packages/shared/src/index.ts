@@ -84,5 +84,11 @@ export type {
   MoneyFlowExemplar,
   MoneyFlowCohort,
   MoneyFlowHeadline,
+  MoneyFlowMarketSummary,
+  MoneyFlowBreadthBucket,
+  MoneyFlowInsight,
+  MoneyFlowMoverRow,
   MoneyFlowResponse,
+  MoneyFlowWindowDays,
 } from './moneyFlowTypes';
+export { normalizeMoneyFlowDays } from './moneyFlowTypes';

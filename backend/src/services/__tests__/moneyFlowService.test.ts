@@ -52,6 +52,11 @@ describe('moneyFlowService aggregation', () => {
     expect(flow.headline.filteredOutCount).toBe(0);
     expect(flow.rotationInto).toEqual([]);
     expect(flow.rotationOut).toEqual([]);
+    expect(flow.summary.trackedCount).toBe(0);
+    expect(flow.breadthBuckets).toHaveLength(6);
+    expect(flow.topGainers).toEqual([]);
+    expect(flow.topLosers).toEqual([]);
+    expect(flow.mostActive).toEqual([]);
   });
 
   it('surfaces vintage into vs modern out when members rotate that way', () => {
@@ -108,6 +113,16 @@ describe('moneyFlowService aggregation', () => {
     expect(gold.sampleSize).toBe(5);
     expect(gold.confidence).toBe('thin');
     expect(gold.dataNote).toMatch(/Only 5|hint/i);
+
+    expect(flow.summary.trackedCount).toBe(50);
+    expect(flow.summary.risingCount).toBe(25);
+    expect(flow.summary.fallingCount).toBe(25);
+    expect(flow.summary.strongestLabel).toBeTruthy();
+    expect(flow.breadthBuckets.reduce((s, b) => s + b.count, 0)).toBe(50);
+    expect(flow.insights.length).toBeGreaterThan(0);
+    expect(flow.topGainers.length).toBeGreaterThan(0);
+    expect(flow.topLosers.length).toBeGreaterThan(0);
+    expect(flow.mostActive.length).toBeGreaterThan(0);
   });
 
   it('classifies eras and keeps bulk commons out of relevance', () => {

@@ -67,11 +67,61 @@ export interface MoneyFlowHeadline {
   filteredOutCount: number;
 }
 
+/** Compact header strip numbers derived from the same chase pool. */
+export interface MoneyFlowMarketSummary {
+  chasedSharePct: number;
+  cooledSharePct: number;
+  medianMovePct: number | null;
+  risingCount: number;
+  fallingCount: number;
+  flatCount: number;
+  trackedCount: number;
+  strongestLabel: string | null;
+  strongestMovePct: number | null;
+  weakestLabel: string | null;
+  weakestMovePct: number | null;
+}
+
+export interface MoneyFlowBreadthBucket {
+  key: string;
+  label: string;
+  /** Inclusive lower bound; null = −∞ */
+  minPct: number | null;
+  /** Exclusive upper bound; null = +∞ */
+  maxPct: number | null;
+  count: number;
+  sharePct: number;
+}
+
+export interface MoneyFlowInsight {
+  id: string;
+  text: string;
+}
+
+/** Individual chase print for the sortable movers list. */
+export interface MoneyFlowMoverRow {
+  id: string;
+  productName: string;
+  changePercent: number;
+  currentPrice: number;
+  previousPrice: number;
+  absDollarMove: number;
+  imageSmall: string | null;
+  cardId: string | null;
+  setName: string | null;
+  finish: MoneyFlowFinish;
+  era: MoneyFlowEra;
+  segmentLabel: string;
+}
+
 export interface MoneyFlowResponse {
   days: number;
   date: string | null;
   generatedAt: string;
   headline: MoneyFlowHeadline;
+  summary: MoneyFlowMarketSummary;
+  breadthBuckets: MoneyFlowBreadthBucket[];
+  insights: MoneyFlowInsight[];
   eras: MoneyFlowCohort[];
   finishes: MoneyFlowCohort[];
   eraFinishes: MoneyFlowCohort[];
@@ -79,4 +129,16 @@ export interface MoneyFlowResponse {
   /** Top INTO / OUT cohorts for the rotation board (already ranked). */
   rotationInto: MoneyFlowCohort[];
   rotationOut: MoneyFlowCohort[];
+  /** Highest |median| × sample among non-empty cohorts (most active segments). */
+  mostActive: MoneyFlowCohort[];
+  topGainers: MoneyFlowMoverRow[];
+  topLosers: MoneyFlowMoverRow[];
+}
+
+export type MoneyFlowWindowDays = 7 | 30 | 90;
+
+export function normalizeMoneyFlowDays(days: number): MoneyFlowWindowDays {
+  if (days === 90) return 90;
+  if (days === 30) return 30;
+  return 7;
 }
