@@ -1,5 +1,5 @@
 import type { MoneyFlowCohort, MoneyFlowExemplar, MoneyFlowResponse } from '@tcgtracker/shared';
-import { useId, useMemo, useState, type ReactNode } from 'react';
+import { useId, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { useMoneyFlow } from '../hooks/useMoneyFlow';
 import '../money-flow.css';
 
@@ -103,17 +103,18 @@ function ExemplarThumbs({ exemplars }: { exemplars: MoneyFlowExemplar[] }) {
 function CohortVisual({
   cohort,
   maxAbs,
-  compact,
+  index = 0,
 }: {
   cohort: MoneyFlowCohort;
   maxAbs: number;
-  compact?: boolean;
+  index?: number;
 }) {
   const [open, setOpen] = useState(false);
   const side = cohort.rotation === 'into' ? 'into' : cohort.rotation === 'out' ? 'out' : 'neutral';
+  const style = { '--mf-delay': `${80 + index * 70}ms` } as CSSProperties;
 
   return (
-    <article className={`money-flow__row money-flow__row--${side}${compact ? ' is-compact' : ''}`}>
+    <article className={`money-flow__row money-flow__row--${side}`} style={style}>
       <div className="money-flow__row-main">
         <div className="money-flow__row-id">
           <h3 className="money-flow__cohort-name">{cohort.label}</h3>
@@ -189,15 +190,24 @@ function RotationFlow({ data }: { data: MoneyFlowResponse }) {
 
   return (
     <section className="money-flow__board" aria-label="Capital rotation">
-      <div className="money-flow__flow-summary" aria-hidden>
-        <div className="money-flow__flow-track">
-          <span className="money-flow__flow-into" style={{ width: `${intoShare}%` }} />
-          <span className="money-flow__flow-out" style={{ width: `${outShare}%` }} />
+      <div className="money-flow__balance" aria-hidden>
+        <div className="money-flow__balance-side money-flow__balance-side--into">
+          <span className="money-flow__balance-label">Chased</span>
+          <span className="money-flow__balance-pct">{Math.round(intoShare)}%</span>
         </div>
-        <div className="money-flow__flow-legend">
-          <span className="is-into">Chased {Math.round(intoShare)}%</span>
-          <span className="is-out">Cooled {Math.round(outShare)}%</span>
+        <div className="money-flow__balance-mid" />
+        <div className="money-flow__balance-side money-flow__balance-side--out">
+          <span className="money-flow__balance-label">Cooled</span>
+          <span className="money-flow__balance-pct">{Math.round(outShare)}%</span>
         </div>
+      </div>
+      <div
+        className="money-flow__flow-track"
+        role="img"
+        aria-label={`Chased ${Math.round(intoShare)} percent, cooled ${Math.round(outShare)} percent`}
+      >
+        <span className="money-flow__flow-into" style={{ width: `${intoShare}%` }} />
+        <span className="money-flow__flow-out" style={{ width: `${outShare}%` }} />
       </div>
 
       <div className="money-flow__streams">
@@ -206,16 +216,17 @@ function RotationFlow({ data }: { data: MoneyFlowResponse }) {
           {into.length === 0 ? (
             <p className="money-flow__empty-side">None clear</p>
           ) : (
-            into.map((c) => <CohortVisual key={c.id} cohort={c} maxAbs={maxAbs} />)
+            into.map((c, i) => <CohortVisual key={c.id} cohort={c} maxAbs={maxAbs} index={i} />)
           )}
         </div>
-        <div className="money-flow__stream-divider" aria-hidden />
         <div className="money-flow__stream money-flow__stream--out">
           <h2 className="money-flow__stream-label">Cooled</h2>
           {out.length === 0 ? (
             <p className="money-flow__empty-side">None clear</p>
           ) : (
-            out.map((c) => <CohortVisual key={c.id} cohort={c} maxAbs={maxAbs} />)
+            out.map((c, i) => (
+              <CohortVisual key={c.id} cohort={c} maxAbs={maxAbs} index={i + into.length} />
+            ))
           )}
         </div>
       </div>
@@ -282,8 +293,8 @@ function CompareGrid({ title, cohorts }: { title: string; cohorts: MoneyFlowCoho
     <section className="money-flow__section" aria-label={title}>
       <h2 className="money-flow__section-title">{title}</h2>
       <div className="money-flow__compare-grid">
-        {cohorts.map((c) => (
-          <CohortVisual key={c.id} cohort={c} maxAbs={maxAbs} compact />
+        {cohorts.map((c, i) => (
+          <CohortVisual key={c.id} cohort={c} maxAbs={maxAbs} index={i} />
         ))}
       </div>
     </section>
@@ -309,42 +320,38 @@ export function MoneyFlowPage() {
   return (
     <div className="money-flow">
       <header className="money-flow__hero">
-        <p className="money-flow__brand">
-          TCG<span>Tracker</span>
-        </p>
+        <div className="money-flow__hero-top">
+          <p className="money-flow__brand">
+            TCG<span>Tracker</span>
+          </p>
+          <div className="money-flow__seg" role="group" aria-label="Window">
+            <button
+              type="button"
+              className="money-flow__seg-btn"
+              aria-pressed={days === 7}
+              onClick={() => setDays(7)}
+            >
+              7d
+            </button>
+            <button
+              type="button"
+              className="money-flow__seg-btn"
+              aria-pressed={days === 30}
+              onClick={() => setDays(30)}
+            >
+              30d
+            </button>
+          </div>
+        </div>
         <h1 className="money-flow__title">Money flow</h1>
         <p className="money-flow__lede">{data?.headline.summary || 'Chase prints only.'}</p>
-        <div className="money-flow__controls">
-          <button
-            type="button"
-            className="money-flow__chip"
-            aria-pressed={days === 7}
-            onClick={() => setDays(7)}
-          >
-            7d
-          </button>
-          <button
-            type="button"
-            className="money-flow__chip"
-            aria-pressed={days === 30}
-            onClick={() => setDays(30)}
-          >
-            30d
-          </button>
-          {data ? (
-            <span className="money-flow__meta">
-              {data.date || '—'} · {data.headline.rawSampleSize + data.headline.slabSampleSize}{' '}
-              prints
-              {data.headline.filteredOutCount > 0
-                ? ` · −${data.headline.filteredOutCount} bulk`
-                : ''}
-              {refreshing ? ' · …' : ''}
-            </span>
-          ) : null}
-        </div>
-        <p className="money-flow__legend-help">
-          Hover any metric for what it means. Bars = move size; gold/grey strip = % rising.
-        </p>
+        {data ? (
+          <p className="money-flow__meta">
+            {data.date || '—'} · {data.headline.rawSampleSize + data.headline.slabSampleSize} prints
+            {data.headline.filteredOutCount > 0 ? ` · −${data.headline.filteredOutCount} bulk` : ''}
+            {refreshing ? ' · updating' : ''}
+          </p>
+        ) : null}
       </header>
 
       {loading && !data ? (
