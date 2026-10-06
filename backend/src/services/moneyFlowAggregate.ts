@@ -358,8 +358,12 @@ function buildMarketSummary(
   const cooledSharePct = total > 0 ? round2(100 - chasedSharePct) : fallingCount > 0 ? 50 : 0;
 
   const scored = [...into, ...out].filter((c) => c.sampleSize > 0 && c.medianReturnPct != null);
-  const strongest = [...scored].sort((a, b) => (b.medianReturnPct ?? 0) - (a.medianReturnPct ?? 0))[0];
-  const weakest = [...scored].sort((a, b) => (a.medianReturnPct ?? 0) - (b.medianReturnPct ?? 0))[0];
+  const strongest = [...scored].sort(
+    (a, b) => (b.medianReturnPct ?? 0) - (a.medianReturnPct ?? 0)
+  )[0];
+  const weakest = [...scored].sort(
+    (a, b) => (a.medianReturnPct ?? 0) - (b.medianReturnPct ?? 0)
+  )[0];
 
   return {
     chasedSharePct,
@@ -415,7 +419,8 @@ function pickMostActive(cohorts: MoneyFlowCohort[], limit: number): MoneyFlowCoh
     .filter((c) => c.sampleSize > 0 && c.medianReturnPct != null)
     .sort((a, b) => {
       const score = (c: MoneyFlowCohort) =>
-        Math.abs(c.medianReturnPct ?? 0) * Math.sqrt(c.sampleSize) + Math.abs(c.netDollarMove) / 500;
+        Math.abs(c.medianReturnPct ?? 0) * Math.sqrt(c.sampleSize) +
+        Math.abs(c.netDollarMove) / 500;
       return score(b) - score(a);
     })
     .slice(0, limit);
