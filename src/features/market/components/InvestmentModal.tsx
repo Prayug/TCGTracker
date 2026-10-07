@@ -42,6 +42,26 @@ function isOnePieceDetail(card: PokemonCard | OnePieceCard): card is OnePieceCar
   return 'cardColor' in card || 'cardType' in card || 'cardCost' in card || 'attribute' in card;
 }
 
+function chooseCardFinish(pokemon: PokemonCard, options: { key: string }[]): string {
+  if (options.length === 0) return 'normal';
+  const preferred = pokemon.preferredVariant;
+  const match = preferred
+    ? options.find((option) => option.key.toLowerCase() === preferred.toLowerCase())
+    : undefined;
+  if (match) return match.key;
+
+  let bestKey = options[0].key;
+  let bestPrice = -1;
+  for (const option of options) {
+    const price = pokemonApi.extractCardPrice(pokemon, option.key);
+    if (price > bestPrice) {
+      bestPrice = price;
+      bestKey = option.key;
+    }
+  }
+  return bestKey;
+}
+
 function toVaultCard(card: PokemonCard | OnePieceCard): PokemonCard {
   if (!isOnePieceDetail(card) && 'set' in card && 'releaseDate' in (card.set ?? {})) {
     return card;
@@ -208,6 +228,7 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
   const [isInVault, setIsInVault] = useState(false);
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [selectedVariant, setSelectedVariant] = useState('normal');
+  const [finishCardId, setFinishCardId] = useState<string | null>(null);
   const [populationData, setPopulationData] = useState<PopulationLookupResponse | null>(null);
   const [isLoadingPopulation, setIsLoadingPopulation] = useState(false);
   const [gradedPrices, setGradedPrices] = useState<GradedPriceResult | null>(null);
@@ -285,6 +306,20 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
     }));
   }, [card, isOnePiece]);
 
+  // The modal often opens on a stub, then the same card id is enriched with
+  // TCGplayer finishes. A `<select>` whose value is not in that list still
+  // paints the first option (Holofoil) while state stays on Normal, so history
+  // is requested for a finish that has no snapshots.
+  if (card && isOpen && !isOnePiece) {
+    const sameCard = finishCardId === card.id;
+    const listed = variantOptions.some((option) => option.key === selectedVariant);
+    if (!sameCard || !listed) {
+      const next = chooseCardFinish(card as PokemonCard, variantOptions);
+      if (!sameCard) setFinishCardId(card.id);
+      if (next !== selectedVariant) setSelectedVariant(next);
+    }
+  }
+
   const gradedRows = React.useMemo(() => {
     if (!gradedPrices?.prices) return [];
     return [...gradedPrices.prices]
@@ -314,30 +349,6 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
     if (card && isOpen) fetchGradedPricesData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [card?.id, isOpen, selectedVariant, isOnePiece]);
-
-  useEffect(() => {
-    if (!card || !isOpen || isOnePiece) return;
-    const pokemon = card as PokemonCard;
-    const preferred = pokemon.preferredVariant;
-    const match = preferred
-      ? variantOptions.find((option) => option.key.toLowerCase() === preferred.toLowerCase())
-      : undefined;
-    if (match) {
-      setSelectedVariant(match.key);
-      return;
-    }
-    let bestKey = variantOptions[0]?.key || 'normal';
-    let bestPrice = 0;
-    for (const option of variantOptions) {
-      const price = pokemonApi.extractCardPrice(pokemon, option.key);
-      if (price > bestPrice) {
-        bestPrice = price;
-        bestKey = option.key;
-      }
-    }
-    setSelectedVariant(bestKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [card?.id, isOpen, isOnePiece]);
 
   const handleWishlist = () => {
     if (!card) return;
