@@ -5,13 +5,15 @@ import { FilterChip, PageHeader } from '../../../components/layout/PageShell';
 import { PageEmptyState } from '../../../components/common/PageEmptyState';
 import { useCardModal } from '../../../contexts/CardModalContext';
 import { formatCurrency, formatPercent } from '../../../utils/cardDisplay';
-import { useDeals } from '../hooks/useDeals';
+import { DEALS_LOAD_GAVE_UP, useDeals } from '../hooks/useDeals';
 import { useSavedDeals } from '../hooks/useSavedDeals';
 import type { Deal, DealFeedTab } from '../types';
 import { ebayRetryRemainingMs, formatEbayWait, isWaitingOnEbay } from '../types';
+import { scanProgressView } from '../scanProgress';
 import { DealDetail } from './DealDetail';
 import { DealFeed } from './DealFeed';
 import { DealFilters } from './DealFilters';
+import { DealScanProgress } from './DealScanProgress';
 import { DealSummary } from './DealSummary';
 
 const TABS: { id: DealFeedTab; label: string }[] = [
@@ -45,12 +47,17 @@ export function DealsPage() {
   const [now, setNow] = useState(() => Date.now());
   const waitingForEbay = isWaitingOnEbay(result?.meta, now);
   const waitMs = ebayRetryRemainingMs(result?.meta, now);
+  const scanning = Boolean(result?.meta.scanning);
+  const scan = scanProgressView(result?.meta);
+  const showScan = !result || scanning;
+  const reconnecting = Boolean(!result && (loading || error));
+  const gaveUp = error === DEALS_LOAD_GAVE_UP;
 
   useEffect(() => {
-    if (!waitingForEbay && waitMs <= 0) return;
+    if (!showScan) return;
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
-  }, [waitingForEbay, result?.meta.fetchedAt, result?.meta.retryInMs]);
+  }, [showScan]);
 
   const visibleDeals = useMemo(
     () => deals.filter((deal) => !dismissed.has(deal.listingId)),
@@ -107,8 +114,20 @@ export function DealsPage() {
             disabled={waitingForEbay}
             className="inline-flex items-center gap-1.5 rounded-lg border border-border-default bg-surface-inset px-3 py-1.5 text-xs font-medium text-ink-secondary transition-colors hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <RefreshCw className={`h-3.5 w-3.5${result?.meta.scanning ? ' animate-spin' : ''}`} />
-            {waitingForEbay ? 'Waiting' : result?.meta.scanning ? 'Scanning' : 'Refresh'}
+            <RefreshCw
+              className={`h-3.5 w-3.5${scanning || (reconnecting && !gaveUp) ? ' animate-spin' : ''}`}
+            />
+            {waitingForEbay
+              ? `Waiting ${formatEbayWait(waitMs)}`
+              : scanning
+                ? scan.searchIndex && scan.searchTotal
+                  ? `Scanning ${scan.searchIndex}/${scan.searchTotal}`
+                  : 'Scanning'
+                : reconnecting
+                  ? gaveUp
+                    ? 'Retry'
+                    : 'Connecting'
+                  : 'Refresh'}
           </button>
         }
       />
@@ -132,25 +151,28 @@ export function DealsPage() {
 
       {summary && <DealSummary summary={summary} />}
 
-      {result?.meta && (result.meta.scanning || result.meta.listingsScanned > 0) && (
-        <p className={`text-sm ${waitingForEbay ? 'text-amber-400' : 'text-ink-secondary'}`}>
-          {waitingForEbay
-            ? `eBay hit this app's request limit. Next try in ${formatEbayWait(waitMs)}. Leave this page open — Refresh will not unlock more calls.`
-            : result.meta.scanning
-              ? `Scanning every live eBay listing in this game — ${result.meta.listingsScanned.toLocaleString()} checked so far${
-                  result.meta.ebayTotal && result.meta.ebayTotal < 200_000
-                    ? ` of about ${result.meta.ebayTotal.toLocaleString()} reachable results`
-                    : ''
-                }. Deals appear as they match.`
-              : `Compared ${result.meta.listingsScanned.toLocaleString()} live eBay listings to TCGTracker market value.`}
+      {showScan ? (
+        <DealScanProgress
+          meta={result?.meta ?? null}
+          dealsFound={summary?.dealsFound ?? result?.summary.dealsFound ?? 0}
+          compact={visibleDeals.length > 0}
+          now={now}
+          notice={!result ? error : null}
+        />
+      ) : result?.meta && result.meta.listingsScanned > 0 ? (
+        <p className="text-sm text-ink-secondary">
+          Compared {result.meta.listingsScanned.toLocaleString()} live eBay listings to TCGTracker
+          market value.
         </p>
-      )}
+      ) : null}
 
-      {result?.meta?.error === 'rate_limited' && !waitingForEbay && (
+      {result?.meta?.error === 'rate_limited' && !scanning && (
         <p className="text-sm text-amber-400">
-          {result.meta.scanning
-            ? 'eBay rate-limited the crawl. Backing off, then continuing from the same page.'
-            : `eBay rate-limited the scan${result.meta.listingsScanned ? ` after ${result.meta.listingsScanned.toLocaleString()} listings` : ''}. Wait a minute, then tap Refresh.`}
+          {`eBay rate-limited the scan${
+            result.meta.listingsScanned
+              ? ` after ${result.meta.listingsScanned.toLocaleString()} listings`
+              : ''
+          }. Wait a minute, then tap Refresh.`}
         </p>
       )}
 

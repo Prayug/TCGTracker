@@ -116,6 +116,16 @@ export interface DealsMeta {
   ebayTotal: number | null;
   scanning: boolean;
   retryInMs?: number;
+  /** Finished eBay searches in this crawl. */
+  queriesDone?: number;
+  /** Planned eBay searches. The crawl walks these one at a time. */
+  queriesTotal?: number;
+  /** Human label for the search currently running. */
+  queryLabel?: string | null;
+  /** Listings already paged through in the current search. */
+  queryOffset?: number;
+  /** Listings eBay can return for the current search. */
+  queryReachable?: number | null;
 }
 
 export function ebayRetryRemainingMs(meta: DealsMeta | null | undefined, now = Date.now()): number {

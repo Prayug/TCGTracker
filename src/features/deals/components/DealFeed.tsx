@@ -2,7 +2,6 @@
 import { Percent } from 'lucide-react';
 import { PageEmptyState } from '../../../components/common/PageEmptyState';
 import type { Deal, DealFeedTab, DealsMeta } from '../types';
-import { ebayRetryRemainingMs, formatEbayWait, isWaitingOnEbay } from '../types';
 import { DealCard } from './DealCard';
 
 export function DealFeed({
@@ -32,12 +31,12 @@ export function DealFeed({
   onOpenCard: (deal: Deal) => void;
   onRelaxFilters: () => void;
 }) {
+  if (!meta && deals.length === 0) {
+    return null;
+  }
+
   if (loading && deals.length === 0) {
-    return (
-      <div className="flex h-40 items-center justify-center">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-      </div>
-    );
+    return null;
   }
 
   if (error && deals.length === 0) {
@@ -139,26 +138,10 @@ export function DealFeed({
       );
     }
     if (meta?.scanning) {
-      if (isWaitingOnEbay(meta)) {
-        const wait = formatEbayWait(ebayRetryRemainingMs(meta));
-        return (
-          <PageEmptyState
-            icon={Percent}
-            title="eBay request limit reached"
-            message={`eBay blocked further Browse calls for this app key. TCGTracker will try again in ${wait}. Leave this page open. Refresh will not help.`}
-          />
-        );
-      }
       return (
-        <PageEmptyState
-          icon={Percent}
-          title="Scanning all live eBay listings"
-          message={
-            meta.listingsScanned
-              ? `${meta.listingsScanned.toLocaleString()} listings checked so far. The crawl pages through every result eBay returns for this game — not a 150-item sample.`
-              : 'Paging through the full eBay catalog for this game. Matching deals will show up here as they are found.'
-          }
-        />
+        <p className="py-10 text-center text-sm text-ink-muted">
+          Matching deals will show up here.
+        </p>
       );
     }
     return (

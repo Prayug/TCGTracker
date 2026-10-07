@@ -7,12 +7,16 @@ import { listingTitleLooksNonEnglish } from '../listingLanguage';
 import type { Deal, DealFeedTab, DealFiltersState, DealSort, DealsResult } from '../types';
 import { DEFAULT_DEAL_FILTERS } from '../types';
 
+export const DEALS_LOAD_GAVE_UP = 'Could not load the eBay scan. Tap Refresh to try again.';
+
 function isAbort(err: unknown): boolean {
   if (err instanceof DOMException && err.name === 'AbortError') return true;
   if (typeof err === 'object' && err !== null) {
     const e = err as { code?: string; name?: string; message?: string };
-    if (e.code === 'ERR_CANCELED' || e.name === 'CanceledError') return true;
-    if (typeof e.message === 'string' && /cancel/i.test(e.message)) return true;
+    if (e.code === 'ERR_CANCELED' || e.name === 'CanceledError' || e.name === 'AbortError')
+      return true;
+    if (e.code === 'ECONNABORTED') return false;
+    if (typeof e.message === 'string' && /cancel|aborted/i.test(e.message)) return true;
   }
   return false;
 }
@@ -96,6 +100,7 @@ export function useDeals() {
   const inFlight = useRef(false);
   const backoffUntil = useRef(0);
   const hasResult = useRef(false);
+  const retryAttempt = useRef(0);
 
   const load = useCallback(
     async (signal?: AbortSignal, forceRefresh = false, silent = false) => {
@@ -124,6 +129,7 @@ export function useDeals() {
         );
         if (signal?.aborted || loadId.current !== id) return;
         hasResult.current = true;
+        retryAttempt.current = 0;
         setResult(data);
         setError(null);
       } catch (err) {
@@ -131,16 +137,14 @@ export function useDeals() {
         const status = axiosStatus(err);
         if (status === 429 || (status != null && status >= 500)) {
           backoffUntil.current = Date.now() + (status === 429 ? 30_000 : 8_000);
-          if (!silent && !hasResult.current) {
-            setError(
-              status === 429
-                ? 'Too many requests — retrying shortly'
-                : 'Server restarting — retrying'
-            );
-          }
-          return;
         }
         if (silent && hasResult.current) return;
+        if (!hasResult.current) {
+          setError(
+            status === 429 ? 'Too many requests — retrying shortly' : 'Reconnecting to the scan'
+          );
+          return;
+        }
         setError('Failed to load eBay deals');
       } finally {
         if (loadId.current === id) {
@@ -158,6 +162,20 @@ export function useDeals() {
     return () => controller.abort();
   }, [load]);
 
+  useEffect(() => {
+    if (!error || result || error === DEALS_LOAD_GAVE_UP) return;
+    retryAttempt.current += 1;
+    if (retryAttempt.current > 6) {
+      setError(DEALS_LOAD_GAVE_UP);
+      return;
+    }
+    const delay = Math.min(12_000, 800 * 2 ** (retryAttempt.current - 1));
+    const timer = window.setTimeout(() => {
+      void load(undefined, false, false);
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [error, result, load]);
+
   const scanning = Boolean(result?.meta.scanning);
   useEffect(() => {
     if (!scanning) return;
@@ -165,7 +183,7 @@ export function useDeals() {
       if (typeof document !== 'undefined' && document.hidden) return;
       void load(undefined, false, true);
     };
-    const timer = window.setInterval(tick, 15_000);
+    const timer = window.setInterval(tick, 5_000);
     const onVisible = () => {
       if (!document.hidden) tick();
     };
@@ -233,7 +251,10 @@ export function useDeals() {
     deals,
     loading,
     error,
-    refresh: () => void load(undefined, true),
+    refresh: () => {
+      retryAttempt.current = 0;
+      void load(undefined, true);
+    },
     relaxFilters,
   };
 }

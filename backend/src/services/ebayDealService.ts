@@ -164,6 +164,11 @@ export interface DealsResult {
     ebayTotal: number | null;
     scanning: boolean;
     retryInMs?: number;
+    queriesDone: number;
+    queriesTotal: number;
+    queryLabel: string | null;
+    queryOffset: number;
+    queryReachable: number | null;
   };
 }
 
@@ -427,6 +432,13 @@ async function hydrateScanCache(key: string): Promise<CrawlState | null> {
     listingsFetched: row.listings_fetched,
     listingsScanned: row.listings_scanned,
     ebayTotal: row.ebay_total,
+    queriesDone: 0,
+    queriesTotal: 0,
+    queryLabel: null,
+    queryOffset: 0,
+    queryReachable: null,
+    queryPageStart: 0,
+    scannedAtPageStart: 0,
     startedAt: row.updated_at,
     updatedAt: row.updated_at,
   };
@@ -835,6 +847,13 @@ interface CrawlState {
   listingsFetched: number;
   listingsScanned: number;
   ebayTotal: number | null;
+  queriesDone: number;
+  queriesTotal: number;
+  queryLabel: string | null;
+  queryOffset: number;
+  queryReachable: number | null;
+  queryPageStart: number;
+  scannedAtPageStart: number;
   startedAt: number;
   updatedAt: number;
 }
@@ -942,8 +961,53 @@ function emptyCrawlState(
     listingsFetched: 0,
     listingsScanned: 0,
     ebayTotal: null,
+    queriesDone: 0,
+    queriesTotal: cardId ? 0 : marketplaceQueryPlan(game, listingType).length,
+    queryLabel: null,
+    queryOffset: 0,
+    queryReachable: null,
+    queryPageStart: 0,
+    scannedAtPageStart: 0,
     startedAt: Date.now(),
     updatedAt: Date.now(),
+  };
+}
+
+function describeCrawlQuery(query: CrawlQuery): string {
+  const band =
+    query.priceMin == null && query.priceMax == null
+      ? null
+      : query.priceMax == null
+        ? `$${query.priceMin ?? 0}+`
+        : `$${query.priceMin ?? 0}–$${query.priceMax}`;
+  const kind =
+    query.buyingOptions === 'FIXED_PRICE'
+      ? 'Buy It Now'
+      : query.buyingOptions === 'AUCTION'
+        ? 'Auctions'
+        : null;
+  if (band && kind) return `${kind} · ${band}`;
+  if (band) return band;
+  return query.query;
+}
+
+function emptyScanProgress() {
+  return {
+    queriesDone: 0,
+    queriesTotal: 0,
+    queryLabel: null as string | null,
+    queryOffset: 0,
+    queryReachable: null as number | null,
+  };
+}
+
+function scanProgressFromState(state: CrawlState) {
+  return {
+    queriesDone: state.queriesDone,
+    queriesTotal: state.queriesTotal,
+    queryLabel: state.queryLabel,
+    queryOffset: state.queryOffset,
+    queryReachable: state.queryReachable,
   };
 }
 
@@ -980,6 +1044,8 @@ async function evaluatePage(
       return null;
     } finally {
       state.listingsScanned += 1;
+      state.queryOffset =
+        state.queryPageStart + (state.listingsScanned - state.scannedAtPageStart);
       state.updatedAt = Date.now();
     }
   });
@@ -1028,6 +1094,13 @@ async function runMarketplaceCrawl(state: CrawlState): Promise<void> {
     return;
   }
 
+  state.queriesTotal = plan.length;
+  state.queriesDone = 0;
+  state.queryLabel = null;
+  state.queryOffset = 0;
+  state.queryReachable = null;
+  state.updatedAt = Date.now();
+
   logger.info('eBay marketplace crawl started', {
     game: state.game,
     cardId: state.cardId,
@@ -1036,12 +1109,22 @@ async function runMarketplaceCrawl(state: CrawlState): Promise<void> {
   });
 
   let consecutiveRateLimits = 0;
-  crawl: for (const query of plan) {
+  for (let index = 0; index < plan.length; index += 1) {
     if (!state.running) break;
+    const query = plan[index];
+    state.queryLabel = describeCrawlQuery(query);
+    state.queryOffset = 0;
+    state.queryReachable = null;
+    state.updatedAt = Date.now();
+
     let offset = 0;
+    let aborted = false;
     while (state.running && offset <= EBAY_BROWSE_MAX_OFFSET) {
       const page = await fetchBrowsePage(query, offset, state);
-      if (!state.running) break crawl;
+      if (!state.running) {
+        aborted = true;
+        break;
+      }
       if (page.error === 'rate_limited') {
         consecutiveRateLimits += 1;
         const cooldownMs = await getEbayCooldownRemainingMs();
@@ -1066,14 +1149,26 @@ async function runMarketplaceCrawl(state: CrawlState): Promise<void> {
       if (page.error && page.listings.length === 0) break;
       if (page.total != null && offset === 0) {
         const reachable = Math.min(page.total, EBAY_BROWSE_MAX_OFFSET);
+        state.queryReachable = reachable;
         state.ebayTotal = (state.ebayTotal ?? 0) + reachable;
       }
       if (page.listings.length === 0) break;
+      state.queryPageStart = offset;
+      state.scannedAtPageStart = state.listingsScanned;
+      state.queryOffset = offset;
       await evaluatePage(state, page.listings, query.targets ?? null);
+      const nextOffset = offset + page.listings.length;
+      if (state.running) {
+        state.queryOffset = Math.min(state.queryReachable ?? nextOffset, nextOffset);
+      }
       if (page.listings.length < EBAY_BROWSE_PAGE_SIZE) break;
-      offset += page.listings.length;
+      offset = nextOffset;
       if (offset >= EBAY_BROWSE_MAX_OFFSET) break;
     }
+
+    if (aborted || !state.running) break;
+    state.queriesDone = index + 1;
+    state.updatedAt = Date.now();
   }
 
   if (crawlStates.get(state.key) !== state) {
@@ -1739,6 +1834,7 @@ export async function getDeals(query: DealQuery, userId?: number): Promise<Deals
         listingsFetched: 0,
         ebayTotal: null,
         scanning: false,
+        ...emptyScanProgress(),
       },
     };
   }
@@ -1763,6 +1859,7 @@ async function getDealsUnsafe(query: DealQuery, userId?: number): Promise<DealsR
         listingsFetched: 0,
         ebayTotal: null,
         scanning: false,
+        ...emptyScanProgress(),
       },
     };
   }
@@ -1788,6 +1885,7 @@ async function getDealsUnsafe(query: DealQuery, userId?: number): Promise<DealsR
           listingsFetched: 0,
           ebayTotal: null,
           scanning: false,
+          ...emptyScanProgress(),
         },
       };
     }
@@ -1853,6 +1951,7 @@ async function getDealsUnsafe(query: DealQuery, userId?: number): Promise<DealsR
       ebayTotal: crawl.ebayTotal,
       scanning: crawl.running,
       retryInMs: retryInMs > 5_000 ? retryInMs : undefined,
+      ...scanProgressFromState(crawl),
     },
   };
 }
