@@ -77,9 +77,7 @@ export function MarketFeed({
                 </p>
               </div>
               <div className="mf-ed__tape-nums">
-                <span className={`mf-ed__tape-pct is-${side === 'gainers' ? 'in' : 'out'}`}>
-                  {formatPct(r.changePercent)}
-                </span>
+                <span className="mf-ed__tape-pct">{formatPct(r.changePercent)}</span>
                 <span className="mf-ed__tape-price">
                   {formatMoney(r.currentPrice)}
                   <em>

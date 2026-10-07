@@ -1,13 +1,8 @@
-import { useMemo, type CSSProperties } from 'react';
+import { useMemo } from 'react';
 import type { MoneyFlowCohort } from '@tcgtracker/shared';
 import { formatPct } from '../lib/format';
 
 export type MapFilter = { cohortId: string; label: string } | null;
-
-function intensity(median: number | null): number {
-  if (median == null) return 0;
-  return Math.max(-1, Math.min(1, median / 8));
-}
 
 export function MarketMap({
   eraFinishes,
@@ -20,14 +15,17 @@ export function MarketMap({
   filter: MapFilter;
   onFilter: (f: MapFilter) => void;
 }) {
-  const cells = useMemo(() => {
+  const rows = useMemo(() => {
     const pool = [...eraFinishes, ...specials].filter((c) => c.sampleSize > 0);
     const maxN = Math.max(1, ...pool.map((c) => c.sampleSize));
+    const maxAbs = Math.max(3, ...pool.map((c) => Math.abs(c.medianReturnPct ?? 0)));
     return pool
       .map((c) => ({
         cohort: c,
-        weight: 0.55 + (c.sampleSize / maxN) * 1.45,
-        t: intensity(c.medianReturnPct),
+        // Type scale 0.85–1.55rem from sample weight
+        typeScale: 0.85 + (c.sampleSize / maxN) * 0.7,
+        bar: Math.max(6, (Math.abs(c.medianReturnPct ?? 0) / maxAbs) * 100),
+        side: (c.medianReturnPct ?? 0) >= 0 ? 'in' : 'out',
       }))
       .sort((a, b) => (b.cohort.medianReturnPct ?? 0) - (a.cohort.medianReturnPct ?? 0));
   }, [eraFinishes, specials]);
@@ -40,33 +38,35 @@ export function MarketMap({
           <button type="button" className="mf-ed__clear" onClick={() => onFilter(null)}>
             Showing {filter.label} — clear
           </button>
-        ) : (
-          <p className="mf-ed__chapter-aside">Size by prints tracked · color by typical move</p>
-        )}
+        ) : null}
       </div>
 
-      <div className="mf-ed__field">
-        {cells.map(({ cohort, weight, t }) => {
+      <div className="mf-ed__scale" role="list">
+        <div className="mf-ed__scale-axis" aria-hidden>
+          <span>Cooling</span>
+          <span>Chased</span>
+        </div>
+        {rows.map(({ cohort, typeScale, bar, side }) => {
           const active = filter?.cohortId === cohort.id;
-          const hue = t >= 0 ? 158 : 4;
-          const sat = 35 + Math.abs(t) * 40;
-          const light = 18 + Math.abs(t) * 14;
           return (
             <button
               key={cohort.id}
               type="button"
-              className={`mf-ed__field-cell${active ? ' is-active' : ''}`}
-              style={
-                {
-                  '--w': weight,
-                  '--cell': `hsl(${hue} ${sat}% ${light}%)`,
-                } as CSSProperties
-              }
+              role="listitem"
+              className={`mf-ed__scale-row is-${side}${active ? ' is-active' : ''}`}
               onClick={() => onFilter(active ? null : { cohortId: cohort.id, label: cohort.label })}
             >
-              <span className="mf-ed__field-name">{cohort.label}</span>
-              <span className="mf-ed__field-pct">{formatPct(cohort.medianReturnPct)}</span>
-              <span className="mf-ed__field-n">{cohort.sampleSize} prints</span>
+              <span className="mf-ed__scale-name" style={{ fontSize: `${typeScale}rem` }}>
+                {cohort.label}
+                <em>
+                  {cohort.sampleSize} prints
+                  {cohort.exemplars[0] ? ` · ${cohort.exemplars[0].productName}` : ''}
+                </em>
+              </span>
+              <span className="mf-ed__scale-track" aria-hidden>
+                <span className={`mf-ed__scale-arm is-${side}`} style={{ width: `${bar}%` }} />
+              </span>
+              <span className="mf-ed__scale-pct">{formatPct(cohort.medianReturnPct)}</span>
             </button>
           );
         })}
