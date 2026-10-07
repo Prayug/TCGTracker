@@ -83,7 +83,11 @@ export function MarketMap({
                 }
               >
                 {ex?.imageSmall ? (
-                  <img src={ex.imageSmall} alt="" className="mf-ed__field-art" />
+                  <img
+                    src={ex.imageSmall}
+                    alt={ex.productName || cohort.label}
+                    className="mf-ed__field-art"
+                  />
                 ) : null}
                 <span className="mf-ed__field-name">{cohort.label}</span>
                 <span className="mf-ed__field-meta">

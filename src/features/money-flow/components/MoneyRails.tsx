@@ -17,7 +17,11 @@ function RankRow({
       <button type="button" className="mf-ed__mag-row" onClick={() => onPick(cohort)}>
         <span className="mf-ed__mag-num">{rank}</span>
         {ex?.imageSmall ? (
-          <img src={ex.imageSmall} alt="" className="mf-ed__mag-thumb" />
+          <img
+            src={ex.imageSmall}
+            alt={ex.productName || cohort.label}
+            className="mf-ed__mag-thumb"
+          />
         ) : (
           <span className="mf-ed__mag-thumb mf-ed__art-ph" aria-hidden />
         )}
@@ -72,7 +76,7 @@ export function MoneyRails({
         <button type="button" className="mf-ed__hero" onClick={() => onPick(hero)}>
           <div className="mf-ed__hero-art">
             {ex?.imageLarge || ex?.imageSmall ? (
-              <img src={ex.imageLarge || ex.imageSmall || ''} alt="" />
+              <img src={ex.imageLarge || ex.imageSmall || ''} alt={ex.productName || hero.label} />
             ) : (
               <div className="mf-ed__art-ph" />
             )}
