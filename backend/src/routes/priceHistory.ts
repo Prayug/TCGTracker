@@ -418,7 +418,7 @@ router.get('/onepiece/:catalogId', async (req: Request, res: Response): Promise<
 // Hobby capital rotation across era / finish / special cohorts
 router.get('/money-flow', async (req: Request, res: Response) => {
   const requestedDays = parseInt(req.query.days as string, 10) || 7;
-  const days = requestedDays === 30 ? 30 : 7;
+  const days = requestedDays === 90 ? 90 : requestedDays === 30 ? 30 : 7;
   try {
     const { getMoneyFlow } = await import('../services/moneyFlowService');
     const payload = await getMoneyFlow(days);

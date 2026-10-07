@@ -100,6 +100,17 @@ const dbAll = <T>(sql: string, params: unknown[] = []): Promise<T[]> =>
     });
   });
 
+export interface QualifiedMoversOptions {
+  /** Override default min price gate (raw default $1). */
+  minPrice?: number;
+  /** Override default absolute dollar move gate. */
+  minAbsDollar?: number;
+  /** Cap candidates per side before path filter (default 400). */
+  candidatePool?: number;
+  /** Cache namespace suffix so money-flow floors don't collide with top-movers. */
+  cacheNamespace?: string;
+}
+
 export interface QualifiedRawMoversResult {
   date: string | null;
   days: number;
@@ -112,8 +123,14 @@ const universeCache = new Map<string, { expiresAt: number; payload: QualifiedRaw
  * Full qualified raw-mover universe (same gates as /top-movers), not truncated to top-N.
  * Money-flow aggregates over this set so cohort medians are not biased to extremes only.
  */
-export async function listQualifiedRawMovers(days: number): Promise<QualifiedRawMoversResult> {
-  const cacheKey = `universe:v5:${days}`;
+export async function listQualifiedRawMovers(
+  days: number,
+  options: QualifiedMoversOptions = {}
+): Promise<QualifiedRawMoversResult> {
+  const minPrice = options.minPrice ?? MIN_PRICE;
+  const minAbsDollar = options.minAbsDollar ?? MIN_ABS_DOLLAR;
+  const candidatePool = options.candidatePool ?? CANDIDATE_POOL;
+  const cacheKey = `universe:v6:${options.cacheNamespace || 'default'}:${days}:${minPrice}:${minAbsDollar}:${candidatePool}`;
   const cached = universeCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.payload;
@@ -152,7 +169,7 @@ export async function listQualifiedRawMovers(days: number): Promise<QualifiedRaw
        AND COALESCE(marketPrice, price, 0) >= ?
        AND uniqueIdentifier IS NOT NULL
        AND TRIM(uniqueIdentifier) <> ''`,
-    [latestDate, MIN_PRICE]
+    [latestDate, minPrice]
   );
 
   if (currentRows.length === 0) {
@@ -187,7 +204,7 @@ export async function listQualifiedRawMovers(days: number): Promise<QualifiedRaw
        AND p.source = m.source
        AND p.date = m.maxDate
      WHERE COALESCE(p.marketPrice, p.price, 0) >= ?`,
-    [MIN_PRICE, latestDate, `-${days} days`, latestDate, `-${baselineSlackDays} days`, MIN_PRICE]
+    [minPrice, latestDate, `-${days} days`, latestDate, `-${baselineSlackDays} days`, minPrice]
   );
 
   const prevByUidSource = new Map<string, Map<string, { prevPrice: number; prevDate: string }>>();
@@ -230,10 +247,10 @@ export async function listQualifiedRawMovers(days: number): Promise<QualifiedRaw
     const baseline = prevBySource.get(locked);
     if (!current || !baseline) continue;
     if (calendarDaysBetween(baseline.prevDate, latestDate) < minSpan) continue;
-    if (baseline.prevPrice < MIN_PRICE) continue;
+    if (baseline.prevPrice < minPrice) continue;
 
     const absDollar = Math.abs(current.price - baseline.prevPrice);
-    if (absDollar < MIN_ABS_DOLLAR) continue;
+    if (absDollar < minAbsDollar) continue;
     const changePct = ((current.price - baseline.prevPrice) / baseline.prevPrice) * 100;
     if (!Number.isFinite(changePct) || Math.abs(changePct) > maxEndpointPct) continue;
 
@@ -253,8 +270,8 @@ export async function listQualifiedRawMovers(days: number): Promise<QualifiedRaw
 
   ranked.sort((a, b) => Math.abs(b.changePercent) - Math.abs(a.changePercent));
   const candidates = [
-    ...ranked.filter((e) => e.changePercent > 0).slice(0, CANDIDATE_POOL),
-    ...ranked.filter((e) => e.changePercent < 0).slice(0, CANDIDATE_POOL),
+    ...ranked.filter((e) => e.changePercent > 0).slice(0, candidatePool),
+    ...ranked.filter((e) => e.changePercent < 0).slice(0, candidatePool),
   ];
 
   if (candidates.length === 0) {
@@ -282,7 +299,7 @@ export async function listQualifiedRawMovers(days: number): Promise<QualifiedRaw
        AND date >= ?
        AND date <= ?
        AND COALESCE(marketPrice, price, 0) >= ?`,
-    [...uids, earliestPrev, latestDate, MIN_PRICE]
+    [...uids, earliestPrev, latestDate, minPrice]
   );
 
   const series = new Map<string, { date: string; price: number }[]>();

@@ -99,7 +99,8 @@ export function isSirAltPrint(name?: string | null, rarity?: string | null): boo
 
 /**
  * Icon / chase flags only when rarity/name metadata already marks them —
- * Amazing Rare, Radiant, Gold Rare, ACE SPEC, trainer gallery chase, etc.
+ * Amazing Rare, Radiant, Gold Rare, ACE SPEC, trainer gallery.
+ * Deliberately excludes bare "Secret Rare" (too many modern prints).
  */
 export function isIconPrint(name?: string | null, rarity?: string | null): boolean {
   const blob = `${name || ''} ${rarity || ''}`.toLowerCase();
@@ -108,9 +109,7 @@ export function isIconPrint(name?: string | null, rarity?: string | null): boole
     /\bradiant\b/.test(blob) ||
     /\bgold\s*rare\b/.test(blob) ||
     /\bace\s*spec\b/.test(blob) ||
-    /\btrainer\s*gallery\b/.test(blob) ||
-    /\bsecret\s*rare\b/.test(blob) ||
-    /\blegendary\b/.test(blob)
+    /\btrainer\s*gallery\b/.test(blob)
   );
 }
 
@@ -228,16 +227,106 @@ export function classifyRotation(input: {
   medianReturnPct: number | null;
   sampleSize: number;
   confidence: MoneyFlowConfidence;
+  breadthUpPct?: number | null;
 }): MoneyFlowRotation {
-  if (input.sampleSize === 0 || input.confidence === 'thin') return 'neutral';
+  if (input.sampleSize === 0) return 'neutral';
+  const median = input.medianReturnPct ?? 0;
+  const breadth = input.breadthUpPct;
+  // Thin specials can still lean when the move is clear — UI flags the sample.
+  if (input.confidence === 'thin') {
+    if (median >= 5 && (breadth == null || breadth >= 60)) return 'into';
+    if (median <= -5 && (breadth == null || breadth <= 40)) return 'out';
+    return 'neutral';
+  }
   const edge = input.shareOfGainers - input.shareOfLosers;
-  if (edge >= 0.06 && (input.medianReturnPct ?? 0) > 0) return 'into';
-  if (edge <= -0.06 && (input.medianReturnPct ?? 0) < 0) return 'out';
-  if ((input.medianReturnPct ?? 0) >= 3 && input.shareOfGainers >= input.shareOfLosers)
+  if (edge >= 0.05 && median > 0) return 'into';
+  if (edge <= -0.05 && median < 0) return 'out';
+  if (
+    median >= 2 &&
+    (breadth == null || breadth >= 55) &&
+    input.shareOfGainers >= input.shareOfLosers
+  ) {
     return 'into';
-  if ((input.medianReturnPct ?? 0) <= -3 && input.shareOfLosers >= input.shareOfGainers)
+  }
+  if (
+    median <= -2 &&
+    (breadth == null || breadth <= 45) &&
+    input.shareOfLosers >= input.shareOfGainers
+  ) {
     return 'out';
+  }
   return 'neutral';
+}
+
+/** Price floors for the money-flow universe (investment-relevant, not bulk). */
+export const MONEY_FLOW_RAW_MIN_PRICE = 8;
+export const MONEY_FLOW_PSA10_MIN_PRICE = 25;
+/** Commons/uncommons need a higher bar to count as capital, not binder fodder. */
+export const MONEY_FLOW_BULK_RAW_PRICE_BAR = 40;
+export const MONEY_FLOW_BULK_PSA10_PRICE_BAR = 100;
+
+const BULK_RARITY = /^(common|uncommon|c|u)$|^\s*(common|uncommon)\s*$|\b(common|uncommon)\b/i;
+const JUNK_NAME =
+  /\b(basic\s+energy|energy\s*\(|double\s+colorless|powerful\s+energy|treasure\s+energy|boost\s+energy)\b/i;
+
+export function isBulkRarity(rarity?: string | null): boolean {
+  const r = (rarity || '').trim().toLowerCase();
+  if (!r) return false;
+  if (BULK_RARITY.test(r)) return true;
+  // Exact common labels from catalog / TCGPlayer
+  return r === 'common' || r === 'uncommon' || r === 'c' || r === 'u';
+}
+
+/**
+ * Keep chase / investment-relevant prints only.
+ * Drops commons/uncommons below a high price bar, junk energy, and sub-floor quotes.
+ */
+export function isMoneyFlowRelevantPrint(input: {
+  rarity?: string | null;
+  name?: string | null;
+  currentPrice: number;
+  finish: MoneyFlowFinish;
+}): boolean {
+  const price = input.currentPrice;
+  if (!(price > 0) || !Number.isFinite(price)) return false;
+  if (JUNK_NAME.test(input.name || '')) return false;
+
+  const minFloor = input.finish === 'psa10' ? MONEY_FLOW_PSA10_MIN_PRICE : MONEY_FLOW_RAW_MIN_PRICE;
+  if (price < minFloor) return false;
+
+  if (isBulkRarity(input.rarity)) {
+    const bar =
+      input.finish === 'psa10' ? MONEY_FLOW_BULK_PSA10_PRICE_BAR : MONEY_FLOW_BULK_RAW_PRICE_BAR;
+    return price >= bar;
+  }
+  return true;
+}
+
+/** Short collector line — used as expand detail, not a wall of prose. */
+export function storyForCohort(input: {
+  label: string;
+  rotation: MoneyFlowRotation;
+  medianReturnPct: number | null;
+  breadthUpPct: number | null;
+  sampleSize: number;
+  confidence: MoneyFlowConfidence;
+  exemplarName?: string | null;
+}): string {
+  if (input.sampleSize === 0) return 'No chase prints measured.';
+  const pct =
+    input.medianReturnPct == null
+      ? '—'
+      : `${input.medianReturnPct > 0 ? '+' : ''}${input.medianReturnPct.toFixed(1)}%`;
+  const rise =
+    input.breadthUpPct == null ? null : `${Math.round(input.breadthUpPct)}% rising together`;
+  const tip = input.exemplarName ? ` · ${input.exemplarName}` : '';
+  if (input.rotation === 'into') {
+    return `Chased at ${pct}${rise ? ` · ${rise}` : ''}${tip}`;
+  }
+  if (input.rotation === 'out') {
+    return `Cooling at ${pct}${rise ? ` · ${rise}` : ''}${tip}`;
+  }
+  return `Mixed at ${pct}${rise ? ` · ${rise}` : ''}${tip}`;
 }
 
 export interface MoneyFlowMemberInput {
