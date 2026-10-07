@@ -22,7 +22,6 @@ export function MarketMap({
     return pool
       .map((c) => ({
         cohort: c,
-        // Type scale 0.85–1.55rem from sample weight
         typeScale: 0.85 + (c.sampleSize / maxN) * 0.7,
         bar: Math.max(6, (Math.abs(c.medianReturnPct ?? 0) / maxAbs) * 100),
         side: (c.medianReturnPct ?? 0) >= 0 ? 'in' : 'out',
@@ -41,7 +40,7 @@ export function MarketMap({
         ) : null}
       </div>
 
-      <div className="mf-ed__scale" role="list">
+      <div className="mf-ed__scale">
         <div className="mf-ed__scale-axis" aria-hidden>
           <span>Cooling</span>
           <span>Chased</span>
@@ -52,7 +51,6 @@ export function MarketMap({
             <button
               key={cohort.id}
               type="button"
-              role="listitem"
               className={`mf-ed__scale-row is-${side}${active ? ' is-active' : ''}`}
               onClick={() => onFilter(active ? null : { cohortId: cohort.id, label: cohort.label })}
             >
