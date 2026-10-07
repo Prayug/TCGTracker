@@ -4,6 +4,16 @@ import { formatPct } from '../lib/format';
 
 export type MapFilter = { cohortId: string; label: string } | null;
 
+type FieldItem = {
+  cohort: MoneyFlowCohort;
+  typeScale: number;
+  weight: number;
+  opacity: number;
+  nudge: number;
+  side: 'in' | 'out';
+};
+
+/** Typographic field — size by sample, weight/opacity by move. No cells, bars, or boxes. */
 export function MarketMap({
   eraFinishes,
   specials,
@@ -15,17 +25,23 @@ export function MarketMap({
   filter: MapFilter;
   onFilter: (f: MapFilter) => void;
 }) {
-  const rows = useMemo(() => {
+  const items = useMemo(() => {
     const pool = [...eraFinishes, ...specials].filter((c) => c.sampleSize > 0);
     const maxN = Math.max(1, ...pool.map((c) => c.sampleSize));
     const maxAbs = Math.max(3, ...pool.map((c) => Math.abs(c.medianReturnPct ?? 0)));
     return pool
-      .map((c) => ({
-        cohort: c,
-        typeScale: 0.85 + (c.sampleSize / maxN) * 0.7,
-        bar: Math.max(6, (Math.abs(c.medianReturnPct ?? 0) / maxAbs) * 100),
-        side: (c.medianReturnPct ?? 0) >= 0 ? 'in' : 'out',
-      }))
+      .map((c): FieldItem => {
+        const abs = Math.abs(c.medianReturnPct ?? 0);
+        const intensity = abs / maxAbs;
+        return {
+          cohort: c,
+          typeScale: 1.05 + (c.sampleSize / maxN) * 1.55,
+          weight: 400 + Math.round(intensity * 200),
+          opacity: 0.42 + intensity * 0.55,
+          nudge: Math.round(((c.medianReturnPct ?? 0) / maxAbs) * 28),
+          side: (c.medianReturnPct ?? 0) >= 0 ? 'in' : 'out',
+        };
+      })
       .sort((a, b) => (b.cohort.medianReturnPct ?? 0) - (a.cohort.medianReturnPct ?? 0));
   }, [eraFinishes, specials]);
 
@@ -37,37 +53,48 @@ export function MarketMap({
           <button type="button" className="mf-ed__clear" onClick={() => onFilter(null)}>
             Showing {filter.label} — clear
           </button>
-        ) : null}
+        ) : (
+          <p className="mf-ed__chapter-aside">Larger type = more prints tracked</p>
+        )}
       </div>
 
-      <div className="mf-ed__scale">
-        <div className="mf-ed__scale-axis" aria-hidden>
+      <div className="mf-ed__field" role="group" aria-label="Market segments by move">
+        <div className="mf-ed__field-poles" aria-hidden>
           <span>Cooling</span>
           <span>Chased</span>
         </div>
-        {rows.map(({ cohort, typeScale, bar, side }) => {
-          const active = filter?.cohortId === cohort.id;
-          return (
-            <button
-              key={cohort.id}
-              type="button"
-              className={`mf-ed__scale-row is-${side}${active ? ' is-active' : ''}`}
-              onClick={() => onFilter(active ? null : { cohortId: cohort.id, label: cohort.label })}
-            >
-              <span className="mf-ed__scale-name" style={{ fontSize: `${typeScale}rem` }}>
-                {cohort.label}
-                <em>
+        <div className="mf-ed__field-body">
+          {items.map(({ cohort, typeScale, weight, opacity, nudge, side }) => {
+            const active = filter?.cohortId === cohort.id;
+            const ex = cohort.exemplars[0];
+            return (
+              <button
+                key={cohort.id}
+                type="button"
+                className={`mf-ed__field-item is-${side}${active ? ' is-active' : ''}`}
+                style={{
+                  fontSize: `${typeScale}rem`,
+                  fontWeight: weight,
+                  opacity: active ? 1 : opacity,
+                  transform: `translateX(${nudge}px)`,
+                }}
+                onClick={() =>
+                  onFilter(active ? null : { cohortId: cohort.id, label: cohort.label })
+                }
+              >
+                {ex?.imageSmall ? (
+                  <img src={ex.imageSmall} alt="" className="mf-ed__field-art" />
+                ) : null}
+                <span className="mf-ed__field-name">{cohort.label}</span>
+                <span className="mf-ed__field-meta">
+                  {formatPct(cohort.medianReturnPct)}
+                  <i aria-hidden>·</i>
                   {cohort.sampleSize} prints
-                  {cohort.exemplars[0] ? ` · ${cohort.exemplars[0].productName}` : ''}
-                </em>
-              </span>
-              <span className="mf-ed__scale-track" aria-hidden>
-                <span className={`mf-ed__scale-arm is-${side}`} style={{ width: `${bar}%` }} />
-              </span>
-              <span className="mf-ed__scale-pct">{formatPct(cohort.medianReturnPct)}</span>
-            </button>
-          );
-        })}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </section>
   );

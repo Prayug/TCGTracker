@@ -25,8 +25,6 @@ export function EraEditorial({
         ? 'Modern is outrunning vintage'
         : 'Eras are moving closer together';
 
-  const maxAbs = Math.max(3, ...eras.map((e) => Math.abs(e.medianReturnPct ?? 0)));
-
   return (
     <section className="mf-ed__era" aria-label="By era">
       <div className="mf-ed__chapter">
@@ -42,8 +40,6 @@ export function EraEditorial({
 
       <div className="mf-ed__era-bars">
         {eras.map((era) => {
-          const pct = era.medianReturnPct ?? 0;
-          const width = era.sampleSize === 0 ? 0 : Math.max(8, (Math.abs(pct) / maxAbs) * 100);
           const raw = eraFinishes.find((c) => c.era === era.key && c.finish === 'raw');
           const psa = eraFinishes.find((c) => c.era === era.key && c.finish === 'psa10');
           return (
@@ -54,19 +50,13 @@ export function EraEditorial({
               onClick={() => onSelectEra(era.key as MoneyFlowEra)}
             >
               <span className="mf-ed__era-name">{era.label}</span>
-              <span className="mf-ed__era-track">
-                <span
-                  className={`mf-ed__era-fill ${pct >= 0 ? 'is-in' : 'is-out'}`}
-                  style={{ width: `${width}%` }}
-                />
-              </span>
-              <span className="mf-ed__era-pct">{formatPct(era.medianReturnPct)}</span>
               <span className="mf-ed__era-meta">
                 {era.sampleSize} prints
                 {raw && psa
                   ? ` · raw ${formatPct(raw.medianReturnPct)} / PSA 10 ${formatPct(psa.medianReturnPct)}`
                   : ''}
               </span>
+              <span className="mf-ed__era-pct">{formatPct(era.medianReturnPct)}</span>
             </button>
           );
         })}

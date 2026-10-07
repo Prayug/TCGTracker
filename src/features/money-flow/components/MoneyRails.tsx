@@ -2,86 +2,42 @@ import type { MoneyFlowCohort } from '@tcgtracker/shared';
 import { formatPct, formatMoney } from '../lib/format';
 import type { MapFilter } from './MarketMap';
 
-function Feature({
+function RankRow({
   cohort,
-  kicker,
+  rank,
   onPick,
 }: {
   cohort: MoneyFlowCohort;
-  kicker: string;
+  rank: number;
   onPick: (c: MoneyFlowCohort) => void;
 }) {
   const ex = cohort.exemplars[0];
   return (
-    <button type="button" className="mf-ed__feature" onClick={() => onPick(cohort)}>
-      <div className="mf-ed__feature-art">
-        {ex?.imageLarge || ex?.imageSmall ? (
-          <img src={ex.imageLarge || ex.imageSmall || ''} alt="" />
+    <li>
+      <button type="button" className="mf-ed__mag-row" onClick={() => onPick(cohort)}>
+        <span className="mf-ed__mag-num">{rank}</span>
+        {ex?.imageSmall ? (
+          <img src={ex.imageSmall} alt="" className="mf-ed__mag-thumb" />
         ) : (
-          <div className="mf-ed__art-ph" />
+          <span className="mf-ed__mag-thumb mf-ed__art-ph" aria-hidden />
         )}
-      </div>
-      <div className="mf-ed__feature-copy">
-        <p className="mf-ed__feature-kicker">{kicker}</p>
-        <p className="mf-ed__feature-seg">{cohort.label}</p>
-        <p className="mf-ed__feature-move">{formatPct(cohort.medianReturnPct)}</p>
-        {ex ? (
-          <p className="mf-ed__feature-card">
-            {ex.productName}
-            <span>
-              {formatMoney(ex.currentPrice)}
-              {ex.finish === 'psa10' ? ' · PSA 10' : ' · raw'}
-              {ex.setName ? ` · ${ex.setName}` : ''}
-            </span>
-          </p>
-        ) : null}
-        <p className="mf-ed__feature-meta">
-          {cohort.breadthUpPct == null
-            ? '—'
-            : `${Math.round(cohort.breadthUpPct)}% of prints rising`}{' '}
-          across {cohort.sampleSize} tracked
-        </p>
-      </div>
-    </button>
+        <span className="mf-ed__mag-body">
+          <span className="mf-ed__mag-seg">{cohort.label}</span>
+          <span className="mf-ed__mag-card">
+            {ex?.productName || `${cohort.sampleSize} prints`}
+            {ex ? ` · ${formatMoney(ex.currentPrice)}` : ''}
+          </span>
+        </span>
+        <span className="mf-ed__mag-pct">{formatPct(cohort.medianReturnPct)}</span>
+      </button>
+    </li>
   );
 }
 
-function RankList({
-  cohorts,
-  startAt,
-  onPick,
-}: {
-  cohorts: MoneyFlowCohort[];
-  startAt: number;
-  onPick: (c: MoneyFlowCohort) => void;
-}) {
-  if (cohorts.length === 0) return null;
-  return (
-    <ol className="mf-ed__mag-list" start={startAt}>
-      {cohorts.map((c, i) => {
-        const ex = c.exemplars[0];
-        return (
-          <li key={c.id}>
-            <button type="button" className="mf-ed__mag-row" onClick={() => onPick(c)}>
-              <span className="mf-ed__mag-num">{startAt + i}</span>
-              {ex?.imageSmall ? (
-                <img src={ex.imageSmall} alt="" className="mf-ed__mag-thumb" />
-              ) : null}
-              <span className="mf-ed__mag-body">
-                <span className="mf-ed__mag-seg">{c.label}</span>
-                <span className="mf-ed__mag-card">
-                  {ex?.productName || `${c.sampleSize} prints`}
-                </span>
-              </span>
-              <span className="mf-ed__mag-pct">{formatPct(c.medianReturnPct)}</span>
-            </button>
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
+/**
+ * Magazine ranking — one hero for money-in, then a single ordered list.
+ * Cooling entries follow as ranks (not a mirrored second card module).
+ */
 export function MoneyRails({
   into,
   out,
@@ -101,26 +57,69 @@ export function MoneyRails({
     : out;
   const showInto = intoRows.length ? intoRows : into;
   const showOut = outRows.length ? outRows : out;
-  const [intoHero, ...intoRest] = showInto;
-  const [outHero, ...outRest] = showOut;
+  const [hero, ...intoRest] = showInto;
+  const ex = hero?.exemplars[0];
+
+  let rank = 2;
 
   return (
     <section className="mf-ed__rails" aria-label="Leaders and laggards">
       <div className="mf-ed__chapter">
-        <h2 className="mf-ed__chapter-title">Leaders and laggards</h2>
+        <h2 className="mf-ed__chapter-title">Who is pulling capital</h2>
       </div>
 
-      {intoHero ? (
-        <Feature cohort={intoHero} kicker="Leading the tape" onPick={onPick} />
+      {hero ? (
+        <button type="button" className="mf-ed__hero" onClick={() => onPick(hero)}>
+          <div className="mf-ed__hero-art">
+            {ex?.imageLarge || ex?.imageSmall ? (
+              <img src={ex.imageLarge || ex.imageSmall || ''} alt="" />
+            ) : (
+              <div className="mf-ed__art-ph" />
+            )}
+          </div>
+          <div className="mf-ed__hero-copy">
+            <p className="mf-ed__hero-rank">1</p>
+            <p className="mf-ed__hero-seg">{hero.label}</p>
+            <p className="mf-ed__hero-deck">
+              {ex?.productName ?? hero.label}
+              {ex ? (
+                <span>
+                  {formatMoney(ex.currentPrice)}
+                  {ex.finish === 'psa10' ? ' · PSA 10' : ' · raw'}
+                  {ex.setName ? ` · ${ex.setName}` : ''}
+                </span>
+              ) : null}
+            </p>
+            <p className="mf-ed__hero-read">
+              Median {formatPct(hero.medianReturnPct)}
+              {hero.breadthUpPct != null
+                ? ` · ${Math.round(hero.breadthUpPct)}% of prints rising`
+                : ''}{' '}
+              across {hero.sampleSize} tracked
+            </p>
+          </div>
+        </button>
       ) : (
         <p className="mf-ed__rail-empty">No clear money-in leader this window.</p>
       )}
-      <RankList cohorts={intoRest} startAt={2} onPick={onPick} />
 
-      {outHero ? (
-        <div className="mf-ed__laggard">
-          <Feature cohort={outHero} kicker="Cooling off" onPick={onPick} />
-          <RankList cohorts={outRest} startAt={2} onPick={onPick} />
+      {intoRest.length > 0 ? (
+        <ol className="mf-ed__mag-list" start={2}>
+          {intoRest.map((c) => {
+            const n = rank++;
+            return <RankRow key={c.id} cohort={c} rank={n} onPick={onPick} />;
+          })}
+        </ol>
+      ) : null}
+
+      {showOut.length > 0 ? (
+        <div className="mf-ed__cooling">
+          <p className="mf-ed__cooling-label">Cooling — capital leaving</p>
+          <ol className="mf-ed__mag-list mf-ed__mag-list--cool" start={1}>
+            {showOut.map((c, i) => (
+              <RankRow key={c.id} cohort={c} rank={i + 1} onPick={onPick} />
+            ))}
+          </ol>
         </div>
       ) : null}
     </section>
