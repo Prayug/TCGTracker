@@ -24,7 +24,7 @@ function isAbort(err: unknown): boolean {
 }
 
 export function useInvestments() {
-  const [activeTab, setActiveTab] = useState<InvestmentsTab>('opportunities');
+  const [activeTab, setActiveTab] = useState<InvestmentsTab>('strategy');
 
   // Loading defaults to true so freshly-activated tabs show a spinner
   // instead of flashing their empty state before the fetch effect runs.

@@ -6,6 +6,7 @@ import { isSkippedDbJob, withDbJobLock } from '../utils/dbJobLock';
 import { syncCatalogData } from './catalogSync';
 import { tcgdexMarketProvider, tcgdexJaMarketProvider } from './providers/tcgdexMarketProvider';
 import { MarketPriceProvider, MarketPriceSnapshot } from './providers/contracts';
+import { snapshotTcgcsvPokemon } from './tcgcsvPokemon';
 import { canonicalFinishVariantKey, normalizeVariantKey } from '../utils/normalizeVariantKey';
 import { createPkmnPricesProvider, PkmnPricesMarketProvider } from './providers/pkmnPricesProvider';
 import { env } from '../config/env';
@@ -125,6 +126,8 @@ export const listPriceCatchUpDates = (
   return dates;
 };
 
+const TCGCSV_MAX_CARRY_DAYS = 3;
+
 /** Copy the latest raw quote per UID/source onto a missed calendar day so charts stay daily. */
 export const carryForwardPricesToDate = async (
   runDate: string
@@ -163,8 +166,11 @@ export const carryForwardPricesToDate = async (
          ON latest.uniqueIdentifier = ph.uniqueIdentifier
         AND latest.source = ph.source
         AND latest.lastDate = ph.date
+       -- Bridge short TCGCSV outages only. Copying it indefinitely froze every
+       -- tcgcsv row at 2026-04-20 while the rows still looked live.
+       WHERE NOT (ph.source = 'tcgcsv' AND latest.lastDate < date(?, '-${TCGCSV_MAX_CARRY_DAYS} days'))
        ON CONFLICT(uniqueIdentifier, date, source) DO NOTHING`,
-      [runDate, runDate],
+      [runDate, runDate, runDate],
       function (err) {
         if (err) reject(err);
         else resolve(this.changes ?? 0);
@@ -1424,6 +1430,15 @@ const performPriceUpdate = async (runDate: string) => {
       groupsProcessed = fallbackRows > 0 ? 1 : 0;
       groupsFailed = 0;
       usedFallback = true;
+    }
+
+    try {
+      const tcgcsv = await snapshotTcgcsvPokemon(runDate);
+      totalPricesProcessed += tcgcsv.written;
+    } catch (tcgcsvError) {
+      logger.warn('TCGCSV Pokémon snapshot failed', {
+        error: (tcgcsvError as Error).message,
+      });
     }
 
     try {

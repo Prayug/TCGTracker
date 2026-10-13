@@ -280,4 +280,112 @@ export interface InvestmentSignalsResult {
 /** @deprecated Use InvestmentSignalsResult */
 export type ExternalFactorsResult = InvestmentSignalsResult;
 
-export type InvestmentsTab = 'opportunities' | 'movers' | 'buyouts' | 'similar' | 'signals';
+export type InvestmentsTab =
+  | 'strategy'
+  | 'opportunities'
+  | 'movers'
+  | 'buyouts'
+  | 'similar'
+  | 'signals';
+
+// --- Backtested strategy report (/api/investments/strategy) -----------------
+
+export type StrategyMarket = 'raw' | 'psa10';
+
+export interface StrategySummary {
+  strategyId: string;
+  label: string;
+  description: string;
+  market: StrategyMarket;
+  horizonWeeks: number;
+  topN: number;
+  minPrice: number;
+  formations: number;
+  firstFormation: string | null;
+  lastFormation: string | null;
+  beatRate: number;
+  meanExcess: number;
+  pickMeanNet: number;
+  pickMedianNet: number;
+  pickHitRate: number;
+  universeMeanNet: number;
+  universeMedianNet: number;
+  universeHitRate: number;
+  equity: { date: string; strategy: number; universe: number }[];
+}
+
+export interface StrategyPick {
+  id: string;
+  cardId: string | null;
+  name: string | null;
+  setName: string | null;
+  imageSmall: string | null;
+  price: number;
+  lowestListing: number | null;
+  entryPrice: number;
+  breakEvenPrice: number;
+  breakEvenPct: number;
+  change4w: number | null;
+  change12w: number | null;
+}
+
+export interface StrategyReport {
+  market: StrategyMarket;
+  generatedAt: string;
+  horizonWeeks: number;
+  minPrice: number;
+  costs: { sellFeePct: number; sellFixedFee: number; sellShipping: number; buyShipping: number };
+  data: {
+    firstDate: string | null;
+    lastDate: string | null;
+    weeks: number;
+    series: number;
+    frozenWeeks: number;
+    staleDays: number;
+    lowConfidenceSeries: number;
+  };
+  notes: string[];
+  strategies: StrategySummary[];
+  picks: StrategyPick[];
+  spikes: StrategyPick[];
+}
+
+// --- Per-card check (/api/investments/card-check) ----------------------------
+
+export interface BaseRate {
+  label: string;
+  minPrice: number;
+  maxPrice: number | null;
+  horizonWeeks: number;
+  samples: number;
+  medianNet: number;
+  p25Net: number;
+  p75Net: number;
+  hitRate: number;
+}
+
+export interface PositionCheck {
+  market: StrategyMarket;
+  asOf: string | null;
+  staleDays: number;
+  price: number;
+  lowestListing: number | null;
+  entryPrice: number;
+  breakEvenPrice: number;
+  breakEvenPct: number;
+  change4w: number | null;
+  change12w: number | null;
+  weeklyVolatility: number | null;
+  spike: boolean;
+  fairEntry: boolean;
+  askRatio: number | null;
+  baseRate: BaseRate | null;
+  costs: StrategyReport['costs'];
+}
+
+export interface CardCheck {
+  cardId: string;
+  horizonWeeks: number;
+  raw: PositionCheck | null;
+  psa10: PositionCheck | null;
+}

@@ -41,6 +41,10 @@ export function OpportunityListPanel({ data, loading, minScore, onMinScoreChange
 
   return (
     <div className="space-y-4">
+      <p className="text-xs text-ink-muted">
+        A hand-weighted blend of model forecasts, momentum and sentiment. It has not been
+        backtested; the Strategy tab shows which signals held up after fees.
+      </p>
       <div className="flex flex-wrap items-center gap-3">
         <label className="text-xs font-medium text-ink-muted">
           Min score: <span className="text-ink-secondary">{minScore}</span>

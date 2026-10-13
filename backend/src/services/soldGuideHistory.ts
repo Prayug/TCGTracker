@@ -63,9 +63,10 @@ async function upsertPriceHistory(
   return upserted;
 }
 
-async function upsertGradedHistory(
+export async function upsertGradedHistory(
   cardId: string,
   variantKey: string,
+  grade: '9' | '10',
   points: SoldGuidePoint[],
   productId: string | null
 ): Promise<number> {
@@ -78,7 +79,7 @@ async function upsertGradedHistory(
       const stmt = db.prepare(
         `INSERT INTO graded_price_history (
            cardId, variantKey, date, grader, grade, price, soldListings, listedCount, productId, source
-         ) VALUES (?, ?, ?, 'psa', '10', ?, NULL, NULL, ?, 'pricecharting')
+         ) VALUES (?, ?, ?, 'psa', ?, ?, NULL, NULL, ?, 'pricecharting')
          ON CONFLICT(cardId, variantKey, date, grader, grade) DO UPDATE SET
            price = excluded.price,
            productId = COALESCE(excluded.productId, graded_price_history.productId)`
@@ -88,6 +89,7 @@ async function upsertGradedHistory(
           cardId,
           variantKey || 'normal',
           p.date,
+          grade,
           p.price,
           productId,
           (err: Error | null) => {
@@ -114,8 +116,10 @@ export interface ImportSoldGuideResult {
   productUrl: string | null;
   productId: string | null;
   ungradedPoints: number;
+  psa9Points: number;
   psa10Points: number;
   ungradedUpserted: number;
+  psa9Upserted: number;
   psa10Upserted: number;
 }
 
@@ -148,8 +152,10 @@ export async function importSoldGuideHistoryForCard(input: {
       productUrl: null,
       productId: null,
       ungradedPoints: 0,
+      psa9Points: 0,
       psa10Points: 0,
       ungradedUpserted: 0,
+      psa9Upserted: 0,
       psa10Upserted: 0,
     };
   }
@@ -161,27 +167,39 @@ export async function importSoldGuideHistoryForCard(input: {
     parsed.ungraded,
     match.title
   );
+  const productId = parsed.productId ?? match.productId;
+  const psa9Upserted = await upsertGradedHistory(
+    input.cardId,
+    input.variantKey || 'normal',
+    '9',
+    parsed.psa9,
+    productId
+  );
   const psa10Upserted = await upsertGradedHistory(
     input.cardId,
     input.variantKey || 'normal',
+    '10',
     parsed.psa10,
-    parsed.productId ?? match.productId
+    productId
   );
 
   logger.info('Imported PriceCharting sold-guide history', {
     uid: input.uniqueIdentifier,
     ungraded: ungradedUpserted,
+    psa9: psa9Upserted,
     psa10: psa10Upserted,
-    productId: parsed.productId ?? match.productId,
+    productId,
   });
 
   return {
     matched: true,
     productUrl: match.url,
-    productId: parsed.productId ?? match.productId,
+    productId,
     ungradedPoints: parsed.ungraded.length,
+    psa9Points: parsed.psa9.length,
     psa10Points: parsed.psa10.length,
     ungradedUpserted,
+    psa9Upserted,
     psa10Upserted,
   };
 }

@@ -5,11 +5,12 @@
 export interface SoldGuidePoint {
   date: string; // YYYY-MM-DD
   price: number; // dollars
-  condition: 'ungraded' | 'psa10';
+  condition: 'ungraded' | 'psa9' | 'psa10';
 }
 
 export interface ParsedChartSeries {
   ungraded: SoldGuidePoint[];
+  psa9: SoldGuidePoint[];
   psa10: SoldGuidePoint[];
   productId: string | null;
 }
@@ -53,7 +54,7 @@ export function parseSoldGuideSeries(html: string): ParsedChartSeries {
 
   const toPoints = (
     pairs: [number, number][] | undefined,
-    condition: 'ungraded' | 'psa10'
+    condition: SoldGuidePoint['condition']
   ): SoldGuidePoint[] => {
     if (!pairs?.length) return [];
     return pairs
@@ -65,9 +66,13 @@ export function parseSoldGuideSeries(html: string): ParsedChartSeries {
       }));
   };
 
+  // PriceCharting reuses its video-game condition keys for cards: `used` is
+  // ungraded, `graded` is Grade 9 and `manualonly` is PSA 10 (the same mapping
+  // as the page's `manual-only-price` / `completed-auctions-manual-only`).
   return {
     ungraded: toPoints(data?.used, 'ungraded'),
-    psa10: toPoints(data?.graded, 'psa10'),
+    psa9: toPoints(data?.graded, 'psa9'),
+    psa10: toPoints(data?.manualonly, 'psa10'),
     productId,
   };
 }
