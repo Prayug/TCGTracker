@@ -1,21 +1,38 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, DollarSign, Shuffle } from 'lucide-react';
+import {
+  Sparkles,
+  DollarSign,
+  Shuffle,
+  Flame,
+  Sun,
+  Snowflake,
+  Droplet,
+  Leaf,
+  Palette,
+  Moon,
+  Flower2,
+  Zap,
+  TreePine,
+  Gem,
+  Crown,
+  type LucideIcon,
+} from 'lucide-react';
 import type { BinderPlan, ConstraintOptions } from '../types';
 import type { PlanRequest } from '../services/binderService';
 
-const THEME_EMOJI: Record<string, string> = {
-  warm: '🔥',
-  sunny: '☀️',
-  icy: '❄️',
-  cool: '💧',
-  earthy: '🌿',
-  colorful: '🌈',
-  dark: '🌑',
-  pastel: '🌸',
-  neon: '💡',
-  nature: '🌲',
-  mystic: '🔮',
-  royal: '👑',
+const THEME_ICON: Record<string, LucideIcon> = {
+  warm: Flame,
+  sunny: Sun,
+  icy: Snowflake,
+  cool: Droplet,
+  earthy: Leaf,
+  colorful: Palette,
+  dark: Moon,
+  pastel: Flower2,
+  neon: Zap,
+  nature: TreePine,
+  mystic: Gem,
+  royal: Crown,
 };
 
 interface BinderPlannerProps {
@@ -160,20 +177,24 @@ export const BinderPlanner: React.FC<BinderPlannerProps> = ({
         <div className="space-y-2">
           <p className="text-sm font-semibold text-ink-secondary">Theme</p>
           <div className="flex flex-wrap gap-1.5">
-            {constraintOptions.themes.map((theme) => (
-              <button
-                key={theme.id}
-                type="button"
-                onClick={() => handleThemeToggle(theme.id)}
-                className={`rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider transition-all ${
-                  selectedThemes.includes(theme.id)
-                    ? 'border-accent bg-accent text-black'
-                    : 'border-border-default bg-surface-inset text-ink-muted hover:border-accent/40'
-                }`}
-              >
-                {THEME_EMOJI[theme.id] || ''} {theme.label}
-              </button>
-            ))}
+            {constraintOptions.themes.map((theme) => {
+              const ThemeIcon = THEME_ICON[theme.id];
+              return (
+                <button
+                  key={theme.id}
+                  type="button"
+                  onClick={() => handleThemeToggle(theme.id)}
+                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider transition-all ${
+                    selectedThemes.includes(theme.id)
+                      ? 'border-accent bg-accent text-black'
+                      : 'border-border-default bg-surface-inset text-ink-muted hover:border-accent/40'
+                  }`}
+                >
+                  {ThemeIcon ? <ThemeIcon className="h-3 w-3" aria-hidden /> : null}
+                  {theme.label}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -223,7 +244,7 @@ export const BinderPlanner: React.FC<BinderPlannerProps> = ({
       )}
 
       {error && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
+        <div className="rounded-lg border border-loss/30 bg-loss-muted p-3 text-sm text-loss">
           {error}
         </div>
       )}
@@ -257,7 +278,7 @@ export const BinderPlanner: React.FC<BinderPlannerProps> = ({
       </div>
 
       {plan && plan.filledSlots === 0 && (
-        <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm text-yellow-400">
+        <div className="rounded-lg border border-neon-amber/30 bg-accent-muted p-3 text-sm text-neon-amber">
           No cards matched your constraints. Try broadening your criteria — remove some type/rarity
           filters or increase the budget.
         </div>

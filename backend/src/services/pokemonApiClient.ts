@@ -194,7 +194,11 @@ class PokemonApiClient {
       } catch (error) {
         clearTimeout(timeout);
         lastError = error as Error;
-        if (attempt >= this.maxRetries) {
+        // A timeout means the upstream was already slow for the full timeoutMs window;
+        // retrying with the same timeout just compounds latency (up to 3x per page,
+        // times up to 4 pages in searchCardsBulk) for little chance of a fast success.
+        const timedOut = lastError.name === 'AbortError';
+        if (timedOut || attempt >= this.maxRetries) {
           break;
         }
         attempt += 1;

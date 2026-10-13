@@ -4,9 +4,9 @@ import type { Deal } from '../types';
 import { RISK_FLAG_LABELS } from '../types';
 
 const CONFIDENCE_STYLES: Record<Deal['matchConfidenceTier'], string> = {
-  high: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
-  medium: 'border-sky-500/30 bg-sky-500/10 text-sky-400',
-  low: 'border-amber-500/30 bg-amber-500/10 text-amber-400',
+  high: 'border-gain/30 bg-gain-muted text-gain',
+  medium: 'border-foil/30 bg-foil-muted text-foil',
+  low: 'border-neon-amber/30 bg-accent-muted text-neon-amber',
   unresolved: 'border-border-subtle bg-surface-inset text-ink-muted',
 };
 
@@ -87,7 +87,7 @@ export function DealCard({
           {deal.matchConfidenceTier} match
         </span>
         {deal.listingType === 'auction' ? (
-          <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
+          <span className="rounded-full border border-neon-amber/30 bg-accent-muted px-1.5 py-0.5 text-[10px] font-medium text-neon-amber">
             Auction opportunity
           </span>
         ) : (
@@ -102,7 +102,7 @@ export function DealCard({
         {visibleFlags.map((flag) => (
           <span
             key={flag}
-            className="rounded-full border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-400"
+            className="rounded-full border border-neon-amber/20 bg-accent-muted px-1.5 py-0.5 text-[10px] text-neon-amber"
           >
             {RISK_FLAG_LABELS[flag]}
           </span>

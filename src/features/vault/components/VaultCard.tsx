@@ -406,7 +406,7 @@ export const VaultCard: React.FC<VaultCardProps> = ({
           <p className="text-[13px] tabular-nums text-ink-secondary">
             {formatCurrency(totalPurchaseValue)}
           </p>
-          {assumed ? <p className="text-[10px] text-amber-400/90">At market</p> : null}
+          {assumed ? <p className="text-[10px] text-neon-amber">At market</p> : null}
         </div>
 
         <p className="hidden text-right text-[13px] font-medium tabular-nums text-ink-primary sm:block">

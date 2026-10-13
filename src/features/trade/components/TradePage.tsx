@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeftRight, Copy, Link2, RotateCcw, Save } from 'lucide-react';
-import { PageHeader } from '../../../components/layout/PageShell';
+import { ArrowLeftRight, Copy, Link2, RotateCcw, Save, Scale } from 'lucide-react';
+import { PageHeader, PageShell } from '../../../components/layout/PageShell';
 import { CardSearchPickerModal } from '../../grading/components/CardSearchPickerModal';
 import { useGame } from '../../../contexts/GameContext';
 import { useAuth } from '../../../hooks/useAuth';
@@ -223,8 +223,9 @@ export function TradePage() {
           : 'border-border-subtle bg-surface-inset text-ink-secondary';
 
   return (
-    <div className="section-stack">
+    <PageShell>
       <PageHeader
+        eyebrow="Trade"
         title="Trade calculator"
         description={`${gameLabel} quotes on both sides. Add cash if the totals do not match.`}
         actions={
@@ -275,39 +276,43 @@ export function TradePage() {
         }
       />
 
-      <input
-        type="text"
-        value={draft.title}
-        onChange={(e) => persist({ ...draft, title: e.target.value })}
-        placeholder="Optional title — e.g. Charizard for two chase hits"
-        className="input max-w-xl"
-        aria-label="Trade title"
-      />
-
       {shareNotice && (
         <p className="rounded-xl border border-border-subtle bg-surface-inset px-3 py-2 text-sm text-ink-secondary">
           {shareNotice}
         </p>
       )}
 
-      <div className={`rounded-2xl border px-4 py-4 sm:px-5 ${verdictTone}`}>
-        <div className="flex flex-wrap items-end justify-between gap-3">
+      <div
+        className={`relative overflow-hidden rounded-3xl border px-6 py-8 sm:px-10 sm:py-10 ${verdictTone}`}
+      >
+        <Scale className="pointer-events-none absolute -right-4 -top-4 h-32 w-32 opacity-[0.07]" />
+        <div className="relative flex flex-wrap items-end justify-between gap-6">
           <div>
-            <p className="text-xs font-medium uppercase tracking-[0.14em] opacity-80">Verdict</p>
-            <p className="mt-1 font-display text-2xl font-semibold">{copy.title}</p>
-            <p className="mt-1 max-w-xl text-sm opacity-80">{copy.hint}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-80">Verdict</p>
+            <p className="mt-2 font-display text-[clamp(1.75rem,4vw,2.75rem)] font-bold leading-tight tracking-tight">
+              {copy.title}
+            </p>
+            <p className="mt-2 max-w-xl text-sm opacity-80 sm:text-base">{copy.hint}</p>
           </div>
           {evaluation.kind !== 'empty' && evaluation.kind !== 'incomplete' && (
             <div className="text-right">
-              <p className="font-mono text-2xl font-semibold tabular-nums">
+              <p className="font-mono text-[clamp(2rem,5vw,3rem)] font-bold leading-none tabular-nums">
                 {formatCurrency(evaluation.delta, { signed: true })}
               </p>
-              <p className="text-xs opacity-80">
+              <p className="mt-1.5 text-xs font-medium opacity-80">
                 {formatPercent(evaluation.imbalancePct, { signed: true })} vs larger side
               </p>
             </div>
           )}
         </div>
+        <input
+          type="text"
+          value={draft.title}
+          onChange={(e) => persist({ ...draft, title: e.target.value })}
+          placeholder="Optional title — e.g. Charizard for two chase hits"
+          className="relative mt-6 h-10 w-full max-w-sm rounded-lg border border-current/15 bg-black/5 px-3 text-sm placeholder:opacity-60 focus:outline-none focus:ring-1 focus:ring-current/40 dark:bg-white/5"
+          aria-label="Trade title"
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -432,6 +437,6 @@ export function TradePage() {
         onClose={() => setVaultSide(null)}
         onSelect={(card) => vaultSide && addCard(vaultSide, card)}
       />
-    </div>
+    </PageShell>
   );
 }

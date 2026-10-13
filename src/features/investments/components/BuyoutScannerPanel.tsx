@@ -10,9 +10,9 @@ import {
 } from './shared';
 
 const PHASE_STYLES: Record<BuyoutPhase, string> = {
-  early: 'border-sky-500/30 bg-sky-500/10 text-sky-400',
-  active: 'border-amber-500/30 bg-amber-500/10 text-amber-400',
-  late: 'border-red-500/30 bg-red-500/10 text-red-400',
+  early: 'border-foil/30 bg-foil-muted text-foil',
+  active: 'border-neon-amber/30 bg-accent-muted text-neon-amber',
+  late: 'border-loss/30 bg-loss-muted text-loss',
 };
 
 function signalLabel(signal: string): string {
@@ -110,10 +110,10 @@ export function BuyoutScannerPanel({ data, loading, error }: Props) {
                 <div
                   className={`h-full rounded-full ${
                     c.buyoutScore >= 70
-                      ? 'bg-red-400'
+                      ? 'bg-loss'
                       : c.buyoutScore >= 45
-                        ? 'bg-amber-400'
-                        : 'bg-sky-400'
+                        ? 'bg-neon-amber'
+                        : 'bg-foil'
                   }`}
                   style={{ width: `${c.buyoutScore}%` }}
                 />

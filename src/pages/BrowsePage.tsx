@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { PokemonCard } from '../types/pokemon';
-import { SearchFilters } from '../features/cards/components/SearchAndSort';
+import { SearchFilters, SearchInput } from '../features/cards/components/SearchAndSort';
 import { CardGrid, CardViewMode } from '../features/cards/components/CardGrid';
 import { BrowseDiscovery } from '../features/cards/components/BrowseDiscovery';
 import { countActiveMarketplaceFilters } from '../utils/marketplaceFilters';
@@ -12,7 +12,7 @@ import { EmptyState } from '../components/common/EmptyState';
 import { useCards, isPokemonCard, isOnePieceCard, getCardPrice } from '../hooks/useCards';
 import { useGame } from '../contexts/GameContext';
 import { useCardModal } from '../contexts/CardModalContext';
-import { PageHeader, PageShell } from '../components/layout/PageShell';
+import { PageShell } from '../components/layout/PageShell';
 import { markOnboardingStep } from '../components/common/OnboardingChecklist';
 import { cn } from '@/lib/utils';
 import { queryContainsCjk } from '../utils/scriptDetection';
@@ -163,17 +163,54 @@ export function BrowsePage() {
   const gameLabel = isPokemon ? 'Pokemon' : 'One Piece';
   const hasQuery = !!searchQuery.trim() || filterBy !== 'all';
   const showDiscovery = !hasQuery && !isLoading && !error;
+  const backdropThumbs = cards.slice(0, 14);
 
   return (
     <PageShell className="space-y-4">
-      <PageHeader
-        title={`Browse ${gameLabel} cards`}
-        description="Filter by set, rarity, and price."
-      />
+      <section className="relative overflow-hidden rounded-3xl border border-border-subtle bg-surface-raised">
+        {backdropThumbs.length > 0 && (
+          <div aria-hidden className="marquee-container absolute inset-0 opacity-[0.16]">
+            <div className="marquee-content h-full" style={{ animationDuration: '45s' }}>
+              {[...backdropThumbs, ...backdropThumbs].map((card, i) => (
+                <img
+                  key={`${card.id}-${i}`}
+                  src={card.images.small}
+                  alt=""
+                  loading="lazy"
+                  className="h-48 w-auto shrink-0 rounded-xl object-cover"
+                />
+              ))}
+            </div>
+          </div>
+        )}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-gradient-to-b from-surface-raised/50 via-surface-raised/85 to-surface-raised"
+        />
+
+        <div className="relative z-10 mx-auto max-w-2xl px-6 py-10 text-center sm:px-10 sm:py-14">
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-ink-muted">
+            {gameLabel} catalog
+          </p>
+          <h1 className="mt-2 font-display text-[clamp(1.75rem,4vw,3rem)] font-bold tracking-tight text-ink-primary">
+            Browse {gameLabel} cards
+          </h1>
+          <p className="mt-2 text-sm text-ink-secondary sm:text-base">
+            Filter by set, rarity, and price across every printed card.
+          </p>
+          <div className="mt-6">
+            <SearchInput
+              value={searchQuery}
+              onChange={handleSearchChange}
+              isLoading={isLoading}
+              size="lg"
+              placeholder={`Search ${gameLabel} cards…`}
+            />
+          </div>
+        </div>
+      </section>
 
       <SearchFilters
-        searchQuery={searchQuery}
-        onSearchChange={handleSearchChange}
         sortBy={sortBy}
         onSortChange={setSortBy}
         filterBy={filterBy}

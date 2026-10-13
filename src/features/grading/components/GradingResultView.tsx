@@ -60,8 +60,8 @@ const LEVEL_LABEL: Record<ImpactLevel, string> = {
 };
 
 const LEVEL_CLASS: Record<ImpactLevel, string> = {
-  severe: 'text-red-300 bg-red-500/10 border-red-500/25',
-  high: 'text-amber-300 bg-amber-500/10 border-amber-500/25',
+  severe: 'text-loss bg-loss-muted border-loss/25',
+  high: 'text-neon-amber bg-accent-muted border-neon-amber/25',
   moderate: 'text-ink-secondary bg-surface-inset/50 border-border-subtle',
   minimal: 'text-ink-muted bg-transparent border-border-subtle',
 };
@@ -297,9 +297,9 @@ export const GradingResultView: React.FC<GradingResultViewProps> = ({
           {(result.retakeRecommended ||
             result.surfaceRetakeRecommended ||
             result.quality?.surfaceMessage) && (
-            <div className="rounded-xl border border-amber-400/25 bg-amber-400/[0.07] p-3">
+            <div className="rounded-xl border border-neon-amber/25 bg-accent-muted p-3">
               <div className="flex gap-2">
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-neon-amber" />
                 <p className="text-sm leading-relaxed text-ink-secondary">
                   {result.quality?.surfaceMessage ||
                     result.limitations ||
@@ -317,7 +317,7 @@ export const GradingResultView: React.FC<GradingResultViewProps> = ({
               {decision.recommendationBody}
             </p>
             {decision.userAdjusted && (
-              <p className="mt-2 text-sm text-amber-200/90">
+              <p className="mt-2 text-sm text-neon-amber">
                 User-adjusted view — you marked a detection as not damage. The model estimate is
                 unchanged and this click is stored as training evidence, not a new official grade.
               </p>
@@ -373,7 +373,7 @@ export const GradingResultView: React.FC<GradingResultViewProps> = ({
                         }}
                         className={`flex w-full cursor-pointer items-start gap-2 rounded-xl border px-3 py-2 text-left transition-colors ${
                           active
-                            ? 'border-amber-400/40 bg-amber-400/10'
+                            ? 'border-neon-amber/40 bg-accent-muted'
                             : 'border-border-subtle hover:border-border-default'
                         }`}
                       >
@@ -402,7 +402,7 @@ export const GradingResultView: React.FC<GradingResultViewProps> = ({
                             type="button"
                             className={`rounded-lg border px-2 py-0.5 text-xs ${
                               dispute?.verdict === 'not-damage'
-                                ? 'border-amber-400/40 bg-amber-400/10 text-amber-200'
+                                ? 'border-neon-amber/40 bg-accent-muted text-neon-amber'
                                 : 'border-border-subtle text-ink-secondary hover:text-ink-primary'
                             }`}
                             onClick={() => applyNotDamage(row.original)}
@@ -570,7 +570,7 @@ export const GradingResultView: React.FC<GradingResultViewProps> = ({
                                 {row.label}
                               </span>
                               {row.limiting && (
-                                <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-300">
+                                <span className="rounded-full bg-accent-muted px-2 py-0.5 text-xs font-medium text-neon-amber">
                                   Limiting
                                 </span>
                               )}

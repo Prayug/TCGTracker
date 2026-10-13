@@ -195,7 +195,7 @@ export function PredictionDetailPanel({
                   {windowLabel} Expected Return
                 </span>
                 <div
-                  className={`mt-1 font-mono text-lg font-semibold tabular-nums ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}
+                  className={`mt-1 font-mono text-lg font-semibold tabular-nums ${isPositive ? 'text-gain' : 'text-loss'}`}
                 >
                   {isPositive ? '+' : ''}
                   {expectedReturn.toFixed(1)}%
@@ -230,10 +230,10 @@ export function PredictionDetailPanel({
                     <span
                       className={
                         prediction.reliability === 'high'
-                          ? 'text-emerald-400'
+                          ? 'text-gain'
                           : prediction.reliability === 'medium'
-                            ? 'text-amber-300'
-                            : 'text-orange-400'
+                            ? 'text-neon-amber'
+                            : 'text-neon-pink'
                       }
                       title={prediction.reliabilityReason}
                     >
@@ -347,11 +347,11 @@ export function PredictionDetailPanel({
 
             {prediction.riskFactors &&
               prediction.riskFactors !== 'Low identifiable risk factors.' && (
-                <div className="mb-4 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+                <div className="mb-4 rounded-lg border border-neon-amber/20 bg-accent-muted/50 p-3">
                   <div className="flex items-start gap-2">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-neon-amber" />
                     <div>
-                      <h4 className="mb-1 text-xs font-medium text-amber-300">Risk Factors</h4>
+                      <h4 className="mb-1 text-xs font-medium text-neon-amber">Risk Factors</h4>
                       <p className="text-xs text-ink-muted">{prediction.riskFactors}</p>
                     </div>
                   </div>

@@ -11,6 +11,7 @@ import { useCardModal } from '../../../contexts/CardModalContext';
 import { getCardPrice, getCardImage } from '../../../utils/cardPrice';
 import { formatCurrency } from '../../../utils/cardDisplay';
 import { PageEmptyState } from '../../../components/common/PageEmptyState';
+import { PageHeader, PageShell } from '../../../components/layout/PageShell';
 
 const PRIORITY_ORDER: Record<WishlistPriority, number> = { high: 0, medium: 1, low: 2 };
 
@@ -59,20 +60,12 @@ export const WishlistView: React.FC = () => {
   const gameLabel = isPokemon ? 'Pokemon' : 'One Piece';
 
   return (
-    <div className="section-stack">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-2">
-          <p className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-foil">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent shadow-glow-accent" aria-hidden />
-            Want list
-          </p>
-          <h1 className="font-display text-h1 text-ink-primary">{gameLabel} Wishlist</h1>
-          <p className="max-w-2xl text-sm text-ink-secondary">
-            Track cards you want with optional buy targets. At-target badges appear when market ≤
-            target.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+    <PageShell>
+      <PageHeader
+        eyebrow="Want list"
+        title={`${gameLabel} Wishlist`}
+        description="Track cards you want with optional buy targets. At-target badges appear when market ≤ target."
+        actions={
           <button
             type="button"
             onClick={handleExport}
@@ -82,8 +75,8 @@ export const WishlistView: React.FC = () => {
             <Download className="h-4 w-4" />
             Export CSV
           </button>
-        </div>
-      </div>
+        }
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         {[
@@ -217,6 +210,6 @@ export const WishlistView: React.FC = () => {
           })}
         </ul>
       )}
-    </div>
+    </PageShell>
   );
 };

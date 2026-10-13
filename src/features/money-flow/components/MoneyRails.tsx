@@ -1,131 +1,103 @@
 import type { MoneyFlowCohort } from '@tcgtracker/shared';
-import { formatPct, formatMoney } from '../lib/format';
-import type { MapFilter } from './MarketMap';
+import type { SegmentFilter } from '../lib/filter';
+import { formatPct, moveTone, printsLabel } from '../lib/format';
+import { CardThumb } from './CardThumb';
 
-function RankRow({
+function RailRow({
   cohort,
   rank,
+  active,
   onPick,
 }: {
   cohort: MoneyFlowCohort;
   rank: number;
+  active: boolean;
   onPick: (c: MoneyFlowCohort) => void;
 }) {
   const ex = cohort.exemplars[0];
+  const tone = moveTone(cohort.medianReturnPct);
+
   return (
     <li>
-      <button type="button" className="mf-ed__mag-row" onClick={() => onPick(cohort)}>
-        <span className="mf-ed__mag-num">{rank}</span>
-        {ex?.imageSmall ? (
-          <img
-            src={ex.imageSmall}
-            alt={ex.productName || cohort.label}
-            className="mf-ed__mag-thumb"
-          />
-        ) : (
-          <span className="mf-ed__mag-thumb mf-ed__art-ph" aria-hidden />
-        )}
-        <span className="mf-ed__mag-body">
-          <span className="mf-ed__mag-seg">{cohort.label}</span>
-          <span className="mf-ed__mag-card">
-            {ex?.productName || `${cohort.sampleSize} prints`}
-            {ex ? ` · ${formatMoney(ex.currentPrice)}` : ''}
+      <button
+        type="button"
+        className={`mf__rail-row${active ? ' is-active' : ''}`}
+        aria-pressed={active}
+        onClick={() => onPick(cohort)}
+      >
+        <span className="mf__rank">{rank}</span>
+        <CardThumb
+          src={ex?.imageSmall}
+          large={ex?.imageLarge}
+          alt={ex?.productName || cohort.label}
+          wide={40}
+        />
+        <span className="mf__rail-body">
+          <span className="mf__row-title">{ex?.productName || cohort.label}</span>
+          <span className="mf__row-sub">
+            {cohort.label} · {printsLabel(cohort.sampleSize)}
           </span>
         </span>
-        <span className="mf-ed__mag-pct">{formatPct(cohort.medianReturnPct)}</span>
+        <span className={`mf__num is-${tone}`}>{formatPct(cohort.medianReturnPct)}</span>
       </button>
     </li>
   );
 }
 
-/**
- * Magazine ranking — one hero for money-in, then a single ordered list.
- * Cooling entries follow as ranks (not a mirrored second card module).
- */
 export function MoneyRails({
   into,
   out,
-  filter,
   onPick,
+  filter,
 }: {
   into: MoneyFlowCohort[];
   out: MoneyFlowCohort[];
-  filter: MapFilter;
   onPick: (c: MoneyFlowCohort) => void;
+  filter: SegmentFilter | null;
 }) {
-  const intoRows = filter
-    ? into.filter((c) => c.id === filter.cohortId || c.label === filter.label)
-    : into;
-  const outRows = filter
-    ? out.filter((c) => c.id === filter.cohortId || c.label === filter.label)
-    : out;
-  const showInto = intoRows.length ? intoRows : into;
-  const showOut = outRows.length ? outRows : out;
-  const [hero, ...intoRest] = showInto;
-  const ex = hero?.exemplars[0];
-
-  let rank = 2;
+  const showInto = into.slice(0, 4);
+  const showOut = out.slice(0, 4);
 
   return (
-    <section className="mf-ed__rails" aria-label="Leaders and laggards">
-      <div className="mf-ed__chapter">
-        <h2 className="mf-ed__chapter-title">Who is pulling capital</h2>
-      </div>
-
-      {hero ? (
-        <button type="button" className="mf-ed__hero" onClick={() => onPick(hero)}>
-          <div className="mf-ed__hero-art">
-            {ex?.imageLarge || ex?.imageSmall ? (
-              <img src={ex.imageLarge || ex.imageSmall || ''} alt={ex.productName || hero.label} />
-            ) : (
-              <div className="mf-ed__art-ph" />
-            )}
-          </div>
-          <div className="mf-ed__hero-copy">
-            <p className="mf-ed__hero-rank">1</p>
-            <p className="mf-ed__hero-seg">{hero.label}</p>
-            <p className="mf-ed__hero-deck">
-              {ex?.productName ?? hero.label}
-              {ex ? (
-                <span>
-                  {formatMoney(ex.currentPrice)}
-                  {ex.finish === 'psa10' ? ' · PSA 10' : ' · raw'}
-                  {ex.setName ? ` · ${ex.setName}` : ''}
-                </span>
-              ) : null}
-            </p>
-            <p className="mf-ed__hero-read">
-              Median {formatPct(hero.medianReturnPct)}
-              {hero.breadthUpPct != null
-                ? ` · ${Math.round(hero.breadthUpPct)}% of prints rising`
-                : ''}{' '}
-              across {hero.sampleSize} tracked
-            </p>
-          </div>
-        </button>
-      ) : (
-        <p className="mf-ed__rail-empty">No clear money-in leader this window.</p>
-      )}
-
-      {intoRest.length > 0 ? (
-        <ol className="mf-ed__mag-list" start={2}>
-          {intoRest.map((c) => {
-            const n = rank++;
-            return <RankRow key={c.id} cohort={c} rank={n} onPick={onPick} />;
-          })}
-        </ol>
-      ) : null}
-
-      {showOut.length > 0 ? (
-        <div className="mf-ed__cooling">
-          <p className="mf-ed__cooling-label">Cooling — capital leaving</p>
-          <ol className="mf-ed__mag-list mf-ed__mag-list--cool" start={1}>
-            {showOut.map((c, i) => (
-              <RankRow key={c.id} cohort={c} rank={i + 1} onPick={onPick} />
-            ))}
-          </ol>
+    <section className="mf__section" aria-label="Money in and money out">
+      <div className="mf__split">
+        <div>
+          <h2 className="mf__section-title">Money in</h2>
+          {showInto.length === 0 ? (
+            <p className="mf__empty">No inflow this window.</p>
+          ) : (
+            <ol className="mf__rail">
+              {showInto.map((c, i) => (
+                <RailRow
+                  key={c.id}
+                  cohort={c}
+                  rank={i + 1}
+                  active={filter?.cohortId === c.id}
+                  onPick={onPick}
+                />
+              ))}
+            </ol>
+          )}
         </div>
-      ) : null}
+        <div>
+          <h2 className="mf__section-title">Money out</h2>
+          {showOut.length === 0 ? (
+            <p className="mf__empty">No outflow this window.</p>
+          ) : (
+            <ol className="mf__rail">
+              {showOut.map((c, i) => (
+                <RailRow
+                  key={c.id}
+                  cohort={c}
+                  rank={i + 1}
+                  active={filter?.cohortId === c.id}
+                  onPick={onPick}
+                />
+              ))}
+            </ol>
+          )}
+        </div>
+      </div>
     </section>
   );
 }

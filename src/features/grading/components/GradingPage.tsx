@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { AlertCircle, RefreshCw, Sparkles, X } from 'lucide-react';
+import { PageHeader, PageShell } from '../../../components/layout/PageShell';
 import { useToast } from '../../../components/common/Toast';
 import { useGame } from '../../../contexts/GameContext';
 import { fetchGradedPrices } from '../../../services/gradedPricesApi';
@@ -193,31 +194,29 @@ export const GradingPage: React.FC = () => {
   );
 
   return (
-    <div className="relative">
+    <PageShell className="relative">
       {!result && (
-        <div className="mb-8 space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-display text-h1 text-ink-primary">AI card grading</h1>
-            {backendOk === false && (
-              <span className="inline-flex items-center gap-1 rounded-lg border border-accent/30 bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
+        <PageHeader
+          eyebrow="Grading"
+          title="AI card grading"
+          description="Photograph the front and back. We’ll return a predicted PSA number from those photos. Not a substitute for a slab."
+          actions={
+            backendOk === false ? (
+              <span className="inline-flex items-center gap-1 rounded-lg border border-neon-amber/30 bg-accent-muted px-2 py-0.5 text-xs font-medium text-neon-amber">
                 Scanner offline
               </span>
-            )}
-          </div>
-          <p className="max-w-xl text-sm text-ink-secondary">
-            Photograph the front and back. We’ll return a predicted PSA number from those photos.
-            Not a substitute for a slab.
-          </p>
-        </div>
+            ) : undefined
+          }
+        />
       )}
 
       {backendOk === false && (
-        <div className="mb-4 rounded-xl border border-accent/25 bg-accent/10 p-4 text-sm text-ink-primary">
+        <div className="rounded-xl border border-neon-amber/25 bg-accent-muted p-4 text-sm text-ink-primary">
           <div className="flex items-start gap-2">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-neon-amber" />
             <div>
               <p className="font-medium">Grading service unavailable</p>
-              <p className="mt-1 text-sm text-amber-200/80">
+              <p className="mt-1 text-sm text-ink-secondary">
                 AI card grading requires a local Python backend that processes card images —
                 it&apos;s not available on the hosted demo.
               </p>
@@ -225,7 +224,7 @@ export const GradingPage: React.FC = () => {
                 <summary className="cursor-pointer text-xs font-medium text-ink-secondary hover:text-ink-primary">
                   Running locally? Start the backend ↓
                 </summary>
-                <p className="mt-2 text-xs text-amber-200/80">
+                <p className="mt-2 text-xs text-ink-secondary">
                   <code className="font-mono">cd card-scanner-backend && python app.py</code>
                 </p>
               </details>
@@ -273,7 +272,7 @@ export const GradingPage: React.FC = () => {
         )}
 
         {error && (
-          <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          <div className="rounded-lg border border-loss/30 bg-loss-muted px-3 py-2 text-sm text-loss">
             {error}
           </div>
         )}
@@ -340,7 +339,7 @@ export const GradingPage: React.FC = () => {
             : (pendingGrading ?? undefined)
         }
       />
-    </div>
+    </PageShell>
   );
 };
 

@@ -38,14 +38,22 @@ export const SetBinderGrid: React.FC<SetBinderGridProps> = ({
       {visible.map((card) => {
         const wish = wishlistIds.has(card.id);
         return (
-          <article
+          <div
             key={card.id}
             onClick={() => onCardClick(card)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onCardClick(card);
+              }
+            }}
+            role="button"
+            tabIndex={0}
             className={`group relative flex cursor-pointer flex-col rounded-xl border p-2 transition-all hover:border-border-strong ${
               card.owned
                 ? 'border-gain/30 bg-gain/[0.06]'
                 : wish
-                  ? 'border-amber-500/30 bg-amber-500/[0.06]'
+                  ? 'border-neon-amber/30 bg-accent-muted'
                   : 'border-border-default bg-surface-raised'
             }`}
           >
@@ -75,7 +83,7 @@ export const SetBinderGrid: React.FC<SetBinderGridProps> = ({
                 </div>
               )}
             </div>
-            <p className="mt-2 truncate text-xs font-medium text-white">
+            <p className="mt-2 truncate text-xs font-medium text-ink-primary">
               #{card.number} {card.name}
             </p>
             <div className="mt-0.5 flex items-center justify-between gap-1">
@@ -111,8 +119,8 @@ export const SetBinderGrid: React.FC<SetBinderGridProps> = ({
                     }}
                     className={`flex flex-1 items-center justify-center gap-1 rounded-lg border py-1.5 text-xs ${
                       wish
-                        ? 'border-amber-500/40 text-amber-300'
-                        : 'border-border-subtle text-ink-muted hover:text-amber-300'
+                        ? 'border-neon-amber/40 text-neon-amber'
+                        : 'border-border-subtle text-ink-muted hover:text-neon-amber'
                     }`}
                     title="Wishlist"
                   >
@@ -132,7 +140,7 @@ export const SetBinderGrid: React.FC<SetBinderGridProps> = ({
                 </>
               )}
             </div>
-          </article>
+          </div>
         );
       })}
     </div>

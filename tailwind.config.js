@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: ['selector', '[data-theme="dark"]'],
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
@@ -93,34 +94,41 @@ export default {
         ring: 'var(--ring)',
       },
       boxShadow: {
-        xs: '0 1px 2px 0 rgb(0 0 0 / 0.04)',
-        sm: '0 1px 3px 0 rgb(0 0 0 / 0.08), 0 1px 2px -1px rgb(0 0 0 / 0.06)',
-        md: '0 4px 6px -1px rgb(0 0 0 / 0.12), 0 2px 4px -2px rgb(0 0 0 / 0.08)',
-        lg: '0 10px 15px -3px rgb(0 0 0 / 0.16), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
-        subtle: '0 1px 2px 0 rgb(0 0 0 / 0.04)',
-        card: '0 2px 8px rgb(0 0 0 / 0.2), 0 1px 2px rgb(0 0 0 / 0.12)',
-        elevated: '0 12px 32px rgb(0 0 0 / 0.28), 0 2px 8px rgb(0 0 0 / 0.12)',
+        xs: '0 1px 2px 0 rgb(var(--shadow-color) / 0.04)',
+        sm: '0 1px 3px 0 rgb(var(--shadow-color) / 0.08), 0 1px 2px -1px rgb(var(--shadow-color) / 0.06)',
+        md: '0 4px 6px -1px rgb(var(--shadow-color) / 0.12), 0 2px 4px -2px rgb(var(--shadow-color) / 0.08)',
+        lg: '0 10px 15px -3px rgb(var(--shadow-color) / 0.16), 0 4px 6px -4px rgb(var(--shadow-color) / 0.1)',
+        subtle: '0 1px 2px 0 rgb(var(--shadow-color) / 0.04)',
+        card: '0 2px 8px rgb(var(--shadow-color) / 0.2), 0 1px 2px rgb(var(--shadow-color) / 0.12)',
+        elevated:
+          '0 12px 32px rgb(var(--shadow-color) / 0.28), 0 2px 8px rgb(var(--shadow-color) / 0.12)',
         'glow-gold': '0 8px 24px color-mix(in srgb, var(--accent) 22%, transparent)',
         'glow-pink': '0 8px 24px color-mix(in srgb, var(--neon-pink) 18%, transparent)',
         'glow-green': '0 8px 24px color-mix(in srgb, var(--neon-green) 18%, transparent)',
         'glow-amber': '0 8px 24px color-mix(in srgb, var(--neon-amber) 18%, transparent)',
         'glow-foil': '0 8px 28px color-mix(in srgb, var(--foil) 22%, transparent)',
         'glow-accent': '0 8px 28px color-mix(in srgb, var(--accent) 24%, transparent)',
-        popover: '0 8px 30px rgb(0 0 0 / 0.28)',
+        popover: '0 8px 30px rgb(var(--shadow-color) / 0.28)',
+      },
+      transitionTimingFunction: {
+        // Emil Kowalski's curves: strong ease-out for UI, ease-in-out for on-screen moves.
+        out: 'cubic-bezier(0.23, 1, 0.32, 1)',
+        'in-out': 'cubic-bezier(0.77, 0, 0.175, 1)',
+        drawer: 'cubic-bezier(0.32, 0.72, 0, 1)',
       },
       fontFamily: {
-        sans: ['"Jost"', 'system-ui', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
-        display: ['"Outfit"', '"Jost"', 'system-ui', 'sans-serif'],
+        sans: ['"Geist Variable"', '"Geist"', 'system-ui', 'sans-serif'],
+        mono: ['"Geist Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        display: ['"Geist Variable"', '"Geist"', 'system-ui', 'sans-serif'],
       },
       fontSize: {
         display: [
-          'clamp(2.5rem,8vw,5rem)',
-          { lineHeight: '1.05', letterSpacing: '-0.03em', fontWeight: '600' },
+          'clamp(2.25rem,6vw,3.75rem)',
+          { lineHeight: '1.04', letterSpacing: '-0.035em', fontWeight: '600' },
         ],
-        h1: ['clamp(1.75rem,4vw,2.75rem)', { lineHeight: '1.1', letterSpacing: '-0.02em', fontWeight: '600' }],
-        h2: ['clamp(1.375rem,3vw,2rem)', { lineHeight: '1.15', letterSpacing: '-0.01em', fontWeight: '600' }],
-        h3: ['1.0625rem', { lineHeight: '1.5', letterSpacing: '-0.01em', fontWeight: '600' }],
+        h1: ['clamp(1.5rem,3vw,2rem)', { lineHeight: '1.15', letterSpacing: '-0.025em', fontWeight: '600' }],
+        h2: ['clamp(1.125rem,2vw,1.375rem)', { lineHeight: '1.25', letterSpacing: '-0.015em', fontWeight: '600' }],
+        h3: ['0.9375rem', { lineHeight: '1.45', letterSpacing: '-0.01em', fontWeight: '600' }],
       },
       animation: {
         'fade-in': 'fadeIn 0.3s ease-out',

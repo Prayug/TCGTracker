@@ -1,5 +1,11 @@
 import type { MoneyFlowCohort, MoneyFlowEra } from '@tcgtracker/shared';
-import { formatPct } from '../lib/format';
+import { formatPct, formatShare, moveTone } from '../lib/format';
+
+function diverge(raw: number | null | undefined, psa: number | null | undefined): boolean {
+  if (raw == null || psa == null || !Number.isFinite(raw) || !Number.isFinite(psa)) return false;
+  if ((raw > 0 && psa < 0) || (raw < 0 && psa > 0)) return true;
+  return Math.abs(raw - psa) >= 10;
+}
 
 export function EraEditorial({
   eras,
@@ -10,53 +16,44 @@ export function EraEditorial({
   eraFinishes: MoneyFlowCohort[];
   onSelectEra: (era: MoneyFlowEra) => void;
 }) {
-  const vintage = eras.find((e) => e.key === 'vintage');
-  const modern = eras.find((e) => e.key === 'modern');
-  const mid = eras.find((e) => e.key === 'mid');
-
-  const vMed = vintage?.medianReturnPct ?? 0;
-  const mMed = modern?.medianReturnPct ?? 0;
-  const separating = vMed - mMed;
-
-  const headline =
-    separating >= 3
-      ? 'Vintage is separating from modern'
-      : separating <= -3
-        ? 'Modern is outrunning vintage'
-        : 'Eras are moving closer together';
-
   return (
-    <section className="mf-ed__era" aria-label="By era">
-      <div className="mf-ed__chapter">
-        <h2 className="mf-ed__chapter-title">{headline}</h2>
-        <p className="mf-ed__chapter-aside">
-          {vintage && modern
-            ? `Vintage ${formatPct(vintage.medianReturnPct)} vs modern ${formatPct(modern.medianReturnPct)}${
-                mid ? ` · mid-era ${formatPct(mid.medianReturnPct)}` : ''
-              }`
-            : 'Era comparison'}
-        </p>
+    <section className="mf__section" aria-label="Era comparison">
+      <div className="mf__section-head">
+        <h2 className="mf__section-title">Era comparison</h2>
       </div>
 
-      <div className="mf-ed__era-bars">
+      <div className="mf__table">
+        <div className="mf__table-head">
+          <span>Era</span>
+          <span>Total</span>
+          <span>Raw</span>
+          <span>PSA 10</span>
+          <span>Breadth</span>
+          <span>N</span>
+        </div>
         {eras.map((era) => {
           const raw = eraFinishes.find((c) => c.era === era.key && c.finish === 'raw');
           const psa = eraFinishes.find((c) => c.era === era.key && c.finish === 'psa10');
+          const split = diverge(raw?.medianReturnPct, psa?.medianReturnPct);
           return (
             <button
               key={era.id}
               type="button"
-              className="mf-ed__era-row"
+              className={`mf__table-row${split ? ' is-split' : ''}`}
               onClick={() => onSelectEra(era.key as MoneyFlowEra)}
             >
-              <span className="mf-ed__era-name">{era.label}</span>
-              <span className="mf-ed__era-meta">
-                {era.sampleSize} prints
-                {raw && psa
-                  ? ` · raw ${formatPct(raw.medianReturnPct)} / PSA 10 ${formatPct(psa.medianReturnPct)}`
-                  : ''}
+              <span className="mf__row-title">{era.label}</span>
+              <span className={`mf__num is-${moveTone(era.medianReturnPct)}`}>
+                {formatPct(era.medianReturnPct)}
               </span>
-              <span className="mf-ed__era-pct">{formatPct(era.medianReturnPct)}</span>
+              <span className={`mf__num is-${moveTone(raw?.medianReturnPct)}`}>
+                {formatPct(raw?.medianReturnPct)}
+              </span>
+              <span className={`mf__num is-${moveTone(psa?.medianReturnPct)}`}>
+                {formatPct(psa?.medianReturnPct)}
+              </span>
+              <span className="mf__num">{formatShare(era.breadthUpPct)}</span>
+              <span className="mf__num mf__dim">{era.sampleSize}</span>
             </button>
           );
         })}

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { MoneyFlowWindowDays } from '@tcgtracker/shared';
 import { fetchMoneyFlow, type MoneyFlowResponse } from '../../../services/moneyFlowApi';
 
-/** Keep last good payload while refetching so window switches feel instant. */
+/** Keep last good payload while refetching. */
 export function useMoneyFlow(days: MoneyFlowWindowDays) {
   const [data, setData] = useState<MoneyFlowResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -19,7 +19,7 @@ export function useMoneyFlow(days: MoneyFlowWindowDays) {
     if (hasDataRef.current) setRefreshing(true);
     else setLoading(true);
 
-    fetchMoneyFlow(days)
+    fetchMoneyFlow(days, { signal: ac.signal })
       .then((payload) => {
         if (ac.signal.aborted) return;
         setData(payload);

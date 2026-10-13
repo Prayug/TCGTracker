@@ -9,8 +9,14 @@ export type {
   MoneyFlowWindowDays,
 } from '@tcgtracker/shared';
 
-export async function fetchMoneyFlow(days: MoneyFlowWindowDays = 7): Promise<MoneyFlowResponse> {
+export async function fetchMoneyFlow(
+  days: MoneyFlowWindowDays = 7,
+  options?: { signal?: AbortSignal }
+): Promise<MoneyFlowResponse> {
   const url = buildApiUrl(`/api/prices/money-flow?days=${days}`);
-  const { data } = await axios.get<MoneyFlowResponse>(url, { timeout: 45_000 });
+  const { data } = await axios.get<MoneyFlowResponse>(url, {
+    timeout: 60_000,
+    signal: options?.signal,
+  });
   return data;
 }

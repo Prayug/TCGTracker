@@ -21,10 +21,20 @@ export const BinderSlotCard: React.FC<BinderSlotCardProps> = ({
 }) => {
   const sizeClasses = size === 'sm' ? 'w-24 h-32' : size === 'lg' ? 'w-40 h-56' : 'w-32 h-44';
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.key === 'Enter' || e.key === ' ') && onClick) {
+      e.preventDefault();
+      onClick();
+    }
+  };
+
   if (empty) {
     return (
       <div
         onClick={onClick}
+        onKeyDown={handleKeyDown}
+        role="button"
+        tabIndex={0}
         className={`${sizeClasses} flex cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-border-subtle bg-surface-inset transition-colors hover:border-accent/50 hover:bg-surface-hover`}
       >
         <span className="text-3xl text-ink-muted">+</span>
@@ -35,6 +45,9 @@ export const BinderSlotCard: React.FC<BinderSlotCardProps> = ({
   return (
     <div
       onClick={onClick}
+      onKeyDown={handleKeyDown}
+      role="button"
+      tabIndex={0}
       className={`group ${sizeClasses} relative cursor-pointer overflow-hidden rounded-lg border border-border-default bg-surface-raised transition-all duration-200 hover:border-accent/50 hover:shadow-lg`}
     >
       {imageUrl ? (

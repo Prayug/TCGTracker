@@ -56,25 +56,25 @@ const CATEGORY_OPTIONS: {
     value: 'strong_buy',
     label: CATEGORY_SHORT_LABELS.strong_buy,
     shortLabel: CATEGORY_SHORT_LABELS.strong_buy,
-    icon: <TrendingUp className="h-3.5 w-3.5 text-green-400" />,
+    icon: <TrendingUp className="h-3.5 w-3.5 text-gain" />,
   },
   {
     value: 'watch_dip',
     label: CATEGORY_SHORT_LABELS.watch_dip,
     shortLabel: CATEGORY_SHORT_LABELS.watch_dip,
-    icon: <Target className="h-3.5 w-3.5 text-emerald-400" />,
+    icon: <Target className="h-3.5 w-3.5 text-gain" />,
   },
   {
     value: 'recovery',
     label: CATEGORY_SHORT_LABELS.recovery,
     shortLabel: CATEGORY_SHORT_LABELS.recovery,
-    icon: <Activity className="h-3.5 w-3.5 text-blue-400" />,
+    icon: <Activity className="h-3.5 w-3.5 text-foil" />,
   },
   {
     value: 'momentum',
     label: CATEGORY_SHORT_LABELS.momentum,
     shortLabel: CATEGORY_SHORT_LABELS.momentum,
-    icon: <TrendingUp className="h-3.5 w-3.5 text-purple-400" />,
+    icon: <TrendingUp className="h-3.5 w-3.5 text-accent" />,
   },
   {
     value: 'stagnant',
@@ -86,13 +86,13 @@ const CATEGORY_OPTIONS: {
     value: 'avoid',
     label: CATEGORY_SHORT_LABELS.avoid,
     shortLabel: CATEGORY_SHORT_LABELS.avoid,
-    icon: <AlertTriangle className="h-3.5 w-3.5 text-red-400" />,
+    icon: <AlertTriangle className="h-3.5 w-3.5 text-loss" />,
   },
   {
     value: 'downtrend',
     label: CATEGORY_SHORT_LABELS.downtrend,
     shortLabel: CATEGORY_SHORT_LABELS.downtrend,
-    icon: <ArrowDown className="h-3.5 w-3.5 text-orange-400" />,
+    icon: <ArrowDown className="h-3.5 w-3.5 text-neon-pink" />,
   },
 ];
 
@@ -204,7 +204,7 @@ export function PredictionCardsView({
         </div>
       ) : error ? (
         <div className="flex h-64 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border-default px-6">
-          <p className="text-sm text-red-400">{error}</p>
+          <p className="text-sm text-loss">{error}</p>
           <button
             type="button"
             onClick={() => onPredictionsRefresh()}

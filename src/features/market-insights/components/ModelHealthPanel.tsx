@@ -4,6 +4,7 @@ import {
   DataQualityCheckResult,
   DataQualityStatusResponse,
 } from '../types';
+import { InlineNotice } from '@/components/common/InlineNotice';
 
 interface Props {
   calibration: CalibrationHorizonStatus[] | null;
@@ -36,10 +37,10 @@ function formatRunAt(runAt: string | null): string {
 }
 
 function StatusIcon({ status }: { status: DataQualityCheckResult['status'] }) {
-  if (status === 'fail') return <XCircle className="h-3.5 w-3.5 text-red-400" aria-hidden />;
+  if (status === 'fail') return <XCircle className="h-3.5 w-3.5 text-loss" aria-hidden />;
   if (status === 'warn')
-    return <AlertTriangle className="h-3.5 w-3.5 text-amber-400" aria-hidden />;
-  return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" aria-hidden />;
+    return <AlertTriangle className="h-3.5 w-3.5 text-neon-amber" aria-hidden />;
+  return <CheckCircle2 className="h-3.5 w-3.5 text-gain" aria-hidden />;
 }
 
 export function ModelHealthPanel({ calibration, dataQuality, loading, error }: Props) {
@@ -52,11 +53,7 @@ export function ModelHealthPanel({ calibration, dataQuality, loading, error }: P
   }
 
   if (error) {
-    return (
-      <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-6 text-center text-sm text-red-300">
-        {error}
-      </div>
-    );
+    return <InlineNotice>{error}</InlineNotice>;
   }
 
   const checks = dataQuality?.data ?? [];
@@ -68,7 +65,7 @@ export function ModelHealthPanel({ calibration, dataQuality, loading, error }: P
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <Activity className="h-5 w-5 text-accent" />
-        <h2 className="text-lg font-semibold text-white">Model health</h2>
+        <h2 className="text-lg font-semibold text-ink-primary">Model health</h2>
         <span className="rounded-full bg-surface-hover px-2 py-0.5 text-xs text-ink-muted">
           Calibration · data quality
         </span>
@@ -107,7 +104,7 @@ export function ModelHealthPanel({ calibration, dataQuality, loading, error }: P
                           row.bias == null
                             ? 'text-ink-muted'
                             : Math.abs(row.bias) > 0.05
-                              ? 'text-amber-300'
+                              ? 'text-neon-amber'
                               : 'text-ink-secondary'
                         }`}
                       >
@@ -135,13 +132,13 @@ export function ModelHealthPanel({ calibration, dataQuality, loading, error }: P
           </div>
 
           <div className="mb-3 flex flex-wrap gap-2">
-            <span className="inline-flex items-center gap-1 rounded-full border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-xs font-medium text-red-300">
+            <span className="inline-flex items-center gap-1 rounded-full border border-loss/30 bg-loss-muted px-2.5 py-1 text-xs font-medium text-loss">
               {failed} fail
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-300">
+            <span className="inline-flex items-center gap-1 rounded-full border border-neon-amber/30 bg-accent-muted px-2.5 py-1 text-xs font-medium text-neon-amber">
               {warned} warn
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-300">
+            <span className="inline-flex items-center gap-1 rounded-full border border-gain/30 bg-gain-muted px-2.5 py-1 text-xs font-medium text-gain">
               {passed} pass
             </span>
           </div>

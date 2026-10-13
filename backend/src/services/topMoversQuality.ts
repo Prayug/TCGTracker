@@ -166,6 +166,19 @@ export function minSpanDaysForPeriod(days: number): number {
   return Math.max(14, Math.floor(days * 0.5));
 }
 
+/** True when a print moved enough to be worth path-checking for data cliffs. */
+export function isLoudMover(
+  currentPrice: number,
+  previousPrice: number,
+  changePercent: number,
+  opts: { absDollar: number; absPct: number }
+): boolean {
+  return (
+    Math.abs(currentPrice - previousPrice) >= opts.absDollar ||
+    Math.abs(changePercent) >= opts.absPct
+  );
+}
+
 /** First feed that has a quote at both ends of the window. */
 export function pickLockedFeedSource(
   currentSources: Iterable<string>,

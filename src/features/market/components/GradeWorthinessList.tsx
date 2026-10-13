@@ -71,7 +71,7 @@ function TrustCue({
 }) {
   if (verified === false) {
     return (
-      <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-300">
+      <span className="rounded bg-accent-muted px-1.5 py-0.5 text-[10px] font-medium text-neon-amber">
         Soft match
       </span>
     );

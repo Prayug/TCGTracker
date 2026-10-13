@@ -476,7 +476,7 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
                   <button
                     type="button"
                     onClick={() => setAssumedOnly(false)}
-                    className="h-9 shrink-0 rounded-lg bg-amber-400/15 px-2.5 text-xs font-medium text-amber-300"
+                    className="h-9 shrink-0 rounded-lg bg-accent-muted px-2.5 text-xs font-medium text-neon-amber"
                   >
                     Assumed cost · Clear
                   </button>

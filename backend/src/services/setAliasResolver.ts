@@ -49,14 +49,17 @@ export const resolveSetSearchKeys = async (
     if (row.setName) setNames.add(row.setName);
   }
 
-  for (const name of [...setNames]) {
+  const nameSnapshot = [...setNames];
+  if (nameSnapshot.length > 0) {
+    const likeConditions = nameSnapshot.map(() => '(setName = ? OR setName LIKE ?)').join(' OR ');
+    const likeParams = nameSnapshot.flatMap((name) => [name, `%${name}%`]);
     const likeRows = await dbAll<{ setId: string; setName: string }>(
       `
       SELECT DISTINCT setId, setName
       FROM card_mappings
-      WHERE setName = ? OR setName LIKE ?
+      WHERE ${likeConditions}
       `,
-      [name, `%${name}%`]
+      likeParams
     );
     for (const row of likeRows) {
       setIds.add(row.setId);

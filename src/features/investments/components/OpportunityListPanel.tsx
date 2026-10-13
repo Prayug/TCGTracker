@@ -14,10 +14,10 @@ import {
 } from './shared';
 
 const GRADE_STYLES: Record<OpportunityGrade, string> = {
-  strong_buy: 'border-emerald-500/40 bg-emerald-500/15 text-emerald-400',
-  buy: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300',
-  watch: 'border-amber-500/30 bg-amber-500/10 text-amber-400',
-  pass: 'border-slate-500/30 bg-slate-500/10 text-ink-muted',
+  strong_buy: 'border-gain/40 bg-gain-muted text-gain',
+  buy: 'border-gain/25 bg-gain-muted/70 text-gain',
+  watch: 'border-neon-amber/30 bg-accent-muted text-neon-amber',
+  pass: 'border-border-subtle bg-surface-inset text-ink-muted',
 };
 
 const GRADE_LABELS: Record<OpportunityGrade, string> = {
@@ -96,7 +96,7 @@ export function OpportunityListPanel({ data, loading, minScore, onMinScoreChange
                     </span>
                     {o.momentumPct != null && <ChangeBadge pct={o.momentumPct} />}
                     {o.buyoutScore > 0 && (
-                      <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
+                      <span className="rounded-full border border-neon-amber/30 bg-accent-muted px-1.5 py-0.5 text-[10px] font-medium text-neon-amber">
                         buyout {o.buyoutScore}
                       </span>
                     )}
@@ -117,8 +117,8 @@ export function OpportunityListPanel({ data, loading, minScore, onMinScoreChange
                       o.predictedReturn90d == null
                         ? 'text-ink-muted'
                         : o.predictedReturn90d >= 0
-                          ? 'text-emerald-400'
-                          : 'text-red-400'
+                          ? 'text-gain'
+                          : 'text-loss'
                     }`}
                   >
                     {o.predictedReturn90d == null

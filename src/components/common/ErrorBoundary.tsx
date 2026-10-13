@@ -32,20 +32,18 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       }
 
       return (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-xl border border-rose-300/30 bg-rose-500/10">
-            <AlertCircle className="h-7 w-7 text-red-500" aria-hidden="true" />
-          </div>
-          <h3 className="mb-2 text-lg font-semibold text-ink-primary">Something went wrong</h3>
-          <p className="mb-6 max-w-sm text-sm text-ink-muted">
+        <div className="mx-auto flex max-w-sm flex-col items-center justify-center py-20 text-center">
+          <AlertCircle className="mb-3 h-5 w-5 text-loss" aria-hidden="true" />
+          <h3 className="text-[15px] font-medium text-ink-primary">Something went wrong</h3>
+          <p className="mt-1 text-[13px] text-ink-muted">
             {this.state.error?.message || 'An unexpected error occurred'}
           </p>
           <button
             type="button"
             onClick={() => this.setState({ hasError: false, error: null })}
-            className="btn-primary"
+            className="btn-secondary mt-5 h-8 px-3 text-[13px]"
           >
-            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+            <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
             Try again
           </button>
         </div>

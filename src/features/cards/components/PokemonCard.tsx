@@ -38,6 +38,14 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
       <div
         className="relative aspect-[63/88] overflow-hidden bg-surface-inset cursor-pointer"
         onClick={onClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onClick();
+          }
+        }}
+        role="button"
+        tabIndex={0}
       >
         {imageUrl ? (
           <img

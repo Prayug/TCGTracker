@@ -1044,8 +1044,7 @@ async function evaluatePage(
       return null;
     } finally {
       state.listingsScanned += 1;
-      state.queryOffset =
-        state.queryPageStart + (state.listingsScanned - state.scannedAtPageStart);
+      state.queryOffset = state.queryPageStart + (state.listingsScanned - state.scannedAtPageStart);
       state.updatedAt = Date.now();
     }
   });

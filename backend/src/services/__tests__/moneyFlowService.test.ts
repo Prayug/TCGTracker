@@ -17,6 +17,9 @@ function member(partial: {
   specials?: MoneyFlowSpecial[];
   name?: string;
   rarity?: string | null;
+  cardId?: string | null;
+  uniqueIdentifier?: string | null;
+  imageSmall?: string | null;
 }): TaggedMover {
   return {
     changePercent: partial.changePercent,
@@ -26,14 +29,15 @@ function member(partial: {
     era: partial.era,
     finish: partial.finish,
     specials: partial.specials || [],
+    uniqueIdentifier: partial.uniqueIdentifier ?? null,
     exemplar: {
       productName: partial.name || 'Test Card',
       changePercent: partial.changePercent,
       currentPrice: partial.currentPrice,
       previousPrice: partial.previousPrice,
-      imageSmall: null,
+      imageSmall: partial.imageSmall ?? null,
       imageLarge: null,
-      cardId: null,
+      cardId: partial.cardId ?? null,
       setId: null,
       setName: null,
       rarity: partial.rarity ?? null,
@@ -48,7 +52,7 @@ describe('moneyFlowService aggregation', () => {
     expect(flow.eras.every((c) => c.sampleSize === 0)).toBe(true);
     expect(flow.eras.every((c) => c.medianReturnPct === null)).toBe(true);
     expect(flow.eras.every((c) => typeof c.story === 'string' && c.story.length > 0)).toBe(true);
-    expect(flow.headline.summary).toMatch(/Not enough chase|No chase/i);
+    expect(flow.headline.summary).toMatch(/No data/i);
     expect(flow.headline.filteredOutCount).toBe(0);
     expect(flow.rotationInto).toEqual([]);
     expect(flow.rotationOut).toEqual([]);
@@ -97,7 +101,7 @@ describe('moneyFlowService aggregation', () => {
     expect(modern.medianReturnPct).toBeLessThan(0);
     expect(vintage.rotation).toBe('into');
     expect(modern.rotation).toBe('out');
-    expect(vintage.story).toMatch(/Chased|chased|Vintage/i);
+    expect(vintage.story).toMatch(/Vintage/i);
     expect(flow.rotationInto.length).toBeGreaterThan(0);
     expect(flow.rotationInto.length).toBeLessThanOrEqual(3);
     expect(flow.rotationOut.some((c) => c.key.includes('modern') || c.key === 'modern')).toBe(true);
@@ -105,14 +109,22 @@ describe('moneyFlowService aggregation', () => {
     expect(flow.headline.filteredOutCount).toBe(12);
 
     const intoKeys = flow.rotationInto.map((c) => c.key);
+    const outKeys = flow.rotationOut.map((c) => c.key);
     if (intoKeys.includes('vintage|psa10')) {
       expect(intoKeys.includes('vintage')).toBe(false);
     }
+    if (outKeys.some((k) => k.startsWith('modern|'))) {
+      expect(outKeys.includes('modern')).toBe(false);
+    }
+    const outFaces = flow.rotationOut.map(
+      (c) => c.exemplars[0]?.cardId || c.exemplars[0]?.productName
+    );
+    expect(new Set(outFaces).size).toBe(outFaces.length);
 
     const gold = flow.specials.find((c) => c.key === 'gold_star')!;
     expect(gold.sampleSize).toBe(5);
     expect(gold.confidence).toBe('thin');
-    expect(gold.dataNote).toMatch(/Only 5|hint/i);
+    expect(gold.dataNote).toMatch(/n=5/);
 
     expect(flow.summary.trackedCount).toBe(50);
     expect(flow.summary.risingCount).toBe(25);
@@ -123,6 +135,120 @@ describe('moneyFlowService aggregation', () => {
     expect(flow.topGainers.length).toBeGreaterThan(0);
     expect(flow.topLosers.length).toBeGreaterThan(0);
     expect(flow.mostActive.length).toBeGreaterThan(0);
+  });
+
+  it('collapses duplicate PSA 10 series for the same card', () => {
+    const tagged: TaggedMover[] = [
+      member({
+        changePercent: -61.1,
+        currentPrice: 5700,
+        previousPrice: 14650,
+        era: 'vintage',
+        finish: 'psa10',
+        name: 'Suicune ex',
+        cardId: 'ex4-94',
+        uniqueIdentifier: 'ex4-94::normal',
+      }),
+      member({
+        changePercent: -61.1,
+        currentPrice: 5700,
+        previousPrice: 14650,
+        era: 'vintage',
+        finish: 'psa10',
+        name: 'Suicune ex',
+        cardId: 'ex4-94',
+        uniqueIdentifier: 'ex4-94::holofoil',
+      }),
+    ];
+    const flow = buildMoneyFlowFromTagged(7, tagged);
+    expect(flow.summary.trackedCount).toBe(1);
+    expect(flow.topLosers).toHaveLength(1);
+    expect(flow.topLosers[0]?.productName).toBe('Suicune ex');
+  });
+
+  it('faces a cohort with an imaged print when the $ leader has no art', () => {
+    const tagged: TaggedMover[] = [];
+    for (let i = 0; i < 20; i++) {
+      tagged.push(
+        member({
+          changePercent: i === 0 ? -40 : -7 - i * 0.05,
+          currentPrice: 40,
+          previousPrice: 50,
+          era: 'modern',
+          finish: 'raw',
+          specials: ['sir_alt'],
+          name: i === 0 ? 'Oricorio EX' : `Alt Art ${i}`,
+          cardId: i === 0 ? 'm2-111' : `sv1-${i}`,
+          rarity: 'Special Illustration Rare',
+          imageSmall: i === 0 ? null : `https://images.pokemontcg.io/sv1/${i}.png`,
+        })
+      );
+    }
+    const flow = buildMoneyFlowFromTagged(7, tagged);
+    const sir = flow.specials.find((c) => c.key === 'sir_alt')!;
+    expect(sir.exemplars[0]?.productName).not.toBe('Oricorio EX');
+    expect(sir.exemplars[0]?.imageSmall).toBeTruthy();
+  });
+
+  it('does not stack a parent era over era×finish or repeat a card face', () => {
+    const tagged: TaggedMover[] = [];
+    for (let i = 0; i < 25; i++) {
+      tagged.push(
+        member({
+          changePercent: -8 - i * 0.05,
+          currentPrice: 40,
+          previousPrice: 50,
+          era: 'modern',
+          finish: 'raw',
+          specials: i < 12 ? ['sir_alt'] : [],
+          name: i < 12 ? 'Tympole' : `Other ${i}`,
+          cardId: i < 12 ? 'zsv10pt5-103' : `sv1-${i}`,
+          rarity: i < 12 ? 'Illustration Rare' : 'Rare Holo',
+        })
+      );
+    }
+    const flow = buildMoneyFlowFromTagged(7, tagged);
+    const outKeys = flow.rotationOut.map((c) => c.key);
+    expect(outKeys.includes('modern')).toBe(false);
+    const faces = flow.rotationOut.map((c) => c.exemplars[0]?.productName);
+    expect(new Set(faces).size).toBe(faces.length);
+  });
+
+  it('tracks unchanged prints without flattening rotation', () => {
+    const tagged: TaggedMover[] = [];
+    for (let i = 0; i < 25; i++) {
+      tagged.push(
+        member({
+          changePercent: 8,
+          currentPrice: 50,
+          previousPrice: 46,
+          era: 'vintage',
+          finish: 'raw',
+          name: `Vintage ${i}`,
+          rarity: 'Rare Holo',
+        })
+      );
+    }
+    for (let i = 0; i < 80; i++) {
+      tagged.push(
+        member({
+          changePercent: 0,
+          currentPrice: 20,
+          previousPrice: 20,
+          era: 'vintage',
+          finish: 'raw',
+          name: `Flat ${i}`,
+          rarity: 'Rare Holo',
+        })
+      );
+    }
+    const flow = buildMoneyFlowFromTagged(7, tagged);
+    expect(flow.summary.trackedCount).toBe(105);
+    expect(flow.summary.flatCount).toBe(80);
+    const vintage = flow.eras.find((c) => c.key === 'vintage')!;
+    expect(vintage.sampleSize).toBe(105);
+    expect(vintage.medianReturnPct).toBeGreaterThan(0);
+    expect(vintage.rotation).toBe('into');
   });
 
   it('classifies eras and keeps bulk commons out of relevance', () => {

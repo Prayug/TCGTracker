@@ -16,33 +16,33 @@ const CATEGORY_CONFIG: Record<
   centering: {
     label: 'Centering',
     icon: '⊞',
-    color: 'text-sky-300',
-    borderColor: 'border-sky-500/30',
+    color: 'text-foil',
+    borderColor: 'border-foil/30',
   },
   corners: {
     label: 'Corners',
     icon: '◇',
-    color: 'text-emerald-300',
-    borderColor: 'border-emerald-500/30',
+    color: 'text-gain',
+    borderColor: 'border-gain/30',
   },
   edges: {
     label: 'Edges',
     icon: '▭',
-    color: 'text-amber-300',
-    borderColor: 'border-amber-500/30',
+    color: 'text-neon-amber',
+    borderColor: 'border-neon-amber/30',
   },
   surface: {
     label: 'Surface',
     icon: '◎',
-    color: 'text-rose-300',
-    borderColor: 'border-rose-500/30',
+    color: 'text-neon-pink',
+    borderColor: 'border-neon-pink/30',
   },
 };
 
 const SEVERITY_STYLES: Record<string, string> = {
-  minor: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
-  moderate: 'bg-amber-500/10 text-amber-300 border-amber-500/30',
-  severe: 'bg-red-500/10 text-red-300 border-red-500/30',
+  minor: 'bg-gain-muted text-gain border-gain/30',
+  moderate: 'bg-accent-muted text-neon-amber border-neon-amber/30',
+  severe: 'bg-loss-muted text-loss border-loss/30',
 };
 
 function CategoryCard({
@@ -108,7 +108,7 @@ function CategoryCard({
                   <div className="mb-2 space-y-1">
                     {defects.map((d, i) => (
                       <div key={i} className="flex items-start gap-1.5 text-xs text-ink-secondary">
-                        <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-amber-400/70" />
+                        <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-neon-amber" />
                         {d}
                       </div>
                     ))}
@@ -196,7 +196,7 @@ export const DefectEvidence: React.FC<DefectEvidenceProps> = ({ regions, defects
 
   return (
     <div className="mt-5">
-      <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-amber-300">
+      <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-neon-amber">
         <AlertTriangle className="h-3.5 w-3.5" />
         Defect evidence — tap regions to zoom
       </div>

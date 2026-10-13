@@ -225,11 +225,11 @@ export const SetIndex: React.FC<SetIndexProps> = ({ onSelectSet }) => {
             onClick={() => setPinnedOnly((p) => !p)}
             className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
               pinnedOnly
-                ? 'border-amber-500/40 bg-amber-500/15 text-amber-200'
+                ? 'border-neon-amber/40 bg-accent-muted text-neon-amber'
                 : 'border-border-subtle bg-surface-hover text-ink-secondary hover:text-ink-primary'
             }`}
           >
-            <Star className={`h-4 w-4 ${pinnedOnly ? 'fill-amber-400' : ''}`} />
+            <Star className={`h-4 w-4 ${pinnedOnly ? 'fill-neon-amber' : ''}`} />
             Pinned only
           </button>
         )}

@@ -20,7 +20,7 @@ export const PackOddsTable: React.FC<PackOddsTableProps> = ({
     <div className="mb-3 flex items-center justify-between gap-2">
       <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">Odds</h3>
       {boosted ? (
-        <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-400">
+        <span className="rounded-md bg-accent-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neon-amber">
           Boosted
         </span>
       ) : null}

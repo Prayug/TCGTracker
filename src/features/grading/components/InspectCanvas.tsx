@@ -147,14 +147,14 @@ export const InspectCanvas: React.FC<InspectCanvasProps> = ({
             <div
               key={`wear-${i}`}
               aria-hidden
-              className="pointer-events-none absolute rounded-sm border border-amber-300/50"
+              className="pointer-events-none absolute rounded-sm border border-neon-amber/50"
               style={boxStyle(box)}
             />
           ))}
 
         {highlight && layout.drawnW > 0 && (
           <div
-            className="pointer-events-none absolute rounded-sm border-2 border-amber-300 bg-amber-300/10"
+            className="pointer-events-none absolute rounded-sm border-2 border-neon-amber bg-accent-muted"
             style={boxStyle(highlight)}
           />
         )}
@@ -173,7 +173,7 @@ export const InspectCanvas: React.FC<InspectCanvasProps> = ({
 
       {highlightLabel ? (
         <p className="flex items-start gap-2 text-sm leading-relaxed text-ink-secondary">
-          <ScanSearch className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+          <ScanSearch className="mt-0.5 h-4 w-4 shrink-0 text-neon-amber" />
           <span>{highlightLabel}</span>
         </p>
       ) : (

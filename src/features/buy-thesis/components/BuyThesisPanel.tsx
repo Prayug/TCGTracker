@@ -102,7 +102,7 @@ export function BuyThesisPanel({ cardId, compact = false, className }: Props) {
 
       <div className={cn('grid gap-4', compact ? 'grid-cols-1' : 'sm:grid-cols-2')}>
         <div>
-          <p className="mb-2 text-[11px] font-medium text-emerald-400/90">Why collectors like it</p>
+          <p className="mb-2 text-[11px] font-medium text-gain">Why collectors like it</p>
           <ul className="space-y-2.5">
             {why.map((line) => (
               <li key={line} className="text-sm leading-snug text-ink-secondary">
@@ -112,7 +112,7 @@ export function BuyThesisPanel({ cardId, compact = false, className }: Props) {
           </ul>
         </div>
         <div>
-          <p className="mb-2 text-[11px] font-medium text-red-400/90">Why you might wait</p>
+          <p className="mb-2 text-[11px] font-medium text-loss">Why you might wait</p>
           <ul className="space-y-2.5">
             {risks.map((line) => (
               <li key={line} className="text-sm leading-snug text-ink-secondary">
@@ -131,7 +131,7 @@ export function BuyThesisPanel({ cardId, compact = false, className }: Props) {
             .filter((f) => f.severity === 'critical' || f.severity === 'warn')
             .slice(0, 2)
             .map((f) => (
-              <div key={f.id} className="flex items-start gap-1.5 text-xs text-amber-300/90">
+              <div key={f.id} className="flex items-start gap-1.5 text-xs text-neon-amber">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span>{f.message}</span>
               </div>

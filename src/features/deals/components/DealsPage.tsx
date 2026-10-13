@@ -1,7 +1,7 @@
 /* @refresh reset */
 import { useEffect, useMemo, useState } from 'react';
 import { Bookmark, RefreshCw } from 'lucide-react';
-import { FilterChip, PageHeader } from '../../../components/layout/PageShell';
+import { FilterChip, PageHeader, PageShell } from '../../../components/layout/PageShell';
 import { PageEmptyState } from '../../../components/common/PageEmptyState';
 import { useCardModal } from '../../../contexts/CardModalContext';
 import { formatCurrency, formatPercent } from '../../../utils/cardDisplay';
@@ -15,6 +15,7 @@ import { DealFeed } from './DealFeed';
 import { DealFilters } from './DealFilters';
 import { DealScanProgress } from './DealScanProgress';
 import { DealSummary } from './DealSummary';
+import { InlineNotice } from '@/components/common/InlineNotice';
 
 const TABS: { id: DealFeedTab; label: string }[] = [
   { id: 'best', label: 'Best Deals' },
@@ -103,8 +104,9 @@ export function DealsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <PageShell wide>
       <PageHeader
+        eyebrow="Market"
         title="eBay deals"
         description="Live listings for this game compared to TCGTracker market value. If eBay rate-limits, leave this page open."
         actions={
@@ -143,11 +145,7 @@ export function DealsPage() {
         </div>
       )}
 
-      {error && visibleDeals.length > 0 && (
-        <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-2 text-sm text-red-400">
-          {error}
-        </div>
-      )}
+      {error && visibleDeals.length > 0 && <InlineNotice>{error}</InlineNotice>}
 
       {summary && <DealSummary summary={summary} />}
 
@@ -167,7 +165,7 @@ export function DealsPage() {
       ) : null}
 
       {result?.meta?.error === 'rate_limited' && !scanning && (
-        <p className="text-sm text-amber-400">
+        <p className="text-sm text-neon-amber">
           {`eBay rate-limited the scan${
             result.meta.listingsScanned
               ? ` after ${result.meta.listingsScanned.toLocaleString()} listings`
@@ -252,6 +250,6 @@ export function DealsPage() {
       )}
 
       {selected && <DealDetail deal={selected} onClose={() => setSelected(null)} />}
-    </div>
+    </PageShell>
   );
 }

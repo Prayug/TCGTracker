@@ -420,7 +420,7 @@ export function CardSetRing({
       {isLoading && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="flex items-center gap-2 text-sm text-slate-400">
-            <div className="h-1.5 w-1.5 animate-ping rounded-full bg-indigo-400" />
+            <div className="h-1.5 w-1.5 animate-ping rounded-full bg-accent" />
             Loading sets…
           </div>
         </div>

@@ -13,7 +13,7 @@ export function StatusChip({
       : tone === 'accent'
         ? 'bg-accent/15 text-accent'
         : tone === 'amber'
-          ? 'bg-amber-500/15 text-amber-300'
+          ? 'bg-accent-muted text-neon-amber'
           : tone === 'loss'
             ? 'bg-loss/15 text-loss'
             : 'bg-surface-hover text-ink-muted';

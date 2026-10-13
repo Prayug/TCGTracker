@@ -124,8 +124,8 @@ export const AddToVaultModal: React.FC<AddToVaultModalProps> = ({
     <Modal isOpen={isOpen} onClose={handleClose} variant="slab" size="medium">
       <div className="max-w-2xl mx-auto">
         <div className="flex items-center gap-3 mb-6">
-          <div className="p-3 bg-gradient-to-br from-purple-600 to-blue-600 rounded-xl shadow-lg">
-            <Vault className="w-6 h-6 text-white" />
+          <div className="p-3 bg-accent-muted rounded-xl">
+            <Vault className="w-6 h-6 text-accent" />
           </div>
           <div>
             <h2 className="text-2xl font-bold text-ink-primary">Add to Vault</h2>
@@ -276,7 +276,7 @@ export const AddToVaultModal: React.FC<AddToVaultModalProps> = ({
               type="button"
               onClick={handleSubmit}
               disabled={isSubmitting}
-              className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-xl transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-6 py-3 bg-accent hover:bg-accent-hover text-primary-foreground font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? 'Adding...' : 'Add to Vault'}
             </button>

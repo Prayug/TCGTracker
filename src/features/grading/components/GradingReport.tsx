@@ -39,7 +39,7 @@ function CenteringMeasurements({ data }: { data: CategoryDetails }) {
         <div>
           <dt className="text-ink-muted">Left-right</dt>
           <dd
-            className={`font-mono tabular-nums ${lr.off ? 'text-amber-300' : 'text-ink-primary'}`}
+            className={`font-mono tabular-nums ${lr.off ? 'text-neon-amber' : 'text-ink-primary'}`}
           >
             {lr.text}
           </dd>
@@ -49,7 +49,7 @@ function CenteringMeasurements({ data }: { data: CategoryDetails }) {
         <div>
           <dt className="text-ink-muted">Top-bottom</dt>
           <dd
-            className={`font-mono tabular-nums ${tb.off ? 'text-amber-300' : 'text-ink-primary'}`}
+            className={`font-mono tabular-nums ${tb.off ? 'text-neon-amber' : 'text-ink-primary'}`}
           >
             {tb.text}
           </dd>
@@ -115,11 +115,11 @@ export const GradingReport: React.FC<GradingReportProps> = ({
                   onClick={() => onSelectDefect(defect)}
                   className={`flex w-full cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-left text-sm leading-snug transition-colors ${
                     active
-                      ? 'border-amber-400/40 bg-amber-400/10 text-ink-primary'
+                      ? 'border-neon-amber/40 bg-accent-muted text-ink-primary'
                       : 'border-border-subtle bg-surface-inset/40 text-ink-secondary hover:border-border-default hover:text-ink-primary'
                   }`}
                 >
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-neon-amber" />
                   <span>{defect}</span>
                 </button>
               </li>

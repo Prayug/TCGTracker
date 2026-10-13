@@ -202,16 +202,19 @@ export function aggregateCohortReturns(
 
   const netDollarMove = round2(dollarMoves.reduce((a, b) => a + b, 0));
   const absDollarMove = round2(dollarMoves.reduce((a, b) => a + Math.abs(b), 0));
+  const moving = returnsPct.filter((r) => r !== 0);
+  const forMedian = moving.length >= 5 ? moving : returnsPct;
+  const moved = upCount + downCount;
 
   return {
     sampleSize,
-    medianReturnPct: median(returnsPct),
-    trimmedMeanReturnPct: trimmedMean(returnsPct),
-    breadthUpPct: round2((upCount / sampleSize) * 100),
+    medianReturnPct: median(forMedian),
+    trimmedMeanReturnPct: trimmedMean(forMedian),
+    breadthUpPct: round2(((moved > 0 ? upCount / moved : upCount / sampleSize) * 100)),
     upCount,
     downCount,
     flatCount,
-    confidence: confidenceFromSample(sampleSize),
+    confidence: confidenceFromSample(moving.length),
     netDollarMove,
     absDollarMove,
   };
@@ -258,7 +261,7 @@ export function classifyRotation(input: {
   return 'neutral';
 }
 
-/** Price floors for the money-flow universe (investment-relevant, not bulk). */
+/** Collectible floor — cheap modern holos/energies below this are still bulk. */
 export const MONEY_FLOW_RAW_MIN_PRICE = 8;
 export const MONEY_FLOW_PSA10_MIN_PRICE = 25;
 /** Commons/uncommons need a higher bar to count as capital, not binder fodder. */
@@ -278,7 +281,7 @@ export function isBulkRarity(rarity?: string | null): boolean {
 }
 
 /**
- * Keep chase / investment-relevant prints only.
+ * Keep every collectible print except random bulk.
  * Drops commons/uncommons below a high price bar, junk energy, and sub-floor quotes.
  */
 export function isMoneyFlowRelevantPrint(input: {
@@ -302,7 +305,6 @@ export function isMoneyFlowRelevantPrint(input: {
   return true;
 }
 
-/** Short collector line — used as expand detail, not a wall of prose. */
 export function storyForCohort(input: {
   label: string;
   rotation: MoneyFlowRotation;
@@ -312,21 +314,13 @@ export function storyForCohort(input: {
   confidence: MoneyFlowConfidence;
   exemplarName?: string | null;
 }): string {
-  if (input.sampleSize === 0) return 'No chase prints measured.';
+  if (input.sampleSize === 0) return `${input.label} · n=0`;
   const pct =
     input.medianReturnPct == null
       ? '—'
       : `${input.medianReturnPct > 0 ? '+' : ''}${input.medianReturnPct.toFixed(1)}%`;
-  const rise =
-    input.breadthUpPct == null ? null : `${Math.round(input.breadthUpPct)}% rising together`;
-  const tip = input.exemplarName ? ` · ${input.exemplarName}` : '';
-  if (input.rotation === 'into') {
-    return `Chased at ${pct}${rise ? ` · ${rise}` : ''}${tip}`;
-  }
-  if (input.rotation === 'out') {
-    return `Cooling at ${pct}${rise ? ` · ${rise}` : ''}${tip}`;
-  }
-  return `Mixed at ${pct}${rise ? ` · ${rise}` : ''}${tip}`;
+  const rise = input.breadthUpPct == null ? '' : ` · ${Math.round(input.breadthUpPct)}% up`;
+  return `${input.label} · ${pct}${rise}`;
 }
 
 export interface MoneyFlowMemberInput {

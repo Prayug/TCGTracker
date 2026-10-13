@@ -20,7 +20,7 @@ function MetricCard({
     <div className="rounded-xl border border-border-default bg-surface-raised p-3">
       <div className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">{label}</div>
       <div
-        className={`mt-1 font-mono text-sm font-semibold ${positive === true ? 'text-emerald-400' : positive === false ? 'text-red-400' : 'text-white'}`}
+        className={`mt-1 font-mono text-sm font-semibold ${positive === true ? 'text-gain' : positive === false ? 'text-loss' : 'text-ink-primary'}`}
       >
         {value}
       </div>
@@ -34,8 +34,8 @@ export function ForwardTestPanel({ status, onRefresh, refreshing = false }: Prop
       <div>
         <div className="mb-4 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <Clock className="h-5 w-5 text-amber-400" />
-            <h2 className="text-lg font-semibold text-white">Forward Testing Tracker</h2>
+            <Clock className="h-5 w-5 text-neon-amber" />
+            <h2 className="text-lg font-semibold text-ink-primary">Forward Testing Tracker</h2>
           </div>
           {onRefresh && (
             <button
@@ -67,8 +67,8 @@ export function ForwardTestPanel({ status, onRefresh, refreshing = false }: Prop
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <Clock className="h-5 w-5 text-amber-400" />
-          <h2 className="text-lg font-semibold text-white">Forward Testing Tracker</h2>
+          <Clock className="h-5 w-5 text-neon-amber" />
+          <h2 className="text-lg font-semibold text-ink-primary">Forward Testing Tracker</h2>
           <span className="rounded-full bg-surface-hover px-2 py-0.5 text-xs text-ink-muted">
             {status.totalPredictions} predictions · last 180d
           </span>
@@ -93,7 +93,7 @@ export function ForwardTestPanel({ status, onRefresh, refreshing = false }: Prop
       </div>
 
       {awaitingMaturity && (
-        <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+        <div className="mb-4 rounded-xl border border-neon-amber/30 bg-accent-muted px-3 py-2 text-sm text-neon-amber">
           Predictions need at least 7 days before 7d outcomes can score. Longer windows unlock at 30
           / 90 / 180 / 365 days.
         </div>
@@ -102,19 +102,19 @@ export function ForwardTestPanel({ status, onRefresh, refreshing = false }: Prop
       <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="rounded-xl border border-border-default bg-surface-raised p-3">
           <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-amber-400" />
+            <Clock className="h-4 w-4 text-neon-amber" />
             <span className="text-xs text-ink-muted">Pending</span>
           </div>
-          <div className="mt-1 font-mono text-lg font-semibold text-amber-400">
+          <div className="mt-1 font-mono text-lg font-semibold text-neon-amber">
             {status.pending}
           </div>
         </div>
         <div className="rounded-xl border border-border-default bg-surface-raised p-3">
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+            <CheckCircle2 className="h-4 w-4 text-gain" />
             <span className="text-xs text-ink-muted">Hit</span>
           </div>
-          <div className="mt-1 font-mono text-lg font-semibold text-emerald-400">{status.hit}</div>
+          <div className="mt-1 font-mono text-lg font-semibold text-gain">{status.hit}</div>
         </div>
         <div className="rounded-xl border border-border-default bg-surface-raised p-3">
           <div className="flex items-center gap-2">
@@ -127,10 +127,10 @@ export function ForwardTestPanel({ status, onRefresh, refreshing = false }: Prop
         </div>
         <div className="rounded-xl border border-border-default bg-surface-raised p-3">
           <div className="flex items-center gap-2">
-            <XCircle className="h-4 w-4 text-red-400" />
+            <XCircle className="h-4 w-4 text-loss" />
             <span className="text-xs text-ink-muted">Missed</span>
           </div>
-          <div className="mt-1 font-mono text-lg font-semibold text-red-400">{status.missed}</div>
+          <div className="mt-1 font-mono text-lg font-semibold text-loss">{status.missed}</div>
         </div>
       </div>
 
@@ -167,27 +167,27 @@ export function ForwardTestPanel({ status, onRefresh, refreshing = false }: Prop
               <tr key={label} className="border-b border-border-subtle last:border-0">
                 <td className="px-3 py-2 font-medium text-ink-secondary">{label}</td>
                 <td className="px-3 py-2 text-ink-muted">{data.pending}</td>
-                <td className="px-3 py-2 text-emerald-400">{data.hit}</td>
-                <td className="px-3 py-2 text-red-400">{data.missed}</td>
+                <td className="px-3 py-2 text-gain">{data.hit}</td>
+                <td className="px-3 py-2 text-loss">{data.missed}</td>
                 <td
-                  className={`px-3 py-2 font-mono ${data.accuracy != null && data.accuracy > 0.5 ? 'text-emerald-400' : 'text-ink-muted'}`}
+                  className={`px-3 py-2 font-mono ${data.accuracy != null && data.accuracy > 0.5 ? 'text-gain' : 'text-ink-muted'}`}
                 >
                   {data.accuracy != null ? `${(data.accuracy * 100).toFixed(1)}%` : 'N/A'}
                 </td>
                 <td
-                  className={`px-3 py-2 font-mono ${data.rankIC != null && data.rankIC > 0 ? 'text-emerald-400' : data.rankIC != null ? 'text-red-400' : 'text-ink-muted'}`}
+                  className={`px-3 py-2 font-mono ${data.rankIC != null && data.rankIC > 0 ? 'text-gain' : data.rankIC != null ? 'text-loss' : 'text-ink-muted'}`}
                 >
                   {data.rankIC != null ? data.rankIC.toFixed(2) : 'N/A'}
                 </td>
                 <td
-                  className={`px-3 py-2 font-mono ${data.meanBias != null && Math.abs(data.meanBias) < 0.02 ? 'text-emerald-400' : data.meanBias != null ? 'text-amber-400' : 'text-ink-muted'}`}
+                  className={`px-3 py-2 font-mono ${data.meanBias != null && Math.abs(data.meanBias) < 0.02 ? 'text-gain' : data.meanBias != null ? 'text-neon-amber' : 'text-ink-muted'}`}
                 >
                   {data.meanBias != null
                     ? `${data.meanBias >= 0 ? '+' : ''}${(data.meanBias * 100).toFixed(1)}%`
                     : 'N/A'}
                 </td>
                 <td
-                  className={`px-3 py-2 font-mono ${data.hitRate != null && data.hitRate > 0.5 ? 'text-emerald-400' : data.hitRate != null ? 'text-red-400' : 'text-ink-muted'}`}
+                  className={`px-3 py-2 font-mono ${data.hitRate != null && data.hitRate > 0.5 ? 'text-gain' : data.hitRate != null ? 'text-loss' : 'text-ink-muted'}`}
                 >
                   {data.hitRate != null ? `${(data.hitRate * 100).toFixed(1)}%` : 'N/A'}
                 </td>
@@ -228,10 +228,10 @@ export function ForwardTestPanel({ status, onRefresh, refreshing = false }: Prop
                       </span>
                     </td>
                     <td className="px-3 py-2 text-ink-secondary">{cat.total}</td>
-                    <td className="px-3 py-2 text-emerald-400">{cat.hit}</td>
-                    <td className="px-3 py-2 text-red-400">{cat.missed}</td>
+                    <td className="px-3 py-2 text-gain">{cat.hit}</td>
+                    <td className="px-3 py-2 text-loss">{cat.missed}</td>
                     <td
-                      className={`px-3 py-2 font-mono ${cat.accuracy != null && cat.accuracy > 0.5 ? 'text-emerald-400' : 'text-ink-muted'}`}
+                      className={`px-3 py-2 font-mono ${cat.accuracy != null && cat.accuracy > 0.5 ? 'text-gain' : 'text-ink-muted'}`}
                     >
                       {cat.accuracy != null ? `${(cat.accuracy * 100).toFixed(1)}%` : 'N/A'}
                     </td>
@@ -252,7 +252,7 @@ export function ForwardTestPanel({ status, onRefresh, refreshing = false }: Prop
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="rounded-xl border border-border-default bg-surface-raised p-3">
               <div className="text-xs text-ink-muted">Under $5</div>
-              <div className="mt-1 font-mono text-lg font-semibold text-white">
+              <div className="mt-1 font-mono text-lg font-semibold text-ink-primary">
                 {status.byPriceRange.under5.accuracy != null
                   ? `${(status.byPriceRange.under5.accuracy * 100).toFixed(1)}%`
                   : 'N/A'}
@@ -261,7 +261,7 @@ export function ForwardTestPanel({ status, onRefresh, refreshing = false }: Prop
             </div>
             <div className="rounded-xl border border-border-default bg-surface-raised p-3">
               <div className="text-xs text-ink-muted">$5 - $50</div>
-              <div className="mt-1 font-mono text-lg font-semibold text-white">
+              <div className="mt-1 font-mono text-lg font-semibold text-ink-primary">
                 {status.byPriceRange.fiveToFifty.accuracy != null
                   ? `${(status.byPriceRange.fiveToFifty.accuracy * 100).toFixed(1)}%`
                   : 'N/A'}
@@ -272,7 +272,7 @@ export function ForwardTestPanel({ status, onRefresh, refreshing = false }: Prop
             </div>
             <div className="rounded-xl border border-border-default bg-surface-raised p-3">
               <div className="text-xs text-ink-muted">Over $50</div>
-              <div className="mt-1 font-mono text-lg font-semibold text-white">
+              <div className="mt-1 font-mono text-lg font-semibold text-ink-primary">
                 {status.byPriceRange.overFifty.accuracy != null
                   ? `${(status.byPriceRange.overFifty.accuracy * 100).toFixed(1)}%`
                   : 'N/A'}

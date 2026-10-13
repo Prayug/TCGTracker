@@ -255,17 +255,31 @@ export function MarketInsightsPage({
           </div>
         )}
 
-        <div className="scroll-rail scroll-rail-tabs mb-4 -mx-1 rounded-xl border border-border-default bg-surface-inset p-1 px-1">
+        <div
+          role="tablist"
+          className="scroll-rail scroll-rail-tabs isolate mb-4 -mx-1 gap-0.5 rounded-xl bg-surface-inset p-1 shadow-[inset_0_0_0_1px_var(--border-subtle)]"
+        >
           {TABS.map((tab) => (
             <button
               key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex shrink-0 items-center gap-2 rounded-lg px-[clamp(0.625rem,1vw,1rem)] py-[clamp(0.375rem,0.8vw,0.5rem)] text-[var(--insights-text-sm,0.875rem)] font-medium transition-colors ${
+              className={`relative flex h-8 shrink-0 items-center gap-2 rounded-lg px-[clamp(0.625rem,1vw,0.875rem)] text-[13px] font-medium transition-[color,transform] duration-150 ease-out active:scale-[0.97] [&_svg]:h-3.5 [&_svg]:w-3.5 ${
                 activeTab === tab.id
-                  ? 'bg-accent/15 text-accent shadow-sm'
-                  : 'text-ink-muted hover:bg-surface-hover hover:text-ink-secondary'
+                  ? 'text-ink-primary'
+                  : 'text-ink-muted hover:text-ink-secondary'
               }`}
             >
+              {activeTab === tab.id && (
+                <motion.span
+                  layoutId="insights-tab"
+                  aria-hidden
+                  className="absolute inset-0 -z-10 rounded-lg bg-surface-raised shadow-[inset_0_0_0_1px_var(--border-default),0_1px_2px_rgba(0,0,0,0.2)]"
+                  transition={{ type: 'spring', duration: 0.35, bounce: 0.12 }}
+                />
+              )}
               {tab.icon}
               <span className="insights-tab-label-long">
                 {tab.id === 'cards' ? cardsTabLabel : tab.label}
@@ -317,7 +331,7 @@ export function MarketInsightsPage({
                       >
                         {PREDICTION_WINDOW_LABELS[w]}
                         {experimental && (
-                          <span className="ml-1 rounded bg-amber-500/20 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-amber-300">
+                          <span className="ml-1 rounded bg-accent-muted px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-neon-amber">
                             exp
                           </span>
                         )}
@@ -332,7 +346,7 @@ export function MarketInsightsPage({
                 </div>
               </div>
               {windowExperimental && (
-                <span className="text-[11px] text-amber-300/90" title="Experimental horizon">
+                <span className="text-[11px] text-neon-amber" title="Experimental horizon">
                   Experimental window
                   {horizonSupport ? ` · ${horizonSupport.historyDays}d history` : ''}
                 </span>
