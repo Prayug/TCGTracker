@@ -198,9 +198,7 @@ export const CardSearchPickerModal: React.FC<CardSearchPickerModalProps> = ({
                     {card.number ? ` · #${card.number}` : ''}
                   </p>
                   {price > 0 && (
-                    <p className="mt-1 text-sm font-semibold text-gain">
-                      {formatCurrency(price)}
-                    </p>
+                    <p className="mt-1 text-sm font-semibold text-gain">{formatCurrency(price)}</p>
                   )}
                 </div>
                 <span className="shrink-0 text-xs font-semibold text-accent">Select</span>

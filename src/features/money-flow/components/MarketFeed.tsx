@@ -54,11 +54,7 @@ export function MarketFeed({
       <div className="mf__section-head">
         <h2 className="mf__section-title">Biggest moves</h2>
         <div className="mf__feed-tools">
-          {!filter ? (
-            <p className="mf__section-aside">
-              {trackedCount} tracked
-            </p>
-          ) : null}
+          {!filter ? <p className="mf__section-aside">{trackedCount} tracked</p> : null}
           <div className="mf__windows" role="group" aria-label="Movers side">
             <button
               type="button"

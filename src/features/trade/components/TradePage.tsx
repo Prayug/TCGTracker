@@ -282,7 +282,9 @@ export function TradePage() {
         </p>
       )}
 
-      <div className={`relative overflow-hidden rounded-3xl border px-6 py-8 sm:px-10 sm:py-10 ${verdictTone}`}>
+      <div
+        className={`relative overflow-hidden rounded-3xl border px-6 py-8 sm:px-10 sm:py-10 ${verdictTone}`}
+      >
         <Scale className="pointer-events-none absolute -right-4 -top-4 h-32 w-32 opacity-[0.07]" />
         <div className="relative flex flex-wrap items-end justify-between gap-6">
           <div>

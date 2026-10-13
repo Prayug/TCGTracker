@@ -414,9 +414,7 @@ function buildMarketSummary(
   return {
     chasedSharePct,
     cooledSharePct,
-    medianMovePct: median(
-      tagged.filter((m) => m.changePercent !== 0).map((m) => m.changePercent)
-    ),
+    medianMovePct: median(tagged.filter((m) => m.changePercent !== 0).map((m) => m.changePercent)),
     risingCount,
     fallingCount,
     flatCount,

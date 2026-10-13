@@ -91,7 +91,12 @@ describe('moneyFlowImages counterparts', () => {
     expect(piplup?.cardNumber).toBe('98');
 
     const zard = pickEnglishCounterpart(
-      { matchName: 'Charizard', setId: 'M2', cardNumber: '110', rarity: 'Special illustration rare' },
+      {
+        matchName: 'Charizard',
+        setId: 'M2',
+        cardNumber: '110',
+        rarity: 'Special illustration rare',
+      },
       me2
     );
     expect(zard?.cardNumber).toBe('125');

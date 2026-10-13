@@ -74,9 +74,7 @@ function writeDiskCache(windowDays: number, asOf: string, payload: MoneyFlowResp
     const dir = cacheDir();
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(cacheFile(windowDays, asOf), JSON.stringify(payload));
-    const keep = new Set(
-      [7, 30, 90].map((d) => path.basename(cacheFile(d, asOf)))
-    );
+    const keep = new Set([7, 30, 90].map((d) => path.basename(cacheFile(d, asOf))));
     for (const name of fs.readdirSync(dir)) {
       if (!name.startsWith(`${CACHE_VERSION}-`)) continue;
       if (keep.has(name)) continue;
