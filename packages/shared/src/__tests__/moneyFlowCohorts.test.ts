@@ -181,7 +181,7 @@ describe('money-flow relevance filter', () => {
     ).toBe(true);
   });
 
-  it('writes collector-facing stories', () => {
+  it('summarizes a cohort with label and median', () => {
     expect(
       storyForCohort({
         label: 'Vintage · PSA 10',
@@ -192,6 +192,6 @@ describe('money-flow relevance filter', () => {
         confidence: 'medium',
         exemplarName: 'Rayquaza ☆',
       })
-    ).toMatch(/Chased at \+6\.2%/i);
+    ).toMatch(/Vintage · PSA 10 · \+6\.2%/);
   });
 });

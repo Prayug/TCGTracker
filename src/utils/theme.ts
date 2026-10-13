@@ -21,8 +21,14 @@ export function resolveTheme(): Theme {
   return getStoredTheme() ?? getSystemTheme();
 }
 
+const THEME_COLOR: Record<Theme, string> = {
+  dark: '#0b1016',
+  light: '#f2efe9',
+};
+
 export function applyTheme(theme: Theme) {
   document.documentElement.setAttribute('data-theme', theme);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', THEME_COLOR[theme]);
 }
 
 export function setThemePreference(theme: Theme) {

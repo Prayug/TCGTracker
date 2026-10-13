@@ -52,6 +52,7 @@ backend/tcg-prices.db-shm
 backend/tcg-prices.db-wal
 backend/*.db
 backend/*.db-*
+backend/.money-flow-cache/
 
 # SQLite files
 *.sqlite

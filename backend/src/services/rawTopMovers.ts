@@ -10,6 +10,7 @@ import {
   cliffPctForPeriod,
   isGradualMove,
   isIsolatedEndpointSpike,
+  isLoudMover,
   isUsdMoverFinish,
   maxEndpointChangePctForPeriod,
   minPointsForPeriod,
@@ -105,10 +106,17 @@ export interface QualifiedMoversOptions {
   minPrice?: number;
   /** Override default absolute dollar move gate. */
   minAbsDollar?: number;
-  /** Cap candidates per side before path filter (default 400). */
-  candidatePool?: number;
+  /** Cap candidates per side before path filter (default 400). `'all'` = no cap. */
+  candidatePool?: number | 'all';
   /** Cache namespace suffix so money-flow floors don't collide with top-movers. */
   cacheNamespace?: string;
+  /**
+   * `all` (default): path-check every candidate.
+   * `loud`: skip path history for quiet prints; still drop cliffs on real movers.
+   */
+  pathFilter?: 'all' | 'loud';
+  loudAbsDollar?: number;
+  loudAbsPct?: number;
 }
 
 export interface QualifiedRawMoversResult {
@@ -118,6 +126,14 @@ export interface QualifiedRawMoversResult {
 }
 
 const universeCache = new Map<string, { expiresAt: number; payload: QualifiedRawMoversResult }>();
+
+const SQLITE_IN_CHUNK = 400;
+
+function chunkIds<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
 
 /**
  * Full qualified raw-mover universe (same gates as /top-movers), not truncated to top-N.
@@ -130,7 +146,10 @@ export async function listQualifiedRawMovers(
   const minPrice = options.minPrice ?? MIN_PRICE;
   const minAbsDollar = options.minAbsDollar ?? MIN_ABS_DOLLAR;
   const candidatePool = options.candidatePool ?? CANDIDATE_POOL;
-  const cacheKey = `universe:v6:${options.cacheNamespace || 'default'}:${days}:${minPrice}:${minAbsDollar}:${candidatePool}`;
+  const pathFilter = options.pathFilter ?? 'all';
+  const loudAbsDollar = options.loudAbsDollar ?? 8;
+  const loudAbsPct = options.loudAbsPct ?? 20;
+  const cacheKey = `universe:v8:${options.cacheNamespace || 'default'}:${days}:${minPrice}:${minAbsDollar}:${candidatePool}:${pathFilter}:${loudAbsDollar}:${loudAbsPct}`;
   const cached = universeCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.payload;
@@ -250,7 +269,7 @@ export async function listQualifiedRawMovers(
     if (baseline.prevPrice < minPrice) continue;
 
     const absDollar = Math.abs(current.price - baseline.prevPrice);
-    if (absDollar < minAbsDollar) continue;
+    if (minAbsDollar > 0 && absDollar < minAbsDollar) continue;
     const changePct = ((current.price - baseline.prevPrice) / baseline.prevPrice) * 100;
     if (!Number.isFinite(changePct) || Math.abs(changePct) > maxEndpointPct) continue;
 
@@ -269,10 +288,13 @@ export async function listQualifiedRawMovers(
   }
 
   ranked.sort((a, b) => Math.abs(b.changePercent) - Math.abs(a.changePercent));
-  const candidates = [
-    ...ranked.filter((e) => e.changePercent > 0).slice(0, candidatePool),
-    ...ranked.filter((e) => e.changePercent < 0).slice(0, candidatePool),
-  ];
+  const candidates =
+    candidatePool === 'all'
+      ? ranked
+      : [
+          ...ranked.filter((e) => e.changePercent > 0).slice(0, candidatePool),
+          ...ranked.filter((e) => e.changePercent < 0).slice(0, candidatePool),
+        ];
 
   if (candidates.length === 0) {
     const payload = empty(latestDate);
@@ -280,27 +302,50 @@ export async function listQualifiedRawMovers(
     return payload;
   }
 
-  const uids = [...new Set(candidates.map((c) => c.uniqueIdentifier))];
-  const earliestPrev = candidates.reduce(
+  const loudOpts = { absDollar: loudAbsDollar, absPct: loudAbsPct };
+  const toPathCheck =
+    pathFilter === 'loud'
+      ? candidates.filter((c) =>
+          isLoudMover(c.currentPrice, c.previousPrice, c.changePercent, loudOpts)
+        )
+      : candidates;
+  const quietSurvivors =
+    pathFilter === 'loud'
+      ? candidates.filter(
+          (c) => !isLoudMover(c.currentPrice, c.previousPrice, c.changePercent, loudOpts)
+        )
+      : [];
+
+  const uids = [...new Set(toPathCheck.map((c) => c.uniqueIdentifier))];
+  const earliestPrev = toPathCheck.reduce(
     (min, c) => (!min || c.prevDate < min ? c.prevDate : min),
     '' as string
   );
-  const placeholders = uids.map(() => '?').join(',');
-  const pathRows = await dbAll<{
+  const pathRows: {
     uniqueIdentifier: string;
     source: string;
     date: string;
     price: number;
-  }>(
-    `SELECT uniqueIdentifier, source, date, COALESCE(marketPrice, price, 0) AS price
-     FROM price_history
-     WHERE uniqueIdentifier IN (${placeholders})
-       AND source IN (${FEED_LIST})
-       AND date >= ?
-       AND date <= ?
-       AND COALESCE(marketPrice, price, 0) >= ?`,
-    [...uids, earliestPrev, latestDate, minPrice]
-  );
+  }[] = [];
+  for (const batch of chunkIds(uids, SQLITE_IN_CHUNK)) {
+    const placeholders = batch.map(() => '?').join(',');
+    const part = await dbAll<{
+      uniqueIdentifier: string;
+      source: string;
+      date: string;
+      price: number;
+    }>(
+      `SELECT uniqueIdentifier, source, date, COALESCE(marketPrice, price, 0) AS price
+       FROM price_history
+       WHERE uniqueIdentifier IN (${placeholders})
+         AND source IN (${FEED_LIST})
+         AND date >= ?
+         AND date <= ?
+         AND COALESCE(marketPrice, price, 0) >= ?`,
+      [...batch, earliestPrev, latestDate, minPrice]
+    );
+    pathRows.push(...part);
+  }
 
   const series = new Map<string, { date: string; price: number }[]>();
   for (const pr of pathRows) {
@@ -311,13 +356,14 @@ export async function listQualifiedRawMovers(
   }
 
   const gradualOpts = { cliffPct, minPoints };
-  const survivors = candidates.filter((c) => {
+  const loudSurvivors = toPathCheck.filter((c) => {
     const points = (series.get(`${c.uniqueIdentifier}||${c.source}`) || []).filter(
       (p) => p.date >= c.prevDate && p.date <= latestDate
     );
     if (isIsolatedEndpointSpike(points)) return false;
     return isGradualMove(points, gradualOpts);
   });
+  const survivors = [...quietSurvivors, ...loudSurvivors];
 
   survivors.sort((a, b) => b.changePercent - a.changePercent);
   const movers = await enrichMovers(survivors);
@@ -364,26 +410,29 @@ async function enrichMovers(
 ): Promise<RawMoverEntry[]> {
   if (ranked.length === 0) return [];
   const uids = [...new Set(ranked.map((r) => r.uniqueIdentifier))];
-  const placeholders = uids.map(() => '?').join(',');
-
-  const mapped = await dbAll<CatalogRow>(
-    `SELECT
-       cm.uniqueIdentifier,
-       cm.cardId,
-       cm.cardName,
-       cm.setId,
-       cm.setName,
-       cm.cardNumber,
-       COALESCE(NULLIF(TRIM(cm.rarity), ''), cc.rarity) AS rarity,
-       COALESCE(NULLIF(cc.imageSmall, ''), NULLIF(cm.imageSmall, '')) AS imageSmall,
-       COALESCE(NULLIF(cc.imageLarge, ''), NULLIF(cm.imageLarge, '')) AS imageLarge,
-       COALESCE(cm.tcgplayerProductId, CAST(cm.productId AS TEXT), cc.tcgplayerProductId) AS tcgplayerProductId,
-       cc.tcgplayerPrices
-     FROM card_mappings cm
-     LEFT JOIN catalog_cards cc ON cc.cardId = cm.cardId
-     WHERE cm.uniqueIdentifier IN (${placeholders})`,
-    uids
-  );
+  const mapped: CatalogRow[] = [];
+  for (const batch of chunkIds(uids, SQLITE_IN_CHUNK)) {
+    const placeholders = batch.map(() => '?').join(',');
+    const part = await dbAll<CatalogRow>(
+      `SELECT
+         cm.uniqueIdentifier,
+         cm.cardId,
+         cm.cardName,
+         cm.setId,
+         cm.setName,
+         cm.cardNumber,
+         COALESCE(NULLIF(TRIM(cm.rarity), ''), cc.rarity) AS rarity,
+         COALESCE(NULLIF(cc.imageSmall, ''), NULLIF(cm.imageSmall, '')) AS imageSmall,
+         COALESCE(NULLIF(cc.imageLarge, ''), NULLIF(cm.imageLarge, '')) AS imageLarge,
+         COALESCE(cm.tcgplayerProductId, CAST(cm.productId AS TEXT), cc.tcgplayerProductId) AS tcgplayerProductId,
+         cc.tcgplayerPrices
+       FROM card_mappings cm
+       LEFT JOIN catalog_cards cc ON cc.cardId = cm.cardId
+       WHERE cm.uniqueIdentifier IN (${placeholders})`,
+      batch
+    );
+    mapped.push(...part);
+  }
 
   const byUid = new Map(mapped.map((r) => [r.uniqueIdentifier, r]));
 

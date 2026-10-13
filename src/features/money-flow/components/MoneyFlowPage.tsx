@@ -1,38 +1,49 @@
 import { useState } from 'react';
 import type { MoneyFlowCohort, MoneyFlowEra, MoneyFlowWindowDays } from '@tcgtracker/shared';
+import { MONEY_FLOW_ERA_LABELS } from '@tcgtracker/shared';
+import { LoadingSpinner } from '../../../components/common/LoadingSpinner';
 import { useMoneyFlow } from '../hooks/useMoneyFlow';
+import { filterFromCohort, type SegmentFilter } from '../lib/filter';
 import '../money-flow.css';
 import { EraEditorial } from './EraEditorial';
 import { FinishContinuum } from './FinishContinuum';
 import { MarketFeed } from './MarketFeed';
-import { MarketMap, type MapFilter } from './MarketMap';
+import { MarketMap } from './MarketMap';
 import { MoneyRails } from './MoneyRails';
 import { OpeningStrip } from './OpeningStrip';
 
 export function MoneyFlowPage() {
   const [days, setDays] = useState<MoneyFlowWindowDays>(7);
-  const [filter, setFilter] = useState<MapFilter>(null);
+  const [filter, setFilter] = useState<SegmentFilter | null>(null);
   const { data, loading, refreshing, error } = useMoneyFlow(days);
 
   const onPickCohort = (c: MoneyFlowCohort) => {
-    setFilter((prev) => (prev?.cohortId === c.id ? null : { cohortId: c.id, label: c.label }));
+    setFilter((prev) => (prev?.cohortId === c.id ? null : filterFromCohort(c)));
   };
 
   const onSelectEra = (era: MoneyFlowEra) => {
-    const label = era === 'mid' ? 'Mid-era' : era === 'vintage' ? 'Vintage' : 'Modern';
-    setFilter((prev) => (prev?.label === label ? null : { cohortId: `era:${era}`, label }));
+    const label = MONEY_FLOW_ERA_LABELS[era];
+    setFilter((prev) =>
+      prev?.cohortId === `era:${era}`
+        ? null
+        : { cohortId: `era:${era}`, label, era, memberCardIds: [] }
+    );
   };
 
   return (
-    <div className="mf-ed">
+    <div className="mf">
       {loading && !data ? (
-        <div className="mf-ed__loading" aria-busy="true">
-          Loading market tape…
+        <div className="flex min-h-[50vh] items-center justify-center" aria-busy="true">
+          <LoadingSpinner />
         </div>
       ) : error && !data ? (
-        <div className="mf-ed__loading">{error}</div>
+        <div className="mf__status flex min-h-[50vh] items-center justify-center text-center">
+          {error}
+        </div>
       ) : !data ? (
-        <div className="mf-ed__loading">No data yet.</div>
+        <div className="mf__status flex min-h-[50vh] items-center justify-center text-center">
+          No data yet.
+        </div>
       ) : (
         <>
           <OpeningStrip data={data} days={days} onDaysChange={setDays} refreshing={refreshing} />
@@ -45,8 +56,8 @@ export function MoneyFlowPage() {
           <MoneyRails
             into={data.rotationInto}
             out={data.rotationOut}
-            filter={filter}
             onPick={onPickCohort}
+            filter={filter}
           />
           <EraEditorial eras={data.eras} eraFinishes={data.eraFinishes} onSelectEra={onSelectEra} />
           <FinishContinuum finishes={data.finishes} />
@@ -55,8 +66,8 @@ export function MoneyFlowPage() {
             losers={data.topLosers}
             filter={filter}
             windowDays={days}
+            trackedCount={data.summary.trackedCount}
           />
-          {data.insights[0] ? <p className="mf-ed__footnote">{data.insights[0].text}</p> : null}
         </>
       )}
     </div>

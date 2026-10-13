@@ -1,4 +1,4 @@
-import { TrendingDown, TrendingUp } from 'lucide-react';
+import { AlertTriangle, Eye, Minus, TrendingDown, TrendingUp } from 'lucide-react';
 import type { LiquidityTier } from '../types';
 
 export function formatUsd(n: number | null | undefined): string {
@@ -14,9 +14,7 @@ export function ChangeBadge({ pct, abs }: { pct: number | null; abs?: number | n
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-semibold ${
-        up
-          ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
-          : 'border-red-500/30 bg-red-500/10 text-red-400'
+        up ? 'border-gain/30 bg-gain-muted text-gain' : 'border-loss/30 bg-loss-muted text-loss'
       }`}
     >
       {up ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
@@ -32,10 +30,10 @@ export function ChangeBadge({ pct, abs }: { pct: number | null; abs?: number | n
 }
 
 const LIQUIDITY_STYLES: Record<LiquidityTier, string> = {
-  strong: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
-  ok: 'border-sky-500/30 bg-sky-500/10 text-sky-400',
-  thin: 'border-amber-500/30 bg-amber-500/10 text-amber-400',
-  illiquid: 'border-red-500/30 bg-red-500/10 text-red-400',
+  strong: 'border-gain/30 bg-gain-muted text-gain',
+  ok: 'border-foil/30 bg-foil-muted text-foil',
+  thin: 'border-neon-amber/30 bg-accent-muted text-neon-amber',
+  illiquid: 'border-loss/30 bg-loss-muted text-loss',
 };
 
 const LIQUIDITY_LABELS: Record<LiquidityTier, string> = {
@@ -72,10 +70,10 @@ export function SentimentChip({ value }: { value: number | null }) {
   const label = value > 0.15 ? 'Positive' : value < -0.15 ? 'Negative' : 'Neutral';
   const cls =
     value > 0.15
-      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+      ? 'border-gain/30 bg-gain-muted text-gain'
       : value < -0.15
-        ? 'border-red-500/30 bg-red-500/10 text-red-400'
-        : 'border-slate-500/30 bg-slate-500/10 text-ink-muted';
+        ? 'border-loss/30 bg-loss-muted text-loss'
+        : 'border-border-subtle bg-surface-inset text-ink-muted';
   return (
     <span
       className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${cls}`}
@@ -113,11 +111,9 @@ export function CardThumb({
 export function EmptyState({ message, isError }: { message: string; isError?: boolean }) {
   return (
     <div
-      className={`flex h-40 items-center justify-center rounded-xl border ${isError ? 'border-red-500/30 bg-red-500/5' : 'border-border-default bg-surface-raised'}`}
+      className={`flex h-40 items-center justify-center rounded-xl border ${isError ? 'border-loss/30 bg-loss-muted' : 'border-border-default bg-surface-raised'}`}
     >
-      <p
-        className={`max-w-md px-6 text-center text-sm ${isError ? 'text-red-400' : 'text-ink-muted'}`}
-      >
+      <p className={`max-w-md px-6 text-center text-sm ${isError ? 'text-loss' : 'text-ink-muted'}`}>
         {message}
       </p>
     </div>
@@ -163,12 +159,20 @@ export function Sparkline({ points, className }: { points: number[]; className?:
 }
 
 const DIRECTION_STYLES = {
-  bullish: 'border-emerald-500/35 bg-emerald-500/12 text-emerald-400',
-  bearish: 'border-red-500/35 bg-red-500/12 text-red-400',
-  neutral: 'border-slate-500/30 bg-slate-500/10 text-ink-muted',
-  watch: 'border-amber-500/35 bg-amber-500/12 text-amber-400',
-  high_risk: 'border-orange-500/35 bg-orange-500/12 text-orange-400',
+  bullish: 'border-gain/35 bg-gain-muted text-gain',
+  bearish: 'border-loss/35 bg-loss-muted text-loss',
+  neutral: 'border-border-subtle bg-surface-inset text-ink-muted',
+  watch: 'border-neon-amber/35 bg-accent-muted text-neon-amber',
+  high_risk: 'border-neon-pink/35 bg-loss-muted text-neon-pink',
 } as const;
+
+const DIRECTION_ICONS: Record<keyof typeof DIRECTION_STYLES, typeof TrendingUp> = {
+  bullish: TrendingUp,
+  bearish: TrendingDown,
+  neutral: Minus,
+  watch: Eye,
+  high_risk: AlertTriangle,
+};
 
 export function DirectionBadge({
   direction,
@@ -177,21 +181,12 @@ export function DirectionBadge({
   direction: keyof typeof DIRECTION_STYLES;
   label: string;
 }) {
-  const arrow =
-    direction === 'bullish'
-      ? '↑'
-      : direction === 'bearish'
-        ? '↓'
-        : direction === 'watch'
-          ? '◉'
-          : direction === 'high_risk'
-            ? '⚠'
-            : '→';
+  const Icon = DIRECTION_ICONS[direction];
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${DIRECTION_STYLES[direction]}`}
     >
-      <span aria-hidden>{arrow}</span>
+      <Icon className="h-2.5 w-2.5" aria-hidden />
       {label}
     </span>
   );

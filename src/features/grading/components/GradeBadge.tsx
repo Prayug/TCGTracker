@@ -68,7 +68,7 @@ export const GradeBadge: React.FC<GradeBadgeProps> = ({
         {isTen && (
           <Sparkle
             aria-hidden
-            className="absolute -top-1.5 left-1/2 z-10 h-4 w-4 -translate-x-1/2 text-amber-300 drop-shadow-[0_0_8px_rgba(251,191,36,0.9)]"
+            className="absolute -top-1.5 left-1/2 z-10 h-4 w-4 -translate-x-1/2 text-neon-amber drop-shadow-[0_0_8px_var(--neon-amber)]"
           />
         )}
 

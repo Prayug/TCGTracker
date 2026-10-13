@@ -50,7 +50,7 @@ export const CardListRow: React.FC<CardListRowProps> = ({
           </div>
         )}
         <div className="min-w-0">
-          <h3 className="truncate text-sm font-semibold text-white">{card.name}</h3>
+          <h3 className="truncate text-sm font-semibold text-ink-primary">{card.name}</h3>
           <p className="truncate text-xs text-ink-muted">{card.set.name}</p>
         </div>
       </button>

@@ -33,8 +33,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
       return (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-xl border border-rose-300/30 bg-rose-500/10">
-            <AlertCircle className="h-7 w-7 text-red-500" aria-hidden="true" />
+          <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-xl border border-loss/30 bg-loss-muted">
+            <AlertCircle className="h-7 w-7 text-loss" aria-hidden="true" />
           </div>
           <h3 className="mb-2 text-lg font-semibold text-ink-primary">Something went wrong</h3>
           <p className="mb-6 max-w-sm text-sm text-ink-muted">

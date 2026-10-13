@@ -158,7 +158,7 @@ export const PackShop: React.FC = () => {
 
       <div>
         <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-ink-primary">
-          <Sparkles className="h-5 w-5 text-violet-400" />
+          <Sparkles className="h-5 w-5 text-accent" />
           Available packs
         </h3>
 
@@ -236,7 +236,7 @@ export const PackShop: React.FC = () => {
                       <p className="text-[10px] uppercase tracking-wider text-ink-muted">
                         Avg value
                       </p>
-                      <p className="font-bold tabular-nums text-emerald-300">
+                      <p className="font-bold tabular-nums text-gain">
                         {formatCurrency(pack.averageValue)}
                       </p>
                     </div>
@@ -244,9 +244,9 @@ export const PackShop: React.FC = () => {
 
                   {/* Boost toggle */}
                   {pack.boostedValueRanges && (
-                    <label className="flex items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 cursor-pointer select-none transition-colors hover:bg-amber-500/10">
+                    <label className="flex items-center justify-between gap-3 rounded-xl border border-neon-amber/30 bg-accent-muted/50 px-4 py-3 cursor-pointer select-none transition-colors hover:bg-accent-muted">
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <Zap className="h-4 w-4 shrink-0 text-amber-400" />
+                        <Zap className="h-4 w-4 shrink-0 text-neon-amber" />
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-ink-primary">Boosted</p>
                           <p className="text-[11px] text-ink-muted">Higher variance, same price</p>
@@ -262,7 +262,7 @@ export const PackShop: React.FC = () => {
                             setBoostedPacks((prev) => ({ ...prev, [pack.id]: e.target.checked }));
                           }}
                         />
-                        <div className="h-6 w-11 rounded-full bg-surface-hover transition-colors peer-checked:bg-amber-500" />
+                        <div className="h-6 w-11 rounded-full bg-surface-hover transition-colors peer-checked:bg-neon-amber" />
                         <div className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5" />
                       </div>
                     </label>
@@ -273,7 +273,7 @@ export const PackShop: React.FC = () => {
                       <span>
                         Pull rates (full disclosure)
                         {boostedPacks[pack.id] && (
-                          <span className="ml-1.5 inline-flex items-center rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400">
+                          <span className="ml-1.5 inline-flex items-center rounded-md bg-accent-muted px-1.5 py-0.5 text-[10px] font-semibold text-neon-amber">
                             BOOSTED
                           </span>
                         )}
@@ -328,7 +328,7 @@ export const PackShop: React.FC = () => {
       {history.pulls.length > 0 && (
         <div>
           <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-ink-primary">
-            <History className="h-5 w-5 text-sky-400" />
+            <History className="h-5 w-5 text-foil" />
             Recent openings
           </h3>
           <div className="space-y-1.5">

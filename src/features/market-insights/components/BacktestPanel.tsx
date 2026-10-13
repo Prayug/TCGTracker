@@ -22,7 +22,7 @@ function MetricCard({
     <div className="rounded-xl border border-border-default bg-surface-raised p-3">
       <div className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">{label}</div>
       <div
-        className={`mt-1 font-mono text-sm font-semibold ${positive === true ? 'text-emerald-400' : positive === false ? 'text-red-400' : 'text-white'}`}
+        className={`mt-1 font-mono text-sm font-semibold ${positive === true ? 'text-gain' : positive === false ? 'text-loss' : 'text-ink-primary'}`}
       >
         {value}
       </div>
@@ -44,7 +44,7 @@ export function BacktestPanel({
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <BarChart3 className="h-5 w-5 text-cyan-400" />
-          <h2 className="text-lg font-semibold text-white">Backtesting Results</h2>
+          <h2 className="text-lg font-semibold text-ink-primary">Backtesting Results</h2>
         </div>
         <div className="flex items-center gap-2">
           <label className="flex items-center gap-2 text-xs text-ink-muted">
@@ -53,7 +53,7 @@ export function BacktestPanel({
               type="date"
               value={backtestDate}
               onChange={(e) => onBacktestDateChange(e.target.value)}
-              className="rounded-lg border border-border-default bg-surface-inset px-2 py-1 text-xs text-white"
+              className="rounded-lg border border-border-default bg-surface-inset px-2 py-1 text-xs text-ink-primary"
             />
           </label>
           <button
@@ -234,7 +234,7 @@ export function BacktestPanel({
                             </td>
                             <td className="px-3 py-2 text-ink-secondary">{cp.count}</td>
                             <td
-                              className={`px-3 py-2 font-mono ${cp.avgReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}`}
+                              className={`px-3 py-2 font-mono ${cp.avgReturn >= 0 ? 'text-gain' : 'text-loss'}`}
                             >
                               {(cp.avgReturn * 100).toFixed(1)}%
                             </td>
@@ -267,8 +267,8 @@ export function BacktestPanel({
                     <span
                       className={
                         r.directionalAccuracy != null && r.directionalAccuracy >= 0.5
-                          ? 'text-emerald-400'
-                          : 'text-red-400'
+                          ? 'text-gain'
+                          : 'text-loss'
                       }
                     >
                       Acc:{' '}
@@ -282,8 +282,8 @@ export function BacktestPanel({
                     <span
                       className={
                         r.marketAvgReturn != null && r.marketAvgReturn >= 0
-                          ? 'text-emerald-400'
-                          : 'text-red-400'
+                          ? 'text-gain'
+                          : 'text-loss'
                       }
                     >
                       Avg:{' '}

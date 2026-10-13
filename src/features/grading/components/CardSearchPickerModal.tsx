@@ -161,7 +161,7 @@ export const CardSearchPickerModal: React.FC<CardSearchPickerModalProps> = ({
         </div>
 
         {error && (
-          <p className="mt-3 text-sm text-red-300" role="alert">
+          <p className="mt-3 text-sm text-loss" role="alert">
             {error}
           </p>
         )}
@@ -198,7 +198,7 @@ export const CardSearchPickerModal: React.FC<CardSearchPickerModalProps> = ({
                     {card.number ? ` · #${card.number}` : ''}
                   </p>
                   {price > 0 && (
-                    <p className="mt-1 text-sm font-semibold text-emerald-300">
+                    <p className="mt-1 text-sm font-semibold text-gain">
                       {formatCurrency(price)}
                     </p>
                   )}

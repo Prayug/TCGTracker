@@ -14,12 +14,12 @@ import { ExternalSignal } from '../types';
 import { formatApiError } from '../../../utils/apiError';
 
 const SOURCE_ICONS: Record<string, React.ReactNode> = {
-  news: <Newspaper className="h-3.5 w-3.5 text-sky-400" />,
-  social: <MessageCircle className="h-3.5 w-3.5 text-orange-400" />,
-  youtube: <Youtube className="h-3.5 w-3.5 text-red-400" />,
-  tournament: <Trophy className="h-3.5 w-3.5 text-amber-400" />,
-  set_release: <Package className="h-3.5 w-3.5 text-purple-400" />,
-  ban_list: <Ban className="h-3.5 w-3.5 text-red-400" />,
+  news: <Newspaper className="h-3.5 w-3.5 text-foil" />,
+  social: <MessageCircle className="h-3.5 w-3.5 text-neon-pink" />,
+  youtube: <Youtube className="h-3.5 w-3.5 text-loss" />,
+  tournament: <Trophy className="h-3.5 w-3.5 text-neon-amber" />,
+  set_release: <Package className="h-3.5 w-3.5 text-accent" />,
+  ban_list: <Ban className="h-3.5 w-3.5 text-loss" />,
 };
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -35,10 +35,10 @@ function sentimentStyle(sentiment: number): { label: string; className: string }
   if (sentiment > 0.15)
     return {
       label: 'Positive',
-      className: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
+      className: 'text-gain bg-gain-muted border-gain/30',
     };
   if (sentiment < -0.15)
-    return { label: 'Negative', className: 'text-red-400 bg-red-500/10 border-red-500/30' };
+    return { label: 'Negative', className: 'text-loss bg-loss-muted border-loss/30' };
   return { label: 'Neutral', className: 'text-ink-muted bg-slate-500/10 border-slate-500/30' };
 }
 

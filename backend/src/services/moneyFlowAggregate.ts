@@ -36,29 +36,60 @@ export type TaggedMover = {
   finish: MoneyFlowFinish;
   specials: MoneyFlowSpecial[];
   exemplar: MoneyFlowExemplar;
+  /** Raw feed identity (uid) or slab series key. Used to collapse duplicate series. */
+  uniqueIdentifier?: string | null;
 };
 
+/** Ranked tape length — analysis still uses the full universe. */
+export const MONEY_FLOW_TAPE_LIMIT = 100;
+
+function moverIdentity(m: TaggedMover): string {
+  if (m.finish === 'psa10') {
+    return `psa10:${m.exemplar.cardId || m.exemplar.productName}`;
+  }
+  if (m.uniqueIdentifier) return `raw:${m.uniqueIdentifier}`;
+  return `raw:${m.exemplar.cardId || m.exemplar.productName}:${m.exemplar.setId || m.exemplar.setName || ''}`;
+}
+
+/** One PSA 10 series per card; one raw series per uniqueIdentifier. Keep the larger $|move|. */
+export function dedupeMoneyFlowUniverse(tagged: TaggedMover[]): TaggedMover[] {
+  const best = new Map<string, TaggedMover>();
+  for (const m of tagged) {
+    const key = moverIdentity(m);
+    const prev = best.get(key);
+    if (!prev || Math.abs(m.dollarMove) > Math.abs(prev.dollarMove)) {
+      best.set(key, m);
+    }
+  }
+  return [...best.values()];
+}
+
 function dataNoteFor(sampleSize: number, confidence: MoneyFlowCohort['confidence']): string | null {
-  if (sampleSize === 0) return 'No chase prints in this group.';
-  if (confidence === 'thin') return `Only ${sampleSize} prints — hint, not a call.`;
-  if (confidence === 'low') return `${sampleSize} prints — small sample.`;
+  if (sampleSize === 0) return 'n=0';
+  if (confidence === 'thin' || confidence === 'low') return `n=${sampleSize}`;
   return null;
+}
+
+function impactRank(m: TaggedMover, rotation: MoneyFlowCohort['rotation']): number {
+  if (rotation === 'out') return m.changePercent;
+  // Signed, not abs — an 'into'/'neutral' cohort's face card should be a gainer,
+  // not whichever member moved the most regardless of direction.
+  return -(m.changePercent * Math.sqrt(Math.max(m.currentPrice, 1)));
 }
 
 function pickExemplars(
   members: TaggedMover[],
   rotation: MoneyFlowCohort['rotation']
 ): MoneyFlowExemplar[] {
-  const sorted = [...members].sort((a, b) => {
-    if (rotation === 'out') return a.changePercent - b.changePercent;
-    // Prefer higher dollar impact among strong movers
-    const aScore = Math.abs(a.changePercent) * Math.sqrt(Math.max(a.currentPrice, 1));
-    const bScore = Math.abs(b.changePercent) * Math.sqrt(Math.max(b.currentPrice, 1));
-    return bScore - aScore;
-  });
+  const ranked = [...members].sort((a, b) => impactRank(a, rotation) - impactRank(b, rotation));
+  // Face the cohort with a real thumb when the $ leader has no art (JP prints, unmapped uids).
+  const ordered = [
+    ...ranked.filter((m) => m.exemplar.imageSmall || m.exemplar.imageLarge),
+    ...ranked.filter((m) => !m.exemplar.imageSmall && !m.exemplar.imageLarge),
+  ];
   const seen = new Set<string>();
   const out: MoneyFlowExemplar[] = [];
-  for (const m of sorted) {
+  for (const m of ordered) {
     const key = m.exemplar.cardId || m.exemplar.productName;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -139,9 +170,9 @@ function buildHeadline(
 
   let summary: string;
   if (rawSampleSize + slabSampleSize === 0) {
-    summary = 'No chase movers this window.';
+    summary = 'No data.';
   } else if (intoLabels.length === 0 && outLabels.length === 0) {
-    summary = 'No clear rotation.';
+    summary = 'No rotation.';
   } else if (intoLabels.length && outLabels.length) {
     summary = `${intoLabels[0]} up · ${outLabels[0]} down`;
   } else if (intoLabels.length) {
@@ -162,9 +193,25 @@ function buildHeadline(
   };
 }
 
+function faceKey(c: MoneyFlowCohort, exIndex = 0): string {
+  const ex = c.exemplars[exIndex];
+  return (ex?.cardId || ex?.productName || '').trim().toLowerCase();
+}
+
+function withUnusedFace(c: MoneyFlowCohort, used: Set<string>): MoneyFlowCohort | null {
+  const idx = c.exemplars.findIndex((_, i) => {
+    const k = faceKey(c, i);
+    return k.length > 0 && !used.has(k);
+  });
+  if (idx < 0) return null;
+  const face = c.exemplars[idx]!;
+  used.add(faceKey(c, idx));
+  if (idx === 0) return c;
+  return { ...c, exemplars: [face, ...c.exemplars.filter((_, i) => i !== idx)] };
+}
+
 /**
- * Prefer specific era×finish and specials over redundant parent eras on the board.
- * Caps at 3 per side so the story stays scannable.
+ * Prefer era×finish and specials over parent eras. One card face per row.
  */
 function pickRotationBoard(
   eras: MoneyFlowCohort[],
@@ -181,21 +228,19 @@ function pickRotationBoard(
       return med(a) - med(b) || b.shareOfLosers - a.shareOfLosers;
     });
 
+  const childEras = new Set(
+    scored.filter((c) => c.kind === 'era_finish' && c.era).map((c) => c.era as string)
+  );
   const picked: MoneyFlowCohort[] = [];
-  const coveredEras = new Set<string>();
+  const usedFaces = new Set<string>();
 
   for (const c of scored) {
     if (picked.length >= 3) break;
-    if (c.kind === 'era') {
-      // Skip parent era if we already have an era×finish for it
-      if (coveredEras.has(c.key)) continue;
-    }
-    if (c.kind === 'era_finish' && c.era) {
-      coveredEras.add(c.era);
-    }
-    // Avoid near-duplicate labels
-    if (picked.some((p) => p.label === c.label)) continue;
-    picked.push(c);
+    if (c.kind === 'era' && childEras.has(c.key)) continue;
+    if (picked.some((p) => p.label === c.label || p.id === c.id)) continue;
+    const unique = withUnusedFace(c, usedFaces);
+    if (!unique) continue;
+    picked.push(unique);
   }
 
   // Fallback when nothing clears rotation: strongest leaning era×finish
@@ -235,10 +280,11 @@ function pickRotationBoard(
 /** Build full money-flow response from pre-tagged movers (no DB). */
 export function buildMoneyFlowFromTagged(
   days: number,
-  tagged: TaggedMover[],
+  taggedInput: TaggedMover[],
   date: string | null = null,
   filteredOutCount = 0
 ): MoneyFlowResponse {
+  const tagged = dedupeMoneyFlowUniverse(taggedInput);
   const totalGainers = tagged.filter((m) => m.changePercent > 0).length;
   const totalLosers = tagged.filter((m) => m.changePercent < 0).length;
 
@@ -309,7 +355,7 @@ export function buildMoneyFlowFromTagged(
     summary,
   });
   const mostActive = pickMostActive([...eraFinishes, ...specials, ...eras], 6);
-  const { topGainers, topLosers } = pickIndividualMovers(tagged, 12);
+  const { topGainers, topLosers } = pickIndividualMovers(tagged, MONEY_FLOW_TAPE_LIMIT);
 
   return {
     days,
@@ -368,7 +414,9 @@ function buildMarketSummary(
   return {
     chasedSharePct,
     cooledSharePct,
-    medianMovePct: median(tagged.map((m) => m.changePercent)),
+    medianMovePct: median(
+      tagged.filter((m) => m.changePercent !== 0).map((m) => m.changePercent)
+    ),
     risingCount,
     fallingCount,
     flatCount,
@@ -438,20 +486,36 @@ function pickIndividualMovers(
     previousPrice: m.previousPrice,
     absDollarMove: Math.abs(m.dollarMove),
     imageSmall: m.exemplar.imageSmall,
+    imageLarge: m.exemplar.imageLarge,
     cardId: m.exemplar.cardId,
     setName: m.exemplar.setName,
     finish: m.finish,
     era: m.era,
     segmentLabel: segmentLabelFor(m),
+    specials: m.specials,
   });
 
   const byAbsDollar = [...tagged].sort((a, b) => Math.abs(b.dollarMove) - Math.abs(a.dollarMove));
+  const seenG = new Set<string>();
+  const seenL = new Set<string>();
   const gainers = byAbsDollar
     .filter((m) => m.changePercent > 0)
+    .filter((m) => {
+      const key = moverIdentity(m);
+      if (seenG.has(key)) return false;
+      seenG.add(key);
+      return true;
+    })
     .slice(0, limit)
     .map(toRow);
   const losers = byAbsDollar
     .filter((m) => m.changePercent < 0)
+    .filter((m) => {
+      const key = moverIdentity(m);
+      if (seenL.has(key)) return false;
+      seenL.add(key);
+      return true;
+    })
     .slice(0, limit)
     .map(toRow);
   return { topGainers: gainers, topLosers: losers };
@@ -472,17 +536,17 @@ function buildInsights(input: {
   if (rotationInto[0] && rotationOut[0]) {
     out.push({
       id: 'rotation',
-      text: `${rotationInto[0].label} leads money in (${formatSigned(rotationInto[0].medianReturnPct)}); ${rotationOut[0].label} leads money out (${formatSigned(rotationOut[0].medianReturnPct)}).`,
+      text: `${rotationInto[0].label} ${formatSigned(rotationInto[0].medianReturnPct)} · ${rotationOut[0].label} ${formatSigned(rotationOut[0].medianReturnPct)}.`,
     });
   } else if (rotationInto[0]) {
     out.push({
       id: 'rotation-in',
-      text: `Capital concentrates into ${rotationInto[0].label} at ${formatSigned(rotationInto[0].medianReturnPct)}.`,
+      text: `${rotationInto[0].label} ${formatSigned(rotationInto[0].medianReturnPct)}.`,
     });
   } else if (rotationOut[0]) {
     out.push({
       id: 'rotation-out',
-      text: `Cooling concentrates in ${rotationOut[0].label} at ${formatSigned(rotationOut[0].medianReturnPct)}.`,
+      text: `${rotationOut[0].label} ${formatSigned(rotationOut[0].medianReturnPct)}.`,
     });
   }
 
@@ -492,7 +556,7 @@ function buildInsights(input: {
   if (breadthLeader) {
     out.push({
       id: 'breadth',
-      text: `${breadthLeader.label} has the strongest breadth — ${Math.round(breadthLeader.breadthUpPct ?? 0)}% of prints rising (n=${breadthLeader.sampleSize}).`,
+      text: `${breadthLeader.label} ${Math.round(breadthLeader.breadthUpPct ?? 0)}% up · n=${breadthLeader.sampleSize}.`,
     });
   }
 
@@ -512,7 +576,7 @@ function buildInsights(input: {
   if (summary.trackedCount > 0 && summary.medianMovePct != null) {
     out.push({
       id: 'tape',
-      text: `Tape: ${summary.risingCount} rising / ${summary.fallingCount} falling · median ${formatSigned(summary.medianMovePct)} across ${summary.trackedCount} chase prints.`,
+      text: `${summary.risingCount} up / ${summary.fallingCount} down · median ${formatSigned(summary.medianMovePct)} · ${summary.trackedCount} tracked.`,
     });
   }
 

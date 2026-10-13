@@ -11,6 +11,7 @@ import {
   Zap,
   ArrowRight,
 } from 'lucide-react';
+import { PageHeader, PageShell } from '../../../components/layout/PageShell';
 import { OddsRow, OpenedPack, PullCard, BoxSession, BulkOpenSession } from '../types';
 import { onePiecePackService, sortPullsBestFirst } from '../services/onePiecePackService';
 import { BOXES_PER_CASE, OnePieceSetOddsConfig } from '../data/setConfigs';
@@ -152,15 +153,12 @@ export const OpenPacksPage: React.FC = () => {
   );
 
   return (
-    <div className="section-stack">
-      {/* Hero */}
-      <div className="space-y-2">
-        <h2 className="font-display text-h1 text-ink-primary">OP booster simulator</h2>
-        <p className="max-w-2xl text-sm text-ink-secondary">
-          Pick a set and open a pack, box, or case using that set’s published rates. Save pulls to
-          your collection.
-        </p>
-      </div>
+    <PageShell>
+      <PageHeader
+        eyebrow="Tools"
+        title="OP booster simulator"
+        description="Pick a set and open a pack, box, or case using that set’s published rates. Save pulls to your collection."
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-default bg-surface-raised px-4 py-3">
         <div className="min-w-0">
@@ -203,7 +201,10 @@ export const OpenPacksPage: React.FC = () => {
 
       {/* Opening hero card */}
       <div className="relative overflow-hidden rounded-2xl border border-border-subtle bg-surface-inset shadow-card">
-        <div className="holo-texture absolute inset-0 opacity-40" aria-hidden />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_0%_0%,rgba(91,196,212,0.08),transparent_55%)]"
+        />
         <div className="relative flex flex-col gap-6 p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-xl space-y-2">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-foil">
@@ -357,7 +358,7 @@ export const OpenPacksPage: React.FC = () => {
         <section aria-labelledby="session-pulls-title" className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <History className="h-5 w-5 text-sky-400" />
+              <History className="h-5 w-5 text-foil" />
               <h3 id="session-pulls-title" className="text-lg font-semibold text-ink-primary">
                 Your pulled cards
               </h3>
@@ -467,6 +468,6 @@ export const OpenPacksPage: React.FC = () => {
           void handleBulkOpen(lastBulkCount);
         }}
       />
-    </div>
+    </PageShell>
   );
 };

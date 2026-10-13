@@ -177,7 +177,7 @@ export function DealDetail({ deal, onClose }: { deal: Deal; onClose: () => void 
           {deal.riskFlags.length > 0 && (
             <section>
               <h3 className="section-label mb-2">Warnings</h3>
-              <ul className="space-y-1 text-sm text-amber-400">
+              <ul className="space-y-1 text-sm text-neon-amber">
                 {deal.riskFlags.map((flag) => (
                   <li key={flag}>{RISK_FLAG_LABELS[flag]}</li>
                 ))}

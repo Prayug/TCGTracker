@@ -12,11 +12,11 @@ interface SubScoreGaugeProps {
 
 const TICKS = 20;
 
-function scoreHex(ratio: number): string {
-  if (ratio >= 0.94) return '#34d399'; // emerald
-  if (ratio >= 0.85) return '#38bdf8'; // sky
-  if (ratio >= 0.7) return '#fbbf24'; // amber
-  return '#f87171'; // red
+function scoreTone(ratio: number): string {
+  if (ratio >= 0.94) return 'var(--gain)';
+  if (ratio >= 0.85) return 'var(--foil)';
+  if (ratio >= 0.7) return 'var(--neon-amber)';
+  return 'var(--loss)';
 }
 
 export const SubScoreGauge: React.FC<SubScoreGaugeProps> = ({
@@ -28,7 +28,7 @@ export const SubScoreGauge: React.FC<SubScoreGaugeProps> = ({
   const [showAll, setShowAll] = useState(false);
   const normalized = normalizeScore(score);
   const ratio = Math.max(0, Math.min(1, normalized / max));
-  const hex = scoreHex(ratio);
+  const hex = scoreTone(ratio);
   const filled = Math.round(ratio * TICKS);
   const hasDefects = defects.length > 0;
   const displayScore = Number.isInteger(normalized) ? String(normalized) : normalized.toFixed(1);
@@ -44,7 +44,9 @@ export const SubScoreGauge: React.FC<SubScoreGaugeProps> = ({
       <div
         aria-hidden
         className="absolute inset-x-0 top-0 h-px"
-        style={{ background: `linear-gradient(to right, transparent, ${hex}66, transparent)` }}
+        style={{
+          background: `linear-gradient(to right, transparent, color-mix(in srgb, ${hex} 40%, transparent), transparent)`,
+        }}
       />
 
       <div className="flex items-baseline justify-between gap-2">
@@ -54,7 +56,10 @@ export const SubScoreGauge: React.FC<SubScoreGaugeProps> = ({
         <div className="flex items-baseline gap-1">
           <span
             className="font-display text-[1.7rem] font-bold leading-none tabular-nums"
-            style={{ color: hex, textShadow: `0 0 16px ${hex}55` }}
+            style={{
+              color: hex,
+              textShadow: `0 0 16px color-mix(in srgb, ${hex} 33%, transparent)`,
+            }}
           >
             {displayScore}
           </span>
@@ -78,7 +83,8 @@ export const SubScoreGauge: React.FC<SubScoreGaugeProps> = ({
             style={{
               background:
                 i < filled ? hex : 'color-mix(in srgb, var(--ink-primary) 12%, transparent)',
-              boxShadow: i < filled ? `0 0 6px ${hex}55` : undefined,
+              boxShadow:
+                i < filled ? `0 0 6px color-mix(in srgb, ${hex} 33%, transparent)` : undefined,
             }}
           />
         ))}
@@ -92,7 +98,7 @@ export const SubScoreGauge: React.FC<SubScoreGaugeProps> = ({
             Clean — no issues flagged
           </p>
         ) : defects.length === 1 ? (
-          <p className="flex items-start gap-1.5 text-[10px] leading-snug text-amber-300/90">
+          <p className="flex items-start gap-1.5 text-[10px] leading-snug text-neon-amber">
             <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
             <span className="line-clamp-2">{defects[0]}</span>
           </p>
@@ -100,12 +106,12 @@ export const SubScoreGauge: React.FC<SubScoreGaugeProps> = ({
           <button
             type="button"
             onClick={() => setShowAll((v) => !v)}
-            className="flex w-full cursor-pointer items-start gap-1.5 text-left text-[10px] leading-snug text-amber-300/90 transition-colors hover:text-amber-200"
+            className="flex w-full cursor-pointer items-start gap-1.5 text-left text-[10px] leading-snug text-neon-amber transition-colors hover:text-neon-amber/80"
           >
             <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
             <span className="min-w-0 flex-1">
               <span className="line-clamp-2">{defects[0]}</span>
-              <span className="mt-0.5 inline-flex items-center gap-0.5 rounded-full bg-amber-500/10 px-1.5 py-px font-semibold text-amber-300">
+              <span className="mt-0.5 inline-flex items-center gap-0.5 rounded-full bg-accent-muted px-1.5 py-px font-semibold text-neon-amber">
                 +{defects.length - 1} more
                 <ChevronDown
                   className={`h-2.5 w-2.5 transition-transform duration-200 ${showAll ? 'rotate-180' : ''}`}
@@ -126,10 +132,10 @@ export const SubScoreGauge: React.FC<SubScoreGaugeProps> = ({
               {defects.slice(1).map((d, i) => (
                 <li
                   key={i}
-                  className="flex items-start gap-1.5 text-[10px] leading-snug text-amber-300/80"
+                  className="flex items-start gap-1.5 text-[10px] leading-snug text-neon-amber/80"
                 >
                   <span
-                    className="mt-1 h-1 w-1 shrink-0 rounded-full bg-amber-300/70"
+                    className="mt-1 h-1 w-1 shrink-0 rounded-full bg-neon-amber/70"
                     aria-hidden
                   />
                   {d}

@@ -32,7 +32,7 @@ function ConfidenceBadge({ value }: { value: number }) {
     pct >= 80
       ? 'text-gain bg-gain/10 border-gain/30'
       : pct >= 50
-        ? 'text-amber-300 bg-amber-500/10 border-amber-500/30'
+        ? 'text-neon-amber bg-accent-muted border-neon-amber/30'
         : 'text-loss bg-loss/10 border-loss/30';
   return (
     <span
@@ -348,8 +348,8 @@ export function CardScanner() {
     return (
       <div className="mx-auto max-w-2xl">
         <div className="rounded-xl border border-border-default bg-surface-raised p-8 text-center shadow-sm">
-          <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-2xl border border-amber-500/25 bg-amber-500/10">
-            <Camera className="h-10 w-10 text-amber-300/80" />
+          <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-2xl border border-neon-amber/25 bg-accent-muted">
+            <Camera className="h-10 w-10 text-neon-amber/80" />
           </div>
           <h2 className="text-xl font-semibold text-ink-primary">Scanner unavailable</h2>
           <p className="mx-auto mt-2 max-w-md text-sm text-ink-muted">
@@ -378,9 +378,9 @@ export function CardScanner() {
             </summary>
             <div className="mt-3 rounded-lg border border-border-subtle bg-black/40 p-4 font-mono text-xs">
               <p className="mb-2 text-ink-muted"># Start the scanner backend</p>
-              <p className="text-emerald-400">cd card-scanner-backend</p>
-              <p className="text-emerald-400">pip install -r requirements.txt</p>
-              <p className="text-emerald-400">python app.py</p>
+              <p className="text-gain">cd card-scanner-backend</p>
+              <p className="text-gain">pip install -r requirements.txt</p>
+              <p className="text-gain">python app.py</p>
             </div>
           </details>
 
@@ -406,8 +406,8 @@ export function CardScanner() {
     return (
       <div className="mx-auto max-w-2xl">
         <div className="rounded-xl border border-border-default bg-surface-raised p-8 text-center shadow-sm">
-          <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-2xl border border-amber-500/25 bg-amber-500/10">
-            <Database className="h-10 w-10 text-amber-300/80" aria-hidden />
+          <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-2xl border border-neon-amber/25 bg-accent-muted">
+            <Database className="h-10 w-10 text-neon-amber/80" aria-hidden />
           </div>
           <h2 className="text-xl font-semibold text-ink-primary">Reference database not ready</h2>
           <p className="mx-auto mt-2 max-w-md text-sm text-ink-muted">
@@ -425,8 +425,8 @@ export function CardScanner() {
             <p className="mb-2 text-ink-muted">
               # Optional — build reference DB (30–60 min, needs pokemontcg.io API key)
             </p>
-            <p className="text-emerald-400">cd card-scanner-backend</p>
-            <p className="text-emerald-400">python build_reference.py</p>
+            <p className="text-gain">cd card-scanner-backend</p>
+            <p className="text-gain">python build_reference.py</p>
             <p className="mt-2 text-ink-muted">
               # See SETUP_REFERENCE.md and CURRENT_STATUS.md for details
             </p>
@@ -541,7 +541,7 @@ export function CardScanner() {
                   className="mb-2 max-h-40 rounded-lg object-contain"
                 />
               )}
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-border-default border-t-emerald-400" />
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-border-default border-t-gain" />
               <p className="text-sm text-ink-muted">Analyzing card from phone…</p>
             </div>
           )}
@@ -714,7 +714,7 @@ export function CardScanner() {
 
             {isScanning && (
               <div className="flex items-center justify-center gap-3 py-4">
-                <div className="w-5 h-5 border-2 border-border-default border-t-emerald-400 rounded-full animate-spin" />
+                <div className="w-5 h-5 border-2 border-border-default border-t-gain rounded-full animate-spin" />
                 <p className="text-sm text-ink-muted">Analyzing card…</p>
               </div>
             )}

@@ -175,6 +175,16 @@ export function useInvestments() {
     [signalCategory, signalDirection, signalSort]
   );
 
+  // Prefetch movers + signals once on mount so the page header's live stat
+  // strip has real numbers regardless of which tab is active.
+  useEffect(() => {
+    const controller = new AbortController();
+    loadMovers(controller.signal);
+    loadSignals(controller.signal);
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Load the active tab's data lazily (and reload when its params change).
   useEffect(() => {
     const controller = new AbortController();

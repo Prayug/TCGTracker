@@ -202,7 +202,7 @@ export function PhoneCaptureQr({
           )}
 
           {missingLan && (
-            <div className="space-y-2 rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-amber-100">
+            <div className="space-y-2 rounded-lg border border-neon-amber/25 bg-accent-muted p-3 text-xs text-ink-primary">
               <p>
                 Couldn&apos;t detect a Wi‑Fi address automatically. Paste your Network URL origin
                 below (from the Vite terminal), e.g.{' '}

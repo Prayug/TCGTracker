@@ -55,9 +55,9 @@ export default tseslint.config(
       ],
     },
   },
-  // Vendored 21st.dev / chart primitives — keep out of CI error budget
+  // Vendored chart primitives — keep out of CI error budget
   {
-    files: ['src/components/charts/**/*.{ts,tsx}', 'src/components/kokonutui/**/*.{ts,tsx}'],
+    files: ['src/components/charts/**/*.{ts,tsx}'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unused-vars': 'off',

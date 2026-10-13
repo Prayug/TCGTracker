@@ -73,7 +73,7 @@ function OnePieceSetBinderGrid({
             )}
           </div>
           <div className="p-1.5">
-            <p className="truncate text-[11px] font-medium text-white">{card.name}</p>
+            <p className="truncate text-[11px] font-medium text-ink-primary">{card.name}</p>
             <div className="mt-0.5 flex items-center justify-between">
               <span className="text-[10px] text-ink-muted">{card.id}</span>
               {card.marketPrice != null && card.marketPrice > 0 && (
@@ -230,7 +230,7 @@ export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
           All sets
         </button>
 
-        <section className="rounded-xl border border-border-default bg-surface-raised p-4 text-white shadow-sm">
+        <section className="rounded-xl border border-border-default bg-surface-raised p-4 text-ink-primary shadow-sm">
           <div className="flex flex-wrap items-start gap-4">
             <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-accent-muted text-accent">
               <Layers className="h-8 w-8" />
@@ -265,7 +265,7 @@ export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
         <section className="rounded-xl border border-border-default bg-surface-raised p-4 shadow-sm">
           <div className="mb-2 flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-accent" />
-            <h2 className="text-sm font-semibold text-white">Set value over time</h2>
+            <h2 className="text-sm font-semibold text-ink-primary">Set value over time</h2>
           </div>
           <p className="py-6 text-center text-sm text-ink-muted">
             Value history coming soon for One Piece sets. Live set totals above use current market
@@ -290,7 +290,7 @@ export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
         All sets
       </button>
 
-      <section className="rounded-xl border border-border-default bg-surface-raised p-4 text-white shadow-sm">
+      <section className="rounded-xl border border-border-default bg-surface-raised p-4 text-ink-primary shadow-sm">
         <div className="flex flex-wrap items-start gap-4">
           {setMeta && <SetLogo set={setMeta} size="lg" />}
           <div className="min-w-0 flex-1">
@@ -373,7 +373,7 @@ export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-accent" />
-            <h2 className="text-sm font-semibold text-white">Set value over time</h2>
+            <h2 className="text-sm font-semibold text-ink-primary">Set value over time</h2>
           </div>
           <div className="flex gap-1 rounded-lg border border-border-subtle p-0.5">
             {VALUE_HISTORY_RANGES.map(({ key, label }) => (
@@ -442,7 +442,7 @@ export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as SetCardSort)}
-            className="rounded-lg border border-border-subtle bg-surface-hover px-3 py-1.5 text-sm text-ink-secondary focus:border-violet-500/50 focus:outline-none"
+            className="rounded-lg border border-border-subtle bg-surface-hover px-3 py-1.5 text-sm text-ink-secondary focus:border-accent/50 focus:outline-none"
             aria-label="Sort cards"
           >
             <option value="number">Sort: Card #</option>

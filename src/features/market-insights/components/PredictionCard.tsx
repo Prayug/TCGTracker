@@ -145,7 +145,7 @@ export function PredictionCard({
           <div className="text-right">
             <div
               className={`font-mono text-xs font-semibold tabular-nums ${
-                isPositive ? 'text-emerald-400' : 'text-red-400'
+                isPositive ? 'text-gain' : 'text-loss'
               }`}
               title={`Expected return over the ${windowLabel} forecast window`}
             >
@@ -161,8 +161,8 @@ export function PredictionCard({
             <span
               className={
                 prediction.reliability === 'insufficient' || prediction.reliability === 'low'
-                  ? 'text-orange-400'
-                  : 'text-amber-300'
+                  ? 'text-neon-pink'
+                  : 'text-neon-amber'
               }
               title={prediction.reliabilityReason || 'Forecast reliability'}
             >
@@ -281,7 +281,7 @@ export function PredictionCard({
                 <span className="ml-2 text-xs text-ink-muted">Loading…</span>
               </div>
             ) : explanationText?.startsWith('Error:') ? (
-              <p className="text-xs leading-relaxed text-red-400">{explanationText}</p>
+              <p className="text-xs leading-relaxed text-loss">{explanationText}</p>
             ) : (
               <p className="text-xs leading-relaxed text-ink-secondary">{explanationText}</p>
             )}

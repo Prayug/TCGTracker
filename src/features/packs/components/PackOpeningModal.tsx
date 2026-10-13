@@ -226,7 +226,7 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
         <button
           type="button"
           onClick={handleAddAllToVault}
-          className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-md transition-all hover:from-purple-700 hover:to-blue-700 active:scale-[0.98]"
+          className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3 text-sm font-semibold text-primary-foreground shadow-glow-accent transition-colors hover:bg-accent-hover active:scale-[0.98]"
         >
           <Vault className="h-4 w-4 shrink-0" aria-hidden="true" />
           Add to Vault
@@ -234,7 +234,7 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
         <button
           type="button"
           onClick={handleReset}
-          className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-md transition-all hover:from-green-700 hover:to-emerald-700 active:scale-[0.98]"
+          className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-border-default bg-surface-raised px-4 py-3 text-sm font-bold text-ink-primary transition-colors hover:border-border-strong hover:bg-surface-hover active:scale-[0.98]"
         >
           <Sparkles className="h-4 w-4 shrink-0" aria-hidden="true" />
           Rip Again
@@ -301,9 +301,9 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
             />
 
             {pack.boostedValueRanges && (
-              <label className="flex w-full cursor-pointer select-none items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 transition-colors hover:bg-amber-500/10">
+              <label className="flex w-full cursor-pointer select-none items-center justify-between gap-3 rounded-2xl border border-neon-amber/30 bg-accent-muted/60 px-4 py-3 transition-colors hover:bg-accent-muted">
                 <div className="flex items-center gap-2.5">
-                  <Zap className="h-5 w-5 shrink-0 text-amber-400" />
+                  <Zap className="h-5 w-5 shrink-0 text-neon-amber" />
                   <div>
                     <p className="text-sm font-semibold text-ink-primary">Boosted</p>
                     <p className="text-[11px] text-ink-muted">
@@ -318,7 +318,7 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
                     checked={boosted}
                     onChange={(e) => setBoosted(e.target.checked)}
                   />
-                  <div className="h-6 w-11 rounded-full bg-surface-hover transition-colors peer-checked:bg-amber-500" />
+                  <div className="h-6 w-11 rounded-full bg-surface-hover transition-colors peer-checked:bg-neon-amber" />
                   <div className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5" />
                 </div>
               </label>
@@ -329,7 +329,7 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
         {stage === 'opening' && (
           <div className="flex h-full flex-col items-center justify-center gap-6 pb-2">
             <div className="relative">
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 opacity-50 blur-2xl motion-safe:animate-pulse" />
+              <div className="absolute inset-0 rounded-2xl bg-gradient-accent opacity-40 blur-2xl motion-safe:animate-pulse" />
               <div
                 className={cn(
                   'relative rounded-2xl bg-gradient-to-br p-10 shadow-2xl sm:p-12 motion-safe:animate-bounce',
@@ -343,7 +343,7 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
               </div>
             </div>
             <div className="text-center">
-              <p className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-2xl font-black text-transparent motion-safe:animate-pulse sm:text-3xl">
+              <p className="text-shimmer animate-text-shimmer text-2xl font-black sm:text-3xl">
                 OPENING PACK...
               </p>
               <p className="mt-2 text-ink-muted">Rolling the odds...</p>
@@ -368,7 +368,7 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
               <FastForward className="h-3.5 w-3.5" aria-hidden="true" />
               Skip
             </button>
-            <h3 className="mb-4 shrink-0 bg-gradient-to-r from-yellow-400 via-pink-400 to-purple-600 bg-clip-text text-center text-2xl font-bold text-transparent motion-safe:animate-pulse sm:text-3xl">
+            <h3 className="text-shimmer animate-text-shimmer mb-4 shrink-0 text-center text-2xl font-bold sm:text-3xl">
               {packPull.pullKind === 'slab'
                 ? `${packPull.grader || 'PSA'} ${packPull.grade || '10'} SLAB PULLED`
                 : 'YOU PULLED'}
@@ -444,8 +444,8 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
                               className={cn(
                                 'rounded-full px-4 py-2 text-lg font-black shadow-lg',
                                 price > packPull.pack.price
-                                  ? 'bg-gradient-to-r from-green-400 to-emerald-500 text-white'
-                                  : 'bg-gradient-to-r from-red-400 to-rose-500 text-white'
+                                  ? 'bg-gain text-primary-foreground'
+                                  : 'bg-loss text-primary-foreground'
                               )}
                             >
                               ${price.toFixed(2)}

@@ -68,6 +68,67 @@
     --atmosphere: none;
   }
 
+  [data-theme='light'] {
+    /* Collectibles terminal — paper surfaces, ink text */
+    --surface-inset: #eae6dd;
+    --surface-base: #f2efe9;
+    --surface-raised: #ffffff;
+    --surface-overlay: #ffffff;
+    --surface-hover: #ece7dc;
+    --surface-chrome: #ffffff;
+    --bg-app: var(--surface-base);
+    --surface-card: var(--surface-raised);
+    --surface-glass: rgba(255, 255, 255, 0.82);
+    --surface-glass-border: rgba(21, 24, 29, 0.08);
+    --surface-glass-blur: 18px;
+
+    --ink-primary: #15181d;
+    --ink-secondary: #52586b;
+    --ink-muted: #8a8f99;
+
+    /* Legacy neon aliases → soft vault accents */
+    --neon-gold: #047857;
+    --neon-amber: #065f46;
+    --neon-pink: #c0392b;
+    --neon-green: #15803d;
+    --neon-cyan: #0e7490;
+
+    --accent: #047857;
+    --accent-hover: #065f46;
+    --accent-muted: rgba(4, 120, 87, 0.1);
+    --foil: #0e7490;
+    --foil-muted: rgba(14, 116, 144, 0.1);
+
+    --border-subtle: rgba(21, 24, 29, 0.05);
+    --border-default: rgba(21, 24, 29, 0.09);
+    --border-strong: rgba(21, 24, 29, 0.16);
+    --border-neon: var(--accent);
+
+    --gain: #15803d;
+    --gain-muted: rgba(21, 128, 61, 0.1);
+    --loss: #c0392b;
+    --loss-muted: rgba(192, 57, 43, 0.1);
+
+    --chart-grid: rgba(21, 24, 29, 0.06);
+    --chart-tick: #8a8f99;
+
+    --shadow-color: 15 23 42;
+    --scrollbar-thumb: #d8d3c6;
+    --scrollbar-thumb-hover: #c7c1b2;
+    --selection-bg: rgba(4, 120, 87, 0.18);
+    --selection-fg: #15181d;
+    --focus-ring: var(--accent);
+    --ring-accent: rgba(4, 120, 87, 0.22);
+
+    --shadow-glow: 0 12px 32px rgba(15, 23, 42, 0.12);
+
+    --gradient-surface: #ffffff;
+    --gradient-accent: linear-gradient(135deg, #047857 0%, #0e7490 100%);
+    --gradient-text: linear-gradient(115deg, #15181d 40%, #047857 78%, #0e7490 100%);
+    --gradient-chrome: #ffffff;
+    --atmosphere: none;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     body {
       background-image: none;
@@ -193,6 +254,60 @@
     --chart-scale-04: #5bc4d4;
     --chart-scale-05: #6ee7b7;
     --chart-scale-pattern-color: #0b1016;
+  }
+  [data-theme='light'] {
+    --background: #f2efe9;
+    --foreground: #15181d;
+    --card: #ffffff;
+    --card-foreground: #15181d;
+    --popover: #ffffff;
+    --popover-foreground: #15181d;
+    --primary: #047857;
+    --primary-foreground: #ffffff;
+    --secondary: #ece7dc;
+    --secondary-foreground: #15181d;
+    --muted: #ece7dc;
+    --muted-foreground: #52586b;
+    --accent: #047857;
+    --accent-foreground: #ffffff;
+    --destructive: #c0392b;
+    --border: rgba(21, 24, 29, 0.1);
+    --input: rgba(21, 24, 29, 0.14);
+    --ring: #047857;
+    --chart-1: #047857;
+    --chart-2: #0e7490;
+    --chart-3: #15803d;
+    --chart-4: #c0392b;
+    --chart-5: #52586b;
+    --radius: 1rem;
+    --sidebar: #ffffff;
+    --sidebar-foreground: #15181d;
+    --sidebar-primary: #047857;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #ece7dc;
+    --sidebar-accent-foreground: #15181d;
+    --sidebar-border: rgba(21, 24, 29, 0.08);
+    --sidebar-ring: #047857;
+    --chart-background: #f2efe9;
+    --chart-foreground: #15181d;
+    --chart-foreground-muted: #52586b;
+    --chart-line-primary: var(--chart-1);
+    --chart-line-secondary: var(--chart-2);
+    --chart-crosshair: #047857;
+    --chart-brush-border: var(--chart-grid);
+    --chart-tooltip-background: rgba(255, 255, 255, 0.98);
+    --chart-tooltip-foreground: #15181d;
+    --chart-tooltip-muted: #52586b;
+    --chart-marker-background: #ffffff;
+    --chart-marker-border: rgba(21, 24, 29, 0.12);
+    --chart-marker-foreground: #15181d;
+    --chart-label: #52586b;
+    --chart-scale-01: #f2efe9;
+    --chart-scale-02: #ece7dc;
+    --chart-scale-03: #e0dace;
+    --chart-scale-04: #0e7490;
+    --chart-scale-05: #047857;
+    --chart-scale-pattern-color: #f2efe9;
   }
   * {
     border-color: var(--border-default);

@@ -84,7 +84,7 @@ export const ScanResultActions: React.FC<ScanResultActionsProps> = ({ result }) 
         disabled={loading}
         onClick={handleWishlist}
         className={`btn-secondary flex-1 justify-center ${
-          wishlisted ? 'border-amber-500/40 text-amber-300' : ''
+          wishlisted ? 'border-neon-amber/40 text-neon-amber' : ''
         }`}
       >
         <Heart className={`h-4 w-4 ${wishlisted ? 'fill-current' : ''}`} />

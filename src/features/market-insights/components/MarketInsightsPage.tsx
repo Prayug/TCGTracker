@@ -317,7 +317,7 @@ export function MarketInsightsPage({
                       >
                         {PREDICTION_WINDOW_LABELS[w]}
                         {experimental && (
-                          <span className="ml-1 rounded bg-amber-500/20 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-amber-300">
+                          <span className="ml-1 rounded bg-accent-muted px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-neon-amber">
                             exp
                           </span>
                         )}
@@ -332,7 +332,7 @@ export function MarketInsightsPage({
                 </div>
               </div>
               {windowExperimental && (
-                <span className="text-[11px] text-amber-300/90" title="Experimental horizon">
+                <span className="text-[11px] text-neon-amber" title="Experimental horizon">
                   Experimental window
                   {horizonSupport ? ` · ${horizonSupport.historyDays}d history` : ''}
                 </span>

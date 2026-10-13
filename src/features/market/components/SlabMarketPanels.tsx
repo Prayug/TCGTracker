@@ -67,7 +67,7 @@ export function LiquidityBadge({
       : t === 'ok'
         ? 'bg-accent/15 text-accent'
         : t === 'thin'
-          ? 'bg-amber-500/15 text-amber-300'
+          ? 'bg-accent-muted text-neon-amber'
           : 'bg-loss/15 text-loss';
   return (
     <span

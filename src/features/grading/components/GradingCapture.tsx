@@ -551,7 +551,7 @@ function StepMark({ done, current }: { done: boolean; current: boolean }) {
 
 function ErrorBanner({ message }: { message: string }) {
   return (
-    <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+    <div className="mb-4 rounded-lg border border-loss/30 bg-loss-muted px-3 py-2 text-sm text-loss">
       {message}
     </div>
   );

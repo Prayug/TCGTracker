@@ -297,7 +297,7 @@ export const PackPullKindBadge: React.FC<PackPullKindBadgeProps> = ({
       theme
         ? theme.badge
         : isSlab
-          ? 'border border-amber-400/45 bg-amber-500/12 text-amber-300'
+          ? 'border border-neon-amber/45 bg-accent-muted text-neon-amber'
           : 'border border-foil/35 bg-foil/10 text-foil',
       className
     )}

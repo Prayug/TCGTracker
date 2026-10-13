@@ -8,6 +8,7 @@ import {
   calendarDaysBetween,
   cliffPctForPeriod,
   isGradualMove,
+  isLoudMover,
   maxEndpointChangePctForPeriod,
   minPointsForPeriod,
   minSpanDaysForPeriod,
@@ -117,8 +118,13 @@ export function seriesHasSingleProduct(
 export interface QualifiedSlabMoversOptions {
   minPrice?: number;
   minAbsDollar?: number;
-  candidatePool?: number;
+  candidatePool?: number | 'all';
   cacheNamespace?: string;
+  pathFilter?: 'all' | 'loud';
+  loudAbsDollar?: number;
+  loudAbsPct?: number;
+  /** Collapse PSA 10 variants of the same card before path/enrich. */
+  collapseByCardId?: boolean;
 }
 
 export interface QualifiedSlabMoversResult {
@@ -128,6 +134,14 @@ export interface QualifiedSlabMoversResult {
 }
 
 const universeCache = new Map<string, { expiresAt: number; payload: QualifiedSlabMoversResult }>();
+
+const SQLITE_IN_CHUNK = 400;
+
+function chunkIds<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
 
 /**
  * Full qualified PSA 10 mover universe (same gates as /top-slab-movers).
@@ -139,7 +153,11 @@ export async function listQualifiedSlabMovers(
   const minPrice = options.minPrice ?? MIN_PRICE;
   const minAbsDollar = options.minAbsDollar ?? MIN_ABS_DOLLAR;
   const candidatePool = options.candidatePool ?? CANDIDATE_POOL;
-  const cacheKey = `universe:v3:${options.cacheNamespace || 'default'}:${days}:${minPrice}:${minAbsDollar}:${candidatePool}`;
+  const pathFilter = options.pathFilter ?? 'all';
+  const loudAbsDollar = options.loudAbsDollar ?? 20;
+  const loudAbsPct = options.loudAbsPct ?? 20;
+  const collapseByCardId = options.collapseByCardId ?? false;
+  const cacheKey = `universe:v5:${options.cacheNamespace || 'default'}:${days}:${minPrice}:${minAbsDollar}:${candidatePool}:${pathFilter}:${loudAbsDollar}:${loudAbsPct}:${collapseByCardId}`;
   const cached = universeCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.payload;
@@ -240,7 +258,7 @@ export async function listQualifiedSlabMovers(
     if (!(prev != null && prev.price >= minPrice)) continue;
     if (!productIdsMatch(current.productId, prev.productId)) continue;
     const absDollar = Math.abs(current.price - prev.price);
-    if (absDollar < minAbsDollar) continue;
+    if (minAbsDollar > 0 && absDollar < minAbsDollar) continue;
     const changePct = ((current.price - prev.price) / prev.price) * 100;
     if (!Number.isFinite(changePct) || Math.abs(changePct) > maxEndpointPct) continue;
     ranked.push({
@@ -256,10 +274,24 @@ export async function listQualifiedSlabMovers(
   }
 
   ranked.sort((a, b) => Math.abs(b.changePercent) - Math.abs(a.changePercent));
-  const candidates = [
-    ...ranked.filter((e) => e.changePercent > 0).slice(0, candidatePool),
-    ...ranked.filter((e) => e.changePercent < 0).slice(0, candidatePool),
-  ];
+  let collapsed = ranked;
+  if (collapseByCardId) {
+    const best = new Map<string, (typeof ranked)[number]>();
+    for (const row of ranked) {
+      const prev = best.get(row.cardId);
+      const abs = Math.abs(row.currentPrice - row.previousPrice);
+      const prevAbs = prev ? Math.abs(prev.currentPrice - prev.previousPrice) : -1;
+      if (!prev || abs > prevAbs) best.set(row.cardId, row);
+    }
+    collapsed = [...best.values()];
+  }
+  const candidates =
+    candidatePool === 'all'
+      ? collapsed
+      : [
+          ...collapsed.filter((e) => e.changePercent > 0).slice(0, candidatePool),
+          ...collapsed.filter((e) => e.changePercent < 0).slice(0, candidatePool),
+        ];
 
   if (candidates.length === 0) {
     const payload = empty(latestDate);
@@ -267,29 +299,53 @@ export async function listQualifiedSlabMovers(
     return payload;
   }
 
-  const ids = [...new Set(candidates.map((c) => c.cardId))];
-  const earliestPrev = candidates.reduce(
+  const loudOpts = { absDollar: loudAbsDollar, absPct: loudAbsPct };
+  const toPathCheck =
+    pathFilter === 'loud'
+      ? candidates.filter((c) =>
+          isLoudMover(c.currentPrice, c.previousPrice, c.changePercent, loudOpts)
+        )
+      : candidates;
+  const quietSurvivors =
+    pathFilter === 'loud'
+      ? candidates.filter(
+          (c) => !isLoudMover(c.currentPrice, c.previousPrice, c.changePercent, loudOpts)
+        )
+      : [];
+
+  const ids = [...new Set(toPathCheck.map((c) => c.cardId))];
+  const earliestPrev = toPathCheck.reduce(
     (min, c) => (!min || c.prevDate < min ? c.prevDate : min),
     '' as string
   );
-  const placeholders = ids.map(() => '?').join(',');
-  const pathRows = await dbAll<{
+  const pathRows: {
     cardId: string;
     variantKey: string;
     date: string;
     price: number;
     productId: string | null;
-  }>(
-    `SELECT cardId, COALESCE(variantKey, 'normal') AS variantKey, date, price, productId
-     FROM graded_price_history
-     WHERE cardId IN (${placeholders})
-       AND grader = 'psa'
-       AND grade = '10'
-       AND date >= ?
-       AND date <= ?
-       AND price >= ?`,
-    [...ids, earliestPrev, latestDate, minPrice]
-  );
+  }[] = [];
+  for (const batch of chunkIds(ids, SQLITE_IN_CHUNK)) {
+    const placeholders = batch.map(() => '?').join(',');
+    const part = await dbAll<{
+      cardId: string;
+      variantKey: string;
+      date: string;
+      price: number;
+      productId: string | null;
+    }>(
+      `SELECT cardId, COALESCE(variantKey, 'normal') AS variantKey, date, price, productId
+       FROM graded_price_history
+       WHERE cardId IN (${placeholders})
+         AND grader = 'psa'
+         AND grade = '10'
+         AND date >= ?
+         AND date <= ?
+         AND price >= ?`,
+      [...batch, earliestPrev, latestDate, minPrice]
+    );
+    pathRows.push(...part);
+  }
 
   const series = new Map<string, { date: string; price: number; productId: string | null }[]>();
   for (const pr of pathRows) {
@@ -299,13 +355,14 @@ export async function listQualifiedSlabMovers(
     series.set(key, list);
   }
 
-  const survivors = candidates.filter((c) => {
+  const loudSurvivors = toPathCheck.filter((c) => {
     const points = (series.get(seriesKey(c.cardId, c.variantKey)) || []).filter(
       (p) => p.date >= c.prevDate && p.date <= latestDate
     );
     if (!seriesHasSingleProduct(points)) return false;
     return isGradualMove(points, { cliffPct, minPoints });
   });
+  const survivors = [...quietSurvivors, ...loudSurvivors];
 
   survivors.sort((a, b) => b.changePercent - a.changePercent);
   const movers = await enrichMovers(survivors);
@@ -352,38 +409,43 @@ async function enrichMovers(
 ): Promise<SlabMoverEntry[]> {
   if (ranked.length === 0) return [];
   const ids = [...new Set(ranked.map((r) => r.cardId))];
-  const placeholders = ids.map(() => '?').join(',');
-
-  const [catalog, mapped] = await Promise.all([
-    dbAll<CatalogRow>(
-      `SELECT
-         COALESCE(cc.cardId, gp.cardId) AS cardId,
-         COALESCE(gp.variantKey, 'normal') AS variantKey,
-         COALESCE(gp.cardName, cc.cardName) AS cardName,
-         COALESCE(gp.setId, cc.setId) AS setId,
-         COALESCE(gp.setName, cc.setName) AS setName,
-         cc.imageSmall,
-         cc.imageLarge,
-         cc.cardNumber,
-         cc.rarity,
-         cc.tcgplayerProductId,
-         cc.tcgplayerPrices
-       FROM graded_prices gp
-       LEFT JOIN catalog_cards cc ON cc.cardId = gp.cardId
-       WHERE gp.cardId IN (${placeholders})
-         AND gp.grader = 'psa'
-         AND gp.grade = '10'`,
-      ids
-    ),
-    dbAll<{ cardId: string; imageSmall: string | null; imageLarge: string | null }>(
-      `SELECT cardId, MAX(imageSmall) AS imageSmall, MAX(imageLarge) AS imageLarge
-       FROM card_mappings
-       WHERE cardId IN (${placeholders})
-         AND (imageSmall IS NOT NULL OR imageLarge IS NOT NULL)
-       GROUP BY cardId`,
-      ids
-    ),
-  ]);
+  const catalog: CatalogRow[] = [];
+  const mapped: { cardId: string; imageSmall: string | null; imageLarge: string | null }[] = [];
+  for (const batch of chunkIds(ids, SQLITE_IN_CHUNK)) {
+    const placeholders = batch.map(() => '?').join(',');
+    const [catPart, mapPart] = await Promise.all([
+      dbAll<CatalogRow>(
+        `SELECT
+           COALESCE(cc.cardId, gp.cardId) AS cardId,
+           COALESCE(gp.variantKey, 'normal') AS variantKey,
+           COALESCE(gp.cardName, cc.cardName) AS cardName,
+           COALESCE(gp.setId, cc.setId) AS setId,
+           COALESCE(gp.setName, cc.setName) AS setName,
+           cc.imageSmall,
+           cc.imageLarge,
+           cc.cardNumber,
+           cc.rarity,
+           cc.tcgplayerProductId,
+           cc.tcgplayerPrices
+         FROM graded_prices gp
+         LEFT JOIN catalog_cards cc ON cc.cardId = gp.cardId
+         WHERE gp.cardId IN (${placeholders})
+           AND gp.grader = 'psa'
+           AND gp.grade = '10'`,
+        batch
+      ),
+      dbAll<{ cardId: string; imageSmall: string | null; imageLarge: string | null }>(
+        `SELECT cardId, MAX(imageSmall) AS imageSmall, MAX(imageLarge) AS imageLarge
+         FROM card_mappings
+         WHERE cardId IN (${placeholders})
+           AND (imageSmall IS NOT NULL OR imageLarge IS NOT NULL)
+         GROUP BY cardId`,
+        batch
+      ),
+    ]);
+    catalog.push(...catPart);
+    mapped.push(...mapPart);
+  }
 
   const catByKey = new Map(catalog.map((r) => [seriesKey(r.cardId, r.variantKey), r]));
   const catById = new Map(catalog.map((r) => [r.cardId, r]));

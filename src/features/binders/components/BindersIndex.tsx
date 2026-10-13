@@ -6,6 +6,7 @@ import { BinderPlanReview } from './BinderPlanReview';
 import { useBinderPlanner } from '../hooks/useBinderPlanner';
 import { useToast } from '../../../components/common/Toast';
 import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
+import { PageHeader, PageShell } from '../../../components/layout/PageShell';
 import type { Binder } from '../types';
 
 export const BindersIndex: React.FC = () => {
@@ -67,24 +68,21 @@ export const BindersIndex: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="space-y-2">
-          <p className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-foil">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent shadow-glow-accent" aria-hidden />
-            Collection
-          </p>
-          <h1 className="font-display text-h1 text-ink-primary">Binders</h1>
-          <p className="text-sm text-ink-secondary">AI-powered binder page planner</p>
-        </div>
-        <button
-          onClick={() => setShowPlanner(!showPlanner)}
-          className="btn-primary shadow-glow-accent"
-        >
-          <Plus className="h-4 w-4" />
-          New binder
-        </button>
-      </div>
+    <PageShell>
+      <PageHeader
+        eyebrow="Collection"
+        title="Binders"
+        description="AI-powered binder page planner"
+        actions={
+          <button
+            onClick={() => setShowPlanner(!showPlanner)}
+            className="btn-primary shadow-glow-accent"
+          >
+            <Plus className="h-4 w-4" />
+            New binder
+          </button>
+        }
+      />
 
       {showPlanner && (
         <div className="rounded-2xl border border-border-default bg-gradient-chrome p-5">
@@ -143,7 +141,7 @@ export const BindersIndex: React.FC = () => {
         onConfirm={handleDelete}
         onCancel={() => setDeleteConfirm(null)}
       />
-    </div>
+    </PageShell>
   );
 };
 
@@ -179,7 +177,7 @@ const BinderCard: React.FC<BinderCardProps> = ({
         </div>
         <button
           onClick={onDelete}
-          className="ml-2 shrink-0 rounded p-1 text-ink-muted transition-colors hover:bg-surface-hover hover:text-red-400"
+          className="ml-2 shrink-0 rounded p-1 text-ink-muted transition-colors hover:bg-surface-hover hover:text-loss"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>

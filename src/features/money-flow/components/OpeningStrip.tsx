@@ -1,5 +1,6 @@
 import type { MoneyFlowResponse, MoneyFlowWindowDays } from '@tcgtracker/shared';
-import { formatDate, formatPct } from '../lib/format';
+import { useGame } from '../../../contexts/GameContext';
+import { formatDate, formatPct, gameMarketLabel, moveTone } from '../lib/format';
 
 const WINDOWS: MoneyFlowWindowDays[] = [7, 30, 90];
 
@@ -14,33 +15,31 @@ export function OpeningStrip({
   onDaysChange: (d: MoneyFlowWindowDays) => void;
   refreshing: boolean;
 }) {
-  const { summary, headline } = data;
-  const risingShare =
-    summary.trackedCount > 0
-      ? Math.round((summary.risingCount / summary.trackedCount) * 100)
-      : Math.round(summary.chasedSharePct);
-
-  const lead =
-    summary.strongestLabel != null
-      ? `${summary.strongestLabel} are leading the market.`
-      : headline.summary;
+  const { game } = useGame();
+  const { summary } = data;
+  const tracked = summary.trackedCount;
+  const risingShare = tracked > 0 ? Math.round((summary.risingCount / tracked) * 100) : 0;
+  const fallingShare = tracked > 0 ? Math.round((summary.fallingCount / tracked) * 100) : 0;
+  const barUp = Math.max(0, Math.min(100, risingShare));
+  const barDown = Math.max(0, Math.min(100 - barUp, fallingShare));
+  const barFlat = Math.max(0, 100 - barUp - barDown);
 
   return (
-    <header className="mf-ed__open">
-      <div className="mf-ed__open-top">
+    <header className="mf__open">
+      <div className="mf__mast">
         <div>
-          <h1 className="mf-ed__title">Money Flow</h1>
-          <p className="mf-ed__dateline">
-            {formatDate(data.date || headline.asOfDate)} · Pokémon
+          <h1 className="mf__title">Money Flow</h1>
+          <p className="mf__dateline">
+            {gameMarketLabel(game)} · {formatDate(data.date || data.headline.asOfDate)}
             {refreshing ? ' · updating' : ''}
           </p>
         </div>
-        <div className="mf-ed__windows" role="group" aria-label="Window">
+        <div className="mf__windows" role="group" aria-label="Window">
           {WINDOWS.map((w) => (
             <button
               key={w}
               type="button"
-              className="mf-ed__win"
+              className="mf__win"
               aria-pressed={days === w}
               onClick={() => onDaysChange(w)}
             >
@@ -50,40 +49,41 @@ export function OpeningStrip({
         </div>
       </div>
 
-      <p className="mf-ed__statement">
-        <span className="mf-ed__statement-lead">
-          {risingShare}% of tracked cards are moving higher.
-        </span>{' '}
-        <span className="mf-ed__statement-sub">{lead}</span>
-      </p>
-
-      <div
-        className="mf-ed__breadth"
-        role="img"
-        aria-label={`${Math.round(summary.chasedSharePct)} percent chased, ${Math.round(summary.cooledSharePct)} percent cooled`}
-      >
-        <span style={{ width: `${summary.chasedSharePct}%` }} className="is-in" />
-        <span style={{ width: `${summary.cooledSharePct}%` }} className="is-out" />
-      </div>
-
-      <dl className="mf-ed__facts">
+      <div className="mf__kicker">Market breadth</div>
+      <dl className="mf__facts">
         <div>
-          <dt>Median</dt>
-          <dd>{formatPct(summary.medianMovePct)}</dd>
+          <dd className="is-up">{risingShare}%</dd>
+          <dt>rising</dt>
         </div>
         <div>
-          <dt>Rising</dt>
-          <dd>{summary.risingCount}</dd>
+          <dd className="is-down">{fallingShare}%</dd>
+          <dt>falling</dt>
         </div>
         <div>
-          <dt>Falling</dt>
-          <dd>{summary.fallingCount}</dd>
+          <dd className={`is-${moveTone(summary.medianMovePct)}`}>
+            {formatPct(summary.medianMovePct)}
+          </dd>
+          <dt>median</dt>
         </div>
         <div>
-          <dt>Tracked</dt>
-          <dd>{summary.trackedCount}</dd>
+          <dd>{tracked}</dd>
+          <dt>tracked</dt>
         </div>
       </dl>
+
+      <div
+        className="mf__breadth"
+        role="img"
+        aria-label={`${risingShare} percent rising, ${fallingShare} percent falling`}
+      >
+        <span className="is-up" style={{ width: `${barUp}%` }} />
+        {barFlat > 0 ? <span className="is-flat" style={{ width: `${barFlat}%` }} /> : null}
+        <span className="is-down" style={{ width: `${barDown}%` }} />
+      </div>
+      <div className="mf__breadth-cap" aria-hidden>
+        <span>rising</span>
+        <span>falling</span>
+      </div>
     </header>
   );
 }

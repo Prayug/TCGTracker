@@ -107,11 +107,13 @@ export interface MoneyFlowMoverRow {
   previousPrice: number;
   absDollarMove: number;
   imageSmall: string | null;
+  imageLarge: string | null;
   cardId: string | null;
   setName: string | null;
   finish: MoneyFlowFinish;
   era: MoneyFlowEra;
   segmentLabel: string;
+  specials: MoneyFlowSpecial[];
 }
 
 export interface MoneyFlowResponse {

@@ -131,7 +131,7 @@ export function DealScanProgress({
           <p className="text-xs text-ink-muted">{formatUpdatedAgo(meta?.fetchedAt, now)}</p>
         </div>
         <ProgressTrack label="Current eBay search" percent={view.searchPercent} reduced={reduced} />
-        <p className={cn('text-sm', paused ? 'text-amber-400' : 'text-ink-secondary')}>
+        <p className={cn('text-sm', paused ? 'text-neon-amber' : 'text-ink-secondary')}>
           {paused
             ? status
             : [view.searchLabel, thisSearch === '—' ? null : thisSearch, checkedLabel]
@@ -226,7 +226,7 @@ export function DealScanProgress({
         />
       </div>
 
-      <p className={cn('text-sm', paused || notice ? 'text-amber-400' : 'text-ink-secondary')}>
+      <p className={cn('text-sm', paused || notice ? 'text-neon-amber' : 'text-ink-secondary')}>
         {status}
       </p>
     </div>

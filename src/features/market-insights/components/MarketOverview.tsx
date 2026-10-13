@@ -13,9 +13,9 @@ interface Props {
 function DirectionLabel({ direction }: { direction: string }) {
   switch (direction) {
     case 'bullish':
-      return <span className="text-emerald-400">Bullish</span>;
+      return <span className="text-gain">Bullish</span>;
     case 'bearish':
-      return <span className="text-red-400">Bearish</span>;
+      return <span className="text-loss">Bearish</span>;
     default:
       return <span className="text-ink-muted">Neutral</span>;
   }
@@ -61,7 +61,7 @@ export function MarketOverview({ data, loading, error }: Props) {
       value: data.totalPredictions.toLocaleString(),
     },
     {
-      icon: <Target className="h-4 w-4 text-emerald-400" />,
+      icon: <Target className="h-4 w-4 text-gain" />,
       label: 'Avg Confidence',
       value: formatInsightScore(data.avgConfidence),
     },
@@ -84,7 +84,7 @@ export function MarketOverview({ data, loading, error }: Props) {
               {card.icon}
               <span className="text-xs text-ink-muted">{card.label}</span>
             </div>
-            <div className="mt-2 text-lg font-semibold text-white">{card.value}</div>
+            <div className="mt-2 text-lg font-semibold text-ink-primary">{card.value}</div>
           </div>
         ))}
       </div>
@@ -123,7 +123,7 @@ export function MarketOverview({ data, loading, error }: Props) {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="rounded-xl border border-border-default bg-surface-raised p-4">
-          <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-emerald-400">
+          <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-gain">
             <TrendingUp className="h-4 w-4" />
             Top Gainers
           </h3>
@@ -138,11 +138,11 @@ export function MarketOverview({ data, loading, error }: Props) {
                 >
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-ink-muted">{i + 1}</span>
-                    <span className="text-sm text-white">{card.cardName}</span>
+                    <span className="text-sm text-ink-primary">{card.cardName}</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-ink-muted">${card.currentPrice?.toFixed(2)}</span>
-                    <span className="text-xs font-mono text-emerald-400">
+                    <span className="text-xs font-mono text-gain">
                       +{(card.expectedReturn * 100).toFixed(1)}%
                     </span>
                     <span className="text-xs text-ink-muted">{card.confidence}%</span>
@@ -154,7 +154,7 @@ export function MarketOverview({ data, loading, error }: Props) {
         </div>
 
         <div className="rounded-xl border border-border-default bg-surface-raised p-4">
-          <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-red-400">
+          <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-loss">
             <TrendingDown className="h-4 w-4" />
             Top Losers
           </h3>
@@ -169,11 +169,11 @@ export function MarketOverview({ data, loading, error }: Props) {
                 >
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-ink-muted">{i + 1}</span>
-                    <span className="text-sm text-white">{card.cardName}</span>
+                    <span className="text-sm text-ink-primary">{card.cardName}</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-ink-muted">${card.currentPrice?.toFixed(2)}</span>
-                    <span className="text-xs font-mono text-red-400">
+                    <span className="text-xs font-mono text-loss">
                       {(card.expectedReturn * 100).toFixed(1)}%
                     </span>
                     <span className="text-xs text-ink-muted">{card.confidence}%</span>

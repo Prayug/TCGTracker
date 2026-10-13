@@ -79,7 +79,7 @@ export const VaultInsightStrip: React.FC<VaultInsightStripProps> = ({
         <AlertTriangle
           className={cn(
             'h-3.5 w-3.5 shrink-0',
-            assumedCostCount > 0 ? 'text-amber-400' : 'text-ink-muted'
+            assumedCostCount > 0 ? 'text-neon-amber' : 'text-ink-muted'
           )}
           aria-hidden
         />

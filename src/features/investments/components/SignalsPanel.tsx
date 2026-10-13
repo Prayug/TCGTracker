@@ -73,15 +73,20 @@ function MarketPulseBar({ pulse }: { pulse: InvestmentSignalsResult['pulse'] }) 
     {
       label: 'Bullish',
       value: pulse.bullish,
-      tone: 'text-emerald-400',
+      tone: 'text-gain',
       insight: pulse.bullishInsight,
     },
-    { label: 'Bearish', value: pulse.bearish, tone: 'text-red-400', insight: null },
-    { label: 'Watching', value: pulse.watch, tone: 'text-amber-400', insight: pulse.watchInsight },
+    { label: 'Bearish', value: pulse.bearish, tone: 'text-loss', insight: null },
+    {
+      label: 'Watching',
+      value: pulse.watch,
+      tone: 'text-neon-amber',
+      insight: pulse.watchInsight,
+    },
     {
       label: 'High risk',
       value: pulse.highRisk,
-      tone: 'text-orange-400',
+      tone: 'text-neon-pink',
       insight: pulse.highRiskInsight,
     },
   ];
@@ -117,15 +122,15 @@ function MarketPulseBar({ pulse }: { pulse: InvestmentSignalsResult['pulse'] }) 
       </div>
 
       {pulse.strongestSignal && pulse.strongestSignal.score >= 35 && (
-        <div className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-400/80">
+        <div className="mt-3 rounded-lg border border-gain/20 bg-gain-muted/50 px-3 py-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-gain">
             Strongest actionable signal
           </p>
           <p className="mt-1 font-display text-sm font-semibold text-ink-primary">
             {pulse.strongestSignal.signalTitle}
           </p>
           <p className="mt-0.5 text-xs text-ink-secondary">{pulse.strongestSignal.entityLabel}</p>
-          <p className="mt-1 text-xs text-emerald-400/90">{pulse.strongestSignal.detail}</p>
+          <p className="mt-1 text-xs text-gain">{pulse.strongestSignal.detail}</p>
           <p className="mt-1 text-[10px] text-ink-muted">
             {pulse.strongestSignal.confidence}% confidence · {pulse.strongestSignal.sourceCount}{' '}
             source

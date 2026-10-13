@@ -4,9 +4,77 @@ import { SortOption, FilterOption } from '../../../types/pokemon';
 import { OnePieceSortOption } from '../../../types/onepiece';
 import { ViewModeToggle, type ViewMode } from '../../../components/common/ViewModeToggle';
 
+interface SearchInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  isLoading?: boolean;
+  size?: 'default' | 'lg';
+  placeholder?: string;
+}
+
+export const SearchInput: React.FC<SearchInputProps> = ({
+  value,
+  onChange,
+  isLoading = false,
+  size = 'default',
+  placeholder = 'Search cards...',
+}) => {
+  const [inputValue, setInputValue] = useState(value);
+  const isLg = size === 'lg';
+
+  useEffect(() => {
+    setInputValue(value);
+  }, [value]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (inputValue !== value) onChange(inputValue);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [inputValue, value, onChange]);
+
+  return (
+    <div className="relative">
+      <Search
+        className={`pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-muted ${
+          isLg ? 'h-5 w-5' : 'left-3 h-4 w-4'
+        }`}
+      />
+      <input
+        type="text"
+        placeholder={placeholder}
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
+        disabled={isLoading}
+        className={`w-full text-ink-primary placeholder:text-ink-muted focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 ${
+          isLg
+            ? 'h-14 rounded-2xl border border-border-default bg-surface-raised/90 pl-12 pr-12 text-base shadow-elevated backdrop-blur-sm focus:border-accent/50 focus:ring-2 focus:ring-accent/30'
+            : 'h-9 rounded-lg bg-surface-raised pl-9 pr-9 text-sm focus:ring-2 focus:ring-accent/40'
+        }`}
+        aria-label="Search cards"
+      />
+      {isLoading ? (
+        <div className="absolute right-4 top-1/2 -translate-y-1/2">
+          <div
+            className={`animate-spin rounded-full border-2 border-ink-muted border-t-transparent ${
+              isLg ? 'h-5 w-5' : 'h-4 w-4'
+            }`}
+          />
+        </div>
+      ) : inputValue ? (
+        <button
+          onClick={() => setInputValue('')}
+          className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-muted transition-colors hover:text-ink-secondary"
+          aria-label="Clear search"
+        >
+          <X className={isLg ? 'h-5 w-5' : 'h-4 w-4'} />
+        </button>
+      ) : null}
+    </div>
+  );
+};
+
 interface SearchAndSortProps {
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
   sortBy: SortOption | OnePieceSortOption;
   onSortChange: (sort: SortOption | OnePieceSortOption) => void;
   filterBy: FilterOption;
@@ -44,8 +112,6 @@ const SORT_LABELS: Record<string, string> = {
 };
 
 export const SearchFilters: React.FC<SearchAndSortProps> = ({
-  searchQuery,
-  onSearchChange,
   sortBy,
   onSortChange,
   filterBy,
@@ -61,50 +127,9 @@ export const SearchFilters: React.FC<SearchAndSortProps> = ({
   cardLanguage = 'en',
   onCardLanguageChange,
 }) => {
-  const [inputValue, setInputValue] = useState(searchQuery);
-
-  useEffect(() => {
-    setInputValue(searchQuery);
-  }, [searchQuery]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (inputValue !== searchQuery) {
-        onSearchChange(inputValue);
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [inputValue, searchQuery, onSearchChange]);
-
   return (
     <section className="sticky top-14 z-30 w-full min-w-0 max-w-full animate-fade-in bg-surface-base/90 py-2 backdrop-blur-md">
       <div className="flex flex-col gap-2">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
-          <input
-            type="text"
-            placeholder="Search cards..."
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            disabled={isLoading}
-            className="h-9 w-full rounded-lg bg-surface-raised pl-9 pr-9 text-sm text-ink-primary placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-accent/40 disabled:cursor-not-allowed disabled:opacity-60"
-            aria-label="Search cards"
-          />
-          {isLoading ? (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2">
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-ink-muted border-t-transparent" />
-            </div>
-          ) : inputValue ? (
-            <button
-              onClick={() => setInputValue('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted transition-colors hover:text-ink-secondary"
-              aria-label="Clear search"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          ) : null}
-        </div>
-
         <div className="flex flex-wrap items-center gap-2">
           {!isOnePiece && onCardLanguageChange && (
             <div
