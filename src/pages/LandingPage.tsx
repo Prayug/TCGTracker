@@ -31,15 +31,15 @@ export function LandingPage() {
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(110,231,183,0.05),transparent_50%)]" />
         <div className="relative mx-auto max-w-6xl">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 8 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: '-80px' }}
-            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
           >
-            <h2 className="font-display text-[clamp(2rem,5vw,3.5rem)] font-bold leading-tight tracking-tight text-ink-primary">
+            <h2 className="font-display text-h2 font-semibold tracking-tight text-ink-primary">
               Market data
             </h2>
-            <p className="mt-3 max-w-lg text-base text-ink-secondary">
+            <p className="mt-1.5 max-w-lg text-sm text-ink-muted">
               Raw and PSA 10 movers for the game you have selected.
             </p>
           </motion.div>

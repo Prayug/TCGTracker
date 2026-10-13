@@ -66,6 +66,10 @@
     --gradient-text: linear-gradient(115deg, #e8ecf2 40%, #6ee7b7 78%, #5bc4d4 100%);
     --gradient-chrome: #182332;
     --atmosphere: none;
+
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+    --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
   }
 
   [data-theme='light'] {
@@ -164,9 +168,8 @@
     background-image: var(--atmosphere);
     background-attachment: fixed;
     color: var(--ink-primary);
-    font-feature-settings:
-      'cv11' 1,
-      'ss01' 1;
+    font-feature-settings: 'ss01' 1;
+    letter-spacing: -0.006em;
     width: 100%;
     min-width: 0;
     overflow-x: hidden;
@@ -195,8 +198,8 @@
     box-shadow: 0 0 0 4px var(--ring-accent);
   }
   .theme {
-    --font-heading: 'Outfit', sans-serif;
-    --font-sans: 'Jost', system-ui, sans-serif;
+    --font-heading: 'Geist Variable', system-ui, sans-serif;
+    --font-sans: 'Geist Variable', system-ui, sans-serif;
   }
   /* Unified shadcn + app tokens (Chromatic Vault refined) */
   :root,
@@ -318,16 +321,16 @@
 }
 
 @layer components {
+  /*
+   * Surfaces. Hairline borders, no hover lift by default: only things you
+   * can click should react to the pointer (.card-interactive / .card-lift).
+   */
   .card {
-    @apply rounded-xl border transition-all duration-200;
+    @apply rounded-xl border;
     border-color: var(--border-default);
     background: var(--surface-raised);
     padding: 1.25rem;
-  }
-
-  .card:hover {
-    border-color: var(--border-strong);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.025);
   }
 
   .card-chrome {
@@ -335,18 +338,27 @@
     border: 1px solid var(--border-subtle);
     @apply rounded-xl;
     padding: 1.25rem;
+    box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.025);
   }
 
   .card-interactive {
-    @apply cursor-pointer transition-all duration-200;
+    @apply cursor-pointer;
+    transition:
+      border-color 150ms var(--ease-out),
+      background-color 150ms var(--ease-out),
+      transform 160ms var(--ease-out);
+  }
+
+  .card-interactive:hover {
+    border-color: var(--border-strong);
   }
 
   .card-interactive:active {
-    background: var(--accent-muted);
+    transform: scale(0.99);
   }
 
   .section-label {
-    @apply text-xs font-medium uppercase tracking-[0.14em];
+    @apply text-[11px] font-medium uppercase tracking-[0.12em];
     color: var(--ink-muted);
   }
 
@@ -354,10 +366,41 @@
     @apply space-y-8;
   }
 
+  /*
+   * Buttons. One shape, tactile faces: a light top edge plus a darker lip so
+   * the primary reads as pressable, and scale(0.97) on press so the UI
+   * answers the click immediately. Transitions name their properties.
+   */
+  .btn-primary,
+  .btn-secondary,
+  .btn-ghost,
+  .btn-destructive,
+  .btn-alert {
+    @apply inline-flex h-9 cursor-pointer select-none items-center justify-center gap-2 whitespace-nowrap rounded-[10px] px-4 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50;
+    transition:
+      background-color 150ms var(--ease-out),
+      border-color 150ms var(--ease-out),
+      color 150ms var(--ease-out),
+      box-shadow 150ms var(--ease-out),
+      transform 160ms var(--ease-out);
+  }
+
+  .btn-primary:active:not(:disabled),
+  .btn-secondary:active:not(:disabled),
+  .btn-ghost:active:not(:disabled),
+  .btn-destructive:active:not(:disabled),
+  .btn-alert:active:not(:disabled),
+  .btn-icon:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
   .btn-primary {
-    @apply inline-flex cursor-pointer items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition-all duration-200 active:scale-[0.98];
     background: var(--accent);
-    color: #0b1016;
+    color: var(--primary-foreground);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.35),
+      inset 0 -1px 0 0 rgb(0 0 0 / 0.18),
+      0 1px 2px 0 rgb(0 0 0 / 0.25);
   }
 
   .btn-primary:hover:not(:disabled) {
@@ -365,29 +408,34 @@
   }
 
   .btn-secondary {
-    @apply inline-flex cursor-pointer items-center gap-2 rounded-xl border px-5 py-2.5 text-sm font-semibold transition-all duration-200 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+    @apply border;
     border-color: var(--border-default);
-    background: transparent;
+    background: var(--surface-raised);
     color: var(--ink-primary);
+    box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.04);
   }
 
   .btn-secondary:hover:not(:disabled) {
     border-color: var(--border-strong);
-    background: var(--accent-muted);
+    background: var(--surface-hover);
   }
 
   .btn-ghost {
-    @apply inline-flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-200 active:scale-[0.98];
+    @apply px-3;
     color: var(--ink-secondary);
   }
 
-  .btn-ghost:hover {
+  .btn-ghost:hover:not(:disabled) {
     background-color: var(--surface-hover);
     color: var(--ink-primary);
   }
 
   .btn-icon {
-    @apply inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl text-ink-secondary transition-all duration-200 active:scale-[0.96];
+    @apply inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-[10px] text-ink-secondary;
+    transition:
+      background-color 150ms var(--ease-out),
+      color 150ms var(--ease-out),
+      transform 160ms var(--ease-out);
   }
 
   .btn-icon:hover {
@@ -396,32 +444,37 @@
   }
 
   .btn-destructive {
-    @apply inline-flex cursor-pointer items-center gap-2 rounded-xl border px-5 py-2.5 text-sm font-semibold transition-all duration-200 active:scale-[0.98];
-    border-color: color-mix(in srgb, var(--loss) 40%, transparent);
     background: var(--loss-muted);
     color: var(--loss);
   }
 
-  .btn-destructive:hover {
-    background: color-mix(in srgb, var(--loss-muted) 70%, var(--loss) 30%);
+  .btn-destructive:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--loss) 20%, transparent);
   }
 
   .btn-alert {
-    @apply inline-flex cursor-pointer items-center gap-2 rounded-xl border px-5 py-2.5 text-sm font-semibold transition-all duration-200 active:scale-[0.98];
-    border-color: color-mix(in srgb, var(--accent) 40%, transparent);
     background: var(--accent-muted);
     color: var(--accent);
   }
 
-  .btn-alert:hover {
+  .btn-alert:hover:not(:disabled) {
     background: color-mix(in srgb, var(--accent) 20%, transparent);
   }
 
+  /* Inputs. Quiet at rest, a single accent ring on focus. */
   .input {
-    @apply h-11 w-full rounded-xl border px-4 text-sm transition-all duration-200;
+    @apply h-10 w-full rounded-[10px] border px-3.5 text-sm;
     border-color: var(--border-default);
     background: var(--surface-inset);
     color: var(--ink-primary);
+    transition:
+      border-color 150ms var(--ease-out),
+      box-shadow 150ms var(--ease-out),
+      background-color 150ms var(--ease-out);
+  }
+
+  .input:hover:not(:focus) {
+    border-color: var(--border-strong);
   }
 
   .input::placeholder {
@@ -430,7 +483,7 @@
 
   .input:focus {
     outline: none;
-    border-color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
     box-shadow: 0 0 0 3px var(--ring-accent);
   }
 
@@ -439,45 +492,108 @@
   }
 
   .badge {
-    @apply inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-medium tracking-wide;
-    border-color: var(--border-subtle);
-    background: var(--surface-inset);
+    @apply inline-flex h-5 items-center gap-1 rounded-md px-1.5 text-[11px] font-medium leading-none;
+    background: color-mix(in srgb, var(--ink-primary) 6%, transparent);
+    color: var(--ink-secondary);
   }
 
   .badge-gain {
-    border-color: color-mix(in srgb, var(--gain) 35%, transparent);
     background: var(--gain-muted);
     color: var(--gain);
   }
 
   .badge-loss {
-    border-color: color-mix(in srgb, var(--loss) 35%, transparent);
     background: var(--loss-muted);
     color: var(--loss);
   }
 
   .badge-accent {
-    border-color: color-mix(in srgb, var(--accent) 35%, transparent);
     background: var(--accent-muted);
     color: var(--accent);
   }
 
   .badge-neon-gold {
-    border-color: color-mix(in srgb, var(--neon-gold) 35%, transparent);
     background: var(--accent-muted);
     color: var(--neon-gold);
   }
 
   .badge-neon-pink {
-    border-color: color-mix(in srgb, var(--neon-pink) 35%, transparent);
     background: var(--loss-muted);
     color: var(--neon-pink);
   }
 
   .badge-neon-green {
-    border-color: color-mix(in srgb, var(--neon-green) 35%, transparent);
     background: var(--gain-muted);
     color: var(--neon-green);
+  }
+
+  /*
+   * Native selects and range inputs, which the app uses in a dozen filter
+   * bars. Restyled here so every one picks up the same chevron and track
+   * instead of the browser's.
+   */
+  select:not([multiple]):not([size]) {
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239aa6b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 15 5 5 5-5'/%3E%3Cpath d='m7 9 5-5 5 5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.6rem center;
+    background-size: 14px 14px;
+    padding-right: 2rem;
+  }
+
+  select option {
+    background: var(--surface-overlay);
+    color: var(--ink-primary);
+  }
+
+  input[type='range'] {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 1.25rem;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  input[type='range']::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--ink-primary) 12%, transparent);
+  }
+
+  input[type='range']::-moz-range-track {
+    height: 4px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--ink-primary) 12%, transparent);
+  }
+
+  input[type='range']::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    margin-top: -6px;
+    height: 16px;
+    width: 16px;
+    border-radius: 999px;
+    background: var(--ink-primary);
+    box-shadow:
+      0 0 0 4px var(--surface-base),
+      0 1px 3px rgb(0 0 0 / 0.4);
+    transition: transform 150ms var(--ease-out);
+  }
+
+  input[type='range']::-moz-range-thumb {
+    height: 16px;
+    width: 16px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--ink-primary);
+    box-shadow:
+      0 0 0 4px var(--surface-base),
+      0 1px 3px rgb(0 0 0 / 0.4);
+  }
+
+  input[type='range']:active::-webkit-slider-thumb {
+    transform: scale(1.15);
   }
 
   .section-header {

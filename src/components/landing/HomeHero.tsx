@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowDown, ArrowUpRight, Package } from 'lucide-react';
 import { ScrollWorld } from '@/components/three/ScrollWorld';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { usePrefersReducedMotion } from '@/hooks/useMotionPreferences';
 
 export function scrollToMarketPulse(e?: { preventDefault?: () => void }) {
@@ -34,7 +35,10 @@ export function HomeHero() {
         <>
           {/* r3f Canvas forces position:relative inline, so position via a wrapper */}
           <div className="absolute inset-0">
-            <ScrollWorld progressRef={progressRef} />
+            {/* Card textures load from a remote CDN; if they fail, keep the hero copy and drop the 3D layer. */}
+            <ErrorBoundary fallback={<div aria-hidden />}>
+              <ScrollWorld progressRef={progressRef} />
+            </ErrorBoundary>
           </div>
           <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(12,17,24,0.55)_0%,rgba(12,17,24,0.35)_45%,rgba(12,17,24,0.85)_100%)]" />
         </>

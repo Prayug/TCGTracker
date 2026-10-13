@@ -15,6 +15,7 @@ import { DealFeed } from './DealFeed';
 import { DealFilters } from './DealFilters';
 import { DealScanProgress } from './DealScanProgress';
 import { DealSummary } from './DealSummary';
+import { InlineNotice } from '@/components/common/InlineNotice';
 
 const TABS: { id: DealFeedTab; label: string }[] = [
   { id: 'best', label: 'Best Deals' },
@@ -144,11 +145,7 @@ export function DealsPage() {
         </div>
       )}
 
-      {error && visibleDeals.length > 0 && (
-        <div className="rounded-lg border border-loss/20 bg-loss-muted px-4 py-2 text-sm text-loss">
-          {error}
-        </div>
-      )}
+      {error && visibleDeals.length > 0 && <InlineNotice>{error}</InlineNotice>}
 
       {summary && <DealSummary summary={summary} />}
 

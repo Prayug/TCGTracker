@@ -110,10 +110,17 @@ export function CardThumb({
 
 export function EmptyState({ message, isError }: { message: string; isError?: boolean }) {
   return (
-    <div
-      className={`flex h-40 items-center justify-center rounded-xl border ${isError ? 'border-loss/30 bg-loss-muted' : 'border-border-default bg-surface-raised'}`}
-    >
-      <p className={`max-w-md px-6 text-center text-sm ${isError ? 'text-loss' : 'text-ink-muted'}`}>
+    <div className="flex h-40 flex-col items-center justify-center gap-2 rounded-xl border border-border-subtle">
+      {isError ? (
+        <span
+          aria-hidden
+          className="h-1.5 w-1.5 rounded-full bg-loss shadow-[0_0_8px_var(--loss)]"
+        />
+      ) : null}
+      <p
+        role={isError ? 'alert' : undefined}
+        className="max-w-md px-6 text-center text-[13px] text-ink-muted"
+      >
         {message}
       </p>
     </div>
@@ -123,7 +130,7 @@ export function EmptyState({ message, isError }: { message: string; isError?: bo
 export function PanelLoading() {
   return (
     <div className="flex h-40 items-center justify-center">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+      <div className="h-4 w-4 animate-[spin_600ms_linear_infinite] rounded-full border-[1.5px] border-ink-muted border-r-transparent" />
     </div>
   );
 }

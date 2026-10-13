@@ -14,12 +14,12 @@ export const PageEmptyState: React.FC<PageEmptyStateProps> = ({
   message,
   action,
 }) => (
-  <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border-default bg-surface-inset px-6 py-12 text-center">
-    <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-surface-hover">
-      <Icon className="h-6 w-6 text-ink-muted" aria-hidden="true" />
+  <div className="flex flex-col items-center justify-center rounded-xl border border-border-subtle px-6 py-14 text-center">
+    <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-surface-raised shadow-[inset_0_0_0_1px_var(--border-default)]">
+      <Icon className="h-[18px] w-[18px] text-ink-secondary" aria-hidden="true" />
     </div>
-    <h3 className="text-base font-semibold text-ink-primary">{title}</h3>
-    <p className="mt-2 max-w-sm text-sm text-ink-muted">{message}</p>
+    <h3 className="text-[15px] font-medium text-ink-primary">{title}</h3>
+    <p className="mt-1 max-w-sm text-[13px] text-ink-muted">{message}</p>
     {action && <div className="mt-5">{action}</div>}
   </div>
 );

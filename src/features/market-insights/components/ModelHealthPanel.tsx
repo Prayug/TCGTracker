@@ -4,6 +4,7 @@ import {
   DataQualityCheckResult,
   DataQualityStatusResponse,
 } from '../types';
+import { InlineNotice } from '@/components/common/InlineNotice';
 
 interface Props {
   calibration: CalibrationHorizonStatus[] | null;
@@ -52,11 +53,7 @@ export function ModelHealthPanel({ calibration, dataQuality, loading, error }: P
   }
 
   if (error) {
-    return (
-      <div className="rounded-xl border border-loss/30 bg-loss-muted px-4 py-6 text-center text-sm text-loss">
-        {error}
-      </div>
-    );
+    return <InlineNotice>{error}</InlineNotice>;
   }
 
   const checks = dataQuality?.data ?? [];

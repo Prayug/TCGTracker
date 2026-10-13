@@ -8,6 +8,7 @@ import { SlabMoversPanel } from './SlabMoversPanel';
 import { BuyoutScannerPanel } from './BuyoutScannerPanel';
 import { SimilarSlabsPanel } from './SimilarSlabsPanel';
 import { SignalsPanel } from './SignalsPanel';
+import { InlineNotice } from '@/components/common/InlineNotice';
 
 const TABS: { id: InvestmentsTab; label: string; icon: React.ReactNode }[] = [
   { id: 'opportunities', label: 'Opportunities', icon: <Target className="h-4 w-4" /> },
@@ -94,16 +95,14 @@ export function InvestmentsPage() {
         <StatBlock
           label="Top mover"
           value={
-            topMover ? `${topMover.changePct >= 0 ? '+' : ''}${topMover.changePct.toFixed(1)}%` : '—'
+            topMover
+              ? `${topMover.changePct >= 0 ? '+' : ''}${topMover.changePct.toFixed(1)}%`
+              : '—'
           }
           trend={topMover ? (topMover.changePct >= 0 ? 'up' : 'down') : undefined}
           hint={topMover?.cardName ?? 'No movers yet'}
         />
-        <StatBlock
-          label="Signals analyzed"
-          value={signalsAnalyzed ?? '—'}
-          hint="Last 24 hours"
-        />
+        <StatBlock label="Signals analyzed" value={signalsAnalyzed ?? '—'} hint="Last 24 hours" />
       </div>
 
       {topMovers.length > 0 && (
@@ -141,24 +140,31 @@ export function InvestmentsPage() {
         </p>
       )}
 
-      {error && (
-        <div className="rounded-lg border border-loss/20 bg-loss-muted px-4 py-2 text-sm text-loss">
-          {error}
-        </div>
-      )}
+      {error && <InlineNotice>{error}</InlineNotice>}
 
-      <div className="flex gap-1 rounded-xl border border-border-default bg-surface-inset p-1">
+      <div
+        role="tablist"
+        className="isolate flex w-fit gap-0.5 rounded-xl bg-surface-inset p-1 shadow-[inset_0_0_0_1px_var(--border-subtle)]"
+      >
         {TABS.map((tab) => (
           <button
             key={tab.id}
             type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex cursor-pointer items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-              activeTab === tab.id
-                ? 'bg-accent/15 text-accent shadow-sm'
-                : 'text-ink-muted hover:bg-surface-hover hover:text-ink-secondary'
+            className={`relative flex h-8 cursor-pointer items-center gap-2 rounded-lg px-3.5 text-[13px] font-medium transition-[color,transform] duration-150 ease-out active:scale-[0.97] [&_svg]:h-3.5 [&_svg]:w-3.5 ${
+              activeTab === tab.id ? 'text-ink-primary' : 'text-ink-muted hover:text-ink-secondary'
             }`}
           >
+            {activeTab === tab.id && (
+              <motion.span
+                layoutId="investments-tab"
+                aria-hidden
+                className="absolute inset-0 -z-10 rounded-lg bg-surface-raised shadow-[inset_0_0_0_1px_var(--border-default),0_1px_2px_rgba(0,0,0,0.2)]"
+                transition={{ type: 'spring', duration: 0.35, bounce: 0.12 }}
+              />
+            )}
             {tab.icon}
             <span className="hidden sm:inline">{tab.label}</span>
           </button>

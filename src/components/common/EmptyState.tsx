@@ -15,7 +15,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   onTrySearch,
 }) => {
   return (
-    <div className="rounded-lg border border-dashed border-border-default bg-surface-raised px-5 py-8">
+    <div className="rounded-xl border border-border-subtle px-5 py-8">
       <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-full border border-border-subtle bg-surface-inset">
         <Search className="h-4 w-4 text-ink-muted" aria-hidden="true" />
       </div>
@@ -42,7 +42,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
             type="button"
             key={q}
             onClick={() => onTrySearch?.(q)}
-            className="rounded-full bg-accent-muted px-3 py-1.5 text-sm font-medium text-accent transition-colors hover:bg-accent/15"
+            className="h-8 rounded-full px-3 text-[13px] font-medium text-ink-secondary shadow-[inset_0_0_0_1px_var(--border-default)] transition-[background-color,color,transform] duration-150 ease-out hover:bg-surface-hover hover:text-ink-primary active:scale-[0.97]"
           >
             {q}
           </button>

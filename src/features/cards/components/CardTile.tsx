@@ -31,8 +31,8 @@ export const CardTile: React.FC<CardTileProps> = ({
   return (
     <article
       className={[
-        'group relative overflow-hidden rounded-xl bg-surface-raised',
-        'origin-center transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-card',
+        'group relative overflow-hidden rounded-xl bg-surface-raised shadow-[inset_0_0_0_1px_var(--border-subtle)]',
+        'transition-shadow duration-200 ease-out hover:shadow-[inset_0_0_0_1px_var(--border-default)]',
       ].join(' ')}
     >
       {/* Pointer convenience only; keyboard access is provided by the labeled button below */}
@@ -52,7 +52,7 @@ export const CardTile: React.FC<CardTileProps> = ({
           <img
             src={imageUrl}
             alt={card.name}
-            className="relative z-0 h-full w-full object-contain p-2.5 transition-transform duration-500 ease-out group-hover:scale-[1.1] group-hover:[transform:translateZ(12px)_scale(1.1)]"
+            className="relative z-0 h-full w-full object-contain p-2.5 transition-transform duration-300 ease-out group-hover:scale-[1.03] motion-reduce:transition-none"
             loading="lazy"
             decoding="async"
             onError={(e) => {
@@ -76,7 +76,7 @@ export const CardTile: React.FC<CardTileProps> = ({
           </span>
         )}
 
-        <div className="absolute bottom-2 left-2 right-2 z-20 grid grid-cols-3 gap-1.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+        <div className="absolute bottom-2 left-2 right-2 z-20 grid grid-cols-3 gap-1.5 translate-y-1 opacity-0 transition-[opacity,transform] duration-200 ease-out group-focus-within:translate-y-0 group-focus-within:opacity-100 group-hover:translate-y-0 group-hover:opacity-100">
           <button
             type="button"
             onClick={(e) => {
