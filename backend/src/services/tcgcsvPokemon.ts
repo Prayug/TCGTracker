@@ -20,6 +20,8 @@ import {
 } from './tcgcsvArchive';
 
 const TCGCSV_BASE = 'https://tcgcsv.com/tcgplayer';
+/** Share of a day's rows that must differ from the day before for it to count as live. */
+const LIVE_DAY_MIN_CHANGED_SHARE = 0.01;
 
 const all = <T>(sql: string, params: unknown[] = []): Promise<T[]> =>
   new Promise((resolve, reject) =>
@@ -147,18 +149,19 @@ export async function writeTcgcsvRows(
 /**
  * Last day whose TCGCSV prices differ from the day before. Days after it are
  * carry-forward copies; `frozenDays` is the calendar days from it to the
- * newest copy (0 when the feed is current).
+ * newest copy (0 when the feed is current). A live day reprices thousands of
+ * cards, so a handful of changed rows (remaps, one-off writes) on a copied
+ * day doesn't count as live.
  */
 export async function findLastLiveTcgcsvDate(): Promise<{
   lastLive: string | null;
   frozenDays: number;
 }> {
-  const dates = (
-    await all<{ date: string }>(
-      `SELECT date FROM price_history WHERE source = 'tcgcsv'
+  const days = await all<{ date: string; n: number }>(
+    `SELECT date, COUNT(*) AS n FROM price_history WHERE source = 'tcgcsv'
        GROUP BY date HAVING COUNT(*) > 1000 ORDER BY date DESC LIMIT 400`
-    )
-  ).map((r) => r.date);
+  );
+  const dates = days.map((r) => r.date);
   for (let i = 0; i + 1 < dates.length; i++) {
     const [{ changed }] = await all<{ changed: number }>(
       `SELECT COUNT(*) AS changed
@@ -168,9 +171,9 @@ export async function findLastLiveTcgcsvDate(): Promise<{
        WHERE a.source = 'tcgcsv' AND a.date = ? AND a.price != b.price`,
       [dates[i + 1], dates[i]]
     );
-    if (changed > 0) {
-      const days = (Date.parse(dates[0]) - Date.parse(dates[i])) / 86_400_000;
-      return { lastLive: dates[i], frozenDays: Math.round(days) };
+    if (changed >= Math.max(50, days[i].n * LIVE_DAY_MIN_CHANGED_SHARE)) {
+      const span = (Date.parse(dates[0]) - Date.parse(dates[i])) / 86_400_000;
+      return { lastLive: dates[i], frozenDays: Math.round(span) };
     }
   }
   return { lastLive: dates[0] ?? null, frozenDays: 0 };
