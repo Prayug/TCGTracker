@@ -60,6 +60,8 @@ export async function ensureCanonicalPriceTable(): Promise<void> {
  */
 export async function materializeCanonicalPrices(options?: {
   sinceDate?: string;
+  /** Inclusive upper bound; lets a historical backfill rebuild only its own range. */
+  untilDate?: string;
   fullRebuild?: boolean;
 }): Promise<{ upserted: number; sinceDate: string | null }> {
   await ensureCanonicalPriceTable();
@@ -75,13 +77,18 @@ export async function materializeCanonicalPrices(options?: {
 
   const sourceCase = SOURCE_PRIORITY.map((s, i) => `WHEN '${s}' THEN ${i}`).join(' ');
 
+  const untilDate = sinceDate ? (options?.untilDate ?? null) : null;
+  const untilClause = untilDate ? ' AND ph.date <= ?' : '';
   const whereClause = sinceDate
-    ? `WHERE ph.date >= ? AND ph.source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')`
+    ? `WHERE ph.date >= ?${untilClause} AND ph.source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')`
     : `WHERE ph.source IN ('tcgcsv', 'tcgdex', 'catalog_fallback')`;
-  const params = sinceDate ? [sinceDate] : [];
+  const params = sinceDate ? (untilDate ? [sinceDate, untilDate] : [sinceDate]) : [];
 
   if (sinceDate) {
-    await run(`DELETE FROM canonical_price_history WHERE date >= ?`, [sinceDate]);
+    await run(
+      `DELETE FROM canonical_price_history WHERE date >= ?${untilDate ? ' AND date <= ?' : ''}`,
+      params
+    );
   } else if (options?.fullRebuild) {
     await run(`DELETE FROM canonical_price_history`);
   }
@@ -119,9 +126,9 @@ export async function materializeCanonicalPrices(options?: {
 
   const countRow = await get<{ n: number }>(
     sinceDate
-      ? `SELECT COUNT(*) AS n FROM canonical_price_history WHERE date >= ?`
+      ? `SELECT COUNT(*) AS n FROM canonical_price_history WHERE date >= ?${untilDate ? ' AND date <= ?' : ''}`
       : `SELECT COUNT(*) AS n FROM canonical_price_history`,
-    sinceDate ? [sinceDate] : []
+    params
   );
 
   const upserted = countRow?.n ?? 0;

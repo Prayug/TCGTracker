@@ -1,6 +1,9 @@
 import { buildApiUrl } from '../config/env';
 import type {
   BuyoutScanResult,
+  CardCheck,
+  StrategyMarket,
+  StrategyReport,
   InvestmentSignalsResult,
   MoverDirection,
   OpportunitiesResult,
@@ -78,6 +81,28 @@ export const fetchInvestmentSignals = async (
   if (params?.direction) url.searchParams.set('direction', params.direction);
   if (params?.sort) url.searchParams.set('sort', params.sort);
   return getJson<InvestmentSignalsResult>(url, signal);
+};
+
+export const fetchStrategyReport = async (
+  params: { market: StrategyMarket; horizonWeeks: number },
+  signal?: AbortSignal
+): Promise<StrategyReport | null> => {
+  const url = new URL(buildApiUrl('/api/investments/strategy'));
+  url.searchParams.set('market', params.market);
+  url.searchParams.set('horizon', String(params.horizonWeeks));
+  return getJson<StrategyReport>(url, signal);
+};
+
+export const fetchCardCheck = async (
+  params: { cardId: string; variant?: string; productId?: number | string; horizonWeeks?: number },
+  signal?: AbortSignal
+): Promise<CardCheck | null> => {
+  const url = new URL(buildApiUrl('/api/investments/card-check'));
+  url.searchParams.set('cardId', params.cardId);
+  if (params.variant) url.searchParams.set('variant', params.variant);
+  if (params.productId) url.searchParams.set('productId', String(params.productId));
+  if (params.horizonWeeks) url.searchParams.set('horizon', String(params.horizonWeeks));
+  return getJson<CardCheck>(url, signal);
 };
 
 /** @deprecated Use fetchInvestmentSignals */

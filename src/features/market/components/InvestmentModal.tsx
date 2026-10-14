@@ -31,6 +31,7 @@ import { GradedPriceCards } from './GradedPriceCards';
 import { headlineGradedPrice } from './gradedPriceDisplay';
 import { cn } from '@/lib/utils';
 import { BuyThesisPanel } from '../../buy-thesis/components/BuyThesisPanel';
+import { InvestCheckPanel } from './InvestCheckPanel';
 
 interface InvestmentModalProps {
   card: PokemonCard | OnePieceCard | null;
@@ -82,10 +83,11 @@ function toVaultCard(card: PokemonCard | OnePieceCard): PokemonCard {
   };
 }
 
-type DetailTab = 'overview' | 'grades' | 'population' | 'sales';
+type DetailTab = 'overview' | 'invest' | 'grades' | 'population' | 'sales';
 
 const TABS: { id: DetailTab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
+  { id: 'invest', label: 'Invest' },
   { id: 'grades', label: 'Grades' },
   { id: 'population', label: 'Population' },
   { id: 'sales', label: 'Sales' },
@@ -726,6 +728,13 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
                     {formatPercent(priceChangePercent, { signed: true })}
                   </p>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('invest')}
+                  className="mt-1 text-xs text-ink-secondary hover:text-ink-primary"
+                >
+                  Break-even after fees and what similar cards returned →
+                </button>
                 <div className="mt-3">
                   {rangedHistory.length > 0 ? (
                     <PriceChart priceHistory={rangedHistory} variant="dark" height={220} compact />
@@ -800,6 +809,14 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({ card, isOpen, 
                   </section>
                 )}
             </div>
+          )}
+
+          {activeTab === 'invest' && (
+            <InvestCheckPanel
+              cardId={card.id}
+              variant={isOnePiece ? undefined : selectedVariant}
+              productId={isOnePiece ? undefined : (card as PokemonCard).tcgplayer?.productId}
+            />
           )}
 
           {activeTab === 'grades' && (

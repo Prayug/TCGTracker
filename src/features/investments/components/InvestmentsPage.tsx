@@ -1,5 +1,14 @@
 import { motion } from 'framer-motion';
-import { Flame, Layers, Radio, RefreshCw, Target, TrendingDown, TrendingUp } from 'lucide-react';
+import {
+  FlaskConical,
+  Flame,
+  Layers,
+  Radio,
+  RefreshCw,
+  Target,
+  TrendingDown,
+  TrendingUp,
+} from 'lucide-react';
 import { PageHeader, PageShell, StatBlock } from '@/components/layout/PageShell';
 import { useInvestments } from '../hooks/useInvestments';
 import type { InvestmentsTab } from '../types';
@@ -8,9 +17,11 @@ import { SlabMoversPanel } from './SlabMoversPanel';
 import { BuyoutScannerPanel } from './BuyoutScannerPanel';
 import { SimilarSlabsPanel } from './SimilarSlabsPanel';
 import { SignalsPanel } from './SignalsPanel';
+import { StrategyPanel } from './StrategyPanel';
 import { InlineNotice } from '@/components/common/InlineNotice';
 
 const TABS: { id: InvestmentsTab; label: string; icon: React.ReactNode }[] = [
+  { id: 'strategy', label: 'Strategy', icon: <FlaskConical className="h-4 w-4" /> },
   { id: 'opportunities', label: 'Opportunities', icon: <Target className="h-4 w-4" /> },
   { id: 'movers', label: 'Movers', icon: <TrendingUp className="h-4 w-4" /> },
   { id: 'buyouts', label: 'Buyouts', icon: <Flame className="h-4 w-4" /> },
@@ -72,61 +83,71 @@ export function InvestmentsPage() {
       <PageHeader
         eyebrow="Market"
         title="Investments"
-        description="Find mispriced slabs, emerging trends, and scored market signals."
+        description="What buying cards has actually returned after fees, where it's fair to buy now, and the market signals behind it."
         actions={
-          <button
-            type="button"
-            onClick={refresh}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border-default bg-surface-inset px-3 py-1.5 text-xs font-medium text-ink-secondary transition-colors hover:bg-surface-hover"
-            aria-label="Refresh investments data"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-            Refresh
-          </button>
+          activeTab === 'strategy' ? undefined : (
+            <button
+              type="button"
+              onClick={refresh}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border-default bg-surface-inset px-3 py-1.5 text-xs font-medium text-ink-secondary transition-colors hover:bg-surface-hover"
+              aria-label="Refresh investments data"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Refresh
+            </button>
+          )
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <StatBlock
-          label="Opportunities"
-          value={opportunityCount ?? '—'}
-          hint="Scored buy candidates live now"
-        />
-        <StatBlock
-          label="Top mover"
-          value={
-            topMover
-              ? `${topMover.changePct >= 0 ? '+' : ''}${topMover.changePct.toFixed(1)}%`
-              : '—'
-          }
-          trend={topMover ? (topMover.changePct >= 0 ? 'up' : 'down') : undefined}
-          hint={topMover?.cardName ?? 'No movers yet'}
-        />
-        <StatBlock label="Signals analyzed" value={signalsAnalyzed ?? '—'} hint="Last 24 hours" />
-      </div>
-
-      {topMovers.length > 0 && (
-        <div className="marquee-container rounded-xl border border-border-subtle bg-surface-raised/60 py-2.5">
-          <div className="marquee-content" style={{ animationDuration: '32s' }}>
-            {[...topMovers, ...topMovers].map((m, i) => (
-              <span
-                key={`${m.cardId}-${i}`}
-                className="inline-flex items-center gap-1.5 text-xs font-medium"
-              >
-                {m.changePct >= 0 ? (
-                  <TrendingUp className="h-3 w-3 text-gain" aria-hidden />
-                ) : (
-                  <TrendingDown className="h-3 w-3 text-loss" aria-hidden />
-                )}
-                <span className="text-ink-secondary">{m.cardName ?? 'Unknown card'}</span>
-                <span className={m.changePct >= 0 ? 'text-gain' : 'text-loss'}>
-                  {m.changePct >= 0 ? '+' : ''}
-                  {m.changePct.toFixed(1)}%
-                </span>
-              </span>
-            ))}
+      {activeTab !== 'strategy' && (
+        <>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <StatBlock
+              label="Opportunities"
+              value={opportunityCount ?? '—'}
+              hint="Scored buy candidates live now"
+            />
+            <StatBlock
+              label="Top mover"
+              value={
+                topMover
+                  ? `${topMover.changePct >= 0 ? '+' : ''}${topMover.changePct.toFixed(1)}%`
+                  : '—'
+              }
+              trend={topMover ? (topMover.changePct >= 0 ? 'up' : 'down') : undefined}
+              hint={topMover?.cardName ?? 'No movers yet'}
+            />
+            <StatBlock
+              label="Signals analyzed"
+              value={signalsAnalyzed ?? '—'}
+              hint="Last 24 hours"
+            />
           </div>
-        </div>
+
+          {topMovers.length > 0 && (
+            <div className="marquee-container rounded-xl border border-border-subtle bg-surface-raised/60 py-2.5">
+              <div className="marquee-content" style={{ animationDuration: '32s' }}>
+                {[...topMovers, ...topMovers].map((m, i) => (
+                  <span
+                    key={`${m.cardId}-${i}`}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium"
+                  >
+                    {m.changePct >= 0 ? (
+                      <TrendingUp className="h-3 w-3 text-gain" aria-hidden />
+                    ) : (
+                      <TrendingDown className="h-3 w-3 text-loss" aria-hidden />
+                    )}
+                    <span className="text-ink-secondary">{m.cardName ?? 'Unknown card'}</span>
+                    <span className={m.changePct >= 0 ? 'text-gain' : 'text-loss'}>
+                      {m.changePct >= 0 ? '+' : ''}
+                      {m.changePct.toFixed(1)}%
+                    </span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {activeTab === 'signals' && signalsLoadedAt && (
@@ -140,7 +161,7 @@ export function InvestmentsPage() {
         </p>
       )}
 
-      {error && <InlineNotice>{error}</InlineNotice>}
+      {error && activeTab !== 'strategy' && <InlineNotice>{error}</InlineNotice>}
 
       <div
         role="tablist"
@@ -177,6 +198,7 @@ export function InvestmentsPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
       >
+        {activeTab === 'strategy' && <StrategyPanel />}
         {activeTab === 'opportunities' && (
           <OpportunityListPanel
             data={opportunities}
