@@ -315,6 +315,20 @@ async function getPanel(market: MarketKind, refresh = false): Promise<BuiltPanel
   return p;
 }
 
+/** Build both panels in the background so the first page load isn't cold. */
+export async function warmStrategyPanels(): Promise<void> {
+  for (const market of ['raw', 'psa10'] as const) {
+    try {
+      await getPanel(market);
+    } catch (error) {
+      logger.warn('Strategy panel warm-up failed', {
+        market,
+        error: (error as Error).message,
+      });
+    }
+  }
+}
+
 export interface StrategyPick {
   id: string;
   cardId: string | null;
