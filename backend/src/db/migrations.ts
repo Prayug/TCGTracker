@@ -2519,31 +2519,6 @@ export const migrations: Migration[] = [
       });
     },
   },
-  {
-    id: 44,
-    name: 'price_history_source_date_index',
-    up: async (db: Database) => {
-      // The Investments backtest reads one source's days at a time; without
-      // this, every per-source query scans the whole table. Building it on a
-      // large database takes a few minutes, once.
-      logger.info(
-        'Migration 44: indexing price_history(source, date), this can take a few minutes'
-      );
-      return new Promise((resolve, reject) => {
-        db.run(
-          'CREATE INDEX IF NOT EXISTS idx_price_history_source_date ON price_history(source, date)',
-          (err) => (err ? reject(err) : resolve())
-        );
-      });
-    },
-    down: async (db: Database) => {
-      return new Promise((resolve, reject) => {
-        db.run('DROP INDEX IF EXISTS idx_price_history_source_date', (err) =>
-          err ? reject(err) : resolve()
-        );
-      });
-    },
-  },
 ];
 
 // Run pending migrations
