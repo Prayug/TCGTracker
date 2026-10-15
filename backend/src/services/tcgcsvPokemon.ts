@@ -146,37 +146,76 @@ export async function writeTcgcsvRows(
   return { written: values.length, unmapped };
 }
 
+/** Days with a full TCGCSV snapshot (more than 1000 rows), oldest first. */
+export async function listTcgcsvDays(): Promise<{ date: string; n: number }[]> {
+  return all<{ date: string; n: number }>(
+    `SELECT date, COUNT(*) AS n FROM price_history WHERE source = 'tcgcsv'
+     GROUP BY date HAVING COUNT(*) > 1000 ORDER BY date`
+  );
+}
+
+const LIVE_CHECK_SAMPLE = 2000;
+
 /**
  * Last day whose TCGCSV prices differ from the day before. Days after it are
  * carry-forward copies; `frozenDays` is the calendar days from it to the
  * newest copy (0 when the feed is current). A live day reprices thousands of
  * cards, so a handful of changed rows (remaps, one-off writes) on a copied
- * day doesn't count as live.
+ * day doesn't count as live. Compares a fixed sample of cards so it stays
+ * fast on a large database.
  */
-export async function findLastLiveTcgcsvDate(): Promise<{
+export async function findLastLiveTcgcsvDate(knownDays?: { date: string; n: number }[]): Promise<{
   lastLive: string | null;
   frozenDays: number;
 }> {
-  const days = await all<{ date: string; n: number }>(
-    `SELECT date, COUNT(*) AS n FROM price_history WHERE source = 'tcgcsv'
-       GROUP BY date HAVING COUNT(*) > 1000 ORDER BY date DESC LIMIT 400`
-  );
-  const dates = days.map((r) => r.date);
-  for (let i = 0; i + 1 < dates.length; i++) {
-    const [{ changed }] = await all<{ changed: number }>(
-      `SELECT COUNT(*) AS changed
-       FROM price_history a
-       JOIN price_history b
-         ON b.uniqueIdentifier = a.uniqueIdentifier AND b.source = 'tcgcsv' AND b.date = ?
-       WHERE a.source = 'tcgcsv' AND a.date = ? AND a.price != b.price`,
-      [dates[i + 1], dates[i]]
+  const days = (knownDays ?? (await listTcgcsvDays())).slice(-400);
+  if (days.length < 2) return { lastLive: days[0]?.date ?? null, frozenDays: 0 };
+  const newest = days[days.length - 1].date;
+  const oldest = days[0].date;
+
+  const sample = (
+    await all<{ uid: string }>(
+      `SELECT uniqueIdentifier AS uid FROM price_history
+       WHERE source = 'tcgcsv' AND date = ? AND price > 0
+       ORDER BY uniqueIdentifier LIMIT ?`,
+      [newest, LIVE_CHECK_SAMPLE]
+    )
+  ).map((r) => r.uid);
+
+  const prices = new Map<string, Map<string, number>>(); // date → uid → price
+  for (let i = 0; i < sample.length; i += 500) {
+    const chunk = sample.slice(i, i + 500);
+    const rows = await all<{ uid: string; date: string; price: number }>(
+      `SELECT uniqueIdentifier AS uid, date, price FROM price_history
+       WHERE uniqueIdentifier IN (${chunk.map(() => '?').join(',')})
+         AND source = 'tcgcsv' AND date >= ?`,
+      [...chunk, oldest]
     );
-    if (changed >= Math.max(50, days[i].n * LIVE_DAY_MIN_CHANGED_SHARE)) {
-      const span = (Date.parse(dates[0]) - Date.parse(dates[i])) / 86_400_000;
-      return { lastLive: dates[i], frozenDays: Math.round(span) };
+    for (const r of rows) {
+      let byUid = prices.get(r.date);
+      if (!byUid) prices.set(r.date, (byUid = new Map()));
+      byUid.set(r.uid, r.price);
     }
   }
-  return { lastLive: dates[0] ?? null, frozenDays: 0 };
+
+  for (let i = days.length - 1; i > 0; i--) {
+    const cur = prices.get(days[i].date);
+    const prev = prices.get(days[i - 1].date);
+    if (!cur || !prev) continue;
+    let both = 0;
+    let changed = 0;
+    for (const [uid, price] of cur) {
+      const before = prev.get(uid);
+      if (before == null) continue;
+      both++;
+      if (before !== price) changed++;
+    }
+    if (both > 0 && changed >= Math.max(5, both * LIVE_DAY_MIN_CHANGED_SHARE)) {
+      const span = (Date.parse(newest) - Date.parse(days[i].date)) / 86_400_000;
+      return { lastLive: days[i].date, frozenDays: Math.round(span) };
+    }
+  }
+  return { lastLive: newest, frozenDays: 0 };
 }
 
 async function fetchText(path: string): Promise<string> {

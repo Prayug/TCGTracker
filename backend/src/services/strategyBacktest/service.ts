@@ -11,7 +11,7 @@
  */
 import { dbAll } from '../../db/promisified';
 import { logger } from '../../utils/logger';
-import { findLastLiveTcgcsvDate } from '../tcgcsvPokemon';
+import { findLastLiveTcgcsvDate, listTcgcsvDays } from '../tcgcsvPokemon';
 import { cleanDailySeries } from './cleanSeries';
 import {
   BacktestSummary,
@@ -126,14 +126,9 @@ export function dropFrozenWeeks(
 }
 
 async function buildRawPanel(): Promise<BuiltPanel> {
-  const { lastLive, frozenDays } = await findLastLiveTcgcsvDate();
-  const available = (
-    await dbAll<{ date: string }>(
-      `SELECT date FROM price_history WHERE source = 'tcgcsv' AND date <= ?
-       GROUP BY date HAVING COUNT(*) > 1000 ORDER BY date`,
-      [lastLive ?? '0000-00-00']
-    )
-  ).map((r) => r.date);
+  const days = await listTcgcsvDays();
+  const { lastLive, frozenDays } = await findLastLiveTcgcsvDate(days);
+  const available = days.map((d) => d.date).filter((d) => lastLive != null && d <= lastLive);
   const dates = pickWeeklyDates(available);
 
   const index = new Map<string, PanelSeries>();
