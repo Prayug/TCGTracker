@@ -127,10 +127,11 @@ export function EmptyState({ message, isError }: { message: string; isError?: bo
   );
 }
 
-export function PanelLoading() {
+export function PanelLoading({ message }: { message?: string }) {
   return (
-    <div className="flex h-40 items-center justify-center">
+    <div className="flex h-40 flex-col items-center justify-center gap-3">
       <div className="h-4 w-4 animate-[spin_600ms_linear_infinite] rounded-full border-[1.5px] border-ink-muted border-r-transparent" />
+      {message && <p className="max-w-sm text-center text-sm text-ink-muted">{message}</p>}
     </div>
   );
 }

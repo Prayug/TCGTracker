@@ -14,6 +14,7 @@ import { PortfolioService } from './services/portfolioService';
 import { BinderService } from './services/binderService';
 import { WatchlistService } from './services/watchlistService';
 import { setCodeService } from './services/setCodeService';
+import { warmStrategyPanels } from './services/strategyBacktest/service';
 import { logger } from './utils/logger';
 
 initSentry();
@@ -104,6 +105,11 @@ async function bootstrap() {
           error: (error as Error).message,
         });
       }
+    })();
+
+    (async () => {
+      await new Promise((r) => setTimeout(r, 30_000));
+      await warmStrategyPanels();
     })();
   } catch (error) {
     logger.error('Failed to start server', {
