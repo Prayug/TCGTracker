@@ -27,11 +27,14 @@ function useStrategyReport(market: StrategyMarket, horizonWeeks: number) {
   const [report, setReport] = useState<StrategyReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const [slow, setSlow] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setFailed(false);
+    setSlow(false);
+    const slowTimer = setTimeout(() => setSlow(true), 3000);
     fetchStrategyReport({ market, horizonWeeks }, controller.signal)
       .then((res) => {
         if (controller.signal.aborted) return;
@@ -42,12 +45,16 @@ function useStrategyReport(market: StrategyMarket, horizonWeeks: number) {
         if (!controller.signal.aborted) setFailed(true);
       })
       .finally(() => {
+        clearTimeout(slowTimer);
         if (!controller.signal.aborted) setLoading(false);
       });
-    return () => controller.abort();
+    return () => {
+      clearTimeout(slowTimer);
+      controller.abort();
+    };
   }, [market, horizonWeeks]);
 
-  return { report, loading, failed };
+  return { report, loading, failed, slow };
 }
 
 function StrategyRow({ s }: { s: StrategySummary }) {
@@ -191,7 +198,7 @@ function PickRow({ p, onOpen }: { p: StrategyPick; onOpen?: () => void }) {
 export function StrategyPanel() {
   const [market, setMarket] = useState<StrategyMarket>('raw');
   const [horizon, setHorizon] = useState<number>(8);
-  const { report, loading, failed } = useStrategyReport(market, horizon);
+  const { report, loading, failed, slow } = useStrategyReport(market, horizon);
   const [, setSearchParams] = useSearchParams();
 
   const openCard = (cardId: string | null) =>
@@ -228,7 +235,13 @@ export function StrategyPanel() {
       </FilterBar>
 
       {loading ? (
-        <PanelLoading />
+        <PanelLoading
+          message={
+            slow
+              ? 'Building the backtest from price history. The first load after a backend restart can take up to a minute; after that it is cached.'
+              : undefined
+          }
+        />
       ) : failed || !report ? (
         <EmptyState
           message="Couldn't load the backtest. The backend may be offline, or it's still building price history (the first load can take a minute)."
