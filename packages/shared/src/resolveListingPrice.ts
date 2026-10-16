@@ -6,7 +6,14 @@
  * 2. Ask-wall `mid`/`high` with a sane `market` (Plasma Storm Charizard: market $1,150, mid $19,999)
  *
  * Prefer market when it sits in the low/high band. Never let an inflated mid override a sane market.
+ *
+ * On thin high-end cards every live ask can sit well above recent sales (Plasma Storm
+ * Lugia-EX: market $1,344, cheapest ask $2,900, mid $3,999). That gap is normal, so a
+ * market is only junk when it is a small fraction of the floor, not merely under it.
  */
+
+/** Market below this share of the cheapest ask is a broken quote (Shining Charizard: 0.3%). */
+const JUNK_MARKET_FLOOR_RATIO = 0.25;
 
 export type ListingPriceFields = {
   market?: number | null;
@@ -37,7 +44,7 @@ export function isCoherentMarketPrice(
   high?: number | null
 ): boolean {
   if (!positive(market)) return false;
-  if (positive(low) && market < low * 0.5) {
+  if (positive(low) && market < low * JUNK_MARKET_FLOOR_RATIO) {
     if (isAskWallLowBand(market, low, high)) return true;
     return false;
   }
