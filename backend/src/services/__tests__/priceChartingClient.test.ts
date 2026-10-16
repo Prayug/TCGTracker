@@ -327,6 +327,38 @@ describe('parseFullPrices', () => {
     expect(psa10!.lastSoldDate).toBe('2026-08-18');
     expect(psa10!.lastSoldPrice).toBe(2410);
   });
+
+  it("keeps each grade's last sale inside its own sold table", () => {
+    const sale = (id: number, date: string, price: string) =>
+      `<tr id="ebay-${id}"><td class="date">${date}</td><td class="title">` +
+      `<a href="#">Lugia EX #134</a></td><td><span class="js-price">${price}</span></td></tr>`;
+    const html =
+      '<div id="full-prices"><table>' +
+      '<tr><td>PSA 10</td><td class="price js-price">$6,989.00</td></tr>' +
+      '<tr><td>BGS 10</td><td class="price js-price">$9,086.00</td></tr>' +
+      '<tr><td>Grade 7</td><td class="price js-price">$953.37</td></tr>' +
+      '</table></div>' +
+      '<select id="completed-auctions-condition">' +
+      '<option value="completed-auctions-manual-only">PSA 10 (2)</option>' +
+      '<option value="completed-auctions-loose-and-box">BGS 10 (0)</option>' +
+      '<option value="completed-auctions-cib">Grade 7 (1)</option>' +
+      '</select>' +
+      '<div class="completed-auctions-manual-only"><table><tbody>' +
+      sale(1, '2024-05-25', '$4,800.00') +
+      sale(2, '2024-03-05', '$4,284.85') +
+      '</tbody></table></div>' +
+      '<div class="completed-auctions-loose-and-box"><table><tbody></tbody></table></div>' +
+      '<div class="completed-auctions-cib"><table><tbody>' +
+      sale(3, '2026-09-30', '$750.00') +
+      '</tbody></table></div>';
+    const prices = parseFullPrices(html);
+    const psa10 = prices.find((p) => p.grader === 'psa' && p.grade === '10');
+    expect(psa10!.lastSoldDate).toBe('2024-05-25');
+    expect(psa10!.lastSoldPrice).toBe(4800);
+    const bgs10 = prices.find((p) => p.grader === 'bgs' && p.grade === '10');
+    expect(bgs10!.lastSoldDate).toBeNull();
+    expect(bgs10!.lastSoldPrice).toBeNull();
+  });
 });
 
 describe('PriceCharting slugs keep ampersands', () => {
