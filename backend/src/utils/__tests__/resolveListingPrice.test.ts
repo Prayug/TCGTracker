@@ -16,6 +16,13 @@ describe('resolveListingPrice', () => {
     expect(resolveListingPrice({ market: 19.99, mid: 7583, low: 6165.99, high: 9000 })).toBe(7583);
   });
 
+  it('keeps a sold market that sits under a thin, high ask floor', () => {
+    // Plasma Storm Lugia-EX: one listing at $3,999.99 and a $2,900 floor, sales near $1,344.
+    expect(resolveListingPrice({ market: 1344.25, mid: 3999.99, low: 2900, high: 7000 })).toBe(
+      1344.25
+    );
+  });
+
   it('uses mid when market is missing', () => {
     expect(resolveListingPrice({ market: null, mid: 7583, low: 6165.99, high: 9000 })).toBe(7583);
   });
@@ -65,6 +72,17 @@ describe('resolveHistoryPointPrice', () => {
         highPrice: 9000,
       })
     ).toBeCloseTo((6165.99 + 9000) / 2);
+  });
+
+  it('keeps a stored market that sits well under a wide ask band', () => {
+    // Lugia-EX on 2026-06-13: $725 market, $2,999.99 floor. Averaging low/high drew a $4,950 spike.
+    expect(
+      resolveHistoryPointPrice({
+        marketPrice: 725,
+        lowPrice: 2999.99,
+        highPrice: 6905.53,
+      })
+    ).toBe(725);
   });
 
   it('keeps market when low/high are a tight ask wall above it', () => {

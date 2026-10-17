@@ -15,6 +15,7 @@
     "price-update": "ts-node src/scripts/runPriceUpdate.ts",
     "backfill:tcgcsv": "ts-node src/scripts/backfillTcgcsvArchive.ts",
     "backfill:slabs": "ts-node src/scripts/backfillSlabHistory.ts",
+    "repair:ask-wall": "ts-node src/scripts/repairAskWallSnapshots.ts",
     "rebuild-calibration": "ts-node src/scripts/rebuildCalibration.ts",
     "sample-cards": "ts-node src/scripts/sampleCards.ts",
     "upload-db-to-cloud": "ts-node src/scripts/uploadDbToCloud.ts",

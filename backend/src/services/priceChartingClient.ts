@@ -763,8 +763,14 @@ export const parseLastSoldByGrade = (html: string): Map<string, CompletedSale> =
     while (from < html.length) {
       const i = html.indexOf(marker, from);
       if (i < 0) break;
-      const chunk = html.slice(i, i + 120000);
-      if (chunk.includes('<table') && /id="ebay-\d+"/.test(chunk)) {
+      // Stop at this grade's own </table>. A wider window ran into the next grades'
+      // tables, so a PSA 10 with no sale since 2024 picked up a $750 lower-grade sale.
+      const tableStart = html.indexOf('<table', i);
+      const tableEnd = tableStart < 0 ? -1 : html.indexOf('</table>', tableStart);
+      const nextGrade = html.indexOf('<div class="completed-auctions-', i + marker.length);
+      const ownsTable = tableStart >= 0 && (nextGrade < 0 || tableStart < nextGrade);
+      const chunk = ownsTable && tableEnd > 0 ? html.slice(tableStart, tableEnd) : '';
+      if (/id="ebay-\d+"/.test(chunk)) {
         tableHtml = chunk;
         break;
       }

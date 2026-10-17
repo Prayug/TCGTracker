@@ -353,6 +353,8 @@ const initializeDatabaseBody = async (): Promise<void> => {
     'CREATE INDEX IF NOT EXISTS idx_price_history_date ON price_history(date)',
     'CREATE INDEX IF NOT EXISTS idx_price_history_product ON price_history(productId)',
     'CREATE INDEX IF NOT EXISTS idx_price_history_identifier ON price_history(uniqueIdentifier)',
+    // Covers the per-day tcgcsv scans behind the strategy backtest (22 s → 0.1 s).
+    "CREATE INDEX IF NOT EXISTS idx_price_history_tcgcsv_date ON price_history(date) WHERE source = 'tcgcsv'",
     'CREATE INDEX IF NOT EXISTS idx_card_mappings_identifier ON card_mappings(uniqueIdentifier)',
     'CREATE INDEX IF NOT EXISTS idx_card_mappings_card_id ON card_mappings(cardId)',
     'CREATE INDEX IF NOT EXISTS idx_card_mappings_card_set ON card_mappings(cardName, setId, cardNumber)',

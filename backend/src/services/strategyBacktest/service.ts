@@ -11,7 +11,7 @@
  */
 import { dbAll } from '../../db/promisified';
 import { logger } from '../../utils/logger';
-import { findLastLiveTcgcsvDate } from '../tcgcsvPokemon';
+import { findLastLiveTcgcsvDate, listTcgcsvDays } from '../tcgcsvPokemon';
 import { cleanDailySeries } from './cleanSeries';
 import {
   BacktestSummary,
@@ -126,14 +126,9 @@ export function dropFrozenWeeks(
 }
 
 async function buildRawPanel(): Promise<BuiltPanel> {
-  const { lastLive, frozenDays } = await findLastLiveTcgcsvDate();
-  const available = (
-    await dbAll<{ date: string }>(
-      `SELECT date FROM price_history WHERE source = 'tcgcsv' AND date <= ?
-       GROUP BY date HAVING COUNT(*) > 1000 ORDER BY date`,
-      [lastLive ?? '0000-00-00']
-    )
-  ).map((r) => r.date);
+  const days = await listTcgcsvDays();
+  const { lastLive, frozenDays } = await findLastLiveTcgcsvDate(days);
+  const available = days.map((d) => d.date).filter((d) => lastLive != null && d <= lastLive);
   const dates = pickWeeklyDates(available);
 
   const index = new Map<string, PanelSeries>();
@@ -313,6 +308,20 @@ async function getPanel(market: MarketKind, refresh = false): Promise<BuiltPanel
     .finally(() => inflight.delete(market));
   inflight.set(market, p);
   return p;
+}
+
+/** Build both panels in the background so the first page load isn't cold. */
+export async function warmStrategyPanels(): Promise<void> {
+  for (const market of ['raw', 'psa10'] as const) {
+    try {
+      await getPanel(market);
+    } catch (error) {
+      logger.warn('Strategy panel warm-up failed', {
+        market,
+        error: (error as Error).message,
+      });
+    }
+  }
 }
 
 export interface StrategyPick {

@@ -9,6 +9,7 @@ export {
   isCoherentMarketPrice,
   isAskWallPrice,
   resolveListingPrice,
+  JUNK_MARKET_FLOOR_RATIO,
   resolveHistoryPointPrice,
   extractBestListingPrice,
 } from './resolveListingPrice';
