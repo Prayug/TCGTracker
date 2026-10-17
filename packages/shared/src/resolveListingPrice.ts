@@ -12,8 +12,11 @@
  * market is only junk when it is a small fraction of the floor, not merely under it.
  */
 
-/** Market below this share of the cheapest ask is a broken quote (Shining Charizard: 0.3%). */
-const JUNK_MARKET_FLOOR_RATIO = 0.25;
+/**
+ * Market below this share of the cheapest ask is a broken quote (Shining Charizard: 0.3%).
+ * Lugia-EX sat at 24% of its floor ($725 vs $2,999.99) with a real market, so keep this low.
+ */
+export const JUNK_MARKET_FLOOR_RATIO = 0.1;
 
 export type ListingPriceFields = {
   market?: number | null;
@@ -25,17 +28,6 @@ export type ListingPriceFields = {
 const positive = (value: number | null | undefined): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value > 0;
 
-/**
- * Tight ask band parked above market (e.g. low=high=$4500 while market=$2100).
- * That is listing noise — keep market — not a junk $19.99 market under a real floor.
- */
-function isAskWallLowBand(market: number, low?: number | null, high?: number | null): boolean {
-  if (!positive(low) || !positive(high)) return false;
-  if (high > low * 1.25) return false;
-  if (low <= market * 1.5) return false;
-  return market >= low * 0.2;
-}
-
 /** Market is usable when it isn't absurdly below low or above high. Mid is ignored here on purpose. */
 export function isCoherentMarketPrice(
   market: number | null | undefined,
@@ -44,10 +36,7 @@ export function isCoherentMarketPrice(
   high?: number | null
 ): boolean {
   if (!positive(market)) return false;
-  if (positive(low) && market < low * JUNK_MARKET_FLOOR_RATIO) {
-    if (isAskWallLowBand(market, low, high)) return true;
-    return false;
-  }
+  if (positive(low) && market < low * JUNK_MARKET_FLOOR_RATIO) return false;
   if (positive(high) && market > high * 2) return false;
   return true;
 }

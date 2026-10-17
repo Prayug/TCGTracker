@@ -74,6 +74,17 @@ describe('resolveHistoryPointPrice', () => {
     ).toBeCloseTo((6165.99 + 9000) / 2);
   });
 
+  it('keeps a stored market that sits well under a wide ask band', () => {
+    // Lugia-EX on 2026-06-13: $725 market, $2,999.99 floor. Averaging low/high drew a $4,950 spike.
+    expect(
+      resolveHistoryPointPrice({
+        marketPrice: 725,
+        lowPrice: 2999.99,
+        highPrice: 6905.53,
+      })
+    ).toBe(725);
+  });
+
   it('keeps market when low/high are a tight ask wall above it', () => {
     // Legendary Collection Charizard reverse: market sat at $2100 while low/high
     // stuck at ~$4500 — that plateau was sanitizer noise, not a real print move.
