@@ -1,4 +1,8 @@
-import { detectListingRiskFlags, parseEbayListingTitle } from '../ebayListingParser';
+import {
+  detectListingRiskFlags,
+  listingIsNonEnglish,
+  parseEbayListingTitle,
+} from '../ebayListingParser';
 import { pickBestListingMatch, scoreListingAgainstCard } from '../ebayDealMatcher';
 import type { CatalogCardRef } from '../ebayDealMatcher';
 
@@ -74,6 +78,13 @@ describe('parseEbayListingTitle', () => {
   it('detects Asian English One Piece listings', () => {
     expect(parseEbayListingTitle('One Piece OP09-118 Luffy Asian English').language).toBe('other');
     expect(parseEbayListingTitle('OP09-118 Luffy AE ver PSA 10').language).toBe('other');
+  });
+
+  it('does not treat a Spanish printing as the English card', () => {
+    const title =
+      'Pokémon TCG Umbreon VMAX 215/203 Alt Art Secret Rare Evolving Skies Spanish NM';
+    expect(parseEbayListingTitle(title).language).toBe('other');
+    expect(listingIsNonEnglish(title)).toBe(true);
   });
 
   it('keeps explicit English One Piece listings even when shipped from Japan', () => {

@@ -426,6 +426,10 @@ describe('PriceCharting finish matching', () => {
 
   it('detects reverse vs unlimited from title/url', () => {
     expect(detectPcFinishFamily(reverse.title, reverse.url)).toBe('reverse');
+    expect(
+      detectPcFinishFamily('2003 POKEMON SKYRIDGE #146 CHARIZARD-REVERSE FOIL PSA 10', '')
+    ).toBe('reverse');
+    expect(detectPcFinishFamily('Charizard Holo PSA 10', '')).toBe('standard');
     expect(detectPcFinishFamily(unlimited.title, unlimited.url)).toBe('standard');
     expect(expectedPcFinishFamily('reverseHolofoil')).toBe('reverse');
     expect(expectedPcFinishFamily('normal')).toBe('standard');

@@ -3,10 +3,14 @@ import { dbAll, dbGet, dbRun } from '../db/promisified';
 import { logger } from '../utils/logger';
 import { getLatestCanonicalPrice } from './canonicalPriceService';
 import {
-  canonicalGradedHistoryVariantKey,
   enrichGradedPrice,
   type GradedPrice,
 } from './gradedPriceService';
+import {
+  gradedQuoteAgeDays,
+  gradedQuoteLookupKeys,
+  pickFreshestGradedQuote,
+} from './gradedDealQuote';
 import {
   CCG_INDIVIDUAL_CARDS_CATEGORY,
   EBAY_BROWSE_MAX_OFFSET,
@@ -876,6 +880,16 @@ const scheduledStarts = new Map<string, ReturnType<typeof setTimeout>>();
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Rate-limit waits must notice a refresh that replaced this crawl. */
+async function sleepWhileCurrent(state: CrawlState, ms: number): Promise<void> {
+  let left = Math.max(0, ms);
+  while (left > 0 && state.running && crawlStates.get(state.key) === state) {
+    const slice = Math.min(1000, left);
+    await sleep(slice);
+    left -= slice;
+  }
+}
+
 function marketplaceQueryPlan(game: DealGame, listingType: DealListingTypeFilter): CrawlQuery[] {
   const gameWord = game === 'onepiece' ? 'One Piece' : 'Pokemon';
   const plan: CrawlQuery[] = [];
@@ -1137,11 +1151,11 @@ async function runMarketplaceCrawl(state: CrawlState): Promise<void> {
           scanned: state.listingsScanned,
         });
         if (consecutiveRateLimits >= RATE_LIMIT_CONSECUTIVE_STOP) consecutiveRateLimits = 0;
-        await sleep(waitMs);
+        await sleepWhileCurrent(state, waitMs);
         continue;
       }
       if (page.error === 'unavailable') {
-        await sleep(8_000);
+        await sleepWhileCurrent(state, 8_000);
         continue;
       }
       consecutiveRateLimits = 0;
@@ -1262,6 +1276,25 @@ function maybeStartCrawl(state: CrawlState): void {
   });
 }
 
+/**
+ * Start this state, or start it when the crawl it replaced finishes.
+ * maybeStartCrawl no-ops while crawlRuns still holds the previous promise, and a
+ * later poll only restarts when running is false — so a refresh during an
+ * in-flight scan used to leave the new state "scanning" forever.
+ */
+function queueCrawl(state: CrawlState): void {
+  const inFlight = crawlRuns.get(state.key);
+  if (!inFlight) {
+    maybeStartCrawl(state);
+    return;
+  }
+  void inFlight.finally(() => {
+    if (crawlStates.get(state.key) !== state || !state.running || state.done) return;
+    if (crawlRuns.has(state.key) || scheduledStarts.has(state.key)) return;
+    maybeStartCrawl(state);
+  });
+}
+
 async function ensureMarketplaceCrawl(query: DealQuery): Promise<CrawlState> {
   const key = cacheKey(query.game, query.cardId, query.listingType);
   let state = crawlStates.get(key);
@@ -1289,7 +1322,7 @@ async function ensureMarketplaceCrawl(query: DealQuery): Promise<CrawlState> {
     }
     state = emptyCrawlState(key, query.game, query.cardId, query.listingType || 'all');
     crawlStates.set(key, state);
-    maybeStartCrawl(state);
+    queueCrawl(state);
     return state;
   }
 
@@ -1298,13 +1331,20 @@ async function ensureMarketplaceCrawl(query: DealQuery): Promise<CrawlState> {
     if (hydrated) return hydrated;
     state = emptyCrawlState(key, query.game, query.cardId, query.listingType || 'all');
     crawlStates.set(key, state);
-    maybeStartCrawl(state);
+    queueCrawl(state);
     return state;
   }
 
   if (!state.running && !state.done) {
     state.running = true;
-    maybeStartCrawl(state);
+    queueCrawl(state);
+  } else if (
+    state.running &&
+    !state.done &&
+    !crawlRuns.has(key) &&
+    !scheduledStarts.has(key)
+  ) {
+    queueCrawl(state);
   }
 
   return state;
@@ -1448,8 +1488,9 @@ async function resolveGradedMarket(
   matchScore: number | null;
   stale: boolean;
 } | null> {
-  const variantKey = canonicalGradedHistoryVariantKey(card.variantKey);
-  const row = await dbGet<{
+  const keys = gradedQuoteLookupKeys(card.variantKey);
+  const rows = await dbAll<{
+    variantKey: string;
     price: number | null;
     soldListings: number | null;
     fetchedAt: string;
@@ -1461,16 +1502,18 @@ async function resolveGradedMarket(
     listedAvg: number | null;
     listedCount: number | null;
   }>(
-    `SELECT price, soldListings, fetchedAt, verified, matchScore,
+    `SELECT variantKey, price, soldListings, fetchedAt, verified, matchScore,
             lastSoldDate, lastSoldPrice, listedLow, listedAvg, listedCount
      FROM graded_prices
-     WHERE cardId = ? AND LOWER(grader) = ? AND LOWER(grade) = ? AND variantKey = ?
-       AND COALESCE(verified, 0) = 1
-     ORDER BY fetchedAt DESC
-     LIMIT 1`,
-    [card.cardId, grader.toLowerCase(), grade.toLowerCase(), variantKey]
+     WHERE cardId = ? AND LOWER(grader) = ? AND LOWER(grade) = ?
+       AND variantKey IN (${keys.map(() => '?').join(', ')})
+       AND COALESCE(verified, 0) = 1`,
+    [card.cardId, grader.toLowerCase(), grade.toLowerCase(), ...keys]
   );
+  const row = pickFreshestGradedQuote(rows, card.variantKey);
   if (!row || row.price == null || !(row.price > 0)) return null;
+  const quoteAgeDays = gradedQuoteAgeDays(row.fetchedAt);
+  if (quoteAgeDays != null && quoteAgeDays > MAX_PRICE_AGE_DAYS) return null;
 
   const enriched: GradedPrice = enrichGradedPrice({
     grader,
@@ -1813,6 +1856,124 @@ function summarize(deals: DealCardPayload[]): DealSummary {
   };
 }
 
+function dealPoolKey(game: DealGame, listingId: string, cardWatchId?: string): string {
+  return cardWatchId ? cardPoolKey(game, cardWatchId, listingId) : marketPoolKey(game, listingId);
+}
+
+/**
+ * Cached deals keep the market from whenever they were scanned. Graded quotes
+ * move to a newer variant row without the listing being seen again, so re-read
+ * the freshest quote before the feed is shown.
+ */
+async function repriceGradedDeals(
+  deals: DealCardPayload[],
+  game: DealGame,
+  cardWatchId?: string
+): Promise<DealCardPayload[]> {
+  const englishDeals = deals.filter((deal) => {
+    if (!listingIsNonEnglish(deal.listingTitle)) return true;
+    recentDealPool.delete(dealPoolKey(game, deal.listingId, cardWatchId));
+    return false;
+  });
+  const graded = englishDeals.filter(
+    (deal) => deal.dealCondition === 'graded' && deal.grader && deal.grade
+  );
+  if (graded.length === 0) return englishDeals;
+
+  const cardIds = [...new Set(graded.map((deal) => deal.cardId))];
+  const rows: Array<{
+    cardId: string;
+    variantKey: string;
+    grader: string;
+    grade: string;
+    price: number | null;
+    fetchedAt: string;
+  }> = [];
+  for (let i = 0; i < cardIds.length; i += 400) {
+    const slice = cardIds.slice(i, i + 400);
+    const batch = await dbAll<{
+      cardId: string;
+      variantKey: string;
+      grader: string;
+      grade: string;
+      price: number | null;
+      fetchedAt: string;
+    }>(
+      `SELECT cardId, variantKey, grader, grade, price, fetchedAt
+       FROM graded_prices
+       WHERE COALESCE(verified, 0) = 1
+         AND cardId IN (${slice.map(() => '?').join(', ')})`,
+      slice
+    );
+    rows.push(...batch);
+  }
+
+  const byCard = new Map<string, typeof rows>();
+  for (const row of rows) {
+    const key = `${row.cardId}|${row.grader.toLowerCase()}|${row.grade.toLowerCase()}`;
+    const list = byCard.get(key);
+    if (list) list.push(row);
+    else byCard.set(key, [row]);
+  }
+
+  const out: DealCardPayload[] = [];
+  for (const deal of englishDeals) {
+    const poolKey = dealPoolKey(game, deal.listingId, cardWatchId);
+    if (deal.dealCondition !== 'graded' || !deal.grader || !deal.grade) {
+      out.push(deal);
+      continue;
+    }
+    const candidates =
+      byCard.get(`${deal.cardId}|${deal.grader.toLowerCase()}|${deal.grade.toLowerCase()}`) || [];
+    const row = pickFreshestGradedQuote(candidates, deal.variantKey);
+    const ageDays = row ? gradedQuoteAgeDays(row.fetchedAt) : null;
+    if (!row || row.price == null || (ageDays != null && ageDays > MAX_PRICE_AGE_DAYS)) {
+      recentDealPool.delete(poolKey);
+      continue;
+    }
+    if (deal.marketUpdatedAt === row.fetchedAt && deal.marketValue === row.price) {
+      out.push(deal);
+      continue;
+    }
+    const economics = calculateDealEconomics(deal.listingPrice, deal.shipping, row.price);
+    if (!economics) {
+      recentDealPool.delete(poolKey);
+      continue;
+    }
+    const breakdown = computeDealScore({
+      discountPercent: economics.discountPercent,
+      discountAmount: economics.discountAmount,
+      marketValue: economics.marketValue,
+      matchConfidence: deal.matchConfidence,
+      liquidityScore: deal.liquidityScore,
+      listingAgeHours: null,
+      listingType: deal.listingType,
+      hoursRemaining: deal.hoursRemaining,
+    });
+    const updated: DealCardPayload = {
+      ...deal,
+      listingPrice: economics.listingPrice,
+      shipping: economics.shipping,
+      allInCost: economics.allInCost,
+      marketValue: economics.marketValue,
+      marketUpdatedAt: row.fetchedAt,
+      marketStale: ageDays != null && ageDays > 1,
+      discountAmount: economics.discountAmount,
+      discountPercent: economics.discountPercent,
+      dealScore: breakdown.dealScore,
+      scoreBreakdown: breakdown,
+      maxBid:
+        deal.listingType === 'auction' && deal.desiredAuctionMargin != null
+          ? calculateMaxBid(economics.marketValue, economics.shipping, deal.desiredAuctionMargin)
+          : deal.maxBid,
+    };
+    const existing = recentDealPool.get(poolKey);
+    if (existing) recentDealPool.set(poolKey, { ...existing, deal: updated });
+    out.push(updated);
+  }
+  return out;
+}
+
 export async function getDeals(query: DealQuery, userId?: number): Promise<DealsResult> {
   try {
     return await getDealsUnsafe(query, userId);
@@ -1893,7 +2054,11 @@ async function getDealsUnsafe(query: DealQuery, userId?: number): Promise<DealsR
   const crawl = await ensureMarketplaceCrawl(query);
   const retryInMs = await getEbayCooldownRemainingMs();
   const waitingOnEbay = retryInMs > 5_000 && crawl.running && crawl.listingsScanned === 0;
-  const all = dealsFromPool(query.game, query.cardId).map((e) => e.deal);
+  const all = await repriceGradedDeals(
+    dealsFromPool(query.game, query.cardId).map((e) => e.deal),
+    query.game,
+    query.cardId
+  );
 
   const dealFeed = applyFilters(
     all.filter((d) => d.feed === 'deal'),

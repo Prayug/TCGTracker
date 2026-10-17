@@ -138,7 +138,8 @@ export interface ProductMatchInput {
  */
 export type PcFinishFamily = 'standard' | 'reverse' | '1stedition' | '1steditionreverse';
 
-const hasReverseFinish = (hay: string): boolean => /reverse[\s-]*holo/.test(hay);
+const hasReverseFinish = (hay: string): boolean =>
+  /reverse[\s-]*holo/.test(hay) || /reverse[\s-]*foil/.test(hay) || /\brev[\s-]*holo/.test(hay);
 const hasFirstEditionFinish = (hay: string): boolean =>
   /1st[\s-]*edition/.test(hay) || /first[\s-]*edition/.test(hay);
 

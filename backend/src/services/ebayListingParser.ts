@@ -75,7 +75,7 @@ const RISK_PATTERNS: Array<{ re: RegExp; flag: DealRiskFlag }> = [
 const JP_SIGNAL_RE =
   /\b(japanese|japan|jap|jpn|jp|nihongo|from\s*japan|ships?\s*from\s*japan|japan\s*(?:ver(?:sion)?|print|copy|edition)|jp(?:n)?\s*(?:ver(?:sion)?|print|copy|edition)|eevee\s*heroes|moonbreon|terastal\s*festival|sv8a|s6a|s8b|s12a|sv2a)\b|ワンピース|ワンピ(?:ース)?カード?|【|\djp\b/i;
 const OTHER_LANG_RE =
-  /\b(korean|\bkor\b|hangul|chinese|mandarin|cantonese|simplified\s*chinese|traditional\s*chinese)\b/i;
+  /\b(korean|\bkor\b|hangul|chinese|mandarin|cantonese|simplified\s*chinese|traditional\s*chinese|spanish|espa[nñ]ol|french|fran[cç]ais|german|deutsch|italian|italiano|portuguese|portugu[eê]s)\b/i;
 const ASIAN_ENGLISH_RE =
   /\basian\s*(english|eng)\b|\bae\s*(ver(?:sion)?|print|eng(?:lish)?)\b|\benglish\s*asian\b/i;
 const EN_SIGNAL_RE = /\b(english|\beng\b|\busa\b|north\s*american)\b/i;
