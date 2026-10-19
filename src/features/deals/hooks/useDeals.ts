@@ -103,7 +103,7 @@ export function useDeals() {
   const retryAttempt = useRef(0);
 
   const load = useCallback(
-    async (signal?: AbortSignal, forceRefresh = false, silent = false) => {
+    async (signal?: AbortSignal, forceRefresh: boolean | 'full' = false, silent = false) => {
       if (silent && inFlight.current) return;
       if (silent && Date.now() < backoffUntil.current) return;
       const id = loadId.current + 1;
@@ -254,6 +254,10 @@ export function useDeals() {
     refresh: () => {
       retryAttempt.current = 0;
       void load(undefined, true);
+    },
+    fullRescan: () => {
+      retryAttempt.current = 0;
+      void load(undefined, 'full');
     },
     relaxFilters,
   };

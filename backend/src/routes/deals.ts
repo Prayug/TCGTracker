@@ -38,7 +38,7 @@ const querySchema = z.object({
   sort: sortSchema.optional(),
   cardId: z.string().optional(),
   desiredAuctionMargin: z.coerce.number().min(0).max(90).optional(),
-  refresh: z.enum(['1', 'true', '0', 'false']).optional(),
+  refresh: z.enum(['1', 'true', '0', 'false', 'full']).optional(),
 });
 
 function parseQuery(req: AuthRequest): DealQuery {
@@ -61,7 +61,8 @@ function parseQuery(req: AuthRequest): DealQuery {
     language: parsed.language,
     sort: (parsed.sort || 'best') as DealSort,
     desiredAuctionMargin: parsed.desiredAuctionMargin,
-    refresh: parsed.refresh === '1' || parsed.refresh === 'true',
+    refresh: parsed.refresh === '1' || parsed.refresh === 'true' || parsed.refresh === 'full',
+    fullRescan: parsed.refresh === 'full',
   };
 }
 

@@ -126,6 +126,8 @@ export interface DealsMeta {
   queryOffset?: number;
   /** Listings eBay can return for the current search. */
   queryReachable?: number | null;
+  /** 'quick' only checks listings new since the last scan. */
+  scanMode?: 'full' | 'quick';
 }
 
 export function ebayRetryRemainingMs(meta: DealsMeta | null | undefined, now = Date.now()): number {

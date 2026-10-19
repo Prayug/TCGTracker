@@ -20,7 +20,8 @@ export interface FetchDealsParams {
   language?: 'en' | 'ja';
   sort?: DealSort;
   desiredAuctionMargin?: number;
-  refresh?: boolean;
+  /** 'full' walks every search again; true only checks listings new since the last scan. */
+  refresh?: boolean | 'full';
 }
 
 function toSearchParams(params: FetchDealsParams): URLSearchParams {
@@ -43,7 +44,7 @@ function toSearchParams(params: FetchDealsParams): URLSearchParams {
   if (params.desiredAuctionMargin != null) {
     q.set('desiredAuctionMargin', String(params.desiredAuctionMargin));
   }
-  if (params.refresh) q.set('refresh', '1');
+  if (params.refresh) q.set('refresh', params.refresh === 'full' ? 'full' : '1');
   return q;
 }
 
