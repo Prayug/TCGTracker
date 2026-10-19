@@ -45,10 +45,10 @@ export const SearchInput: React.FC<SearchInputProps> = ({
         placeholder={placeholder}
         value={inputValue}
         onChange={(e) => setInputValue(e.target.value)}
-        disabled={isLoading}
-        className={`w-full text-ink-primary placeholder:text-ink-muted focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 ${
+        aria-busy={isLoading}
+        className={`w-full text-ink-primary caret-accent placeholder:text-ink-muted focus:outline-none ${
           isLg
-            ? 'h-14 rounded-2xl border border-border-default bg-surface-raised/90 pl-12 pr-12 text-base shadow-elevated backdrop-blur-sm focus:border-accent/50 focus:ring-2 focus:ring-accent/30'
+            ? 'h-14 rounded-2xl border border-border-default bg-surface-raised/90 pl-12 pr-12 text-base font-medium shadow-elevated backdrop-blur-sm focus:border-accent/50 focus:ring-2 focus:ring-accent/30'
             : 'h-9 rounded-lg bg-surface-raised pl-9 pr-9 text-sm focus:ring-2 focus:ring-accent/40'
         }`}
         aria-label="Search cards"
