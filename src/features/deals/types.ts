@@ -59,6 +59,8 @@ export interface Deal {
   currency: string;
   endDate: string | null;
   hoursRemaining: number | null;
+  /** Set by the API; older saved deals may lack it, so read it through isLiveAuction. */
+  liveAuction?: boolean;
   cardId: string;
   uniqueIdentifier: string;
   cardName: string;
@@ -95,6 +97,17 @@ export interface Deal {
   desiredAuctionMargin: number | null;
   feed: 'deal' | 'review';
   saved?: boolean;
+}
+
+/** Auctions only count as deals in their last 2 hours (mirrors backend dealScoring). */
+export const AUCTION_SETTLED_HOURS = 2;
+
+/** A running auction shows its current bid and a max bid, with no savings figure. */
+export function isLiveAuction(deal: Pick<Deal, 'listingType' | 'endDate' | 'hoursRemaining'>) {
+  if (deal.listingType !== 'auction') return false;
+  const endMs = deal.endDate ? new Date(deal.endDate).getTime() : NaN;
+  const hours = Number.isFinite(endMs) ? (endMs - Date.now()) / 3600000 : deal.hoursRemaining;
+  return hours == null || hours > AUCTION_SETTLED_HOURS;
 }
 
 export interface DealSummary {

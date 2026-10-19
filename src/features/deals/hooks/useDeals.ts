@@ -5,7 +5,7 @@ import { useGame } from '../../../contexts/GameContext';
 import { fetchDeals } from '../../../services/dealsApi';
 import { listingTitleLooksNonEnglish } from '../listingLanguage';
 import type { Deal, DealFeedTab, DealFiltersState, DealSort, DealsResult } from '../types';
-import { DEFAULT_DEAL_FILTERS } from '../types';
+import { DEFAULT_DEAL_FILTERS, isLiveAuction } from '../types';
 
 export const DEALS_LOAD_GAVE_UP = 'Could not load the eBay scan. Tap Refresh to try again.';
 
@@ -47,13 +47,17 @@ function passesDealFilters(deal: Deal, filters: DealFiltersState): boolean {
   return true;
 }
 
+/** Running auctions have no savings figure, so savings sorts put them last. */
+const bySavings = (key: 'discountPercent' | 'discountAmount') => (a: Deal, b: Deal) =>
+  Number(isLiveAuction(a)) - Number(isLiveAuction(b)) || b[key] - a[key];
+
 function sortDeals(deals: Deal[], sort: DealSort): Deal[] {
   const copy = [...deals];
   switch (sort) {
     case 'discount_pct':
-      return copy.sort((a, b) => b.discountPercent - a.discountPercent);
+      return copy.sort(bySavings('discountPercent'));
     case 'savings':
-      return copy.sort((a, b) => b.discountAmount - a.discountAmount);
+      return copy.sort(bySavings('discountAmount'));
     case 'price':
       return copy.sort((a, b) => a.allInCost - b.allInCost);
     case 'market':
