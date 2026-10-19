@@ -1,6 +1,7 @@
 import { getDb } from '../db/database';
 import { dbAll, dbGet, dbRun } from '../db/promisified';
 import { logger } from '../utils/logger';
+import { normalizeVariantKey } from '../utils/normalizeVariantKey';
 import { getLatestCanonicalPrice } from './canonicalPriceService';
 import {
   canonicalGradedHistoryVariantKey,
@@ -1448,7 +1449,12 @@ async function resolveGradedMarket(
   matchScore: number | null;
   stale: boolean;
 } | null> {
-  const variantKey = canonicalGradedHistoryVariantKey(card.variantKey);
+  // The card page reads the row saved under the card's own finish (e.g. holofoil).
+  // Reading only the canonical key ('normal') compared deals against an older
+  // fetch of the same slab: Lugia-EX PSA 10 was $4,284.85 from August there
+  // and $6,989 on the card page.
+  const variantKey = normalizeVariantKey(card.variantKey ?? undefined);
+  const fallbackKey = canonicalGradedHistoryVariantKey(card.variantKey);
   const row = await dbGet<{
     price: number | null;
     soldListings: number | null;
@@ -1464,11 +1470,11 @@ async function resolveGradedMarket(
     `SELECT price, soldListings, fetchedAt, verified, matchScore,
             lastSoldDate, lastSoldPrice, listedLow, listedAvg, listedCount
      FROM graded_prices
-     WHERE cardId = ? AND LOWER(grader) = ? AND LOWER(grade) = ? AND variantKey = ?
+     WHERE cardId = ? AND LOWER(grader) = ? AND LOWER(grade) = ? AND variantKey IN (?, ?)
        AND COALESCE(verified, 0) = 1
-     ORDER BY fetchedAt DESC
+     ORDER BY CASE WHEN variantKey = ? THEN 0 ELSE 1 END, fetchedAt DESC
      LIMIT 1`,
-    [card.cardId, grader.toLowerCase(), grade.toLowerCase(), variantKey]
+    [card.cardId, grader.toLowerCase(), grade.toLowerCase(), variantKey, fallbackKey, variantKey]
   );
   if (!row || row.price == null || !(row.price > 0)) return null;
 
