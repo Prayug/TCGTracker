@@ -42,6 +42,7 @@ import {
   defaultAuctionMargin,
   hasSeriousRisk,
   isEligibleDeal,
+  isLiveAuction,
   isReliableMarketQuote,
   isUnusuallyLowPrice,
   matchConfidenceTier,
@@ -107,6 +108,8 @@ export interface DealCardPayload {
   currency: string;
   endDate: string | null;
   hoursRemaining: number | null;
+  /** Auction with more than AUCTION_SETTLED_HOURS left: current bid only, no savings. */
+  liveAuction: boolean;
   cardId: string;
   uniqueIdentifier: string;
   cardName: string;
@@ -1677,11 +1680,14 @@ async function evaluateListing(
   const economics = calculateDealEconomics(listing.listingPrice, listing.shipping, marketValue);
   if (!economics) return null;
 
-  if (isUnusuallyLowPrice(economics.discountPercent, dealCondition)) {
+  const hoursRemaining = hoursUntil(listing.endDate);
+  const liveAuction = isLiveAuction(listing.listingType, hoursRemaining);
+
+  // A running auction's bid is supposed to sit far below market; that is not a red flag.
+  if (!liveAuction && isUnusuallyLowPrice(economics.discountPercent, dealCondition)) {
     riskFlags.push('unusually_low_price');
   }
 
-  const hoursRemaining = hoursUntil(listing.endDate);
   const listingAgeHours = hoursSince(listing.createdDate);
   const breakdown = computeDealScore({
     discountPercent: economics.discountPercent,
@@ -1728,6 +1734,7 @@ async function evaluateListing(
     currency: listing.currency,
     endDate: listing.endDate,
     hoursRemaining,
+    liveAuction,
     cardId: card.cardId,
     uniqueIdentifier: card.uniqueIdentifier,
     cardName: card.cardName,
@@ -1770,13 +1777,57 @@ async function evaluateListing(
   };
 }
 
+/**
+ * Pool entries keep the clock from when they were scanned. Re-read it so an auction
+ * that has since entered its last hours is scored, flagged and shown as a deal.
+ */
+function withAuctionClock(deal: DealCardPayload): DealCardPayload {
+  if (deal.listingType !== 'auction') return { ...deal, liveAuction: false };
+  const hoursRemaining = hoursUntil(deal.endDate);
+  const liveAuction = isLiveAuction('auction', hoursRemaining);
+  if (liveAuction === deal.liveAuction && hoursRemaining === deal.hoursRemaining) return deal;
+  const scoreBreakdown = computeDealScore({
+    discountPercent: deal.discountPercent,
+    discountAmount: deal.discountAmount,
+    marketValue: deal.marketValue,
+    matchConfidence: deal.matchConfidence,
+    liquidityScore: deal.liquidityScore,
+    listingAgeHours: null,
+    listingType: 'auction',
+    hoursRemaining,
+  });
+  let { riskFlags, feed } = deal;
+  if (
+    !liveAuction &&
+    !riskFlags.includes('unusually_low_price') &&
+    isUnusuallyLowPrice(deal.discountPercent, deal.dealCondition)
+  ) {
+    riskFlags = [...riskFlags, 'unusually_low_price'];
+    feed = 'review';
+  }
+  return {
+    ...deal,
+    hoursRemaining,
+    liveAuction,
+    dealScore: scoreBreakdown.dealScore,
+    scoreBreakdown,
+    riskFlags,
+    feed,
+  };
+}
+
+/** Running auctions have no savings figure, so savings sorts put them last. */
+const bySavings =
+  (key: 'discountPercent' | 'discountAmount') => (a: DealCardPayload, b: DealCardPayload) =>
+    Number(a.liveAuction) - Number(b.liveAuction) || b[key] - a[key];
+
 function sortDeals(deals: DealCardPayload[], sort: DealSort): DealCardPayload[] {
   const copy = [...deals];
   switch (sort) {
     case 'discount_pct':
-      return copy.sort((a, b) => b.discountPercent - a.discountPercent);
+      return copy.sort(bySavings('discountPercent'));
     case 'savings':
-      return copy.sort((a, b) => b.discountAmount - a.discountAmount);
+      return copy.sort(bySavings('discountAmount'));
     case 'price':
       return copy.sort((a, b) => a.allInCost - b.allInCost);
     case 'market':
@@ -1845,9 +1896,10 @@ function applyFilters(deals: DealCardPayload[], query: DealQuery): DealCardPaylo
 }
 
 function summarize(deals: DealCardPayload[]): DealSummary {
-  const best = deals[0] ?? null;
-  const discounts = deals.map((d) => d.discountPercent);
-  const savings = deals.reduce((sum, d) => sum + Math.max(0, d.discountAmount), 0);
+  const priced = deals.filter((d) => !d.liveAuction);
+  const best = priced[0] ?? null;
+  const discounts = priced.map((d) => d.discountPercent);
+  const savings = priced.reduce((sum, d) => sum + Math.max(0, d.discountAmount), 0);
   return {
     bestDeal: best,
     dealsFound: deals.length,
@@ -2054,11 +2106,14 @@ async function getDealsUnsafe(query: DealQuery, userId?: number): Promise<DealsR
   const crawl = await ensureMarketplaceCrawl(query);
   const retryInMs = await getEbayCooldownRemainingMs();
   const waitingOnEbay = retryInMs > 5_000 && crawl.running && crawl.listingsScanned === 0;
-  const all = await repriceGradedDeals(
+  const repriced = await repriceGradedDeals(
     dealsFromPool(query.game, query.cardId).map((e) => e.deal),
     query.game,
     query.cardId
   );
+  const all = repriced
+    .map((deal) => withAuctionClock(deal))
+    .filter((d) => d.hoursRemaining == null || d.hoursRemaining >= 0);
 
   const dealFeed = applyFilters(
     all.filter((d) => d.feed === 'deal'),

@@ -1,7 +1,7 @@
 import { X } from 'lucide-react';
 import { formatCurrency, formatPercent } from '../../../utils/cardDisplay';
 import type { Deal } from '../types';
-import { EVIDENCE_LABELS, RISK_FLAG_LABELS } from '../types';
+import { EVIDENCE_LABELS, RISK_FLAG_LABELS, isLiveAuction } from '../types';
 
 function formatUpdated(iso: string | null): string {
   if (!iso) return 'Unknown';
@@ -129,7 +129,8 @@ export function DealDetail({ deal, onClose }: { deal: Deal; onClose: () => void 
             <h3 className="section-label mb-2">Pricing Comparison</h3>
             <div className="rounded-xl border border-border-subtle bg-surface-inset p-3">
               <p className="font-mono text-xl font-semibold text-ink-primary">
-                {formatCurrency(deal.allInCost)} all-in
+                {formatCurrency(deal.allInCost)}{' '}
+                {isLiveAuction(deal) ? 'all-in at current bid' : 'all-in'}
               </p>
               <p className="text-sm text-ink-secondary">
                 {formatCurrency(deal.listingPrice)}
@@ -150,10 +151,17 @@ export function DealDetail({ deal, onClose }: { deal: Deal; onClose: () => void 
                 {deal.dealCondition === 'graded' ? ` · ${deal.gradeLabel} reference` : ''}
                 {deal.marketStale ? ' · stale' : ''} · {formatUpdated(deal.marketUpdatedAt)}
               </p>
-              <p className="mt-2 font-medium text-gain">
-                {formatCurrency(deal.discountAmount)} · {formatPercent(deal.discountPercent)} below
-                market
-              </p>
+              {isLiveAuction(deal) ? (
+                <p className="mt-2 text-sm text-ink-secondary">
+                  Live auction: this is the current bid, not a final price. Savings show in the last
+                  2 hours.
+                </p>
+              ) : (
+                <p className="mt-2 font-medium text-gain">
+                  {formatCurrency(deal.discountAmount)} · {formatPercent(deal.discountPercent)}{' '}
+                  below market
+                </p>
+              )}
               {deal.listingType === 'auction' && deal.maxBid != null && (
                 <p className="mt-2 text-sm text-ink-secondary">
                   Max bid for {deal.desiredAuctionMargin}% margin: {formatCurrency(deal.maxBid)}

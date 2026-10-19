@@ -180,13 +180,33 @@ export function isUnusuallyLowPrice(discountPercent: number, condition: DealCond
 }
 
 /**
+ * A running auction's current bid is not a price anyone can buy at, so it only counts
+ * as a deal in its last AUCTION_SETTLED_HOURS. Before that the card shows the current
+ * bid and a max bid, with no savings figure, and the score ignores the discount.
+ */
+export const AUCTION_SETTLED_HOURS = 2;
+
+export function isLiveAuction(
+  listingType: 'bin' | 'auction',
+  hoursRemaining: number | null
+): boolean {
+  if (listingType !== 'auction') return false;
+  return hoursRemaining == null || hoursRemaining > AUCTION_SETTLED_HOURS;
+}
+
+/**
  * Explainable 0–100 score. Absolute savings and market value dominate so a
  * 75%-off bulk common cannot outrank a $100 save on a liquid $500 card.
  */
 export function computeDealScore(input: DealScoreInput): DealScoreBreakdown {
-  const discountComponent = Math.round(clamp(input.discountPercent / 40, 0, 1) * 40 * 10) / 10;
+  const live = isLiveAuction(input.listingType, input.hoursRemaining);
+  const discountComponent = live
+    ? 0
+    : Math.round(clamp(input.discountPercent / 40, 0, 1) * 40 * 10) / 10;
 
-  const savingsComponent = Math.round(clamp(input.discountAmount / 200, 0, 1) * 25 * 10) / 10;
+  const savingsComponent = live
+    ? 0
+    : Math.round(clamp(input.discountAmount / 200, 0, 1) * 25 * 10) / 10;
 
   let marketValueComponent = 0;
   if (input.marketValue >= 10) {

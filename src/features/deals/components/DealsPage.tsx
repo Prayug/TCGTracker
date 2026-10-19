@@ -8,7 +8,7 @@ import { formatCurrency, formatPercent } from '../../../utils/cardDisplay';
 import { DEALS_LOAD_GAVE_UP, useDeals } from '../hooks/useDeals';
 import { useSavedDeals } from '../hooks/useSavedDeals';
 import type { Deal, DealFeedTab } from '../types';
-import { ebayRetryRemainingMs, formatEbayWait, isWaitingOnEbay } from '../types';
+import { ebayRetryRemainingMs, formatEbayWait, isLiveAuction, isWaitingOnEbay } from '../types';
 import { scanProgressView } from '../scanProgress';
 import { DealDetail } from './DealDetail';
 import { DealFeed } from './DealFeed';
@@ -68,16 +68,17 @@ export function DealsPage() {
   const summary = useMemo(() => {
     if (tab === 'review' || tab === 'saved' || !result) return result?.summary ?? null;
     const list = visibleDeals;
-    const discounts = list.map((d) => d.discountPercent);
+    const priced = list.filter((d) => !isLiveAuction(d));
+    const discounts = priced.map((d) => d.discountPercent);
     const mid = discounts.length
       ? [...discounts].sort((a, b) => a - b)[Math.floor(discounts.length / 2)]
       : null;
     return {
-      bestDeal: list[0] ?? null,
+      bestDeal: priced[0] ?? null,
       dealsFound: list.length,
       medianDiscount: mid,
       potentialSavings:
-        Math.round(list.reduce((sum, d) => sum + Math.max(0, d.discountAmount), 0) * 100) / 100,
+        Math.round(priced.reduce((sum, d) => sum + Math.max(0, d.discountAmount), 0) * 100) / 100,
     };
   }, [result, tab, visibleDeals]);
 
