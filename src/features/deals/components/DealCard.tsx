@@ -1,7 +1,7 @@
 import { Bookmark, ExternalLink, X } from 'lucide-react';
 import { formatCurrency, formatPercent } from '../../../utils/cardDisplay';
 import type { Deal } from '../types';
-import { RISK_FLAG_LABELS } from '../types';
+import { RISK_FLAG_LABELS, isLiveAuction } from '../types';
 
 const CONFIDENCE_STYLES: Record<Deal['matchConfidenceTier'], string> = {
   high: 'border-gain/30 bg-gain-muted text-gain',
@@ -35,6 +35,7 @@ export function DealCard({
 }) {
   const remaining = formatTimeRemaining(deal.hoursRemaining);
   const visibleFlags = deal.riskFlags.slice(0, 2);
+  const live = isLiveAuction(deal);
 
   return (
     <article className="flex flex-col rounded-xl border border-border-default bg-surface-raised p-4 text-left transition-colors hover:border-border-strong">
@@ -68,15 +69,28 @@ export function DealCard({
             </span>
           </div>
 
-          <p className="mt-2 font-mono text-lg font-semibold tabular-nums text-ink-primary">
-            {formatCurrency(deal.allInCost)} all-in
-            <span className="mx-1.5 text-ink-muted">vs</span>
-            <span className="text-ink-secondary">{formatCurrency(deal.marketValue)}</span>
-          </p>
-          <p className="text-sm font-medium text-gain">
-            Save {formatCurrency(deal.discountAmount)} · {formatPercent(deal.discountPercent)} below
-            market
-          </p>
+          {live ? (
+            <>
+              <p className="mt-2 font-mono text-lg font-semibold tabular-nums text-ink-primary">
+                {formatCurrency(deal.listingPrice)} current bid
+              </p>
+              <p className="text-sm text-ink-secondary">
+                Market value {formatCurrency(deal.marketValue)}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="mt-2 font-mono text-lg font-semibold tabular-nums text-ink-primary">
+                {formatCurrency(deal.allInCost)} all-in
+                <span className="mx-1.5 text-ink-muted">vs</span>
+                <span className="text-ink-secondary">{formatCurrency(deal.marketValue)}</span>
+              </p>
+              <p className="text-sm font-medium text-gain">
+                Save {formatCurrency(deal.discountAmount)} · {formatPercent(deal.discountPercent)}{' '}
+                below market
+              </p>
+            </>
+          )}
         </div>
       </button>
 
@@ -88,7 +102,7 @@ export function DealCard({
         </span>
         {deal.listingType === 'auction' ? (
           <span className="rounded-full border border-neon-amber/30 bg-accent-muted px-1.5 py-0.5 text-[10px] font-medium text-neon-amber">
-            Auction opportunity
+            {live ? 'Live auction' : 'Ending soon'}
           </span>
         ) : (
           <span className="rounded-full border border-border-subtle px-1.5 py-0.5 text-[10px] text-ink-muted">

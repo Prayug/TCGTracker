@@ -5,6 +5,7 @@ import {
   computeDealScore,
   gradesAreCompatible,
   isEligibleDeal,
+  isLiveAuction,
   isPlaceholderMarketPrice,
   isReliableMarketQuote,
   isUnusuallyLowPrice,
@@ -92,6 +93,39 @@ describe('deal ranking', () => {
       hoursRemaining: null,
     });
     expect(real.dealScore).toBeGreaterThan(bulk.dealScore);
+  });
+});
+
+describe('live auctions', () => {
+  const charizard = {
+    discountPercent: 47,
+    discountAmount: 680,
+    marketValue: 1450,
+    matchConfidence: 0.95,
+    liquidityScore: 70,
+    listingAgeHours: null,
+    listingType: 'auction' as const,
+  };
+
+  it('treats an auction as live until its last 2 hours', () => {
+    expect(isLiveAuction('auction', 24)).toBe(true);
+    expect(isLiveAuction('auction', null)).toBe(true);
+    expect(isLiveAuction('auction', 2)).toBe(false);
+    expect(isLiveAuction('auction', 0.5)).toBe(false);
+    expect(isLiveAuction('bin', 24)).toBe(false);
+  });
+
+  it('gives a running auction no credit for its current bid discount', () => {
+    const live = computeDealScore({ ...charizard, hoursRemaining: 24 });
+    expect(live.discountComponent).toBe(0);
+    expect(live.savingsComponent).toBe(0);
+  });
+
+  it('scores the discount once the auction is ending soon', () => {
+    const live = computeDealScore({ ...charizard, hoursRemaining: 24 });
+    const ending = computeDealScore({ ...charizard, hoursRemaining: 1 });
+    expect(ending.discountComponent).toBe(40);
+    expect(ending.dealScore).toBeGreaterThan(live.dealScore);
   });
 });
 
