@@ -39,6 +39,7 @@ export function DealsPage() {
     loading,
     error,
     refresh,
+    fullRescan,
     relaxFilters,
   } = useDeals();
   const { saved, savedIds, loading: savedLoading, toggleSave, dismiss } = useSavedDeals();
@@ -49,6 +50,7 @@ export function DealsPage() {
   const waitingForEbay = isWaitingOnEbay(result?.meta, now);
   const waitMs = ebayRetryRemainingMs(result?.meta, now);
   const scanning = Boolean(result?.meta.scanning);
+  const quickScan = result?.meta.scanMode === 'quick';
   const scan = scanProgressView(result?.meta);
   const showScan = !result || scanning;
   const reconnecting = Boolean(!result && (loading || error));
@@ -111,27 +113,42 @@ export function DealsPage() {
         title="eBay deals"
         description="Live listings for this game compared to TCGTracker market value. If eBay rate-limits, leave this page open."
         actions={
-          <button
-            type="button"
-            onClick={refresh}
-            disabled={waitingForEbay}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border-default bg-surface-inset px-3 py-1.5 text-xs font-medium text-ink-secondary transition-colors hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <RefreshCw
-              className={`h-3.5 w-3.5${scanning || (reconnecting && !gaveUp) ? ' animate-spin' : ''}`}
-            />
-            {waitingForEbay
-              ? `Waiting ${formatEbayWait(waitMs)}`
-              : scanning
-                ? scan.searchIndex && scan.searchTotal
-                  ? `Scanning ${scan.searchIndex}/${scan.searchTotal}`
-                  : 'Scanning'
-                : reconnecting
-                  ? gaveUp
-                    ? 'Retry'
-                    : 'Connecting'
-                  : 'Refresh'}
-          </button>
+          <div className="flex items-center gap-2">
+            {!scanning && !waitingForEbay && result?.meta.ebayConfigured && (
+              <button
+                type="button"
+                onClick={fullRescan}
+                title="Walk every eBay search again instead of only listings posted since the last scan"
+                className="rounded-lg px-2 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:bg-surface-hover hover:text-ink-secondary"
+              >
+                Full rescan
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={refresh}
+              title="Check listings posted since the last scan"
+              disabled={waitingForEbay}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border-default bg-surface-inset px-3 py-1.5 text-xs font-medium text-ink-secondary transition-colors hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <RefreshCw
+                className={`h-3.5 w-3.5${scanning || (reconnecting && !gaveUp) ? ' animate-spin' : ''}`}
+              />
+              {waitingForEbay
+                ? `Waiting ${formatEbayWait(waitMs)}`
+                : scanning
+                  ? scan.searchIndex && scan.searchTotal
+                    ? `${quickScan ? 'Checking new' : 'Scanning'} ${scan.searchIndex}/${scan.searchTotal}`
+                    : quickScan
+                      ? 'Checking new'
+                      : 'Scanning'
+                  : reconnecting
+                    ? gaveUp
+                      ? 'Retry'
+                      : 'Connecting'
+                    : 'Refresh'}
+            </button>
+          </div>
         }
       />
 

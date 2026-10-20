@@ -2,10 +2,7 @@ import { getDb } from '../db/database';
 import { dbAll, dbGet, dbRun } from '../db/promisified';
 import { logger } from '../utils/logger';
 import { getLatestCanonicalPrice } from './canonicalPriceService';
-import {
-  enrichGradedPrice,
-  type GradedPrice,
-} from './gradedPriceService';
+import { enrichGradedPrice, type GradedPrice } from './gradedPriceService';
 import {
   gradedQuoteAgeDays,
   gradedQuoteLookupKeys,
@@ -69,6 +66,16 @@ const RATE_LIMIT_WAIT_MS = 15_000;
 const RATE_LIMIT_CONSECUTIVE_STOP = 3;
 const SCAN_CACHE_PERSIST_MS = 30_000;
 const SCAN_CACHE_MAX_DEALS = 2500;
+/**
+ * A quick scan only pages until it reaches listings the last scan already
+ * covered, so the deals from the last full scan must still be inside the pool
+ * TTL for the feed to stay complete. Older than this, Refresh does a full scan.
+ */
+const QUICK_SCAN_MAX_FULL_AGE_MS = 5 * 60 * 60 * 1000;
+/** Opening Deals after this long since the last scan finished starts a quick scan. */
+const AUTO_QUICK_SCAN_AFTER_MS = 20 * 60 * 1000;
+/** Quick scans re-check auctions ending this soon, since their bids move. */
+const QUICK_SCAN_AUCTION_HOURS = 24;
 
 export interface DealQuery {
   game: DealGame;
@@ -90,6 +97,8 @@ export interface DealQuery {
   includeReview?: boolean;
   desiredAuctionMargin?: number;
   refresh?: boolean;
+  /** With refresh: walk every search instead of only listings new since the last scan. */
+  fullRescan?: boolean;
 }
 
 export interface DealCardPayload {
@@ -176,6 +185,8 @@ export interface DealsResult {
     queryLabel: string | null;
     queryOffset: number;
     queryReachable: number | null;
+    /** 'quick' checks only listings new since the last scan; 'full' walks every search. */
+    scanMode: ScanMode;
   };
 }
 
@@ -253,7 +264,18 @@ async function ensureDealScanCacheTable(): Promise<void> {
       updated_at INTEGER NOT NULL
     )
   `);
+  if (scanCacheColumnsReady) return;
+  for (const column of ['started_at INTEGER', 'full_started_at INTEGER']) {
+    try {
+      await dbRun(`ALTER TABLE ebay_deal_scan_cache ADD COLUMN ${column}`);
+    } catch {
+      /* column already exists */
+    }
+  }
+  scanCacheColumnsReady = true;
 }
+
+let scanCacheColumnsReady = false;
 
 const daysBetween = (dateIso: string): number | null => {
   const day = dateIso.length >= 10 ? dateIso.slice(0, 10) : dateIso;
@@ -351,7 +373,7 @@ function poolEntriesForState(state: CrawlState): Array<{ deal: DealCardPayload; 
 async function persistScanCache(state: CrawlState, force = false): Promise<void> {
   if (crawlStates.get(state.key) !== state) return;
   const entries = poolEntriesForState(state);
-  if (state.listingsScanned === 0 && entries.length === 0) return;
+  if (reportedScanned(state) === 0 && entries.length === 0) return;
   const now = Date.now();
   const last = lastScanPersistAt.get(state.key) ?? 0;
   if (!force && now - last < SCAN_CACHE_PERSIST_MS) return;
@@ -361,26 +383,31 @@ async function persistScanCache(state: CrawlState, force = false): Promise<void>
     await dbRun(
       `INSERT INTO ebay_deal_scan_cache (
          cache_key, game, card_id, listing_type, deals_json,
-         listings_scanned, listings_fetched, ebay_total, error, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         listings_scanned, listings_fetched, ebay_total, error, updated_at,
+         started_at, full_started_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(cache_key) DO UPDATE SET
          deals_json = excluded.deals_json,
          listings_scanned = excluded.listings_scanned,
          listings_fetched = excluded.listings_fetched,
          ebay_total = excluded.ebay_total,
          error = excluded.error,
-         updated_at = excluded.updated_at`,
+         updated_at = excluded.updated_at,
+         started_at = excluded.started_at,
+         full_started_at = excluded.full_started_at`,
       [
         state.key,
         state.game,
         state.cardId || null,
         state.listingType,
         JSON.stringify(entries),
-        state.listingsScanned,
-        state.listingsFetched,
+        reportedScanned(state),
+        reportedFetched(state),
         state.ebayTotal,
         state.error,
         now,
+        state.startedAt,
+        state.fullStartedAt,
       ]
     );
   } catch (error) {
@@ -399,6 +426,8 @@ interface ScanCacheRow {
   ebay_total: number | null;
   error: EbaySearchError | null;
   updated_at: number;
+  started_at: number | null;
+  full_started_at: number | null;
 }
 
 async function hydrateScanCache(key: string): Promise<CrawlState | null> {
@@ -426,8 +455,17 @@ async function hydrateScanCache(key: string): Promise<CrawlState | null> {
       seenAt: item.seenAt || row.updated_at,
     });
   }
+  const startedAt = row.started_at ?? row.updated_at;
   const state: CrawlState = {
     key,
+    mode: 'full',
+    newSinceMs: null,
+    // Rows written before full_started_at existed: treat as too old for a quick scan.
+    fullStartedAt: row.full_started_at ?? 0,
+    browseCalls: 0,
+    baseScanned: 0,
+    baseFetched: 0,
+    newListings: 0,
     game: row.game,
     cardId,
     listingType: row.listing_type,
@@ -446,7 +484,7 @@ async function hydrateScanCache(key: string): Promise<CrawlState | null> {
     queryReachable: null,
     queryPageStart: 0,
     scannedAtPageStart: 0,
-    startedAt: row.updated_at,
+    startedAt,
     updatedAt: row.updated_at,
   };
   crawlStates.set(key, state);
@@ -841,8 +879,20 @@ interface CrawlQuery {
   targets?: CandidateCard[] | null;
 }
 
+type ScanMode = 'full' | 'quick';
+
 interface CrawlState {
   key: string;
+  mode: ScanMode;
+  /** Quick scans stop paging newest-first searches once listings are older than this. */
+  newSinceMs: number | null;
+  /** When the full scan behind this pool started; quick scans carry it forward. */
+  fullStartedAt: number;
+  browseCalls: number;
+  /** Quick scans report the previous scan's counts plus the listings that are new. */
+  baseScanned: number;
+  baseFetched: number;
+  newListings: number;
   game: DealGame;
   cardId?: string;
   listingType: DealListingTypeFilter;
@@ -963,10 +1013,20 @@ function emptyCrawlState(
   key: string,
   game: DealGame,
   cardId: string | undefined,
-  listingType: DealListingTypeFilter
+  listingType: DealListingTypeFilter,
+  previous?: CrawlState
 ): CrawlState {
+  const now = Date.now();
+  const quick = Boolean(previous && quickScanEligible(previous, now));
   return {
     key,
+    mode: quick ? 'quick' : 'full',
+    newSinceMs: quick && previous ? previous.startedAt : null,
+    fullStartedAt: quick && previous ? previous.fullStartedAt : now,
+    browseCalls: 0,
+    baseScanned: quick && previous ? reportedScanned(previous) : 0,
+    baseFetched: quick && previous ? reportedFetched(previous) : 0,
+    newListings: 0,
     game,
     cardId,
     listingType,
@@ -977,7 +1037,7 @@ function emptyCrawlState(
     listingsSeen: new Set(),
     listingsFetched: 0,
     listingsScanned: 0,
-    ebayTotal: null,
+    ebayTotal: quick && previous ? previous.ebayTotal : null,
     queriesDone: 0,
     queriesTotal: cardId ? 0 : marketplaceQueryPlan(game, listingType).length,
     queryLabel: null,
@@ -985,9 +1045,51 @@ function emptyCrawlState(
     queryReachable: null,
     queryPageStart: 0,
     scannedAtPageStart: 0,
-    startedAt: Date.now(),
-    updatedAt: Date.now(),
+    startedAt: now,
+    updatedAt: now,
   };
+}
+
+/** Listings the pool now reflects, which for a quick scan includes the scan before it. */
+function reportedScanned(state: CrawlState): number {
+  return state.mode === 'quick' ? state.baseScanned + state.newListings : state.listingsScanned;
+}
+
+function reportedFetched(state: CrawlState): number {
+  return state.mode === 'quick' ? state.baseFetched + state.newListings : state.listingsFetched;
+}
+
+/**
+ * The marketplace pool can be topped up with only new listings when the last
+ * scan finished cleanly and the full scan behind it is still inside the pool TTL.
+ * Card watches are a handful of calls, so they always run in full.
+ */
+function quickScanEligible(previous: CrawlState, now: number): boolean {
+  if (previous.cardId) return false;
+  if (!previous.done || previous.running || previous.error) return false;
+  if (reportedScanned(previous) === 0) return false;
+  return now - previous.fullStartedAt < QUICK_SCAN_MAX_FULL_AGE_MS;
+}
+
+/**
+ * In a quick scan, stop paging a search once this page reaches listings the
+ * previous scan already covered. Newest-first searches stop at listings created
+ * before that scan started; ending-soonest auctions stop past the bid horizon.
+ */
+function quickScanReachedKnownListings(
+  state: CrawlState,
+  query: CrawlQuery,
+  listings: EbayListingSummary[]
+): boolean {
+  if (state.mode !== 'quick' || state.newSinceMs == null) return false;
+  const last = listings[listings.length - 1];
+  if (!last) return true;
+  if (query.sort === 'endingSoonest') {
+    const end = last.endDate ? Date.parse(last.endDate) : NaN;
+    return Number.isFinite(end) && end - Date.now() > QUICK_SCAN_AUCTION_HOURS * 3_600_000;
+  }
+  const created = last.createdDate ? Date.parse(last.createdDate) : NaN;
+  return Number.isFinite(created) && created < state.newSinceMs;
 }
 
 function describeCrawlQuery(query: CrawlQuery): string {
@@ -1015,6 +1117,7 @@ function emptyScanProgress() {
     queryLabel: null as string | null,
     queryOffset: 0,
     queryReachable: null as number | null,
+    scanMode: 'full' as ScanMode,
   };
 }
 
@@ -1025,6 +1128,7 @@ function scanProgressFromState(state: CrawlState) {
     queryLabel: state.queryLabel,
     queryOffset: state.queryOffset,
     queryReachable: state.queryReachable,
+    scanMode: state.mode,
   };
 }
 
@@ -1036,6 +1140,13 @@ async function evaluatePage(
   const fresh = listings.filter((listing) => !state.listingsSeen.has(listing.listingId));
   for (const listing of fresh) state.listingsSeen.add(listing.listingId);
   state.listingsFetched += fresh.length;
+  if (state.mode === 'quick' && state.newSinceMs != null) {
+    const since = state.newSinceMs;
+    state.newListings += fresh.filter((listing) => {
+      const created = listing.createdDate ? Date.parse(listing.createdDate) : NaN;
+      return Number.isFinite(created) && created >= since;
+    }).length;
+  }
   state.updatedAt = Date.now();
 
   await mapPool(fresh, 6, async (listing) => {
@@ -1074,6 +1185,7 @@ async function fetchBrowsePage(
   state: CrawlState
 ): Promise<{ listings: EbayListingSummary[]; total: number | null; error?: EbaySearchError }> {
   if (!state.running) return { listings: [], total: null };
+  state.browseCalls += 1;
   const result = await searchEbayListings({
     query: query.query,
     limit: EBAY_BROWSE_PAGE_SIZE,
@@ -1120,6 +1232,7 @@ async function runMarketplaceCrawl(state: CrawlState): Promise<void> {
   logger.info('eBay marketplace crawl started', {
     game: state.game,
     cardId: state.cardId,
+    mode: state.mode,
     queries: plan.length,
     generation: state.generation,
   });
@@ -1135,8 +1248,13 @@ async function runMarketplaceCrawl(state: CrawlState): Promise<void> {
 
     let offset = 0;
     let aborted = false;
+    // The next page is requested while this one is evaluated, so the Browse
+    // round trip and the catalog matching overlap instead of taking turns.
+    let pending: ReturnType<typeof fetchBrowsePage> | null = fetchBrowsePage(query, offset, state);
     while (state.running && offset <= EBAY_BROWSE_MAX_OFFSET) {
-      const page = await fetchBrowsePage(query, offset, state);
+      const page: Awaited<ReturnType<typeof fetchBrowsePage>> = await (pending ??
+        fetchBrowsePage(query, offset, state));
+      pending = null;
       if (!state.running) {
         aborted = true;
         break;
@@ -1166,20 +1284,28 @@ async function runMarketplaceCrawl(state: CrawlState): Promise<void> {
       if (page.total != null && offset === 0) {
         const reachable = Math.min(page.total, EBAY_BROWSE_MAX_OFFSET);
         state.queryReachable = reachable;
-        state.ebayTotal = (state.ebayTotal ?? 0) + reachable;
+        if (state.mode === 'full') state.ebayTotal = (state.ebayTotal ?? 0) + reachable;
       }
       if (page.listings.length === 0) break;
       state.queryPageStart = offset;
       state.scannedAtPageStart = state.listingsScanned;
       state.queryOffset = offset;
-      await evaluatePage(state, page.listings, query.targets ?? null);
       const nextOffset = offset + page.listings.length;
+      const more =
+        page.listings.length >= EBAY_BROWSE_PAGE_SIZE &&
+        nextOffset < EBAY_BROWSE_MAX_OFFSET &&
+        !quickScanReachedKnownListings(state, query, page.listings);
+      if (more) {
+        pending = fetchBrowsePage(query, nextOffset, state);
+        // Awaited on the next pass; this only keeps an abort from leaving it unhandled.
+        pending.catch(() => undefined);
+      }
+      await evaluatePage(state, page.listings, query.targets ?? null);
       if (state.running) {
         state.queryOffset = Math.min(state.queryReachable ?? nextOffset, nextOffset);
       }
-      if (page.listings.length < EBAY_BROWSE_PAGE_SIZE) break;
+      if (!more) break;
       offset = nextOffset;
-      if (offset >= EBAY_BROWSE_MAX_OFFSET) break;
     }
 
     if (aborted || !state.running) break;
@@ -1213,8 +1339,12 @@ async function runMarketplaceCrawl(state: CrawlState): Promise<void> {
   logger.info('eBay marketplace crawl finished', {
     game: state.game,
     cardId: state.cardId,
+    mode: state.mode,
+    minutes: Math.round((state.updatedAt - state.startedAt) / 6_000) / 10,
+    browseCalls: state.browseCalls,
     fetched: state.listingsFetched,
     scanned: state.listingsScanned,
+    newListings: state.newListings,
     generation: state.generation,
   });
 }
@@ -1323,7 +1453,13 @@ async function ensureMarketplaceCrawl(query: DealQuery): Promise<CrawlState> {
       clearTimeout(scheduled);
       scheduledStarts.delete(key);
     }
-    state = emptyCrawlState(key, query.game, query.cardId, query.listingType || 'all');
+    state = emptyCrawlState(
+      key,
+      query.game,
+      query.cardId,
+      query.listingType || 'all',
+      query.fullRescan ? undefined : state
+    );
     crawlStates.set(key, state);
     queueCrawl(state);
     return state;
@@ -1331,8 +1467,28 @@ async function ensureMarketplaceCrawl(query: DealQuery): Promise<CrawlState> {
 
   if (!state) {
     const hydrated = await hydrateScanCache(key);
-    if (hydrated) return hydrated;
-    state = emptyCrawlState(key, query.game, query.cardId, query.listingType || 'all');
+    if (hydrated) {
+      state = hydrated;
+    } else {
+      state = emptyCrawlState(key, query.game, query.cardId, query.listingType || 'all');
+      crawlStates.set(key, state);
+      queueCrawl(state);
+      return state;
+    }
+  }
+
+  // Coming back to Deals tops the feed up with listings posted since the last scan.
+  const now = Date.now();
+  if (
+    state.done &&
+    !state.running &&
+    now - state.updatedAt > AUTO_QUICK_SCAN_AFTER_MS &&
+    quickScanEligible(state, now) &&
+    !crawlRuns.has(key) &&
+    !scheduledStarts.has(key) &&
+    (await getEbayCooldownRemainingMs()) <= 0
+  ) {
+    state = emptyCrawlState(key, query.game, query.cardId, query.listingType || 'all', state);
     crawlStates.set(key, state);
     queueCrawl(state);
     return state;
@@ -1341,12 +1497,7 @@ async function ensureMarketplaceCrawl(query: DealQuery): Promise<CrawlState> {
   if (!state.running && !state.done) {
     state.running = true;
     queueCrawl(state);
-  } else if (
-    state.running &&
-    !state.done &&
-    !crawlRuns.has(key) &&
-    !scheduledStarts.has(key)
-  ) {
+  } else if (state.running && !state.done && !crawlRuns.has(key) && !scheduledStarts.has(key)) {
     queueCrawl(state);
   }
 
@@ -2165,8 +2316,8 @@ async function getDealsUnsafe(query: DealQuery, userId?: number): Promise<DealsR
       cacheExpiresAt: null,
       error: waitingOnEbay ? 'rate_limited' : crawl.error,
       candidateStrategy: strategy,
-      listingsScanned: crawl.listingsScanned,
-      listingsFetched: crawl.listingsFetched,
+      listingsScanned: reportedScanned(crawl),
+      listingsFetched: reportedFetched(crawl),
       ebayTotal: crawl.ebayTotal,
       scanning: crawl.running,
       retryInMs: retryInMs > 5_000 ? retryInMs : undefined,
