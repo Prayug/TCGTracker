@@ -81,8 +81,7 @@ describe('parseEbayListingTitle', () => {
   });
 
   it('does not treat a Spanish printing as the English card', () => {
-    const title =
-      'Pokémon TCG Umbreon VMAX 215/203 Alt Art Secret Rare Evolving Skies Spanish NM';
+    const title = 'Pokémon TCG Umbreon VMAX 215/203 Alt Art Secret Rare Evolving Skies Spanish NM';
     expect(parseEbayListingTitle(title).language).toBe('other');
     expect(listingIsNonEnglish(title)).toBe(true);
   });
