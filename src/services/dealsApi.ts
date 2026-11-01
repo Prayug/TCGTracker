@@ -48,6 +48,34 @@ function toSearchParams(params: FetchDealsParams): URLSearchParams {
   return q;
 }
 
+export interface InvestmentLookTarget {
+  cardId: string;
+  cardName: string | null;
+  setName: string | null;
+  kind: 'raw' | 'slab';
+  source: 'fair_entry' | 'opportunity';
+  grade: string | null;
+  score: number | null;
+}
+
+export interface InvestmentLookResult extends DealsResult {
+  targets: InvestmentLookTarget[];
+}
+
+/** Same deals payload, searched only for investment-research targets. */
+export async function fetchInvestmentLook(
+  params: Omit<FetchDealsParams, 'cardId'>,
+  signal?: AbortSignal
+): Promise<InvestmentLookResult> {
+  const url = `${buildApiUrl('/api/investments/ebay')}?${toSearchParams(params).toString()}`;
+  const res = await axios.get<{ success: boolean; data: InvestmentLookResult }>(url, {
+    signal,
+    withCredentials: true,
+    timeout: 120000,
+  });
+  return res.data.data;
+}
+
 export async function fetchDeals(
   params: FetchDealsParams,
   signal?: AbortSignal

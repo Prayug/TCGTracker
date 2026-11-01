@@ -52,6 +52,7 @@ import {
   type MatchConfidenceTier,
 } from '../utils/dealScoring';
 import { normalizeCardNumber, pcFinishSearchTerms } from './priceChartingClient';
+import type { InvestmentEbayTarget } from './investmentEbayTargets';
 
 export type DealGame = 'pokemon' | 'onepiece';
 export type DealSort = 'best' | 'discount_pct' | 'savings' | 'price' | 'market' | 'ending';
@@ -99,6 +100,11 @@ export interface DealQuery {
   refresh?: boolean;
   /** With refresh: walk every search instead of only listings new since the last scan. */
   fullRescan?: boolean;
+  /**
+   * 'investment' searches only cards the fair-entry screen and slab opportunity
+   * scores already name, and keeps that pool separate from the deals crawl.
+   */
+  scan?: 'market' | 'investment';
 }
 
 export interface DealCardPayload {
@@ -323,8 +329,25 @@ async function mapPool<T, R>(items: T[], limit: number, fn: (item: T) => Promise
   return results;
 }
 
-function cacheKey(game: DealGame, cardId?: string, listingType?: DealListingTypeFilter): string {
+type DealScanScope = 'market' | 'card' | 'investment';
+
+/** How many matched listings the investments look returns after sorting. */
+const INVESTMENT_LOOK_LIMIT = 80;
+
+function cacheKey(
+  game: DealGame,
+  cardId?: string,
+  listingType?: DealListingTypeFilter,
+  scan?: DealQuery['scan']
+): string {
+  if (scan === 'investment') return `invest|${game}|${listingType || 'all'}`;
   return `${game}|${cardId || '*'}|${listingType || 'all'}`;
+}
+
+function scopeOf(scan: DealQuery['scan'] | undefined, cardId?: string): DealScanScope {
+  if (scan === 'investment') return 'investment';
+  if (cardId) return 'card';
+  return 'market';
 }
 
 function marketPoolKey(game: DealGame, listingId: string): string {
@@ -333,6 +356,27 @@ function marketPoolKey(game: DealGame, listingId: string): string {
 
 function cardPoolKey(game: DealGame, cardId: string, listingId: string): string {
   return `c:${game}:${cardId}:${listingId}`;
+}
+
+function investmentPoolKey(game: DealGame, listingId: string): string {
+  return `i:${game}:${listingId}`;
+}
+
+function poolKeyFor(
+  scope: DealScanScope,
+  game: DealGame,
+  listingId: string,
+  cardId?: string
+): string {
+  if (scope === 'investment') return investmentPoolKey(game, listingId);
+  if (scope === 'card' && cardId) return cardPoolKey(game, cardId, listingId);
+  return marketPoolKey(game, listingId);
+}
+
+function poolPrefixFor(scope: DealScanScope, game: DealGame, cardId?: string): string {
+  if (scope === 'investment') return `i:${game}:`;
+  if (scope === 'card' && cardId) return `c:${game}:${cardId}:`;
+  return `m:${game}:`;
 }
 
 function mergeDealPool(game: DealGame, evaluated: EvaluatedListing[]): EvaluatedListing[] {
@@ -360,7 +404,7 @@ function mergeDealPool(game: DealGame, evaluated: EvaluatedListing[]): Evaluated
 }
 
 function poolEntriesForState(state: CrawlState): Array<{ deal: DealCardPayload; seenAt: number }> {
-  const prefix = state.cardId ? `c:${state.game}:${state.cardId}:` : `m:${state.game}:`;
+  const prefix = poolPrefixFor(state.scope, state.game, state.cardId);
   const items: Array<{ deal: DealCardPayload; seenAt: number }> = [];
   for (const [key, value] of recentDealPool) {
     if (!key.startsWith(prefix)) continue;
@@ -445,11 +489,14 @@ async function hydrateScanCache(key: string): Promise<CrawlState | null> {
   }
   if (items.length === 0 && (row.listings_scanned || 0) === 0) return null;
   const cardId = row.card_id || undefined;
+  const scope: DealScanScope = key.startsWith('invest|')
+    ? 'investment'
+    : cardId
+      ? 'card'
+      : 'market';
   for (const item of items) {
     if (!item?.deal?.listingId) continue;
-    const poolKey = cardId
-      ? cardPoolKey(row.game, cardId, item.deal.listingId)
-      : marketPoolKey(row.game, item.deal.listingId);
+    const poolKey = poolKeyFor(scope, row.game, item.deal.listingId, cardId);
     recentDealPool.set(poolKey, {
       deal: item.deal,
       seenAt: item.seenAt || row.updated_at,
@@ -468,6 +515,10 @@ async function hydrateScanCache(key: string): Promise<CrawlState | null> {
     newListings: 0,
     game: row.game,
     cardId,
+    scope,
+    note: null,
+    targets: [],
+    refreshTargets: false,
     listingType: row.listing_type,
     generation: 0,
     running: false,
@@ -877,6 +928,8 @@ interface CrawlQuery {
   priceMin?: number;
   priceMax?: number;
   targets?: CandidateCard[] | null;
+  /** Investment searches read one newest page per card instead of the whole result. */
+  pageLimit?: number;
 }
 
 type ScanMode = 'full' | 'quick';
@@ -895,6 +948,11 @@ interface CrawlState {
   newListings: number;
   game: DealGame;
   cardId?: string;
+  scope: DealScanScope;
+  /** Stable candidateStrategy when the scan itself has nothing to search. */
+  note: string | null;
+  targets: InvestmentEbayTarget[];
+  refreshTargets: boolean;
   listingType: DealListingTypeFilter;
   generation: number;
   running: boolean;
@@ -1009,14 +1067,42 @@ async function cardWatchQueryPlan(game: DealGame, cardId: string): Promise<Crawl
   }));
 }
 
+/** One newest eBay page per researched card. Slabs append the PSA 10 the scores use. */
+async function investmentQueryPlan(state: CrawlState): Promise<CrawlQuery[]> {
+  const { listInvestmentEbayTargets } = await import('./investmentEbayTargets');
+  const targets = await listInvestmentEbayTargets(state.game, state.refreshTargets);
+  state.targets = targets;
+  const queries: CrawlQuery[] = [];
+  for (const target of targets) {
+    const cards =
+      state.game === 'onepiece'
+        ? await loadOnePieceCardTargets(target.cardId)
+        : await loadPokemonCardTargets(target.cardId);
+    const english = cards.filter(isEnglishCatalogCard);
+    if (english.length === 0) continue;
+    const lead =
+      target.kind === 'slab' ? { ...english[0], gradedSearch: true as const } : english[0];
+    queries.push({
+      query: buildSearchQuery(lead, state.game),
+      sort: 'newlyListed',
+      buyingOptions: 'ALL',
+      targets: english,
+      pageLimit: 1,
+    });
+  }
+  return queries;
+}
+
 function emptyCrawlState(
   key: string,
   game: DealGame,
   cardId: string | undefined,
   listingType: DealListingTypeFilter,
-  previous?: CrawlState
+  previous?: CrawlState,
+  scan?: DealQuery['scan']
 ): CrawlState {
   const now = Date.now();
+  const scope = scopeOf(scan, cardId);
   const quick = Boolean(previous && quickScanEligible(previous, now));
   return {
     key,
@@ -1028,7 +1114,11 @@ function emptyCrawlState(
     baseFetched: quick && previous ? reportedFetched(previous) : 0,
     newListings: 0,
     game,
-    cardId,
+    cardId: scope === 'investment' ? undefined : cardId,
+    scope,
+    note: null,
+    targets: [],
+    refreshTargets: false,
     listingType,
     generation: (crawlStates.get(key)?.generation ?? 0) + 1,
     running: true,
@@ -1039,8 +1129,8 @@ function emptyCrawlState(
     listingsScanned: 0,
     ebayTotal: quick && previous ? previous.ebayTotal : null,
     queriesDone: 0,
-    queriesTotal: cardId ? 0 : marketplaceQueryPlan(game, listingType).length,
-    queryLabel: null,
+    queriesTotal: scope === 'market' ? marketplaceQueryPlan(game, listingType).length : 0,
+    queryLabel: scope === 'investment' ? 'Reading fair-entry picks and slab scores' : null,
     queryOffset: 0,
     queryReachable: null,
     queryPageStart: 0,
@@ -1065,7 +1155,7 @@ function reportedFetched(state: CrawlState): number {
  * Card watches are a handful of calls, so they always run in full.
  */
 function quickScanEligible(previous: CrawlState, now: number): boolean {
-  if (previous.cardId) return false;
+  if (previous.cardId || previous.scope === 'investment') return false;
   if (!previous.done || previous.running || previous.error) return false;
   if (reportedScanned(previous) === 0) return false;
   return now - previous.fullStartedAt < QUICK_SCAN_MAX_FULL_AGE_MS;
@@ -1154,13 +1244,13 @@ async function evaluatePage(
     try {
       const deal = await evaluateListing(listing, state.game, targets, undefined);
       if (deal) {
-        if (state.cardId) {
-          recentDealPool.set(cardPoolKey(state.game, state.cardId, deal.listingId), {
+        if (state.scope === 'market') {
+          mergeDealPool(state.game, [{ deal }]);
+        } else {
+          recentDealPool.set(poolKeyFor(state.scope, state.game, deal.listingId, state.cardId), {
             deal,
             seenAt: Date.now(),
           });
-        } else {
-          mergeDealPool(state.game, [{ deal }]);
         }
       }
       return deal;
@@ -1210,11 +1300,15 @@ async function runMarketplaceCrawl(state: CrawlState): Promise<void> {
   pokemonLookupMemo.clear();
   onePieceLookupMemo.clear();
 
-  const plan = state.cardId
-    ? await cardWatchQueryPlan(state.game, state.cardId)
-    : marketplaceQueryPlan(state.game, state.listingType);
+  const plan =
+    state.scope === 'investment'
+      ? await investmentQueryPlan(state)
+      : state.cardId
+        ? await cardWatchQueryPlan(state.game, state.cardId)
+        : marketplaceQueryPlan(state.game, state.listingType);
 
-  if (state.cardId && plan.length === 0) {
+  if ((state.cardId || state.scope === 'investment') && plan.length === 0) {
+    if (state.scope === 'investment') state.note = 'no_investment_targets';
     state.error = null;
     state.done = true;
     state.running = false;
@@ -1247,7 +1341,9 @@ async function runMarketplaceCrawl(state: CrawlState): Promise<void> {
     state.updatedAt = Date.now();
 
     let offset = 0;
+    let pagesFetched = 0;
     let aborted = false;
+    const pageCap = query.pageLimit ?? Number.POSITIVE_INFINITY;
     // The next page is requested while this one is evaluated, so the Browse
     // round trip and the catalog matching overlap instead of taking turns.
     let pending: ReturnType<typeof fetchBrowsePage> | null = fetchBrowsePage(query, offset, state);
@@ -1287,11 +1383,13 @@ async function runMarketplaceCrawl(state: CrawlState): Promise<void> {
         if (state.mode === 'full') state.ebayTotal = (state.ebayTotal ?? 0) + reachable;
       }
       if (page.listings.length === 0) break;
+      pagesFetched += 1;
       state.queryPageStart = offset;
       state.scannedAtPageStart = state.listingsScanned;
       state.queryOffset = offset;
       const nextOffset = offset + page.listings.length;
       const more =
+        pagesFetched < pageCap &&
         page.listings.length >= EBAY_BROWSE_PAGE_SIZE &&
         nextOffset < EBAY_BROWSE_MAX_OFFSET &&
         !quickScanReachedKnownListings(state, query, page.listings);
@@ -1429,7 +1527,7 @@ function queueCrawl(state: CrawlState): void {
 }
 
 async function ensureMarketplaceCrawl(query: DealQuery): Promise<CrawlState> {
-  const key = cacheKey(query.game, query.cardId, query.listingType);
+  const key = cacheKey(query.game, query.cardId, query.listingType, query.scan);
   let state = crawlStates.get(key);
   stopOtherCrawls(key);
 
@@ -1458,8 +1556,10 @@ async function ensureMarketplaceCrawl(query: DealQuery): Promise<CrawlState> {
       query.game,
       query.cardId,
       query.listingType || 'all',
-      query.fullRescan ? undefined : state
+      query.fullRescan ? undefined : state,
+      query.scan
     );
+    state.refreshTargets = Boolean(query.fullRescan);
     crawlStates.set(key, state);
     queueCrawl(state);
     return state;
@@ -1470,7 +1570,14 @@ async function ensureMarketplaceCrawl(query: DealQuery): Promise<CrawlState> {
     if (hydrated) {
       state = hydrated;
     } else {
-      state = emptyCrawlState(key, query.game, query.cardId, query.listingType || 'all');
+      state = emptyCrawlState(
+        key,
+        query.game,
+        query.cardId,
+        query.listingType || 'all',
+        undefined,
+        query.scan
+      );
       crawlStates.set(key, state);
       queueCrawl(state);
       return state;
@@ -1488,7 +1595,14 @@ async function ensureMarketplaceCrawl(query: DealQuery): Promise<CrawlState> {
     !scheduledStarts.has(key) &&
     (await getEbayCooldownRemainingMs()) <= 0
   ) {
-    state = emptyCrawlState(key, query.game, query.cardId, query.listingType || 'all', state);
+    state = emptyCrawlState(
+      key,
+      query.game,
+      query.cardId,
+      query.listingType || 'all',
+      state,
+      query.scan
+    );
     crawlStates.set(key, state);
     queueCrawl(state);
     return state;
@@ -1504,9 +1618,13 @@ async function ensureMarketplaceCrawl(query: DealQuery): Promise<CrawlState> {
   return state;
 }
 
-function dealsFromPool(game: DealGame, cardId?: string): EvaluatedListing[] {
+function dealsFromPool(
+  game: DealGame,
+  cardId?: string,
+  scope: DealScanScope = cardId ? 'card' : 'market'
+): EvaluatedListing[] {
   const now = Date.now();
-  const prefix = cardId ? `c:${game}:${cardId}:` : `m:${game}:`;
+  const prefix = poolPrefixFor(scope, game, cardId);
   const out: EvaluatedListing[] = [];
   for (const [key, value] of recentDealPool) {
     if (!key.startsWith(prefix)) continue;
@@ -2059,8 +2177,13 @@ function summarize(deals: DealCardPayload[]): DealSummary {
   };
 }
 
-function dealPoolKey(game: DealGame, listingId: string, cardWatchId?: string): string {
-  return cardWatchId ? cardPoolKey(game, cardWatchId, listingId) : marketPoolKey(game, listingId);
+function dealPoolKey(
+  game: DealGame,
+  listingId: string,
+  cardWatchId?: string,
+  scope?: DealScanScope
+): string {
+  return poolKeyFor(scope ?? (cardWatchId ? 'card' : 'market'), game, listingId, cardWatchId);
 }
 
 /**
@@ -2071,11 +2194,12 @@ function dealPoolKey(game: DealGame, listingId: string, cardWatchId?: string): s
 async function repriceGradedDeals(
   deals: DealCardPayload[],
   game: DealGame,
-  cardWatchId?: string
+  cardWatchId?: string,
+  scope?: DealScanScope
 ): Promise<DealCardPayload[]> {
   const englishDeals = deals.filter((deal) => {
     if (!listingIsNonEnglish(deal.listingTitle)) return true;
-    recentDealPool.delete(dealPoolKey(game, deal.listingId, cardWatchId));
+    recentDealPool.delete(dealPoolKey(game, deal.listingId, cardWatchId, scope));
     return false;
   });
   const graded = englishDeals.filter(
@@ -2121,7 +2245,7 @@ async function repriceGradedDeals(
 
   const out: DealCardPayload[] = [];
   for (const deal of englishDeals) {
-    const poolKey = dealPoolKey(game, deal.listingId, cardWatchId);
+    const poolKey = dealPoolKey(game, deal.listingId, cardWatchId, scope);
     if (deal.dealCondition !== 'graded' || !deal.grader || !deal.grade) {
       out.push(deal);
       continue;
@@ -2227,7 +2351,7 @@ async function getDealsUnsafe(query: DealQuery, userId?: number): Promise<DealsR
     };
   }
 
-  if (query.cardId) {
+  if (query.cardId && query.scan !== 'investment') {
     const targets =
       query.game === 'onepiece'
         ? await loadOnePieceCardTargets(query.cardId)
@@ -2257,10 +2381,12 @@ async function getDealsUnsafe(query: DealQuery, userId?: number): Promise<DealsR
   const crawl = await ensureMarketplaceCrawl(query);
   const retryInMs = await getEbayCooldownRemainingMs();
   const waitingOnEbay = retryInMs > 5_000 && crawl.running && crawl.listingsScanned === 0;
+  const scope = scopeOf(query.scan, query.cardId);
   const repriced = await repriceGradedDeals(
-    dealsFromPool(query.game, query.cardId).map((e) => e.deal),
+    dealsFromPool(query.game, query.cardId, scope).map((e) => e.deal),
     query.game,
-    query.cardId
+    query.cardId,
+    scope
   );
   const all = repriced
     .map((deal) => withAuctionClock(deal))
@@ -2279,8 +2405,9 @@ async function getDealsUnsafe(query: DealQuery, userId?: number): Promise<DealsR
       minMarketValue: query.minMarketValue ?? 0,
     }
   );
-  const uniqueDeals = query.cardId ? dealFeed : pickBestDealPerCard(dealFeed);
-  const uniqueReview = query.cardId ? reviewFeed : pickBestDealPerCard(reviewFeed);
+  const keepEveryListing = Boolean(query.cardId) || query.scan === 'investment';
+  const uniqueDeals = keepEveryListing ? dealFeed : pickBestDealPerCard(dealFeed);
+  const uniqueReview = keepEveryListing ? reviewFeed : pickBestDealPerCard(reviewFeed);
 
   let savedIds = new Set<string>();
   let dismissedIds = new Set<string>();
@@ -2295,15 +2422,23 @@ async function getDealsUnsafe(query: DealQuery, userId?: number): Promise<DealsR
       .map((d) => ({ ...d, saved: savedIds.has(d.listingId) }));
 
   const sort = query.sort || 'best';
-  const deals = decorate(sortDeals(uniqueDeals, sort));
-  const review = decorate(sortDeals(uniqueReview, sort));
-  const strategy = query.cardId
-    ? crawl.done
-      ? `card_watch:${query.cardId}`
-      : `card_watch:${query.cardId}:running`
-    : crawl.done
-      ? 'full_marketplace_crawl'
-      : 'full_marketplace_crawl:running';
+  const cap = (rows: DealCardPayload[]) =>
+    query.scan === 'investment' ? rows.slice(0, INVESTMENT_LOOK_LIMIT) : rows;
+  const deals = cap(decorate(sortDeals(uniqueDeals, sort)));
+  const review = cap(decorate(sortDeals(uniqueReview, sort)));
+  const strategy = crawl.note
+    ? crawl.note
+    : query.scan === 'investment'
+      ? crawl.done
+        ? 'investment_targets'
+        : 'investment_targets:running'
+      : query.cardId
+        ? crawl.done
+          ? `card_watch:${query.cardId}`
+          : `card_watch:${query.cardId}:running`
+        : crawl.done
+          ? 'full_marketplace_crawl'
+          : 'full_marketplace_crawl:running';
 
   return {
     deals,
@@ -2331,6 +2466,34 @@ export async function getDealsForCard(
   query: Omit<DealQuery, 'cardId'>
 ): Promise<DealsResult> {
   return getDeals({ ...query, cardId });
+}
+
+export interface InvestmentEbayListingResult extends DealsResult {
+  targets: InvestmentEbayTarget[];
+}
+
+/** eBay listings for cards the investment research already named. */
+export async function getInvestmentEbayListings(
+  query: DealQuery,
+  userId?: number
+): Promise<InvestmentEbayListingResult> {
+  const scoped: DealQuery = {
+    ...query,
+    scan: 'investment',
+    cardId: undefined,
+    // At or under market unless the caller tightens it. Deals defaults are stricter.
+    minDiscount: query.minDiscount ?? 0,
+    minSavings: query.minSavings ?? 0,
+    minMarketValue: query.minMarketValue ?? 0,
+  };
+  const result = await getDeals(scoped, userId);
+  const state = crawlStates.get(cacheKey(scoped.game, undefined, scoped.listingType, 'investment'));
+  const { peekInvestmentEbayTargets } = await import('./investmentEbayTargets');
+  const targets =
+    state?.targets && state.targets.length > 0
+      ? state.targets
+      : (peekInvestmentEbayTargets(scoped.game) ?? []);
+  return { ...result, targets };
 }
 
 interface SavedRow {

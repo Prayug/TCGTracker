@@ -5,6 +5,7 @@ import {
   Layers,
   Radio,
   RefreshCw,
+  Search,
   Target,
   TrendingDown,
   TrendingUp,
@@ -18,6 +19,7 @@ import { BuyoutScannerPanel } from './BuyoutScannerPanel';
 import { SimilarSlabsPanel } from './SimilarSlabsPanel';
 import { SignalsPanel } from './SignalsPanel';
 import { StrategyPanel } from './StrategyPanel';
+import { InvestmentLookPanel } from './InvestmentLookPanel';
 import { InlineNotice } from '@/components/common/InlineNotice';
 
 const TABS: { id: InvestmentsTab; label: string; icon: React.ReactNode }[] = [
@@ -27,6 +29,7 @@ const TABS: { id: InvestmentsTab; label: string; icon: React.ReactNode }[] = [
   { id: 'buyouts', label: 'Buyouts', icon: <Flame className="h-4 w-4" /> },
   { id: 'similar', label: 'Comparables', icon: <Layers className="h-4 w-4" /> },
   { id: 'signals', label: 'Signals', icon: <Radio className="h-4 w-4" /> },
+  { id: 'look', label: 'Worth a look', icon: <Search className="h-4 w-4" /> },
 ];
 
 function formatRelativeTime(date: Date): string {
@@ -85,7 +88,7 @@ export function InvestmentsPage() {
         title="Investments"
         description="What buying cards has actually returned after fees, where it's fair to buy now, and the market signals behind it."
         actions={
-          activeTab === 'strategy' ? undefined : (
+          activeTab === 'strategy' || activeTab === 'look' ? undefined : (
             <button
               type="button"
               onClick={refresh}
@@ -99,7 +102,7 @@ export function InvestmentsPage() {
         }
       />
 
-      {activeTab !== 'strategy' && (
+      {activeTab !== 'strategy' && activeTab !== 'look' && (
         <>
           <div className="grid gap-3 sm:grid-cols-3">
             <StatBlock
@@ -161,7 +164,9 @@ export function InvestmentsPage() {
         </p>
       )}
 
-      {error && activeTab !== 'strategy' && <InlineNotice>{error}</InlineNotice>}
+      {error && activeTab !== 'strategy' && activeTab !== 'look' && (
+        <InlineNotice>{error}</InlineNotice>
+      )}
 
       <div
         role="tablist"
@@ -173,6 +178,7 @@ export function InvestmentsPage() {
             type="button"
             role="tab"
             aria-selected={activeTab === tab.id}
+            aria-label={tab.label}
             onClick={() => setActiveTab(tab.id)}
             className={`relative flex h-8 cursor-pointer items-center gap-2 rounded-lg px-3.5 text-[13px] font-medium transition-[color,transform] duration-150 ease-out active:scale-[0.97] [&_svg]:h-3.5 [&_svg]:w-3.5 ${
               activeTab === tab.id ? 'text-ink-primary' : 'text-ink-muted hover:text-ink-secondary'
@@ -245,6 +251,7 @@ export function InvestmentsPage() {
             error={error}
           />
         )}
+        {activeTab === 'look' && <InvestmentLookPanel active />}
       </motion.div>
     </PageShell>
   );

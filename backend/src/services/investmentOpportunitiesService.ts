@@ -283,6 +283,13 @@ export function computeBuyoutScore(input: BuyoutSignalInputs): BuyoutScoreResult
 
 export type OpportunityGrade = 'strong_buy' | 'buy' | 'watch' | 'pass';
 
+/** Same cuts `computeOpportunityScore` uses. Watch and above is the “might be good” set. */
+export const OPPORTUNITY_GRADE_CUTS = {
+  strongBuy: 75,
+  buy: 60,
+  watch: 45,
+} as const;
+
 export interface OpportunityScoreInputs {
   /** expected_90d_return (%) from slab_predictions, null when no prediction. */
   predictedReturn90d: number | null;
@@ -345,7 +352,13 @@ export function computeOpportunityScore(input: OpportunityScoreInputs): {
 
   const rounded = Math.round(clamp(score, 0, 100));
   const grade: OpportunityGrade =
-    rounded >= 75 ? 'strong_buy' : rounded >= 60 ? 'buy' : rounded >= 45 ? 'watch' : 'pass';
+    rounded >= OPPORTUNITY_GRADE_CUTS.strongBuy
+      ? 'strong_buy'
+      : rounded >= OPPORTUNITY_GRADE_CUTS.buy
+        ? 'buy'
+        : rounded >= OPPORTUNITY_GRADE_CUTS.watch
+          ? 'watch'
+          : 'pass';
   return { score: rounded, grade };
 }
 

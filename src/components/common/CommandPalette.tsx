@@ -66,7 +66,8 @@ function getNavCommands(isOnePiece: boolean): NavCommand[] {
     {
       label: 'Investments',
       to: '/investments',
-      keywords: 'investments opportunities movers buyouts similar slabs external factors invest',
+      keywords:
+        'investments opportunities movers buyouts similar slabs external factors invest worth a look ebay listings fair entry',
       icon: Layers,
     },
     {

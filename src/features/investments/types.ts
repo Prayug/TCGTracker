@@ -286,7 +286,8 @@ export type InvestmentsTab =
   | 'movers'
   | 'buyouts'
   | 'similar'
-  | 'signals';
+  | 'signals'
+  | 'look';
 
 // --- Backtested strategy report (/api/investments/strategy) -----------------
 
