@@ -27,7 +27,7 @@ function axiosStatus(err: unknown): number | null {
   return typeof status === 'number' ? status : null;
 }
 
-function passesDealFilters(deal: Deal, filters: DealFiltersState): boolean {
+export function passesDealFilters(deal: Deal, filters: DealFiltersState): boolean {
   if (filters.listingType !== 'all' && deal.listingType !== filters.listingType) return false;
   if (filters.gradingCompany && (deal.grader || '') !== filters.gradingCompany) return false;
   if (filters.grade && (deal.grade || '').toLowerCase() !== filters.grade.toLowerCase())
@@ -51,7 +51,7 @@ function passesDealFilters(deal: Deal, filters: DealFiltersState): boolean {
 const bySavings = (key: 'discountPercent' | 'discountAmount') => (a: Deal, b: Deal) =>
   Number(isLiveAuction(a)) - Number(isLiveAuction(b)) || b[key] - a[key];
 
-function sortDeals(deals: Deal[], sort: DealSort): Deal[] {
+export function sortDeals(deals: Deal[], sort: DealSort): Deal[] {
   const copy = [...deals];
   switch (sort) {
     case 'discount_pct':
@@ -73,7 +73,7 @@ function sortDeals(deals: Deal[], sort: DealSort): Deal[] {
   }
 }
 
-function withAuctionMargin(deal: Deal, margin: number): Deal {
+export function withAuctionMargin(deal: Deal, margin: number): Deal {
   if (deal.listingType !== 'auction') return deal;
   const ship = Number.isFinite(deal.shipping) && deal.shipping > 0 ? deal.shipping : 0;
   if (!Number.isFinite(deal.marketValue) || deal.marketValue <= 0) {
