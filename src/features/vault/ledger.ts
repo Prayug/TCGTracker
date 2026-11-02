@@ -5,6 +5,7 @@ import {
   knownCostBasis,
   knownHoldingProfit,
 } from '../../utils/vaultCost';
+import { resolveEra, type EraBand } from '../../utils/portfolio';
 
 export type HoldingSort = 'value' | 'pl' | 'plPct' | 'cost' | 'name' | 'set' | 'qty' | 'date';
 export type SortDir = 'asc' | 'desc';
@@ -14,9 +15,17 @@ export interface HoldingFilter {
   set: string;
   condition: '' | CardCondition;
   missingCost: boolean;
+  /** Era band, decided from the card, the set catalog or the series. */
+  era?: '' | EraBand;
 }
 
-export const EMPTY_FILTER: HoldingFilter = { q: '', set: '', condition: '', missingCost: false };
+export const EMPTY_FILTER: HoldingFilter = {
+  q: '',
+  set: '',
+  condition: '',
+  missingCost: false,
+  era: '',
+};
 
 export const CONDITION_LABEL: Record<CardCondition, string> = {
   raw: 'Raw',
@@ -40,7 +49,11 @@ export function setKey(vc: VaultCard): string {
   return vc.card.set?.id || vc.card.set?.name || 'unknown';
 }
 
-export function filterHoldings(cards: VaultCard[], f: HoldingFilter): VaultCard[] {
+export function filterHoldings(
+  cards: VaultCard[],
+  f: HoldingFilter,
+  setDates?: ReadonlyMap<string, string>
+): VaultCard[] {
   const q = f.q.trim().toLowerCase();
   return cards.filter((vc) => {
     if (q) {
@@ -51,6 +64,7 @@ export function filterHoldings(cards: VaultCard[], f: HoldingFilter): VaultCard[
     if (f.set && setKey(vc) !== f.set) return false;
     if (f.condition && vc.condition !== f.condition) return false;
     if (f.missingCost && hasKnownCost(vc)) return false;
+    if (f.era && resolveEra(vc, setDates).era !== f.era) return false;
     return true;
   });
 }

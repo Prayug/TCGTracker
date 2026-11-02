@@ -15,7 +15,8 @@ import {
   type PortfolioStatsSummary,
 } from '../../../services/portfolioApiService';
 import { formatCurrency } from '../../../utils/cardDisplay';
-import { summarizePortfolio } from '../../../utils/portfolio';
+import { summarizePortfolio, type EraBand } from '../../../utils/portfolio';
+import { useSetReleaseDates } from '../../../hooks/useSetReleaseDates';
 import { GradeWorthinessList } from '../../market/components/GradeWorthinessList';
 import { HoldingsTable } from './HoldingsTable';
 import { HoldingSheet } from './HoldingSheet';
@@ -77,7 +78,10 @@ export function VaultView({ onOpenSet }: { onOpenSet?: (setId: string) => void }
     set: params.get('set') ?? '',
     condition: (params.get('condition') ?? '') as '' | CardCondition,
     missingCost: params.get('filter') === 'missing-cost',
+    era: (['Vintage', 'Mid-era', 'Modern', 'Unknown'].find((e) => e === params.get('era')) ??
+      '') as '' | EraBand,
   };
+  const setDates = useSetReleaseDates(game === 'pokemon');
 
   const update = useCallback(
     (patch: Record<string, string | null>) => {
@@ -132,9 +136,9 @@ export function VaultView({ onOpenSet }: { onOpenSet?: (setId: string) => void }
 
   const summary = useMemo(() => summarizePortfolio(cards), [cards]);
   const rows = useMemo(
-    () => sortHoldings(filterHoldings(cards, filter), sort, dir),
+    () => sortHoldings(filterHoldings(cards, filter, setDates), sort, dir),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- filter is derived from params
-    [cards, params, sort, dir]
+    [cards, params, sort, dir, setDates]
   );
   const setOptions = useMemo(() => {
     const m = new Map<string, string>();
@@ -142,7 +146,9 @@ export function VaultView({ onOpenSet }: { onOpenSet?: (setId: string) => void }
     return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1]));
   }, [cards]);
   const openHolding = cards.find((c) => c.id === openId) ?? null;
-  const filtersActive = Boolean(filter.q || filter.set || filter.condition || filter.missingCost);
+  const filtersActive = Boolean(
+    filter.q || filter.set || filter.condition || filter.missingCost || filter.era
+  );
 
   const onSort = (key: HoldingSort) => {
     const nextDir = key === sort ? (dir === 'asc' ? 'desc' : 'asc') : defaultDir(key);
@@ -470,10 +476,19 @@ export function VaultView({ onOpenSet }: { onOpenSet?: (setId: string) => void }
                 <span className="ml-1.5 font-mono text-[12px]">{summary.missingCostEntries}</span>
               ) : null}
             </FilterChip>
+            {filter.era ? (
+              <FilterChip active onClick={() => update({ era: null })}>
+                {filter.era === 'Unknown' ? 'Era unknown' : filter.era}
+                <X className="ml-1 inline h-3.5 w-3.5" aria-hidden />
+                <span className="sr-only"> (remove)</span>
+              </FilterChip>
+            ) : null}
             {filtersActive ? (
               <button
                 type="button"
-                onClick={() => update({ q: null, set: null, condition: null, filter: null })}
+                onClick={() =>
+                  update({ q: null, set: null, condition: null, filter: null, era: null })
+                }
                 className="inline-flex h-8 items-center gap-1 px-2 text-[13px] text-ink-muted hover:text-ink-primary"
               >
                 <X className="h-3.5 w-3.5" aria-hidden />
@@ -484,7 +499,9 @@ export function VaultView({ onOpenSet }: { onOpenSet?: (setId: string) => void }
 
           {filter.missingCost && rows.length > 0 && mode === 'holdings' ? (
             <p className="border-l-2 border-warn bg-warn-muted px-3 py-2 text-[13px] text-ink-secondary">
-              These holdings have no recorded cost, so they are left out of profit and loss. Use{' '}
+              These holdings have no recorded cost, so they are left out of profit and loss. Rows
+              marked <span className="font-medium">Unverified</span> keep a price an older import
+              stored, possibly the market price that day: confirm it or correct it. Use{' '}
               <span className="font-medium">Add cost</span> in a row (wider screens) or open a
               holding to fill it in. Leave it blank if you genuinely don’t know.
             </p>
@@ -573,8 +590,10 @@ export function VaultView({ onOpenSet }: { onOpenSet?: (setId: string) => void }
         <>
           <PortfolioVisualization
             cards={cards}
+            game={game}
+            setDates={setDates}
             onOpen={(vc) => setOpenId(vc.id)}
-            onFilterSet={(k) => update({ mode: 'holdings', set: k })}
+            onFilter={(patch) => update({ mode: 'holdings', ...patch })}
           />
         </>
       ) : null}

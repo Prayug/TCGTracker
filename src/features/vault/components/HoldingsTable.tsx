@@ -3,7 +3,12 @@ import type { VaultCard } from '../../../types/pokemon';
 import { vaultService } from '../../../services/vaultService';
 import { CardArt } from '../../../components/exchange/CardArt';
 import { Delta, Price } from '../../../components/exchange/Price';
-import { holdingMarketValue, knownCostBasis, knownHoldingProfit } from '../../../utils/vaultCost';
+import {
+  costStatus,
+  holdingMarketValue,
+  knownCostBasis,
+  knownHoldingProfit,
+} from '../../../utils/vaultCost';
 import {
   CONDITION_SHORT,
   CONDITION_LABEL,
@@ -78,6 +83,41 @@ function CostCell({ holding, game }: { holding: VaultCard; game: 'pokemon' | 'on
             invalid && 'border-loss'
           )}
         />
+      </span>
+    );
+  }
+
+  if (basis == null && costStatus(holding) === 'unverified') {
+    return (
+      <span className="inline-flex flex-col items-end gap-0.5">
+        <span
+          className="font-mono text-[12.5px] tabular-nums text-ink-muted line-through decoration-dotted"
+          title="Stored by an older import, possibly from the market price of the day"
+        >
+          ${holding.purchasePrice.toFixed(2)}
+        </span>
+        <span className="inline-flex items-center gap-1 text-[11.5px]">
+          <span className="rounded bg-warn-muted px-1 text-warn">Unverified</span>
+          <button
+            type="button"
+            onClick={() => vaultService.confirmCosts([holding.id], game)}
+            className="text-accent hover:underline"
+            aria-label={`Confirm you paid $${holding.purchasePrice.toFixed(2)} for ${holding.card.name}`}
+          >
+            Confirm
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setDraft(holding.purchasePrice.toFixed(2));
+              setEditing(true);
+            }}
+            className="text-accent hover:underline"
+            aria-label={`Correct what you paid for ${holding.card.name}`}
+          >
+            Edit
+          </button>
+        </span>
       </span>
     );
   }

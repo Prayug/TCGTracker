@@ -11,6 +11,7 @@ import { Basis, Delta, Price } from '../../../components/exchange/Price';
 import { cardPath } from '../../../contexts/CardModalContext';
 import { formatCurrency } from '../../../utils/cardDisplay';
 import {
+  costStatus,
   hasKnownCost,
   holdingMarketValue,
   knownHoldingProfit,
@@ -58,7 +59,9 @@ export function HoldingSheet({
     if (!holding) return;
     setMode('edit');
     setQty(String(holding.quantity));
-    setCost(hasKnownCost(holding) ? holding.purchasePrice.toFixed(2) : '');
+    setCost(
+      holding.purchasePrice > 0 || hasKnownCost(holding) ? holding.purchasePrice.toFixed(2) : ''
+    );
     setCondition(holding.condition);
     setDate(holding.purchaseDate ? holding.purchaseDate.slice(0, 10) : '');
     setNotes(holding.notes ?? '');
@@ -74,6 +77,7 @@ export function HoldingSheet({
   const value = holdingMarketValue(holding);
   const pl = knownHoldingProfit(holding);
   const known = hasKnownCost(holding);
+  const unverified = costStatus(holding) === 'unverified';
 
   const save = () => {
     const q = Number.parseInt(qty, 10);
@@ -81,13 +85,15 @@ export function HoldingSheet({
     const parsed = parseCostInput(cost);
     if (parsed === undefined) return setError('Enter a cost of $0 or more, or leave it blank.');
     const when = date ? new Date(`${date}T12:00:00`) : null;
+    // An unverified price left as it is stays unverified; only a changed amount is a recorded cost.
+    const keepUnverified = unverified && parsed === holding.purchasePrice;
     vaultService.updateVaultCard(
       holding.id,
       {
         quantity: q,
         condition,
         notes: notes.trim() || undefined,
-        ...costUpdate(parsed),
+        ...(keepUnverified ? {} : costUpdate(parsed)),
         ...(when && !Number.isNaN(when.getTime()) ? { purchaseDate: when.toISOString() } : {}),
       },
       game
@@ -241,7 +247,11 @@ export function HoldingSheet({
                     <Delta pct={pl.profitPct} amount={pl.profit} />
                   ) : (
                     <span className="text-[13px] text-ink-muted">
-                      {known ? 'No market price' : 'Cost not recorded'}
+                      {known
+                        ? 'No market price'
+                        : unverified
+                          ? 'Cost unverified'
+                          : 'Cost not recorded'}
                     </span>
                   )}
                 </dd>
@@ -272,9 +282,31 @@ export function HoldingSheet({
                       aria-describedby={`${id}-cost-help`}
                     />
                   </span>
-                  <span id={`${id}-cost-help`} className="mt-1 block text-[12px] text-ink-muted">
-                    Leave blank if you don’t know it. Enter 0 for a gift or pack pull.
-                  </span>
+                  {unverified ? (
+                    <span
+                      id={`${id}-cost-help`}
+                      className="mt-1 block text-[12px] text-ink-secondary"
+                    >
+                      <span className="rounded bg-warn-muted px-1 text-warn">Unverified</span> An
+                      older import stored this, possibly from the market price that day. Change it
+                      to what you paid, or{' '}
+                      <button
+                        type="button"
+                        className="text-accent hover:underline"
+                        onClick={() => {
+                          vaultService.confirmCosts([holding.id], game);
+                          onClose();
+                        }}
+                      >
+                        confirm it is right
+                      </button>
+                      .
+                    </span>
+                  ) : (
+                    <span id={`${id}-cost-help`} className="mt-1 block text-[12px] text-ink-muted">
+                      Leave blank if you don’t know it. Enter 0 for a gift or pack pull.
+                    </span>
+                  )}
                 </label>
                 <label className="block" htmlFor={`${id}-qty`}>
                   <span className="mb-1 block text-[13px] font-medium">Copies</span>

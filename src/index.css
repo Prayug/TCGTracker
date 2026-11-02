@@ -762,6 +762,24 @@
     animation-delay: 400ms;
   }
 
+  /* Catalog slip for a card with no artwork: card stock, a fine guilloche, a quiet border. */
+  .art-slip {
+    border-radius: inherit;
+    border: 1px solid var(--rule-strong);
+    background:
+      radial-gradient(
+        120% 70% at 50% 0%,
+        color-mix(in srgb, var(--accent) 7%, transparent),
+        transparent 70%
+      ),
+      repeating-linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--ink-muted) 9%, transparent) 0 1px,
+        transparent 1px 7px
+      ),
+      var(--surface-raised);
+  }
+
   /* Shimmer skeleton */
   .skeleton {
     background: linear-gradient(

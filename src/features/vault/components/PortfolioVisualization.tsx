@@ -1,24 +1,14 @@
 import { useMemo, useState, type PointerEvent } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import {
-  arc as d3arc,
-  area as d3area,
-  curveStepAfter,
-  line as d3line,
-  pie as d3pie,
-} from 'd3-shape';
+import { area as d3area, curveStepAfter, line as d3line } from 'd3-shape';
 import type { VaultCard } from '../../../types/pokemon';
 import { CardArt } from '../../../components/exchange/CardArt';
 import { Price } from '../../../components/exchange/Price';
 import { useElementWidth } from '../../../components/exchange/useElementWidth';
 import { formatCurrency } from '../../../utils/cardDisplay';
-import {
-  allocateBy,
-  byEra,
-  bySet,
-  concentration,
-  summarizePortfolio,
-} from '../../../utils/portfolio';
+import { concentration, summarizePortfolio } from '../../../utils/portfolio';
+import { AllocationExplorer } from './AllocationExplorer';
+import { CostReview } from './CostReview';
 import { holdingMarketValue } from '../../../utils/vaultCost';
 import { usePrefersReducedMotion } from '../../../hooks/useMotionPreferences';
 import { buildTimeline, sliceRange, undatedCount, type TimelineRange } from '../portfolioTimeline';
@@ -31,8 +21,6 @@ const RANGES: { id: TimelineRange; label: string }[] = [
   { id: 'all', label: 'All' },
 ];
 
-const SLICE_COLORS = ['#2f56e6', '#e3a73a', '#1fb38a', '#a06cf0', '#ff7a3d', '#5aa9e6', '#8d93a0'];
-
 /**
  * The financial view of the vault. Two original figures, both from the
  * user's own records: how the collection was built (recorded cost against
@@ -42,12 +30,16 @@ const SLICE_COLORS = ['#2f56e6', '#e3a73a', '#1fb38a', '#a06cf0', '#ff7a3d', '#5
  */
 export function PortfolioVisualization({
   cards,
+  game,
+  setDates,
   onOpen,
-  onFilterSet,
+  onFilter,
 }: {
   cards: VaultCard[];
+  game: 'pokemon' | 'onepiece';
+  setDates: ReadonlyMap<string, string>;
   onOpen: (vc: VaultCard) => void;
-  onFilterSet: (key: string) => void;
+  onFilter: (patch: Record<string, string>) => void;
 }) {
   const summary = useMemo(() => summarizePortfolio(cards), [cards]);
   const conc = useMemo(() => concentration(cards, 5), [cards]);
@@ -98,7 +90,11 @@ export function PortfolioVisualization({
             <Figure
               label="Recorded cost"
               value={summary.knownCost > 0 ? formatCurrency(summary.knownCost) : null}
-              note={`${Math.round(summary.costCoverage * 100)}% of value covered`}
+              note={
+                summary.unverifiedCostEntries > 0
+                  ? `${Math.round(summary.costCoverage * 100)}% of value · ${summary.unverifiedCostEntries} unverified`
+                  : `${Math.round(summary.costCoverage * 100)}% of value covered`
+              }
             />
             <Figure
               label="Top 5 share"
@@ -113,10 +109,17 @@ export function PortfolioVisualization({
           </dl>
         </div>
         <BuildTimeline cards={cards} highlight={highlight} />
+        <ActualPerformance />
       </section>
 
+      <CostReview
+        cards={cards}
+        game={game}
+        onShowAll={() => onFilter({ filter: 'missing-cost' })}
+      />
+
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-        <AllocationRing cards={cards} onFilterSet={onFilterSet} />
+        <AllocationExplorer cards={cards} setDates={setDates} onOpen={onOpen} onFilter={onFilter} />
         <section
           aria-labelledby="top-hold-h"
           className="rounded-3xl border border-border-default bg-surface-raised p-5 sm:p-6"
@@ -268,7 +271,7 @@ function BuildTimeline({ cards, highlight }: { cards: VaultCard[]; highlight: st
     <div className="mt-7">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h3 className="font-display text-[19px] font-semibold">How you built it</h3>
+          <h3 className="font-display text-[19px] font-semibold">Collection growth</h3>
           <p className="max-w-[62ch] text-[12.5px] text-ink-muted">
             Running total by purchase date: what you recorded paying, and what those same cards are
             worth at today’s prices. Not a history of past values.
@@ -479,140 +482,32 @@ function BuildTimeline({ cards, highlight }: { cards: VaultCard[]; highlight: st
   );
 }
 
-/* ───────────── Allocation ring ───────────── */
-
-function AllocationRing({
-  cards,
-  onFilterSet,
-}: {
-  cards: VaultCard[];
-  onFilterSet: (key: string) => void;
-}) {
-  const [by, setBy] = useState<'era' | 'set'>('era');
-  const [active, setActive] = useState<string | null>(null);
-  const slices = useMemo(() => allocateBy(cards, by === 'era' ? byEra : bySet, 6), [cards, by]);
-  const size = 220;
-  const arcs = useMemo(() => {
-    const pie = d3pie<(typeof slices)[number]>()
-      .value((s) => s.value)
-      .sort(null)
-      .padAngle(0.015);
-    return pie(slices);
-  }, [slices]);
-  const arcGen = d3arc<(typeof arcs)[number]>()
-    .innerRadius(size * 0.3)
-    .outerRadius(size * 0.46)
-    .cornerRadius(3);
-  const arcHot = d3arc<(typeof arcs)[number]>()
-    .innerRadius(size * 0.29)
-    .outerRadius(size * 0.5)
-    .cornerRadius(3);
-  const current = slices.find((s) => s.key === active) ?? null;
-  const total = slices.reduce((s, x) => s + x.value, 0);
-
+/**
+ * Actual performance needs the collection's value recorded on past dates.
+ * No such history is stored, so this says so instead of drawing a line from
+ * today's prices that would look like one.
+ */
+function ActualPerformance() {
   return (
-    <section
-      aria-labelledby="ring-h"
-      className="rounded-3xl border border-border-default bg-surface-raised p-5 sm:p-6"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 id="ring-h" className="font-display text-[19px] font-semibold">
-          Where the value sits
-        </h3>
-        <div className="segmented" role="group" aria-label="Group by">
-          <button
-            type="button"
-            aria-pressed={by === 'era'}
-            onClick={() => {
-              setBy('era');
-              setActive(null);
-            }}
-          >
-            Era
-          </button>
-          <button
-            type="button"
-            aria-pressed={by === 'set'}
-            onClick={() => {
-              setBy('set');
-              setActive(null);
-            }}
-          >
-            Set
-          </button>
-        </div>
+    <div className="mt-5 flex flex-wrap items-start gap-3 rounded-2xl border border-dashed border-border-strong px-4 py-3">
+      <svg viewBox="0 0 40 24" className="mt-0.5 h-6 w-10 shrink-0 text-ink-muted" aria-hidden>
+        <path d="M2 20h36" stroke="currentColor" strokeOpacity=".4" />
+        <path
+          d="M2 16l8-3 7 4 8-9 6 3 7-6"
+          fill="none"
+          stroke="currentColor"
+          strokeDasharray="2 3"
+          strokeLinecap="round"
+        />
+      </svg>
+      <div className="min-w-0 flex-1">
+        <p className="text-[13.5px] font-medium">Actual performance</p>
+        <p className="text-[12.5px] text-ink-muted">
+          Shown once your collection’s value has been recorded over time. No past valuations are
+          stored yet, so the chart above is growth by purchase date at today’s prices, not a record
+          of what the collection was worth.
+        </p>
       </div>
-      {slices.length === 0 ? (
-        <p className="mt-4 text-[13.5px] text-ink-muted">No priced holdings yet.</p>
-      ) : (
-        <div className="mt-4 grid items-center gap-6 sm:grid-cols-[auto_minmax(0,1fr)]">
-          <svg
-            viewBox={`${-size / 2} ${-size / 2} ${size} ${size}`}
-            className="mx-auto w-[220px]"
-            role="img"
-            aria-label={`Market value by ${by}`}
-          >
-            {arcs.map((a, i) => (
-              <motion.path
-                key={a.data.key}
-                d={(a.data.key === active ? arcHot(a) : arcGen(a)) ?? ''}
-                fill={SLICE_COLORS[i % SLICE_COLORS.length]}
-                opacity={active && a.data.key !== active ? 0.35 : 1}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: active && a.data.key !== active ? 0.35 : 1, scale: 1 }}
-                transition={{ duration: 0.3, delay: i * 0.04 }}
-                onPointerEnter={() => setActive(a.data.key)}
-                onPointerLeave={() => setActive(null)}
-                className="cursor-pointer"
-              />
-            ))}
-            <text textAnchor="middle" y={-4} className="fill-[var(--ink-muted)] text-[11px]">
-              {current ? current.label : 'Total'}
-            </text>
-            <text
-              textAnchor="middle"
-              y={16}
-              className="fill-[var(--ink-primary)] font-mono text-[16px] font-medium"
-            >
-              {formatCurrency(current ? current.value : total)}
-            </text>
-          </svg>
-          <ul className="space-y-1">
-            {slices.map((s, i) => (
-              <li key={s.key}>
-                <button
-                  type="button"
-                  onPointerEnter={() => setActive(s.key)}
-                  onPointerLeave={() => setActive(null)}
-                  onFocus={() => setActive(s.key)}
-                  onBlur={() => setActive(null)}
-                  onClick={() => by === 'set' && s.key !== '__other' && onFilterSet(s.key)}
-                  className={cn(
-                    'grid w-full grid-cols-[0.75rem_minmax(0,1fr)_auto_3rem] items-center gap-3 rounded-lg px-2 py-1.5 text-left text-[13px]',
-                    active === s.key && 'bg-surface-hover'
-                  )}
-                >
-                  <span
-                    className="h-3 w-3 rounded-sm"
-                    style={{ background: SLICE_COLORS[i % SLICE_COLORS.length] }}
-                  />
-                  <span className="truncate">{s.label}</span>
-                  <span className="font-mono tabular-nums text-ink-secondary">
-                    {formatCurrency(s.value)}
-                  </span>
-                  <span className="text-right font-mono tabular-nums text-ink-muted">
-                    {Math.round(s.share * 100)}%
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      <p className="mt-3 text-[11.5px] text-ink-muted">
-        Eras by set release year: Vintage up to 2003, Mid-era 2004 to 2016, Modern 2017 on.
-        {by === 'set' ? ' Select a set to filter your holdings.' : ''}
-      </p>
-    </section>
+    </div>
   );
 }

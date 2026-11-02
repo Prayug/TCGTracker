@@ -40,8 +40,10 @@ describe('cost basis rules', () => {
     expect(hasKnownCost(holding({ id: 'a', price: 0, market: 10, costKnown: true }))).toBe(true);
   });
 
-  it('reads legacy entries without the flag by price > 0', () => {
-    expect(hasKnownCost(holding({ id: 'a', price: 5, market: 10 }))).toBe(true);
+  it('keeps legacy prices without the flag but does not count them as recorded', () => {
+    // Older imports filled cost from market, so an unflagged price is unconfirmed.
+    expect(hasKnownCost(holding({ id: 'a', price: 5, market: 10 }))).toBe(false);
+    expect(hasKnownCost(holding({ id: 'a2', price: 5, market: 10, costKnown: true }))).toBe(true);
     expect(hasKnownCost(holding({ id: 'b', price: 0, market: 10 }))).toBe(false);
   });
 });
@@ -99,5 +101,46 @@ describe('allocation', () => {
     expect(eraOfRelease('2012-05-01')).toBe('Mid-era');
     expect(eraOfRelease('2023/03/31')).toBe('Modern');
     expect(eraOfRelease('')).toBe('Unknown');
+  });
+});
+
+describe('cost status', () => {
+  const base = {
+    id: 'x',
+    purchaseDate: '2024-01-01',
+    quantity: 1,
+    condition: 'raw',
+    card: {
+      id: 'base1-4',
+      name: 'Charizard',
+      images: { small: '', large: '' },
+      set: { id: 'base1', name: 'Base', releaseDate: '1999/01/09', total: 102 },
+      number: '4',
+      marketPrice: 420,
+    },
+  };
+  it('treats a legacy cost without a flag as unverified, not as a $0 gain', async () => {
+    const { costStatus, knownHoldingProfit } = await import('../vaultCost');
+    const vc = { ...base, purchasePrice: 420 } as unknown as VaultCard;
+    expect(costStatus(vc)).toBe('unverified');
+    expect(knownHoldingProfit(vc)).toBeNull();
+  });
+  it('keeps a typed or confirmed cost recorded even when it equals market', async () => {
+    const { costStatus } = await import('../vaultCost');
+    expect(
+      costStatus({ ...base, purchasePrice: 420, costKnown: true } as unknown as VaultCard)
+    ).toBe('recorded');
+    // A legacy price that differs from market is still unconfirmed: it may be a past market fill.
+    expect(costStatus({ ...base, purchasePrice: 300 } as unknown as VaultCard)).toBe('unverified');
+    expect(
+      costStatus({ ...base, purchasePrice: 0, costKnown: false } as unknown as VaultCard)
+    ).toBe('unknown');
+  });
+  it('leaves unverified costs out of the cost coverage of the summary', () => {
+    const s = summarizePortfolio([
+      { ...base, id: 'a', purchasePrice: 420 } as unknown as VaultCard,
+      { ...base, id: 'b', purchasePrice: 100, costKnown: true } as unknown as VaultCard,
+    ]);
+    expect(s.costKnownCount).toBe(1);
   });
 });
