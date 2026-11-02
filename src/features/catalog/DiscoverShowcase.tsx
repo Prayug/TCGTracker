@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { EraExplorer } from './EraExplorer';
+import { GradeComparisonStage } from '../market/components/GradeComparisonStage';
+import { fetchTopGradedPremiums, type GradedSpreadRow } from '../../services/gradedPricesApi';
 import { Link, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowRight, ChevronLeft, ChevronRight, SlidersHorizontal } from 'lucide-react';
@@ -124,6 +127,8 @@ export function DiscoverShowcase({
         <EditorialColumn trending={trending} onAdvanced={onAdvanced} />
       </div>
       <CategoryTiles onSearch={onSearch} />
+      {isOnePiece ? null : <EraExplorer />}
+      {isOnePiece ? null : <GradedSpotlight />}
       <section aria-labelledby="names-h">
         <h2 id="names-h" className="font-display text-[20px] font-semibold">
           Or start with a name
@@ -143,6 +148,20 @@ export function DiscoverShowcase({
       </section>
     </div>
   );
+}
+
+/** Raw against slab for the cards where grading adds most, from recorded graded sales. */
+function GradedSpotlight() {
+  const [rows, setRows] = useState<GradedSpreadRow[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetchTopGradedPremiums(12).then((r) => alive && setRows(r));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  if (!rows || rows.length === 0) return null;
+  return <GradeComparisonStage rows={rows} />;
 }
 
 /* ───────────── Featured gallery ───────────── */
