@@ -4,12 +4,10 @@ import {
   Upload,
   X,
   AlertCircle,
-  CheckCircle,
   RefreshCw,
   Scan,
   ChevronRight,
   Smartphone,
-  Database,
 } from 'lucide-react';
 import {
   scanCardFromFile,
@@ -20,84 +18,61 @@ import {
   ScanResult,
 } from '../../../services/cardScannerApi';
 import { ScanResultActions } from './ScanResultActions';
+import { Link } from 'react-router-dom';
+import { PageHeader } from '../../../components/layout/PageShell';
+import { CardArt } from '../../../components/exchange/CardArt';
+import { Unavailable } from '../../../components/exchange/Price';
+import { cn } from '@/lib/utils';
+import { confidenceLabel } from '../confidence';
 import { markOnboardingStep } from '../../../components/common/OnboardingChecklist';
 import { PhoneCaptureQr } from '../../capture/components/PhoneCaptureQr';
 import { compressImageDataUrl } from '../../../utils/imageCompress';
 
 type Mode = 'idle' | 'upload' | 'camera' | 'phone';
 
-function ConfidenceBadge({ value }: { value: number }) {
-  const pct = Math.round(value * 100);
-  const color =
-    pct >= 80
-      ? 'text-gain bg-gain/10 border-gain/30'
-      : pct >= 50
-        ? 'text-neon-amber bg-accent-muted border-neon-amber/30'
-        : 'text-loss bg-loss/10 border-loss/30';
-  return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold tabular-nums ${color}`}
-    >
-      {pct}% match
-    </span>
-  );
-}
-
 function ScanResultSheet({ result }: { result: ScanResult }) {
   if (!result.success || !result.card) return null;
   const { name, set, number, confidence, id, image } = result.card;
+  const conf = confidenceLabel(confidence);
 
   return (
-    <div
-      className="rounded-2xl border border-foil/30 bg-surface-overlay p-5 shadow-glow-foil animate-perspective-enter"
-      role="region"
+    <section
+      className="grid gap-4 border-t border-rule-strong pt-4 sm:grid-cols-[9rem_minmax(0,1fr)]"
       aria-live="polite"
       aria-label="Scan result"
     >
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gain/30 bg-gain/10">
-            <CheckCircle className="h-4 w-4 text-gain" aria-hidden="true" />
-          </div>
-          <div>
-            <p className="font-semibold text-ink-primary">Card identified</p>
-            <p className="mt-0.5 text-xs text-ink-muted">Recognition complete</p>
-          </div>
-        </div>
-        <ConfidenceBadge value={confidence} />
+      <div className="w-32 sm:w-36">
+        <CardArt card={{ name, images: image, number, set: { name: set } }} size="large" />
       </div>
-
-      <div className="mb-4 flex gap-4">
-        {image && (
-          <img
-            src={image.small}
-            alt={`${name} card`}
-            className="h-48 w-auto shrink-0 rounded-lg border border-border-subtle object-contain"
-          />
-        )}
-        <dl className="grid flex-1 grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-border-subtle bg-surface-inset p-3">
-          <div>
-            <dt className="mb-0.5 text-[11.5px] font-medium text-ink-muted">Name</dt>
-            <dd className="text-sm font-semibold text-ink-primary">{name}</dd>
-          </div>
-          <div>
-            <dt className="mb-0.5 text-[11.5px] font-medium text-ink-muted">Set</dt>
-            <dd className="text-sm font-semibold text-ink-primary">{set}</dd>
-          </div>
-          <div>
-            <dt className="mb-0.5 text-[11.5px] font-medium text-ink-muted">Number</dt>
-            <dd className="text-sm font-semibold tabular-nums text-ink-primary">{number || '—'}</dd>
-          </div>
-          {id && (
-            <div>
-              <dt className="mb-0.5 text-[11.5px] font-medium text-ink-muted">ID</dt>
-              <dd className="truncate text-sm font-mono text-ink-secondary">{id}</dd>
-            </div>
+      <div className="min-w-0">
+        <h2 className="text-h2">{name}</h2>
+        <p className="text-[13px] text-ink-secondary">
+          {set}
+          {number ? ` · ${number}` : ''}
+          {id ? <span className="font-mono text-ink-muted"> · {id}</span> : null}
+        </p>
+        <p
+          className={cn(
+            'mt-2 text-[13px] font-medium',
+            conf.tone === 'good' && 'text-gain',
+            conf.tone === 'check' && 'text-warn',
+            conf.tone === 'weak' && 'text-loss'
           )}
-        </dl>
+        >
+          {conf.text}
+        </p>
+        <ScanResultActions result={result} />
+        <p className="mt-3 text-[12.5px] text-ink-muted">
+          Not the right card?{' '}
+          <Link
+            to={`/browse?q=${encodeURIComponent(name)}`}
+            className="text-accent hover:underline"
+          >
+            Search the catalog for “{name}”
+          </Link>
+        </p>
       </div>
-      <ScanResultActions result={result} />
-    </div>
+    </section>
   );
 }
 
@@ -336,185 +311,132 @@ export function CardScanner() {
     checkBackendHealth().then(setBackendStatus);
   };
 
+  const header = (status?: string) => (
+    <PageHeader
+      title="Scan a card"
+      meta={status}
+      description="Point your camera at a Pokémon card to identify it, then add it to your vault or wishlist."
+      className="mb-6"
+    />
+  );
+
   if (backendStatus === false) {
     return (
-      <div className="mx-auto max-w-2xl">
-        <div className="rounded-xl border border-border-default bg-surface-raised p-8 text-center shadow-sm">
-          <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-2xl border border-neon-amber/25 bg-accent-muted">
-            <Camera className="h-10 w-10 text-neon-amber/80" />
-          </div>
-          <h2 className="text-xl font-semibold text-ink-primary">Scanner unavailable</h2>
-          <p className="mx-auto mt-2 max-w-md text-sm text-ink-muted">
-            The card recognition service isn&apos;t running. This feature requires a local Python
-            backend that processes card images — it&apos;s not available on the hosted demo.
-          </p>
-
-          {retryProgress < 100 && (
-            <div className="mx-auto mt-6 max-w-xs">
-              <div className="mb-1 flex justify-between text-[11.5px] text-ink-muted">
-                <span>Auto-retry</span>
-                <span>{retryProgress}%</span>
-              </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-                <div
-                  className="h-full rounded-full bg-accent/70 transition-all duration-500"
-                  style={{ width: `${retryProgress}%` }}
-                />
-              </div>
-            </div>
-          )}
-
-          <details className="mx-auto mt-6 max-w-md text-left">
-            <summary className="cursor-pointer text-sm font-medium text-ink-secondary hover:text-ink-primary">
-              Running locally? Start the backend ↓
-            </summary>
-            <div className="mt-3 rounded-lg border border-border-subtle bg-black/40 p-4 font-mono text-xs">
-              <p className="mb-2 text-ink-muted"># Start the scanner backend</p>
-              <p className="text-gain">cd card-scanner-backend</p>
-              <p className="text-gain">pip install -r requirements.txt</p>
-              <p className="text-gain">python app.py</p>
-            </div>
-          </details>
-
-          <button type="button" onClick={recheckBackend} className="btn-primary mt-6">
-            <RefreshCw className="h-4 w-4" />
-            Check again
-          </button>
-        </div>
+      <div className="mx-auto max-w-3xl">
+        {header('Recognition service offline')}
+        <Unavailable
+          title="The scanner can’t identify cards right now"
+          action={
+            <button type="button" onClick={recheckBackend} className="btn-secondary">
+              <RefreshCw className="h-4 w-4" aria-hidden />
+              Check again
+            </button>
+          }
+        >
+          The card recognition service isn’t running. It needs a separate image backend, which isn’t
+          part of the hosted demo.
+          {retryProgress < 100 ? ` Checking again automatically (${retryProgress}%).` : ''}
+        </Unavailable>
+        <details className="mt-4 max-w-md">
+          <summary className="cursor-pointer text-[13px] font-medium text-ink-secondary hover:text-ink-primary">
+            Running locally? Start the backend
+          </summary>
+          <pre className="mt-2 overflow-x-auto rounded-md border border-border-default bg-surface-inset p-3 font-mono text-[12px] text-ink-secondary">
+            {'cd card-scanner-backend\npip install -r requirements.txt\npython app.py'}
+          </pre>
+        </details>
       </div>
     );
   }
 
   if (backendStatus === null || (backendStatus === true && referenceReady === null)) {
     return (
-      <div className="mx-auto flex max-w-2xl items-center justify-center py-20">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-border-default border-t-accent" />
-        <span className="ml-3 text-sm text-ink-muted">Connecting to scanner…</span>
+      <div className="mx-auto max-w-3xl">
+        {header()}
+        <p className="flex items-center gap-3 text-[13px] text-ink-muted" role="status">
+          <span className="h-4 w-4 animate-spin rounded-full border-2 border-border-default border-t-accent motion-reduce:animate-none" />
+          Connecting to the scanner…
+        </p>
       </div>
     );
   }
 
   if (referenceReady === false) {
     return (
-      <div className="mx-auto max-w-2xl">
-        <div className="rounded-xl border border-border-default bg-surface-raised p-8 text-center shadow-sm">
-          <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-2xl border border-neon-amber/25 bg-accent-muted">
-            <Database className="h-10 w-10 text-neon-amber/80" aria-hidden />
-          </div>
-          <h2 className="text-xl font-semibold text-ink-primary">Reference database not ready</h2>
-          <p className="mx-auto mt-2 max-w-md text-sm text-ink-muted">
-            The scanner backend is online, but the Pokémon card reference database is missing or
-            empty. Recognition won&apos;t work until you build it locally — this is expected in
-            local/dev setups.
-          </p>
-          {referenceError && (
-            <p className="mx-auto mt-3 max-w-md rounded-lg border border-border-subtle bg-surface-inset px-3 py-2 text-left text-xs text-ink-secondary">
-              {referenceError}
-            </p>
-          )}
-
-          <div className="mt-6 rounded-lg border border-border-subtle bg-black/40 p-4 text-left font-mono text-xs">
-            <p className="mb-2 text-ink-muted">
-              # Optional — build reference DB (30–60 min, needs pokemontcg.io API key)
-            </p>
-            <p className="text-gain">cd card-scanner-backend</p>
-            <p className="text-gain">python build_reference.py</p>
-            <p className="mt-2 text-ink-muted">
-              # See SETUP_REFERENCE.md and CURRENT_STATUS.md for details
-            </p>
-          </div>
-
-          <p className="mx-auto mt-4 max-w-md text-xs text-ink-muted">
-            You can still develop the scanner UI without the reference DB. Real identification
-            starts after the build.
-          </p>
-
-          <button type="button" onClick={recheckBackend} className="btn-primary mt-6">
-            <RefreshCw className="h-4 w-4" />
-            Recheck reference status
-          </button>
-        </div>
+      <div className="mx-auto max-w-3xl">
+        {header('Reference cards missing')}
+        <Unavailable
+          title="The scanner is online but has no reference cards to compare against"
+          action={
+            <button type="button" onClick={recheckBackend} className="btn-secondary">
+              <RefreshCw className="h-4 w-4" aria-hidden />
+              Check again
+            </button>
+          }
+        >
+          Recognition starts once the reference database is built.
+          {referenceError ? ` (${referenceError})` : ''}
+        </Unavailable>
+        <details className="mt-4 max-w-md">
+          <summary className="cursor-pointer text-[13px] font-medium text-ink-secondary hover:text-ink-primary">
+            Build the reference database
+          </summary>
+          <pre className="mt-2 overflow-x-auto rounded-md border border-border-default bg-surface-inset p-3 font-mono text-[12px] text-ink-secondary">
+            {
+              'cd card-scanner-backend\npython build_reference.py   # 30–60 min, needs a pokemontcg.io key'
+            }
+          </pre>
+        </details>
       </div>
     );
   }
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="mb-8 space-y-2">
-        <p className="inline-flex items-center gap-2 text-xs font-medium text-foil">
-          <span className="h-1.5 w-1.5 rounded-full bg-accent shadow-glow-accent" aria-hidden />
-          Scanner
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="font-display text-h1 text-ink-primary">Card scanner</h1>
-          <span className="inline-flex items-center gap-1 rounded-lg border border-gain/30 bg-gain-muted px-2 py-0.5 text-[10px] font-medium text-gain">
-            Online
-          </span>
-        </div>
-        <p className="text-sm text-ink-secondary">
-          Identify any Pokémon card by uploading a photo, using this device&apos;s camera, or
-          scanning a QR code to shoot from your phone.
-        </p>
-      </div>
+      {header('Recognition service online')}
 
-      {/* Mode selection */}
+      {/* Camera first; the phone and upload routes sit beside it. */}
       {mode === 'idle' && (
-        <div className="grid animate-fade-in gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="space-y-4">
           <button
+            type="button"
             onClick={() => handleModeSelect('camera')}
-            className="group cursor-pointer rounded-2xl border border-border-default bg-gradient-chrome p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-glow-accent"
+            className="group flex w-full items-center gap-4 rounded-lg border border-border-strong bg-surface-raised p-5 text-left transition-colors hover:border-ink-muted"
           >
-            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-accent/30 bg-accent/10 transition-colors group-hover:bg-accent-hover/20">
-              <Camera className="h-5 w-5 text-accent" />
-            </div>
-            <h3 className="mb-1 font-semibold text-ink-primary">Camera scan</h3>
-            <p className="text-sm text-ink-muted">
-              Use your device camera to scan a physical card in real time.
-            </p>
-            <div className="mt-3 flex items-center gap-1 text-xs font-medium text-accent">
-              <span>Open camera</span>
-              <ChevronRight className="h-3.5 w-3.5" />
-            </div>
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-md bg-ink-primary text-surface-base">
+              <Camera className="h-6 w-6" aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[16px] font-medium">Use this device’s camera</span>
+              <span className="block text-[13px] text-ink-muted">
+                Hold the card flat in good light and fill the frame.
+              </span>
+            </span>
+            <ChevronRight className="h-5 w-5 text-ink-muted" aria-hidden />
           </button>
-
-          <button
-            onClick={() => handleModeSelect('phone')}
-            className="group cursor-pointer rounded-2xl border border-border-default bg-surface-raised p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-glow-accent"
-          >
-            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-accent/30 bg-accent/10 transition-colors group-hover:bg-accent-hover/20">
-              <Smartphone className="h-5 w-5 text-accent" />
-            </div>
-            <h3 className="mb-1 font-semibold text-ink-primary">Phone camera</h3>
-            <p className="text-sm text-ink-muted">
-              Scan a QR code and take a steadier photo with your phone.
-            </p>
-            <div className="mt-3 flex items-center gap-1 text-xs font-medium text-accent">
-              <span>Show QR code</span>
-              <ChevronRight className="h-3.5 w-3.5" />
-            </div>
-          </button>
-
-          <button
-            onClick={() => handleModeSelect('upload')}
-            className="group rounded-xl border border-border-default bg-surface-raised p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-border-strong sm:col-span-2 lg:col-span-1"
-          >
-            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-accent/30 bg-accent/10 transition-colors group-hover:bg-accent-hover/20">
-              <Upload className="h-5 w-5 text-accent" />
-            </div>
-            <h3 className="mb-1 font-semibold text-ink-primary">Upload image</h3>
-            <p className="text-sm text-ink-muted">
-              Upload a photo from your device or drag and drop.
-            </p>
-            <div className="mt-3 flex items-center gap-1 text-xs font-medium text-accent">
-              <span>Choose file</span>
-              <ChevronRight className="h-3.5 w-3.5" />
-            </div>
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => handleModeSelect('phone')}
+              className="btn-secondary"
+            >
+              <Smartphone className="h-4 w-4" aria-hidden />
+              Use your phone instead
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeSelect('upload')}
+              className="btn-secondary"
+            >
+              <Upload className="h-4 w-4" aria-hidden />
+              Upload a photo
+            </button>
+          </div>
         </div>
       )}
 
       {mode === 'phone' && (
-        <div className="animate-fade-in space-y-4">
+        <div className="space-y-4">
           {!scanResult && !isScanning && (
             <PhoneCaptureQr
               mode="scan"
@@ -552,11 +474,11 @@ export function CardScanner() {
 
       {/* Camera mode */}
       {mode === 'camera' && (
-        <div className="animate-fade-in overflow-hidden rounded-xl border border-border-default bg-surface-raised shadow-sm">
+        <div className="overflow-hidden rounded-lg border border-border-default bg-surface-raised">
           <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3">
             <div className="flex items-center gap-2">
               <Camera className="w-4 h-4 text-ink-muted" />
-              <span className="text-sm font-medium text-ink-primary">Camera Scanner</span>
+              <span className="text-[13.5px] font-medium">Camera</span>
               {isCameraActive && (
                 <span className="flex items-center gap-1 text-xs text-gain">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-gain" />
@@ -564,12 +486,17 @@ export function CardScanner() {
                 </span>
               )}
             </div>
-            <button onClick={reset} className="p-1.5 text-ink-muted hover:text-ink-primary">
-              <X className="w-4 h-4" />
+            <button
+              type="button"
+              onClick={reset}
+              aria-label="Close and choose another way to scan"
+              className="grid h-8 w-8 place-items-center rounded-md text-ink-muted hover:bg-surface-hover hover:text-ink-primary"
+            >
+              <X className="h-4 w-4" aria-hidden />
             </button>
           </div>
 
-          <div className="relative bg-black/60 aspect-video">
+          <div className="relative aspect-[3/4] bg-black sm:aspect-video">
             <video
               ref={videoRef}
               autoPlay
@@ -618,7 +545,7 @@ export function CardScanner() {
               ) : (
                 <>
                   <Scan className="w-4 h-4" />
-                  Capture & Identify
+                  Identify this card
                 </>
               )}
             </button>
@@ -631,14 +558,19 @@ export function CardScanner() {
 
       {/* Upload mode */}
       {mode === 'upload' && (
-        <div className="animate-fade-in overflow-hidden rounded-xl border border-border-default bg-surface-raised shadow-sm">
+        <div className="overflow-hidden rounded-lg border border-border-default bg-surface-raised">
           <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3">
             <div className="flex items-center gap-2">
               <Upload className="w-4 h-4 text-ink-muted" />
-              <span className="text-sm font-medium text-ink-primary">Upload Image</span>
+              <span className="text-[13.5px] font-medium">Upload a photo</span>
             </div>
-            <button onClick={reset} className="p-1.5 text-ink-muted hover:text-ink-primary">
-              <X className="w-4 h-4" />
+            <button
+              type="button"
+              onClick={reset}
+              aria-label="Close and choose another way to scan"
+              className="grid h-8 w-8 place-items-center rounded-md text-ink-muted hover:bg-surface-hover hover:text-ink-primary"
+            >
+              <X className="h-4 w-4" aria-hidden />
             </button>
           </div>
 
@@ -746,7 +678,7 @@ function ErrorBanner({ message }: { message: string }) {
       role="alert"
     >
       <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-loss" />
-      <p className="text-sm text-red-200">{message}</p>
+      <p className="text-[13px] text-ink-primary">{message}</p>
     </div>
   );
 }

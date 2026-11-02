@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
-import { AlertCircle, RefreshCw, Sparkles, X } from 'lucide-react';
+import { RefreshCw, X } from 'lucide-react';
 import { PageHeader, PageShell } from '../../../components/layout/PageShell';
+import { Unavailable } from '../../../components/exchange/Price';
 import { useToast } from '../../../components/common/Toast';
 import { useGame } from '../../../contexts/GameContext';
 import { fetchGradedPrices } from '../../../services/gradedPricesApi';
@@ -197,47 +197,35 @@ export const GradingPage: React.FC = () => {
     <PageShell className="relative">
       {!result && (
         <PageHeader
-          title="AI card grading"
-          description="Photograph the front and back. We’ll return a predicted PSA number from those photos. Not a substitute for a slab."
-          actions={
-            backendOk === false ? (
-              <span className="inline-flex items-center gap-1 rounded-lg border border-neon-amber/30 bg-accent-muted px-2 py-0.5 text-xs font-medium text-neon-amber">
-                Scanner offline
-              </span>
-            ) : undefined
-          }
+          title="Photo grade estimate"
+          meta={backendOk === false ? 'Grading service offline' : undefined}
+          description="Photograph the front, then the back. You get an estimated PSA grade from those photos, with the evidence behind it. It is an estimate, not a slab."
         />
       )}
 
       {backendOk === false && (
-        <div className="rounded-xl border border-neon-amber/25 bg-accent-muted p-4 text-sm text-ink-primary">
-          <div className="flex items-start gap-2">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-neon-amber" />
-            <div>
-              <p className="font-medium">Grading service unavailable</p>
-              <p className="mt-1 text-sm text-ink-secondary">
-                AI card grading requires a local Python backend that processes card images —
-                it&apos;s not available on the hosted demo.
-              </p>
-              <details className="mt-3">
-                <summary className="cursor-pointer text-xs font-medium text-ink-secondary hover:text-ink-primary">
-                  Running locally? Start the backend ↓
-                </summary>
-                <p className="mt-2 text-xs text-ink-secondary">
-                  <code className="font-mono">cd card-scanner-backend && python app.py</code>
-                </p>
-              </details>
-              <button
-                type="button"
-                className="btn-secondary mt-3"
-                onClick={() => checkGradingBackendHealth().then(setBackendOk)}
-              >
-                <RefreshCw className="h-4 w-4" />
-                Check again
-              </button>
-            </div>
-          </div>
-        </div>
+        <Unavailable
+          title="Grading can’t run right now"
+          action={
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => checkGradingBackendHealth().then(setBackendOk)}
+            >
+              <RefreshCw className="h-4 w-4" aria-hidden />
+              Check again
+            </button>
+          }
+        >
+          Photo grading needs a separate image backend, which isn’t part of the hosted demo. You can
+          still take and review photos below.{' '}
+          <details className="mt-1 inline-block">
+            <summary className="cursor-pointer font-medium text-ink-secondary hover:text-ink-primary">
+              Running locally?
+            </summary>
+            <code className="font-mono text-[12px]">cd card-scanner-backend && python app.py</code>
+          </details>
+        </Unavailable>
       )}
 
       <div className="space-y-6">
@@ -253,27 +241,27 @@ export const GradingPage: React.FC = () => {
         )}
 
         {isProcessing && (
-          <div className="card-glass-scene relative overflow-hidden py-12">
-            <div className="animate-shimmer-accent absolute inset-0" />
-            <div className="relative flex flex-col items-center justify-center gap-3 text-center">
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ repeat: Infinity, duration: 2, ease: 'linear' }}
-              >
-                <Sparkles className="h-6 w-6 text-accent" />
-              </motion.div>
-              <p className="text-sm font-medium text-ink-primary">
-                Checking photos, then centering, corners, edges, and surface…
+          <div
+            className="mx-auto flex max-w-3xl items-center gap-3 border-y border-rule py-5"
+            role="status"
+          >
+            <span
+              className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-border-default border-t-accent motion-reduce:animate-none"
+              aria-hidden
+            />
+            <div>
+              <p className="text-[14px] font-medium">
+                Checking the photos, then centering, corners, edges and surface…
               </p>
-              <p className="text-sm text-ink-muted">This takes a few seconds</p>
+              <p className="text-[12.5px] text-ink-muted">This takes a few seconds.</p>
             </div>
           </div>
         )}
 
         {error && (
-          <div className="rounded-lg border border-loss/30 bg-loss-muted px-3 py-2 text-sm text-loss">
+          <p className="mx-auto max-w-3xl border-l-2 border-loss pl-3 text-[13px]" role="alert">
             {error}
-          </div>
+          </p>
         )}
 
         {result && (

@@ -3,6 +3,7 @@ import { BookOpen, Heart, Loader2 } from 'lucide-react';
 import { ScanResult } from '../../../services/cardScannerApi';
 import { pokemonApi } from '../../../services/pokemonApi';
 import { setWishlistService } from '../../../services/setWishlistService';
+import { cardWishlistService } from '../../../services/cardWishlistService';
 import { PokemonCard } from '../../../types/pokemon';
 import { AddToVaultModal } from '../../vault/components/AddToVaultModal';
 import { markOnboardingStep } from '../../../components/common/OnboardingChecklist';
@@ -32,12 +33,12 @@ export const ScanResultActions: React.FC<ScanResultActionsProps> = ({ result }) 
         }
       }
       const search = await pokemonApi.searchCards(result.card.name, undefined, 30);
-      const match =
-        search.find(
-          (c) =>
-            c.name.toLowerCase() === result.card!.name.toLowerCase() &&
-            (c.set?.name === result.card!.set || c.number === result.card!.number)
-        ) || search[0];
+      const match = search.find(
+        (c) =>
+          c.name.toLowerCase() === result.card!.name.toLowerCase() &&
+          (c.set?.name === result.card!.set || c.number === result.card!.number)
+      );
+      // Never fall back to a different card: adding the wrong print is worse than asking.
       if (match) {
         setCard(match);
         return match;
@@ -51,7 +52,7 @@ export const ScanResultActions: React.FC<ScanResultActionsProps> = ({ result }) 
   const handleAddToVault = async () => {
     const resolved = await resolveCard();
     if (!resolved) {
-      setMessage('Could not resolve card in catalog. Try Browse search.');
+      setMessage('Could not find this exact card in the catalog. Search for it instead.');
       return;
     }
     setVaultOpen(true);
@@ -59,39 +60,37 @@ export const ScanResultActions: React.FC<ScanResultActionsProps> = ({ result }) 
 
   const handleWishlist = async () => {
     const resolved = await resolveCard();
-    if (!resolved?.set?.id) {
-      setMessage('Set ID missing — add from Set Tracker after browsing.');
+    if (!resolved) {
+      setMessage('Could not find this exact card in the catalog. Search for it instead.');
       return;
     }
-    const now = setWishlistService.toggleWishlist(resolved.set.id, resolved.id);
+    const now = cardWishlistService.toggle(resolved, 'pokemon');
     setWishlisted(now);
-    setMessage(now ? 'Added to set wishlist' : 'Removed from wishlist');
+    setMessage(now ? 'Added to your wishlist' : 'Removed from your wishlist');
   };
 
   return (
-    <div className="mt-4 flex flex-wrap gap-2 border-t border-border-subtle pt-4">
-      <button
-        type="button"
-        disabled={loading}
-        onClick={handleAddToVault}
-        className="btn-primary flex-1 justify-center"
-      >
-        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookOpen className="h-4 w-4" />}
-        Add to collection
+    <div className="mt-4 flex flex-wrap gap-2">
+      <button type="button" disabled={loading} onClick={handleAddToVault} className="btn-primary">
+        {loading ? (
+          <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden />
+        ) : (
+          <BookOpen className="h-4 w-4" aria-hidden />
+        )}
+        Add to vault
       </button>
       <button
         type="button"
         disabled={loading}
         onClick={handleWishlist}
-        className={`btn-secondary flex-1 justify-center ${
-          wishlisted ? 'border-neon-amber/40 text-neon-amber' : ''
-        }`}
+        aria-pressed={wishlisted}
+        className="btn-secondary"
       >
-        <Heart className={`h-4 w-4 ${wishlisted ? 'fill-current' : ''}`} />
-        Wishlist
+        <Heart className={`h-4 w-4 ${wishlisted ? 'fill-current' : ''}`} aria-hidden />
+        {wishlisted ? 'On your wishlist' : 'Add to wishlist'}
       </button>
       {message && (
-        <p className="w-full text-xs text-ink-muted" aria-live="polite">
+        <p className="w-full text-[12.5px] text-ink-muted" aria-live="polite">
           {message}
         </p>
       )}

@@ -208,14 +208,7 @@ function AppRoutes() {
                 </ShellPage>
               }
             />
-            <Route
-              path="/open"
-              element={
-                <ShellPage wide>
-                  <OpenPacksPage />
-                </ShellPage>
-              }
-            />
+            <Route path="/open" element={<OpenPacksPage />} />
             <Route
               path="/scanner"
               element={
@@ -224,14 +217,7 @@ function AppRoutes() {
                 </ShellPage>
               }
             />
-            <Route
-              path="/grading"
-              element={
-                <ShellPage wide>
-                  <GradingPage />
-                </ShellPage>
-              }
-            />
+            <Route path="/grading" element={<GradingPage />} />
             <Route path="/capture/:sessionId" element={<PhoneCapturePage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/verify-email" element={<VerifyEmailPage />} />
