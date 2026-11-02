@@ -20,7 +20,7 @@ export function DealSummary({ summary }: { summary: DealSummary }) {
             {summary.dealsFound.toLocaleString()} listing{summary.dealsFound === 1 ? '' : 's'} under
             the market estimate
           </p>
-          <dl className="mt-5 grid max-w-xl grid-cols-3 gap-4">
+          <dl className="mt-5 grid max-w-xl grid-cols-3 gap-3 sm:gap-4">
             <Stat
               label="Median under"
               value={summary.medianDiscount != null ? formatPercent(summary.medianDiscount) : '—'}
@@ -68,7 +68,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <dt className="text-[12px] text-white/55">{label}</dt>
-      <dd className="font-mono text-[22px] font-medium tabular-nums sm:text-[26px]">{value}</dd>
+      <dd className="font-mono text-[17px] font-medium tabular-nums sm:text-[26px]">{value}</dd>
     </div>
   );
 }
