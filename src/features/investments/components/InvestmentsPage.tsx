@@ -1,4 +1,14 @@
-import { FlaskConical, Flame, Layers, Radio, RefreshCw, Target, TrendingUp } from 'lucide-react';
+import {
+  Compass,
+  FlaskConical,
+  Flame,
+  Layers,
+  Radio,
+  RefreshCw,
+  Target,
+  TrendingUp,
+} from 'lucide-react';
+import { InvestmentsOverview } from './InvestmentsOverview';
 import { PageHeader, PageShell } from '@/components/layout/PageShell';
 import { useInvestments } from '../hooks/useInvestments';
 import type { InvestmentsTab } from '../types';
@@ -11,6 +21,7 @@ import { StrategyPanel } from './StrategyPanel';
 import { InlineNotice } from '@/components/common/InlineNotice';
 
 const TABS: { id: InvestmentsTab; label: string; icon: React.ReactNode }[] = [
+  { id: 'overview', label: 'Overview', icon: <Compass className="h-4 w-4" /> },
   { id: 'strategy', label: 'Strategy', icon: <FlaskConical className="h-4 w-4" /> },
   { id: 'opportunities', label: 'Opportunities', icon: <Target className="h-4 w-4" /> },
   { id: 'movers', label: 'Movers', icon: <TrendingUp className="h-4 w-4" /> },
@@ -92,7 +103,9 @@ export function InvestmentsPage() {
         </p>
       )}
 
-      {error && activeTab !== 'strategy' && <InlineNotice>{error}</InlineNotice>}
+      {error && activeTab !== 'strategy' && activeTab !== 'overview' && (
+        <InlineNotice>{error}</InlineNotice>
+      )}
 
       <div
         role="tablist"
@@ -119,6 +132,16 @@ export function InvestmentsPage() {
       </div>
 
       <div>
+        {activeTab === 'overview' && (
+          <InvestmentsOverview
+            opportunities={opportunities}
+            loading={opportunitiesLoading}
+            error={error}
+            movers={movers}
+            signals={signals}
+            onTab={setActiveTab}
+          />
+        )}
         {activeTab === 'strategy' && <StrategyPanel />}
         {activeTab === 'opportunities' && (
           <OpportunityListPanel

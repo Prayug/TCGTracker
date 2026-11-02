@@ -1,4 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+
+const TAB_IDS = [
+  'overview',
+  'strategy',
+  'opportunities',
+  'movers',
+  'buyouts',
+  'similar',
+  'signals',
+] as const;
 import {
   fetchBuyoutCandidates,
   fetchInvestmentSignals,
@@ -24,7 +35,21 @@ function isAbort(err: unknown): boolean {
 }
 
 export function useInvestments() {
-  const [activeTab, setActiveTab] = useState<InvestmentsTab>('strategy');
+  const [params, setParams] = useSearchParams();
+  const activeTab = (TAB_IDS.find((t) => t === params.get('tab')) ?? 'overview') as InvestmentsTab;
+  const setActiveTab = useCallback(
+    (t: InvestmentsTab) =>
+      setParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (t === 'overview') next.delete('tab');
+          else next.set('tab', t);
+          return next;
+        },
+        { replace: true }
+      ),
+    [setParams]
+  );
 
   // Loading defaults to true so freshly-activated tabs show a spinner
   // instead of flashing their empty state before the fetch effect runs.
@@ -188,7 +213,8 @@ export function useInvestments() {
   // Load the active tab's data lazily (and reload when its params change).
   useEffect(() => {
     const controller = new AbortController();
-    if (activeTab === 'opportunities') loadOpportunities(controller.signal);
+    if (activeTab === 'opportunities' || activeTab === 'overview')
+      loadOpportunities(controller.signal);
     else if (activeTab === 'movers') loadMovers(controller.signal);
     else if (activeTab === 'buyouts') loadBuyouts(controller.signal);
     else if (activeTab === 'similar') loadSimilar(controller.signal);
@@ -197,7 +223,7 @@ export function useInvestments() {
   }, [activeTab, loadOpportunities, loadMovers, loadBuyouts, loadSimilar, loadSignals]);
 
   const refresh = useCallback(() => {
-    if (activeTab === 'opportunities') loadOpportunities();
+    if (activeTab === 'opportunities' || activeTab === 'overview') loadOpportunities();
     else if (activeTab === 'movers') loadMovers();
     else if (activeTab === 'buyouts') loadBuyouts();
     else if (activeTab === 'similar') loadSimilar();
