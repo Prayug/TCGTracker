@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { effectiveUnitPrice, evaluateTrade, FAIR_PCT } from '../fairness';
+import { effectiveUnitPrice, evaluateTrade, evenOut, FAIR_PCT, unpricedCount } from '../fairness';
 
 describe('effectiveUnitPrice', () => {
   it('prefers a positive override over market', () => {
@@ -77,5 +77,44 @@ describe('evaluateTrade', () => {
       get: [{ unitPrice: 0, quantity: 1 }],
     });
     expect(result.kind).toBe('incomplete');
+  });
+});
+
+describe('evenOut', () => {
+  it('asks the side receiving more to add the difference', () => {
+    const e = evaluateTrade({
+      give: [{ quantity: 1, unitPrice: 100 }],
+      get: [{ quantity: 1, unitPrice: 130 }],
+    });
+    expect(evenOut(e)).toEqual({ payer: 'you', amount: 30 });
+    const f = evaluateTrade({
+      give: [{ quantity: 1, unitPrice: 130 }],
+      get: [{ quantity: 1, unitPrice: 100 }],
+    });
+    expect(evenOut(f)).toEqual({ payer: 'them', amount: 30 });
+  });
+  it('suggests nothing when level or when nothing is priced', () => {
+    expect(
+      evenOut(
+        evaluateTrade({
+          give: [{ quantity: 1, unitPrice: 10 }],
+          get: [{ quantity: 1, unitPrice: 10 }],
+        })
+      )
+    ).toBeNull();
+    expect(
+      evenOut(evaluateTrade({ give: [{ quantity: 1, unitPrice: null }], get: [] }))
+    ).toBeNull();
+    expect(evenOut(evaluateTrade({ give: [], get: [] }))).toBeNull();
+  });
+  it('counts unpriced cards on both sides', () => {
+    const e = evaluateTrade({
+      give: [
+        { quantity: 1, unitPrice: null },
+        { quantity: 1, unitPrice: 5 },
+      ],
+      get: [{ quantity: 2, unitPrice: null }],
+    });
+    expect(unpricedCount(e)).toBe(2);
   });
 });

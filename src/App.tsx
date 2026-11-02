@@ -209,22 +209,8 @@ function AppRoutes() {
             />
             <Route path="/vault" element={<VaultPage />} />
             <Route path="/wishlist" element={<WishlistView />} />
-            <Route
-              path="/trade"
-              element={
-                <ShellPage wide>
-                  <TradePage />
-                </ShellPage>
-              }
-            />
-            <Route
-              path="/trade/:shareToken"
-              element={
-                <ShellPage wide>
-                  <TradePage />
-                </ShellPage>
-              }
-            />
+            <Route path="/trade" element={<TradePage />} />
+            <Route path="/trade/:shareToken" element={<TradePage />} />
             <Route path="/binders" element={<BindersIndex />} />
             <Route path="/sets" element={<SetsPage />} />
             <Route path="/sets/:setId" element={<SetsPage />} />

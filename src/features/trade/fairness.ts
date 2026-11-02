@@ -110,7 +110,7 @@ export const VERDICT_COPY: Record<TradeVerdictKind, { title: string; hint: strin
   },
   incomplete: {
     title: 'Need market prices',
-    hint: 'Some cards have no quote — set a custom price or pick a different print.',
+    hint: 'No card here has a price yet. Type a price on a card, or pick a different print.',
   },
   fair: {
     title: 'Fair trade',
@@ -125,11 +125,31 @@ export const VERDICT_COPY: Record<TradeVerdictKind, { title: string; hint: strin
     hint: 'Ask for a small cash sweeter or a cheaper swap.',
   },
   leans_you: {
-    title: 'Unbalanced — you come out ahead',
+    title: 'You come out well ahead',
     hint: 'The other side is giving up more than they are getting.',
   },
   leans_them: {
-    title: 'Unbalanced — you give more',
+    title: 'You give a lot more',
     hint: 'Ask for cash or drop a card before you accept.',
   },
 };
+
+/**
+ * The cash payment that would bring both sides level, or null when the
+ * trade is already level (to the cent) or has nothing priced. `payer` is
+ * who would hand over the cash.
+ */
+export function evenOut(
+  evaluation: Pick<TradeEvaluation, 'delta' | 'kind'>
+): { payer: 'you' | 'them'; amount: number } | null {
+  if (evaluation.kind === 'empty' || evaluation.kind === 'incomplete') return null;
+  const amount = Math.round(Math.abs(evaluation.delta) * 100) / 100;
+  if (amount < 0.01) return null;
+  // delta = get − give. Positive: you receive more, so you would add cash.
+  return { payer: evaluation.delta > 0 ? 'you' : 'them', amount };
+}
+
+/** Cards on either side with no usable price. Their value is not in the totals. */
+export function unpricedCount(evaluation: Pick<TradeEvaluation, 'give' | 'get'>): number {
+  return evaluation.give.missing + evaluation.get.missing;
+}
