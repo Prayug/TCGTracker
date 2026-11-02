@@ -1,148 +1,54 @@
-import {
-  ReactNode,
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { PokemonCard } from '../types/pokemon';
-import { OnePieceCard } from '../types/onepiece';
-import { pokemonApi } from '../services/pokemonApi';
-import { onePieceApi } from '../services/onepieceApi';
-import { useGame } from './GameContext';
-import { InvestmentModal } from '../features/market/components/InvestmentModal';
+import { ReactNode, createContext, useCallback, useContext, useEffect, useMemo } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import type { PokemonCard } from '../types/pokemon';
+import type { OnePieceCard } from '../types/onepiece';
 
+/**
+ * Card research navigation. The old giant modal is retired: opening a card
+ * goes to the deep-linkable research page at /card/:id. The clicked card is
+ * passed in router state so the page paints immediately while it enriches.
+ * The context name is kept so the many existing call sites keep working.
+ */
 interface CardModalContextValue {
   openCard: (card: PokemonCard | OnePieceCard) => void;
+}
+
+export interface CardRouteState {
+  card?: PokemonCard | OnePieceCard;
+  /** Where the user came from, for the page's "Back to …" link. */
+  from?: { pathname: string; search: string; label?: string };
 }
 
 const CardModalContext = createContext<CardModalContextValue>({ openCard: () => {} });
 
 export const useCardModal = () => useContext(CardModalContext);
 
-function isPokemonCard(card: PokemonCard | OnePieceCard): card is PokemonCard {
-  // Minimal slab/grade stubs often only have id/name/set/marketPrice — do not
-  // require types/tcgplayer/hp or those clicks get misclassified as One Piece.
-  if ('cardColor' in card || 'cardCost' in card || 'attribute' in card) return false;
-  return (
-    'types' in card ||
-    'tcgplayer' in card ||
-    'hp' in card ||
-    'preferredVariant' in card ||
-    ('set' in card && 'releaseDate' in (card.set ?? {}))
-  );
-}
+export const cardPath = (id: string) => `/card/${encodeURIComponent(id)}`;
 
 export function CardModalProvider({ children }: { children: ReactNode }) {
-  const { isPokemon, isOnePiece } = useGame();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [pokemonCard, setPokemonCard] = useState<PokemonCard | null>(null);
-  const [opCard, setOpCard] = useState<OnePieceCard | null>(null);
-  const fetchingRef = useRef<string | null>(null);
-  const loadedRef = useRef<string | null>(null);
-  const cardId = searchParams.get('card');
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const legacyCardId = searchParams.get('card');
 
+  // Old share links used ?card=<id> on any page; send them to the research page.
   useEffect(() => {
-    if (!cardId) return;
-    if (loadedRef.current === cardId) return;
-
-    const controller = new AbortController();
-    fetchingRef.current = cardId;
-
-    if (isPokemon) {
-      pokemonApi
-        .getCardById(cardId)
-        .then((fetched) => {
-          if (!controller.signal.aborted && fetchingRef.current === cardId) {
-            if (fetched) setPokemonCard(fetched);
-            // Mark loaded even on a miss so we keep any stub already shown.
-            loadedRef.current = cardId;
-          }
-        })
-        .catch(() => {
-          if (!controller.signal.aborted) {
-            console.warn(`Failed to fetch Pokemon card: ${cardId}`);
-            loadedRef.current = cardId;
-          }
-        });
-    }
-
-    if (isOnePiece) {
-      onePieceApi
-        .getCardById(cardId)
-        .then((fetched) => {
-          if (!controller.signal.aborted && fetchingRef.current === cardId) {
-            if (fetched) setOpCard(fetched);
-            loadedRef.current = cardId;
-          }
-        })
-        .catch(() => {
-          if (!controller.signal.aborted) {
-            console.warn(`Failed to fetch One Piece card: ${cardId}`);
-            loadedRef.current = cardId;
-          }
-        });
-    }
-
-    return () => {
-      controller.abort();
-    };
-  }, [cardId, isPokemon, isOnePiece]);
+    if (!legacyCardId) return;
+    navigate(cardPath(legacyCardId), { replace: true });
+  }, [legacyCardId, navigate]);
 
   const openCard = useCallback(
     (next: PokemonCard | OnePieceCard) => {
-      // Prefer active game mode — grade/slab stubs lack types/tcgplayer/hp and
-      // used to be misclassified as One Piece, so InvestmentModal never opened.
-      if (isPokemon || (!isOnePiece && isPokemonCard(next))) {
-        setPokemonCard(next as PokemonCard);
-        setOpCard(null);
-      } else {
-        setOpCard(next as OnePieceCard);
-        setPokemonCard(null);
-      }
-      // Show stub immediately; leave loadedRef unset so getCardById can enrich.
-      fetchingRef.current = next.id;
-      loadedRef.current = null;
-      setSearchParams(
-        (prev) => {
-          const params = new URLSearchParams(prev);
-          params.set('card', next.id);
-          return params;
-        },
-        { preventScrollReset: true }
-      );
+      const state: CardRouteState = {
+        card: next,
+        from: { pathname: location.pathname, search: location.search },
+      };
+      navigate(cardPath(next.id), { state });
     },
-    [setSearchParams, isPokemon, isOnePiece]
+    [navigate, location.pathname, location.search]
   );
-
-  const closeCard = useCallback(() => {
-    setSearchParams(
-      (prev) => {
-        const params = new URLSearchParams(prev);
-        params.delete('card');
-        return params;
-      },
-      { preventScrollReset: true }
-    );
-    setPokemonCard(null);
-    setOpCard(null);
-    loadedRef.current = null;
-    fetchingRef.current = null;
-  }, [setSearchParams]);
 
   const value = useMemo(() => ({ openCard }), [openCard]);
 
-  return (
-    <CardModalContext.Provider value={value}>
-      {children}
-      {isPokemon && (
-        <InvestmentModal card={pokemonCard} isOpen={Boolean(pokemonCard)} onClose={closeCard} />
-      )}
-      {isOnePiece && <InvestmentModal card={opCard} isOpen={Boolean(opCard)} onClose={closeCard} />}
-    </CardModalContext.Provider>
-  );
+  return <CardModalContext.Provider value={value}>{children}</CardModalContext.Provider>;
 }

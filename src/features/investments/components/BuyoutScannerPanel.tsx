@@ -76,7 +76,7 @@ export function BuyoutScannerPanel({ data, loading, error }: Props) {
                     <p className="truncate text-xs text-ink-muted">{c.setName}</p>
                   </div>
                   <span
-                    className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${PHASE_STYLES[c.phase]}`}
+                    className={`shrink-0 rounded-full border px-2 py-0.5 text-[11.5px] font-medium ${PHASE_STYLES[c.phase]}`}
                   >
                     {c.phase}
                   </span>
@@ -135,7 +135,7 @@ export function BuyoutScannerPanel({ data, loading, error }: Props) {
 
             {c.ripples.length > 0 && (
               <div className="mt-3 border-t border-border-subtle pt-3">
-                <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-ink-muted">
+                <p className="mb-2 text-[11.5px] font-medium text-ink-muted">
                   Watch these next (set-mates moving)
                 </p>
                 <ul className="space-y-1.5">

@@ -1,158 +1,180 @@
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
-@import '@fontsource-variable/geist';
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import '@fontsource/ibm-plex-sans/400-italic.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+@import '@fontsource/ibm-plex-mono/600.css';
+@import '@fontsource-variable/newsreader/opsz.css';
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * The Collector's Exchange — design tokens.
+ * See docs/design/collectors-exchange.md. Light is "archival paper",
+ * dark is "graphite & carbon". Legacy names (neon-*, foil, gradient-*)
+ * are kept as aliases so untouched screens inherit the new palette.
+ */
 @layer base {
   :root,
-  [data-theme='dark'] {
-    /* Collectibles terminal — three surfaces, spare borders */
-    --surface-inset: #0b1016;
-    --surface-base: #0b1016;
-    --surface-raised: #111923;
-    --surface-overlay: #182332;
-    --surface-hover: #1e2a38;
-    --surface-chrome: #182332;
+  [data-theme='light'] {
+    color-scheme: light;
+    --surface-inset: #ece7db;
+    --surface-base: #f5f2ea;
+    --surface-raised: #fffefb;
+    --surface-overlay: #fffefb;
+    --surface-hover: #ebe6da;
+    --surface-chrome: #efebe1;
+    --surface-band: #ede8dc;
     --bg-app: var(--surface-base);
     --surface-card: var(--surface-raised);
-    --surface-glass: rgba(17, 25, 35, 0.88);
-    --surface-glass-border: rgba(232, 236, 242, 0.08);
-    --surface-glass-blur: 18px;
+    --surface-glass: rgba(255, 254, 251, 0.94);
+    --surface-glass-border: rgba(32, 39, 43, 0.1);
+    --surface-glass-blur: 12px;
 
-    --ink-primary: #e8ecf2;
-    --ink-secondary: #9aa6b8;
-    --ink-muted: #6b7789;
+    --ink-primary: #20272b;
+    --ink-secondary: #4e575c;
+    --ink-muted: #6b7276;
+    --ink-faint: #a3a59f;
 
-    /* Legacy neon aliases → soft vault accents */
-    --neon-gold: #6ee7b7;
-    --neon-amber: #86efac;
-    --neon-pink: #f07178;
-    --neon-green: #3d9b6e;
-    --neon-cyan: #5bc4d4;
+    --accent: #3559b7;
+    --accent-hover: #2a4796;
+    --accent-muted: rgba(53, 89, 183, 0.09);
+    --accent-foreground: #ffffff;
+    --gold: #8a6427;
+    --gold-muted: rgba(181, 138, 67, 0.14);
+    --gold-line: #b58a43;
+    --warn: #8f6210;
+    --warn-muted: rgba(196, 140, 32, 0.13);
 
-    --accent: #6ee7b7;
-    --accent-hover: #86efac;
-    --accent-muted: rgba(110, 231, 183, 0.12);
-    --foil: #5bc4d4;
-    --foil-muted: rgba(91, 196, 212, 0.14);
+    --foil: #8a6427;
+    --foil-muted: rgba(181, 138, 67, 0.14);
+    --neon-gold: #8a6427;
+    --neon-amber: #8f6210;
+    --neon-pink: #c04c36;
+    --neon-green: #167f73;
+    --neon-cyan: #3559b7;
 
-    --border-subtle: rgba(232, 236, 242, 0.04);
-    --border-default: rgba(232, 236, 242, 0.08);
-    --border-strong: rgba(232, 236, 242, 0.14);
+    --border-subtle: rgba(32, 39, 43, 0.07);
+    --border-default: rgba(32, 39, 43, 0.12);
+    --border-strong: rgba(32, 39, 43, 0.22);
     --border-neon: var(--accent);
+    --rule: rgba(32, 39, 43, 0.12);
+    --rule-strong: #20272b;
 
-    --gain: #3d9b6e;
-    --gain-muted: rgba(61, 155, 110, 0.12);
-    --loss: #f07178;
-    --loss-muted: rgba(240, 113, 120, 0.12);
+    --gain: #167f73;
+    --gain-muted: rgba(22, 127, 115, 0.1);
+    --loss: #c04c36;
+    --loss-muted: rgba(192, 76, 54, 0.1);
 
-    --chart-grid: rgba(232, 236, 242, 0.035);
-    --chart-tick: #6b7789;
+    --chart-grid: rgba(32, 39, 43, 0.07);
+    --chart-tick: #6b7276;
+    --chart-series-1: #3559b7;
+    --chart-series-2: #b58a43;
+    --chart-series-3: #167f73;
+    --chart-series-4: #7d5ba6;
+    --chart-series-5: #6b7276;
 
-    --shadow-color: 0 0 0;
-    --scrollbar-thumb: #2a3545;
-    --scrollbar-thumb-hover: #3a475a;
-    --selection-bg: rgba(110, 231, 183, 0.22);
-    --selection-fg: #0b1016;
-    --focus-ring: var(--accent);
-    --ring-accent: rgba(110, 231, 183, 0.25);
+    --shadow-color: 32 39 43;
+    --scrollbar-thumb: #d6d0c2;
+    --scrollbar-thumb-hover: #c2bba9;
+    --selection-bg: rgba(53, 89, 183, 0.16);
+    --selection-fg: #20272b;
+    --focus-ring: #3559b7;
+    --ring-accent: rgba(53, 89, 183, 0.2);
+    --shadow-glow: 0 10px 30px rgba(32, 39, 43, 0.1);
+    --card-shadow: 0 1px 1px rgba(32, 39, 43, 0.08), 0 6px 14px -6px rgba(32, 39, 43, 0.28);
 
-    --shadow-glow: 0 12px 32px rgba(0, 0, 0, 0.4);
-
-    --gradient-surface: #111923;
-    --gradient-accent: linear-gradient(135deg, #6ee7b7 0%, #5bc4d4 100%);
-    --gradient-text: linear-gradient(115deg, #e8ecf2 40%, #6ee7b7 78%, #5bc4d4 100%);
-    --gradient-chrome: #182332;
+    --gradient-surface: var(--surface-raised);
+    --gradient-accent: var(--accent);
+    --gradient-text: linear-gradient(var(--ink-primary), var(--ink-primary));
+    --gradient-chrome: var(--surface-raised);
     --atmosphere: none;
 
     --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
     --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
     --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
+    --rail-w: 76px;
+    --header-h: 56px;
   }
 
-  [data-theme='light'] {
-    /* Collectibles terminal — paper surfaces, ink text */
-    --surface-inset: #eae6dd;
-    --surface-base: #f2efe9;
-    --surface-raised: #ffffff;
-    --surface-overlay: #ffffff;
-    --surface-hover: #ece7dc;
-    --surface-chrome: #ffffff;
-    --bg-app: var(--surface-base);
-    --surface-card: var(--surface-raised);
-    --surface-glass: rgba(255, 255, 255, 0.82);
-    --surface-glass-border: rgba(21, 24, 29, 0.08);
-    --surface-glass-blur: 18px;
+  [data-theme='dark'] {
+    color-scheme: dark;
+    --surface-inset: #12171a;
+    --surface-base: #171d21;
+    --surface-raised: #1e262a;
+    --surface-overlay: #242c30;
+    --surface-hover: #2a3338;
+    --surface-chrome: #1b2226;
+    --surface-band: #1b2226;
+    --surface-glass: rgba(30, 38, 42, 0.95);
+    --surface-glass-border: rgba(236, 233, 225, 0.1);
 
-    --ink-primary: #15181d;
-    --ink-secondary: #52586b;
-    --ink-muted: #8a8f99;
+    --ink-primary: #ece9e1;
+    --ink-secondary: #b0b5b0;
+    --ink-muted: #878e90;
+    --ink-faint: #5b6366;
 
-    /* Legacy neon aliases → soft vault accents */
-    --neon-gold: #047857;
-    --neon-amber: #065f46;
-    --neon-pink: #c0392b;
-    --neon-green: #15803d;
-    --neon-cyan: #0e7490;
+    --accent: #93acf0;
+    --accent-hover: #b0c3f5;
+    --accent-muted: rgba(147, 172, 240, 0.13);
+    --accent-foreground: #141a2c;
+    --gold: #d6b274;
+    --gold-muted: rgba(214, 178, 116, 0.14);
+    --gold-line: #b58a43;
+    --warn: #e2b759;
+    --warn-muted: rgba(226, 183, 89, 0.13);
 
-    --accent: #047857;
-    --accent-hover: #065f46;
-    --accent-muted: rgba(4, 120, 87, 0.1);
-    --foil: #0e7490;
-    --foil-muted: rgba(14, 116, 144, 0.1);
+    --foil: #d6b274;
+    --foil-muted: rgba(214, 178, 116, 0.14);
+    --neon-gold: #d6b274;
+    --neon-amber: #e2b759;
+    --neon-pink: #ef8a74;
+    --neon-green: #55c2ad;
+    --neon-cyan: #93acf0;
 
-    --border-subtle: rgba(21, 24, 29, 0.05);
-    --border-default: rgba(21, 24, 29, 0.09);
-    --border-strong: rgba(21, 24, 29, 0.16);
-    --border-neon: var(--accent);
+    --border-subtle: rgba(236, 233, 225, 0.06);
+    --border-default: rgba(236, 233, 225, 0.11);
+    --border-strong: rgba(236, 233, 225, 0.2);
+    --rule: rgba(236, 233, 225, 0.1);
+    --rule-strong: #ece9e1;
 
-    --gain: #15803d;
-    --gain-muted: rgba(21, 128, 61, 0.1);
-    --loss: #c0392b;
-    --loss-muted: rgba(192, 57, 43, 0.1);
+    --gain: #55c2ad;
+    --gain-muted: rgba(85, 194, 173, 0.12);
+    --loss: #ef8a74;
+    --loss-muted: rgba(239, 138, 116, 0.12);
 
-    --chart-grid: rgba(21, 24, 29, 0.06);
-    --chart-tick: #8a8f99;
+    --chart-grid: rgba(236, 233, 225, 0.07);
+    --chart-tick: #878e90;
+    --chart-series-1: #93acf0;
+    --chart-series-2: #d6b274;
+    --chart-series-3: #55c2ad;
+    --chart-series-4: #b99be0;
+    --chart-series-5: #878e90;
 
-    --shadow-color: 15 23 42;
-    --scrollbar-thumb: #d8d3c6;
-    --scrollbar-thumb-hover: #c7c1b2;
-    --selection-bg: rgba(4, 120, 87, 0.18);
-    --selection-fg: #15181d;
-    --focus-ring: var(--accent);
-    --ring-accent: rgba(4, 120, 87, 0.22);
-
-    --shadow-glow: 0 12px 32px rgba(15, 23, 42, 0.12);
-
-    --gradient-surface: #ffffff;
-    --gradient-accent: linear-gradient(135deg, #047857 0%, #0e7490 100%);
-    --gradient-text: linear-gradient(115deg, #15181d 40%, #047857 78%, #0e7490 100%);
-    --gradient-chrome: #ffffff;
-    --atmosphere: none;
+    --shadow-color: 0 0 0;
+    --scrollbar-thumb: #343e43;
+    --scrollbar-thumb-hover: #46525a;
+    --selection-bg: rgba(147, 172, 240, 0.25);
+    --selection-fg: #ece9e1;
+    --focus-ring: #93acf0;
+    --ring-accent: rgba(147, 172, 240, 0.25);
+    --shadow-glow: 0 12px 32px rgba(0, 0, 0, 0.4);
+    --card-shadow: 0 1px 1px rgba(0, 0, 0, 0.4), 0 8px 18px -8px rgba(0, 0, 0, 0.7);
   }
 
   @media (prefers-reduced-motion: reduce) {
-    body {
-      background-image: none;
-    }
-
-    .animate-float,
-    .animate-float-reverse,
-    .animate-marquee,
-    .animate-shimmer,
-    .animate-perspective-enter,
-    .animate-hero-float,
-    .animate-hero-float-slow,
-    .animate-hero-float-delay {
-      animation: none !important;
-    }
-  }
-
-  @media (prefers-reduced-motion: no-preference) {
-    html {
-      scroll-behavior: smooth;
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
     }
   }
 
@@ -165,11 +187,9 @@
   body {
     @apply font-sans antialiased;
     background-color: var(--surface-base);
-    background-image: var(--atmosphere);
-    background-attachment: fixed;
     color: var(--ink-primary);
-    font-feature-settings: 'ss01' 1;
-    letter-spacing: -0.006em;
+    font-size: 14px;
+    line-height: 1.5;
     width: 100%;
     min-width: 0;
     overflow-x: hidden;
@@ -184,7 +204,7 @@
   h2,
   h3,
   h4 {
-    @apply font-display;
+    @apply font-sans;
   }
 
   ::selection {
@@ -195,212 +215,148 @@
   :focus-visible {
     outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
-    box-shadow: 0 0 0 4px var(--ring-accent);
   }
+
   .theme {
-    --font-heading: 'Geist Variable', system-ui, sans-serif;
-    --font-sans: 'Geist Variable', system-ui, sans-serif;
+    --font-heading: 'IBM Plex Sans', system-ui, sans-serif;
+    --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
   }
-  /* Unified shadcn + app tokens (Chromatic Vault refined) */
+
+  /* shadcn bridge — derived from the tokens above */
   :root,
-  .dark,
+  [data-theme='light'],
   [data-theme='dark'] {
-    --background: #0b1016;
-    --foreground: #e8ecf2;
-    --card: #111923;
-    --card-foreground: #e8ecf2;
-    --popover: #182332;
-    --popover-foreground: #e8ecf2;
-    --primary: #6ee7b7;
-    --primary-foreground: #0b1016;
-    --secondary: #182332;
-    --secondary-foreground: #e8ecf2;
-    --muted: #182332;
-    --muted-foreground: #9aa6b8;
-    --accent: #6ee7b7;
-    --accent-foreground: #0b1016;
-    --destructive: #f07178;
-    --border: rgba(232, 236, 242, 0.1);
-    --input: rgba(232, 236, 242, 0.12);
-    --ring: #6ee7b7;
-    --chart-1: #6ee7b7;
-    --chart-2: #5bc4d4;
-    --chart-3: #3d9b6e;
-    --chart-4: #f07178;
-    --chart-5: #9aa6b8;
-    --radius: 1rem;
-    --sidebar: #111923;
-    --sidebar-foreground: #e8ecf2;
-    --sidebar-primary: #6ee7b7;
-    --sidebar-primary-foreground: #0b1016;
-    --sidebar-accent: #182332;
-    --sidebar-accent-foreground: #e8ecf2;
-    --sidebar-border: rgba(232, 236, 242, 0.06);
-    --sidebar-ring: #6ee7b7;
-    --chart-background: #0b1016;
-    --chart-foreground: #e8ecf2;
-    --chart-foreground-muted: #9aa6b8;
-    --chart-line-primary: var(--chart-1);
-    --chart-line-secondary: var(--chart-2);
-    --chart-crosshair: #6ee7b7;
+    --background: var(--surface-base);
+    --foreground: var(--ink-primary);
+    --card: var(--surface-raised);
+    --card-foreground: var(--ink-primary);
+    --popover: var(--surface-overlay);
+    --popover-foreground: var(--ink-primary);
+    --primary: var(--accent);
+    --primary-foreground: var(--accent-foreground);
+    --secondary: var(--surface-hover);
+    --secondary-foreground: var(--ink-primary);
+    --muted: var(--surface-inset);
+    --muted-foreground: var(--ink-secondary);
+    --destructive: var(--loss);
+    --border: var(--border-default);
+    --input: var(--border-strong);
+    --ring: var(--focus-ring);
+    --chart-1: var(--chart-series-1);
+    --chart-2: var(--chart-series-2);
+    --chart-3: var(--chart-series-3);
+    --chart-4: var(--chart-series-4);
+    --chart-5: var(--chart-series-5);
+    --radius: 0.5rem;
+    --sidebar: var(--surface-chrome);
+    --sidebar-foreground: var(--ink-primary);
+    --sidebar-primary: var(--accent);
+    --sidebar-primary-foreground: var(--accent-foreground);
+    --sidebar-accent: var(--surface-hover);
+    --sidebar-accent-foreground: var(--ink-primary);
+    --sidebar-border: var(--border-subtle);
+    --sidebar-ring: var(--focus-ring);
+    --chart-background: var(--surface-raised);
+    --chart-foreground: var(--ink-primary);
+    --chart-foreground-muted: var(--ink-secondary);
+    --chart-line-primary: var(--chart-series-1);
+    --chart-line-secondary: var(--chart-series-2);
+    --chart-crosshair: var(--ink-secondary);
     --chart-brush-border: var(--chart-grid);
-    --chart-tooltip-background: rgba(24, 35, 50, 0.96);
-    --chart-tooltip-foreground: #e8ecf2;
-    --chart-tooltip-muted: #9aa6b8;
-    --chart-marker-background: #182332;
-    --chart-marker-border: rgba(232, 236, 242, 0.12);
-    --chart-marker-foreground: #e8ecf2;
-    --chart-label: #9aa6b8;
-    --chart-scale-01: #111923;
-    --chart-scale-02: #182332;
-    --chart-scale-03: #1e2a38;
-    --chart-scale-04: #5bc4d4;
-    --chart-scale-05: #6ee7b7;
-    --chart-scale-pattern-color: #0b1016;
+    --chart-tooltip-background: var(--surface-overlay);
+    --chart-tooltip-foreground: var(--ink-primary);
+    --chart-tooltip-muted: var(--ink-secondary);
+    --chart-marker-background: var(--surface-overlay);
+    --chart-marker-border: var(--border-default);
+    --chart-marker-foreground: var(--ink-primary);
+    --chart-label: var(--ink-secondary);
+    --chart-scale-01: var(--surface-inset);
+    --chart-scale-02: var(--surface-hover);
+    --chart-scale-03: var(--border-strong);
+    --chart-scale-04: var(--chart-series-2);
+    --chart-scale-05: var(--chart-series-1);
+    --chart-scale-pattern-color: var(--surface-base);
   }
-  [data-theme='light'] {
-    --background: #f2efe9;
-    --foreground: #15181d;
-    --card: #ffffff;
-    --card-foreground: #15181d;
-    --popover: #ffffff;
-    --popover-foreground: #15181d;
-    --primary: #047857;
-    --primary-foreground: #ffffff;
-    --secondary: #ece7dc;
-    --secondary-foreground: #15181d;
-    --muted: #ece7dc;
-    --muted-foreground: #52586b;
-    --accent: #047857;
-    --accent-foreground: #ffffff;
-    --destructive: #c0392b;
-    --border: rgba(21, 24, 29, 0.1);
-    --input: rgba(21, 24, 29, 0.14);
-    --ring: #047857;
-    --chart-1: #047857;
-    --chart-2: #0e7490;
-    --chart-3: #15803d;
-    --chart-4: #c0392b;
-    --chart-5: #52586b;
-    --radius: 1rem;
-    --sidebar: #ffffff;
-    --sidebar-foreground: #15181d;
-    --sidebar-primary: #047857;
-    --sidebar-primary-foreground: #ffffff;
-    --sidebar-accent: #ece7dc;
-    --sidebar-accent-foreground: #15181d;
-    --sidebar-border: rgba(21, 24, 29, 0.08);
-    --sidebar-ring: #047857;
-    --chart-background: #f2efe9;
-    --chart-foreground: #15181d;
-    --chart-foreground-muted: #52586b;
-    --chart-line-primary: var(--chart-1);
-    --chart-line-secondary: var(--chart-2);
-    --chart-crosshair: #047857;
-    --chart-brush-border: var(--chart-grid);
-    --chart-tooltip-background: rgba(255, 255, 255, 0.98);
-    --chart-tooltip-foreground: #15181d;
-    --chart-tooltip-muted: #52586b;
-    --chart-marker-background: #ffffff;
-    --chart-marker-border: rgba(21, 24, 29, 0.12);
-    --chart-marker-foreground: #15181d;
-    --chart-label: #52586b;
-    --chart-scale-01: #f2efe9;
-    --chart-scale-02: #ece7dc;
-    --chart-scale-03: #e0dace;
-    --chart-scale-04: #0e7490;
-    --chart-scale-05: #047857;
-    --chart-scale-pattern-color: #f2efe9;
-  }
+
   * {
     border-color: var(--border-default);
-  }
-  *:focus-visible {
-    outline-color: color-mix(in srgb, var(--ring) 50%, transparent);
   }
 }
 
 @layer components {
   /*
-   * Surfaces. Hairline borders, no hover lift by default: only things you
-   * can click should react to the pointer (.card-interactive / .card-lift).
+   * Sheets. One flat surface with a hairline; no inner highlights.
+   * New code should prefer rules and bands (see .ledger, .band) over boxes.
    */
   .card {
-    @apply rounded-xl border;
+    @apply rounded-lg border;
     border-color: var(--border-default);
     background: var(--surface-raised);
     padding: 1.25rem;
-    box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.025);
   }
 
   .card-chrome {
-    background: var(--gradient-chrome);
-    border: 1px solid var(--border-subtle);
-    @apply rounded-xl;
+    @apply rounded-lg border;
+    border-color: var(--border-subtle);
+    background: var(--surface-raised);
     padding: 1.25rem;
-    box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.025);
   }
 
   .card-interactive {
     @apply cursor-pointer;
     transition:
       border-color 150ms var(--ease-out),
-      background-color 150ms var(--ease-out),
-      transform 160ms var(--ease-out);
+      background-color 150ms var(--ease-out);
   }
 
   .card-interactive:hover {
     border-color: var(--border-strong);
   }
 
-  .card-interactive:active {
-    transform: scale(0.99);
-  }
-
+  /* A labelled section heading. Sentence case, no tracking. */
   .section-label {
-    @apply text-[11px] font-medium uppercase tracking-[0.12em];
+    @apply text-[12.5px] font-medium;
     color: var(--ink-muted);
   }
 
   .section-stack {
-    @apply space-y-8;
+    @apply space-y-10;
   }
 
-  /*
-   * Buttons. One shape, tactile faces: a light top edge plus a darker lip so
-   * the primary reads as pressable, and scale(0.97) on press so the UI
-   * answers the click immediately. Transitions name their properties.
-   */
+  /* Band: a full-width tonal strip used to separate page regions. */
+  .band {
+    background: var(--surface-band);
+    border-top: 1px solid var(--border-subtle);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  /* Rule above a section, catalog style: hairline with the heading sitting on it. */
+  .ruled {
+    border-top: 1px solid var(--rule);
+    padding-top: 0.875rem;
+  }
+
+  .ruled-strong {
+    border-top: 2px solid var(--rule-strong);
+    padding-top: 0.75rem;
+  }
+
+  /* Buttons — rectangular, 6px, flat. Primary is cobalt ink on paper. */
   .btn-primary,
   .btn-secondary,
   .btn-ghost,
   .btn-destructive,
   .btn-alert {
-    @apply inline-flex h-9 cursor-pointer select-none items-center justify-center gap-2 whitespace-nowrap rounded-[10px] px-4 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex h-9 cursor-pointer select-none items-center justify-center gap-2 whitespace-nowrap rounded-md px-3.5 text-[13.5px] font-medium disabled:cursor-not-allowed disabled:opacity-50;
     transition:
-      background-color 150ms var(--ease-out),
-      border-color 150ms var(--ease-out),
-      color 150ms var(--ease-out),
-      box-shadow 150ms var(--ease-out),
-      transform 160ms var(--ease-out);
-  }
-
-  .btn-primary:active:not(:disabled),
-  .btn-secondary:active:not(:disabled),
-  .btn-ghost:active:not(:disabled),
-  .btn-destructive:active:not(:disabled),
-  .btn-alert:active:not(:disabled),
-  .btn-icon:active:not(:disabled) {
-    transform: scale(0.97);
+      background-color 120ms var(--ease-out),
+      border-color 120ms var(--ease-out),
+      color 120ms var(--ease-out);
   }
 
   .btn-primary {
     background: var(--accent);
-    color: var(--primary-foreground);
-    box-shadow:
-      inset 0 1px 0 0 rgb(255 255 255 / 0.35),
-      inset 0 -1px 0 0 rgb(0 0 0 / 0.18),
-      0 1px 2px 0 rgb(0 0 0 / 0.25);
+    color: var(--accent-foreground);
   }
 
   .btn-primary:hover:not(:disabled) {
@@ -409,19 +365,17 @@
 
   .btn-secondary {
     @apply border;
-    border-color: var(--border-default);
-    background: var(--surface-raised);
+    border-color: var(--border-strong);
+    background: transparent;
     color: var(--ink-primary);
-    box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.04);
   }
 
   .btn-secondary:hover:not(:disabled) {
-    border-color: var(--border-strong);
     background: var(--surface-hover);
   }
 
   .btn-ghost {
-    @apply px-3;
+    @apply px-2.5;
     color: var(--ink-secondary);
   }
 
@@ -431,11 +385,10 @@
   }
 
   .btn-icon {
-    @apply inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-[10px] text-ink-secondary;
+    @apply inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md text-ink-secondary;
     transition:
-      background-color 150ms var(--ease-out),
-      color 150ms var(--ease-out),
-      transform 160ms var(--ease-out);
+      background-color 120ms var(--ease-out),
+      color 120ms var(--ease-out);
   }
 
   .btn-icon:hover {
@@ -449,7 +402,7 @@
   }
 
   .btn-destructive:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--loss) 20%, transparent);
+    background: color-mix(in srgb, var(--loss) 18%, transparent);
   }
 
   .btn-alert {
@@ -458,23 +411,17 @@
   }
 
   .btn-alert:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--accent) 20%, transparent);
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
   }
 
-  /* Inputs. Quiet at rest, a single accent ring on focus. */
   .input {
-    @apply h-10 w-full rounded-[10px] border px-3.5 text-sm;
-    border-color: var(--border-default);
-    background: var(--surface-inset);
+    @apply h-9 w-full rounded-md border px-3 text-sm;
+    border-color: var(--border-strong);
+    background: var(--surface-raised);
     color: var(--ink-primary);
     transition:
-      border-color 150ms var(--ease-out),
-      box-shadow 150ms var(--ease-out),
-      background-color 150ms var(--ease-out);
-  }
-
-  .input:hover:not(:focus) {
-    border-color: var(--border-strong);
+      border-color 120ms var(--ease-out),
+      box-shadow 120ms var(--ease-out);
   }
 
   .input::placeholder {
@@ -483,17 +430,17 @@
 
   .input:focus {
     outline: none;
-    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+    border-color: var(--accent);
     box-shadow: 0 0 0 3px var(--ring-accent);
   }
 
   .input-with-icon {
-    @apply pl-10;
+    @apply pl-9;
   }
 
   .badge {
-    @apply inline-flex h-5 items-center gap-1 rounded-md px-1.5 text-[11px] font-medium leading-none;
-    background: color-mix(in srgb, var(--ink-primary) 6%, transparent);
+    @apply inline-flex h-5 items-center gap-1 rounded px-1.5 text-[11.5px] font-medium leading-none;
+    background: color-mix(in srgb, var(--ink-primary) 7%, transparent);
     color: var(--ink-secondary);
   }
 
@@ -512,26 +459,91 @@
     color: var(--accent);
   }
 
-  .badge-neon-gold {
-    background: var(--accent-muted);
-    color: var(--neon-gold);
+  .badge-neon-gold,
+  .badge-gold {
+    background: var(--gold-muted);
+    color: var(--gold);
   }
 
   .badge-neon-pink {
     background: var(--loss-muted);
-    color: var(--neon-pink);
+    color: var(--loss);
   }
 
   .badge-neon-green {
     background: var(--gain-muted);
-    color: var(--neon-green);
+    color: var(--gain);
   }
 
-  /*
-   * Native selects and range inputs, which the app uses in a dozen filter
-   * bars. Restyled here so every one picks up the same chevron and track
-   * instead of the browser's.
-   */
+  .badge-warn {
+    background: var(--warn-muted);
+    color: var(--warn);
+  }
+
+  /* Ledger: hairline-ruled data table used for holdings, research lists, comps. */
+  .ledger {
+    @apply w-full border-collapse text-[13.5px];
+  }
+
+  .ledger thead th {
+    @apply whitespace-nowrap px-3 py-2 text-left text-[12px] font-medium;
+    color: var(--ink-muted);
+    border-bottom: 1px solid var(--rule-strong);
+  }
+
+  .ledger tbody td,
+  .ledger tbody th {
+    @apply px-3 py-2.5 align-middle;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .ledger tbody tr:hover td,
+  .ledger tbody tr:hover th {
+    background: color-mix(in srgb, var(--ink-primary) 2.5%, transparent);
+  }
+
+  @media (max-width: 639px) {
+    .ledger-tight thead th,
+    .ledger-tight tbody td,
+    .ledger-tight tbody th {
+      padding-left: 0.375rem;
+      padding-right: 0.375rem;
+    }
+  }
+
+  .ledger .num {
+    @apply text-right font-mono tabular-nums;
+  }
+
+  /* Physical card art frame: real card corner radius ≈ 4.5% of width. */
+  .card-art {
+    border-radius: 4.6% / 3.3%;
+    box-shadow: var(--card-shadow);
+    background: var(--surface-inset);
+  }
+
+  /* Segmented control */
+  .segmented {
+    @apply inline-flex items-center rounded-md border p-0.5;
+    border-color: var(--border-default);
+    background: var(--surface-inset);
+  }
+
+  .segmented > button,
+  .segmented > a {
+    @apply inline-flex h-7 items-center gap-1.5 rounded-[5px] px-2.5 text-[12.5px] font-medium;
+    color: var(--ink-secondary);
+  }
+
+  .segmented > [aria-pressed='true'],
+  .segmented > [aria-checked='true'],
+  .segmented > [aria-selected='true'],
+  .segmented > [data-active='true'] {
+    background: var(--surface-raised);
+    color: var(--ink-primary);
+    box-shadow: 0 0 0 1px var(--border-default);
+  }
+
   select:not([multiple]):not([size]) {
     -webkit-appearance: none;
     appearance: none;
@@ -1093,12 +1105,12 @@
   }
 
   /* Glass card variant */
+  /* Legacy name kept for older panels; now a plain ruled panel, no glass blur. */
   .card-glass-scene {
-    background: var(--surface-glass);
-    border: 1px solid var(--surface-glass-border);
-    -webkit-backdrop-filter: blur(20px);
-    backdrop-filter: blur(20px);
-    padding: 20px;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-default);
+    border-radius: 0.5rem;
+    padding: 1.25rem;
   }
 
   /* Hot border */

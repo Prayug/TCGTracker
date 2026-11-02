@@ -216,9 +216,7 @@ export function OpportunityListPanel({ data, loading, minScore, onMinScoreChange
               </div>
 
               <div>
-                <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-ink-muted">
-                  Key signals
-                </p>
+                <p className="mb-1.5 text-[11.5px] font-medium text-ink-muted">Key signals</p>
                 <ul className="flex flex-wrap gap-1.5">
                   {selected.keySignals.map((s) => (
                     <li
@@ -234,7 +232,7 @@ export function OpportunityListPanel({ data, loading, minScore, onMinScoreChange
               <p className="text-xs text-ink-secondary">{selected.why}</p>
 
               <div className="rounded-xl border border-border-default bg-surface-raised">
-                <p className="border-b border-border-subtle px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-ink-muted">
+                <p className="border-b border-border-subtle px-3 py-2 text-[11.5px] font-medium text-ink-muted">
                   External signals
                 </p>
                 <InsightsApiContext.Provider value={slabInsightsApi}>

@@ -178,7 +178,8 @@ class CardWishlistService {
           `"${item.card.name.replace(/"/g, '""')}"`,
           `"${(item.card.set?.name ?? '').replace(/"/g, '""')}"`,
           item.card.number ?? '',
-          market.toFixed(2),
+          // A missing price stays blank: it is not a $0 card.
+          market > 0 ? market.toFixed(2) : '',
           item.targetPrice != null ? item.targetPrice.toFixed(2) : '',
           item.priority,
           `"${(item.notes ?? '').replace(/"/g, '""')}"`,

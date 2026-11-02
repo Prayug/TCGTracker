@@ -74,9 +74,7 @@ export function InsightsClarityDemoPage() {
         {activeTab === 'cards' && (
           <div className="mb-4 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
             <div className="min-w-0">
-              <span className="block text-[11px] font-medium uppercase tracking-wide text-ink-muted">
-                Forecast window
-              </span>
+              <span className="block text-[12px] font-medium text-ink-muted">Forecast window</span>
               <p className="text-[11px] text-ink-muted">
                 Horizon used for expected return and card ranking
               </p>

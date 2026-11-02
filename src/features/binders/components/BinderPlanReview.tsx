@@ -1,137 +1,122 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Save, RefreshCw, DollarSign } from 'lucide-react';
 import type { BinderPlan } from '../types';
-import { BinderSlotCard } from './BinderSlotCard';
+import { CardArt } from '../../../components/exchange/CardArt';
+import { Price } from '../../../components/exchange/Price';
+import { formatCurrency } from '../../../utils/cardDisplay';
 
 interface BinderPlanReviewProps {
   plan: BinderPlan;
   onSave: (name: string) => Promise<void>;
   saving: boolean;
-  onRefresh?: () => void;
-  onBinderSaved?: () => void;
 }
 
-export const BinderPlanReview: React.FC<BinderPlanReviewProps> = ({
-  plan,
-  onSave,
-  saving,
-  onRefresh,
-  onBinderSaved,
-}) => {
-  const [showNameInput, setShowNameInput] = useState(false);
+/** The planned page, as it would sit in the binder, with what it costs today. */
+export const BinderPlanReview: React.FC<BinderPlanReviewProps> = ({ plan, onSave, saving }) => {
   const [name, setName] = useState('');
-
-  const handleSave = async () => {
-    const binderName = name.trim() || `Binder - ${new Date().toLocaleDateString()}`;
-    await onSave(binderName);
-    setShowNameInput(false);
-    setName('');
-    onBinderSaved?.();
-  };
-
-  const totalCostDollars = plan.totalCost / 100;
-  const remainingDollars = plan.remainingBudget / 100;
-  const hasBudget = plan.totalCost > 0;
+  const spent = plan.totalCost / 100;
+  const budget = (plan.totalCost + plan.remainingBudget) / 100;
+  const hasBudget = plan.remainingBudget > 0 || plan.totalCost > 0;
+  const pockets = Math.max(9, plan.totalSlots);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-4"
-    >
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-ink-secondary">
-          Your Binder Plan
-        </h3>
-        <span className="text-xs text-ink-muted">
-          {plan.filledSlots}/{plan.totalSlots} slots filled
+    <div className="space-y-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 className="text-h2">The plan</h2>
+        <span className="font-mono text-[12px] text-ink-muted">
+          {plan.filledSlots} of {plan.totalSlots} pockets
         </span>
       </div>
 
-      {hasBudget && (
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between text-sm">
-            <span className="flex items-center gap-1.5 text-ink-secondary">
-              <DollarSign className="h-3.5 w-3.5 text-accent" />
-              Budget
-            </span>
-            <span className="font-semibold text-ink-primary">
-              ${(totalCostDollars + remainingDollars).toFixed(2)}
-            </span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-surface-inset">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{
-                width: `${(totalCostDollars / (totalCostDollars + remainingDollars)) * 100}%`,
-              }}
-              className="h-full rounded-full bg-accent transition-all"
+      <div className="grid grid-cols-3 gap-2 rounded-lg border border-border-default bg-surface-raised p-3">
+        {Array.from({ length: pockets }).map((_, i) => {
+          const card = plan.slots[i];
+          return card ? (
+            <figure key={`${card.cardId}-${i}`} className="min-w-0">
+              <CardArt
+                card={{
+                  name: card.cardName,
+                  images: {
+                    small: card.imageSmall ?? undefined,
+                    large: card.imageLarge ?? undefined,
+                  },
+                  number: card.cardNumber,
+                  set: { name: card.setName },
+                }}
+                flat
+              />
+              <figcaption className="mt-1 flex items-baseline justify-between gap-1">
+                <span
+                  className="truncate text-[11.5px]"
+                  title={`${card.cardName} · ${card.setName}`}
+                >
+                  {card.cardName}
+                </span>
+                <Price
+                  value={card.marketPrice}
+                  size="sm"
+                  className="text-[11.5px]"
+                  unavailableLabel="—"
+                />
+              </figcaption>
+            </figure>
+          ) : (
+            <span
+              key={`empty-${i}`}
+              className="block aspect-[63/88] rounded-[4.6%/3.3%] border border-dashed border-border-strong bg-surface-inset/60"
+              aria-hidden
             />
-          </div>
-          <div className="flex justify-between text-xs text-ink-muted">
-            <span>Spent: ${totalCostDollars.toFixed(2)}</span>
-            <span>Remaining: ${remainingDollars.toFixed(2)}</span>
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-3 gap-3">
-        {plan.slots.map((card, i) => (
-          <BinderSlotCard
-            key={`${card.cardId}-${i}`}
-            imageUrl={card.imageSmall}
-            cardName={card.cardName}
-            rarity={card.rarity}
-            price={card.marketPrice ? Math.round(card.marketPrice * 100) : null}
-          />
-        ))}
-        {Array.from({ length: Math.max(0, plan.totalSlots - plan.slots.length) }).map((_, i) => (
-          <BinderSlotCard key={`empty-${i}`} empty />
-        ))}
+          );
+        })}
       </div>
 
-      {plan.filledSlots > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {!showNameInput ? (
-            <button
-              onClick={() => setShowNameInput(true)}
-              disabled={saving}
-              className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-bold uppercase tracking-wider text-black transition-all hover:brightness-110 disabled:opacity-50"
+      {hasBudget ? (
+        <div>
+          <div className="flex justify-between text-[12.5px]">
+            <span className="text-ink-muted">Today’s market cost</span>
+            <span className="font-mono tabular-nums">
+              {formatCurrency(spent)}
+              {budget > spent ? (
+                <span className="text-ink-muted"> of {formatCurrency(budget)}</span>
+              ) : null}
+            </span>
+          </div>
+          {budget > 0 ? (
+            <span
+              className="mt-1.5 block h-1.5 overflow-hidden rounded-sm bg-surface-hover"
+              aria-hidden
             >
-              <Save className="h-4 w-4" />
-              Save Binder
-            </button>
-          ) : (
-            <div className="flex w-full items-center gap-2">
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="My Awesome Binder"
-                className="flex-1 rounded-lg border border-border-default bg-surface-inset px-3 py-2 text-sm text-ink-primary placeholder:text-ink-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                autoFocus
+              <span
+                className="block h-full bg-ink-primary"
+                style={{ width: `${Math.min(100, (spent / budget) * 100)}%` }}
               />
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-bold uppercase tracking-wider text-black transition-all hover:brightness-110 disabled:opacity-50"
-              >
-                {saving ? 'Saving...' : 'Save'}
-              </button>
-            </div>
-          )}
-
-          {onRefresh && (
-            <button
-              onClick={onRefresh}
-              className="flex items-center gap-2 rounded-lg border border-border-default bg-surface-raised px-4 py-2 text-sm font-semibold text-ink-secondary transition-all hover:border-accent/50 hover:text-ink-primary"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Re-roll
-            </button>
-          )}
+            </span>
+          ) : null}
         </div>
-      )}
-    </motion.div>
+      ) : null}
+
+      <form
+        className="flex flex-wrap items-end gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void onSave(name.trim() || `Binder · ${new Date().toLocaleDateString()}`).then(() =>
+            setName('')
+          );
+        }}
+      >
+        <label className="min-w-[12rem] flex-1" htmlFor="binder-name">
+          <span className="mb-1 block text-[13px] font-medium">Name</span>
+          <input
+            id="binder-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Fire and sunset"
+            className="input h-10"
+          />
+        </label>
+        <button type="submit" disabled={saving} className="btn-primary h-10">
+          {saving ? 'Saving…' : 'Save binder'}
+        </button>
+      </form>
+    </div>
   );
 };

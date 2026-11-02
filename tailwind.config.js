@@ -77,6 +77,32 @@ export default {
           grid: 'var(--chart-grid)',
           tick: 'var(--chart-tick)',
         },
+        gold: {
+          DEFAULT: 'var(--gold)',
+          muted: 'var(--gold-muted)',
+          line: 'var(--gold-line)',
+        },
+        warn: {
+          DEFAULT: 'var(--warn)',
+          muted: 'var(--warn-muted)',
+        },
+        rule: {
+          DEFAULT: 'var(--rule)',
+          strong: 'var(--rule-strong)',
+        },
+      },
+      borderRadius: {
+        // Compressed scale: the old UI was 16px everywhere. Controls 6px,
+        // sheets 8–10px, nothing pill-shaped unless it is a filter token.
+        none: '0',
+        sm: '3px',
+        DEFAULT: '4px',
+        md: '6px',
+        lg: '8px',
+        xl: '9px',
+        '2xl': '10px',
+        '3xl': '12px',
+        full: '9999px',
       },
       borderColor: {
         DEFAULT: 'var(--border-default)',
@@ -102,13 +128,14 @@ export default {
         card: '0 2px 8px rgb(var(--shadow-color) / 0.2), 0 1px 2px rgb(var(--shadow-color) / 0.12)',
         elevated:
           '0 12px 32px rgb(var(--shadow-color) / 0.28), 0 2px 8px rgb(var(--shadow-color) / 0.12)',
-        'glow-gold': '0 8px 24px color-mix(in srgb, var(--accent) 22%, transparent)',
-        'glow-pink': '0 8px 24px color-mix(in srgb, var(--neon-pink) 18%, transparent)',
-        'glow-green': '0 8px 24px color-mix(in srgb, var(--neon-green) 18%, transparent)',
-        'glow-amber': '0 8px 24px color-mix(in srgb, var(--neon-amber) 18%, transparent)',
-        'glow-foil': '0 8px 28px color-mix(in srgb, var(--foil) 22%, transparent)',
-        'glow-accent': '0 8px 28px color-mix(in srgb, var(--accent) 24%, transparent)',
-        popover: '0 8px 30px rgb(var(--shadow-color) / 0.28)',
+        'glow-gold': '0 1px 2px rgb(var(--shadow-color) / 0.08)',
+        'glow-pink': '0 1px 2px rgb(var(--shadow-color) / 0.08)',
+        'glow-green': '0 1px 2px rgb(var(--shadow-color) / 0.08)',
+        'glow-amber': '0 1px 2px rgb(var(--shadow-color) / 0.08)',
+        'glow-foil': '0 1px 2px rgb(var(--shadow-color) / 0.08)',
+        'glow-accent': '0 1px 2px rgb(var(--shadow-color) / 0.08)',
+        popover: '0 1px 2px rgb(var(--shadow-color) / 0.08), 0 12px 32px -8px rgb(var(--shadow-color) / 0.3)',
+        'card-art': 'var(--card-shadow)',
       },
       transitionTimingFunction: {
         // Emil Kowalski's curves: strong ease-out for UI, ease-in-out for on-screen moves.
@@ -117,18 +144,19 @@ export default {
         drawer: 'cubic-bezier(0.32, 0.72, 0, 1)',
       },
       fontFamily: {
-        sans: ['"Geist Variable"', '"Geist"', 'system-ui', 'sans-serif'],
-        mono: ['"Geist Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
-        display: ['"Geist Variable"', '"Geist"', 'system-ui', 'sans-serif'],
+        sans: ['"IBM Plex Sans"', 'system-ui', '-apple-system', 'sans-serif'],
+        mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        display: ['"Newsreader Variable"', '"Newsreader"', 'Georgia', 'serif'],
       },
       fontSize: {
         display: [
-          'clamp(2.25rem,6vw,3.75rem)',
-          { lineHeight: '1.04', letterSpacing: '-0.035em', fontWeight: '600' },
+          'clamp(2rem,4.2vw,2.75rem)',
+          { lineHeight: '1.08', letterSpacing: '-0.015em', fontWeight: '500' },
         ],
-        h1: ['clamp(1.5rem,3vw,2rem)', { lineHeight: '1.15', letterSpacing: '-0.025em', fontWeight: '600' }],
-        h2: ['clamp(1.125rem,2vw,1.375rem)', { lineHeight: '1.25', letterSpacing: '-0.015em', fontWeight: '600' }],
-        h3: ['0.9375rem', { lineHeight: '1.45', letterSpacing: '-0.01em', fontWeight: '600' }],
+        h1: ['clamp(1.5rem,2.6vw,1.875rem)', { lineHeight: '1.15', letterSpacing: '-0.01em', fontWeight: '500' }],
+        h2: ['1.0625rem', { lineHeight: '1.3', letterSpacing: '-0.005em', fontWeight: '600' }],
+        h3: ['0.875rem', { lineHeight: '1.4', fontWeight: '600' }],
+        meta: ['0.78125rem', { lineHeight: '1.4' }],
       },
       animation: {
         'fade-in': 'fadeIn 0.3s ease-out',

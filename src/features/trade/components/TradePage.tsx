@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeftRight, Copy, Link2, RotateCcw, Save, Scale } from 'lucide-react';
+import { ArrowLeftRight, Check, Copy, Link2, RotateCcw, Save, Trash2 } from 'lucide-react';
 import { PageHeader, PageShell } from '../../../components/layout/PageShell';
 import { CardSearchPickerModal } from '../../grading/components/CardSearchPickerModal';
 import { useGame } from '../../../contexts/GameContext';
@@ -17,7 +17,7 @@ import {
 import { formatCurrency, formatPercent } from '../../../utils/cardDisplay';
 import type { PokemonCard } from '../../../types/pokemon';
 import { cardToLine, lineUnitValue } from '../cardToLine';
-import { evaluateTrade, VERDICT_COPY } from '../fairness';
+import { evaluateTrade, evenOut, FAIR_PCT, unpricedCount, VERDICT_COPY } from '../fairness';
 import {
   SHARE_HASH_PREFIX,
   decodeSharePayload,
@@ -29,6 +29,7 @@ import { clearDraft, loadDraft, saveDraft } from '../tradeStorage';
 import type { TradeCardLine, TradeDraft, TradeSideKey } from '../types';
 import { TradeSideColumn } from './TradeSideColumn';
 import { VaultPickerModal } from './VaultPickerModal';
+import { cn } from '@/lib/utils';
 
 function applyLine(
   draft: TradeDraft,
@@ -213,34 +214,45 @@ export function TradePage() {
     }
   };
 
-  const verdictTone =
-    evaluation.kind === 'fair'
-      ? 'border-accent/40 bg-accent/10 text-accent'
-      : evaluation.favors === 'you'
-        ? 'border-gain/30 bg-gain-muted text-gain'
-        : evaluation.favors === 'them'
-          ? 'border-loss/30 bg-loss-muted text-loss'
-          : 'border-border-subtle bg-surface-inset text-ink-secondary';
+  const even = evenOut(evaluation);
+  const unpriced = unpricedCount(evaluation);
+  const scale = Math.max(evaluation.give.value, evaluation.get.value);
+  const verdictClass =
+    evaluation.favors === 'you'
+      ? 'text-gain'
+      : evaluation.favors === 'them'
+        ? 'text-loss'
+        : 'text-ink-primary';
+
+  const sideProps = (side: TradeSideKey) => ({
+    lines: draft[side],
+    cash: side === 'give' ? draft.cashGive : draft.cashGet,
+    total: evaluation[side].value,
+    missing: evaluation[side].missing,
+    vaultCount,
+    onAdd: () => setPickerSide(side),
+    onCash: (v: number) => persist({ ...draft, [side === 'give' ? 'cashGive' : 'cashGet']: v }),
+    onQty: (id: string, quantity: number) => persist(applyLine(draft, side, id, { quantity })),
+    onOverride: (id: string, priceOverride: number | null) =>
+      persist(applyLine(draft, side, id, { priceOverride })),
+    onRemove: (id: string) =>
+      persist({ ...draft, [side]: draft[side].filter((line) => line.id !== id) }),
+  });
 
   return (
     <PageShell>
       <PageHeader
-        eyebrow="Trade"
-        title="Trade calculator"
-        description={`${gameLabel} quotes on both sides. Add cash if the totals do not match.`}
+        title="Trade"
+        meta={`${gameLabel} · prices in USD`}
         actions={
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => persist(clearDraft(game))}
-            >
-              <RotateCcw className="h-4 w-4" />
-              New
+            <button type="button" className="btn-ghost" onClick={() => persist(clearDraft(game))}>
+              <RotateCcw className="h-4 w-4" aria-hidden />
+              Start over
             </button>
             <button
               type="button"
-              className="btn-secondary"
+              className="btn-ghost"
               onClick={() =>
                 persist({
                   ...draft,
@@ -251,8 +263,8 @@ export function TradePage() {
                 })
               }
             >
-              <ArrowLeftRight className="h-4 w-4" />
-              Swap
+              <ArrowLeftRight className="h-4 w-4" aria-hidden />
+              Swap sides
             </button>
             <button
               type="button"
@@ -260,7 +272,7 @@ export function TradePage() {
               onClick={() => void copyShareLink()}
               disabled={saving}
             >
-              <Copy className="h-4 w-4" />
+              <Copy className="h-4 w-4" aria-hidden />
               Copy link
             </button>
             <button
@@ -269,159 +281,211 @@ export function TradePage() {
               onClick={() => void handleSave()}
               disabled={saving}
             >
-              <Save className="h-4 w-4" />
+              <Save className="h-4 w-4" aria-hidden />
               Save
             </button>
           </div>
         }
       />
 
-      {shareNotice && (
-        <p className="rounded-xl border border-border-subtle bg-surface-inset px-3 py-2 text-sm text-ink-secondary">
+      {shareNotice ? (
+        <p
+          className="border-l-2 border-border-strong pl-3 text-[13px] text-ink-secondary"
+          role="status"
+        >
           {shareNotice}
         </p>
-      )}
+      ) : null}
 
-      <div
-        className={`relative overflow-hidden rounded-3xl border px-6 py-8 sm:px-10 sm:py-10 ${verdictTone}`}
-      >
-        <Scale className="pointer-events-none absolute -right-4 -top-4 h-32 w-32 opacity-[0.07]" />
-        <div className="relative flex flex-wrap items-end justify-between gap-6">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-80">Verdict</p>
-            <p className="mt-2 font-display text-[clamp(1.75rem,4vw,2.75rem)] font-bold leading-tight tracking-tight">
-              {copy.title}
-            </p>
-            <p className="mt-2 max-w-xl text-sm opacity-80 sm:text-base">{copy.hint}</p>
-          </div>
-          {evaluation.kind !== 'empty' && evaluation.kind !== 'incomplete' && (
-            <div className="text-right">
-              <p className="font-mono text-[clamp(2rem,5vw,3rem)] font-bold leading-none tabular-nums">
-                {formatCurrency(evaluation.delta, { signed: true })}
-              </p>
-              <p className="mt-1.5 text-xs font-medium opacity-80">
-                {formatPercent(evaluation.imbalancePct, { signed: true })} vs larger side
-              </p>
-            </div>
-          )}
-        </div>
+      <label className="block max-w-md" htmlFor="trade-title">
+        <span className="mb-1 block text-[13px] font-medium">Trade name</span>
         <input
+          id="trade-title"
           type="text"
           value={draft.title}
           onChange={(e) => persist({ ...draft, title: e.target.value })}
-          placeholder="Optional title — e.g. Charizard for two chase hits"
-          className="relative mt-6 h-10 w-full max-w-sm rounded-lg border border-current/15 bg-black/5 px-3 text-sm placeholder:opacity-60 focus:outline-none focus:ring-1 focus:ring-current/40 dark:bg-white/5"
-          aria-label="Trade title"
+          placeholder="Optional, e.g. Charizard for two chase cards"
+          className="input h-10"
         />
-      </div>
+      </label>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      {/* The balance: both totals, the difference, and how to settle it. */}
+      <section aria-labelledby="trade-balance" className="border-y border-rule-strong py-5">
+        <h2 id="trade-balance" className="sr-only">
+          Balance
+        </h2>
+        <div className="grid grid-cols-2 items-end gap-4 sm:grid-cols-[1fr_auto_1fr]">
+          <div>
+            <p className="text-meta text-ink-muted">You give</p>
+            <p className="font-mono text-[22px] tabular-nums sm:text-[28px]">
+              {formatCurrency(evaluation.give.value)}
+            </p>
+          </div>
+          <div className="order-last col-span-2 text-center sm:order-none sm:col-span-1">
+            <p className={cn('text-[17px] font-medium', verdictClass)} aria-live="polite">
+              {evaluation.kind === 'fair' ? (
+                <Check className="mr-1 inline h-4 w-4 align-[-2px]" aria-hidden />
+              ) : null}
+              {copy.title}
+            </p>
+            {evaluation.kind !== 'empty' && evaluation.kind !== 'incomplete' ? (
+              <p className="mt-0.5 text-[13px] tabular-nums text-ink-secondary">
+                {evaluation.delta === 0
+                  ? 'Dead even'
+                  : `${evaluation.delta > 0 ? 'You get' : 'You give'} ${formatCurrency(Math.abs(evaluation.delta))} more · ${formatPercent(Math.abs(evaluation.imbalancePct))} of the larger side`}
+              </p>
+            ) : (
+              <p className="mt-0.5 text-[13px] text-ink-muted">{copy.hint}</p>
+            )}
+          </div>
+          <div className="text-right">
+            <p className="text-meta text-ink-muted">You get</p>
+            <p className="font-mono text-[22px] tabular-nums sm:text-[28px]">
+              {formatCurrency(evaluation.get.value)}
+            </p>
+          </div>
+        </div>
+
+        {/* Two bars meeting in the middle, sized against the larger side. */}
+        <div className="mt-3 grid grid-cols-2 gap-px" aria-hidden>
+          <span className="flex h-2 justify-end overflow-hidden rounded-l-sm bg-surface-hover">
+            <span
+              className="h-full bg-ink-muted transition-[width] duration-200 motion-reduce:transition-none"
+              style={{ width: scale > 0 ? `${(evaluation.give.value / scale) * 100}%` : 0 }}
+            />
+          </span>
+          <span className="flex h-2 overflow-hidden rounded-r-sm bg-surface-hover">
+            <span
+              className="h-full bg-ink-primary transition-[width] duration-200 motion-reduce:transition-none"
+              style={{ width: scale > 0 ? `${(evaluation.get.value / scale) * 100}%` : 0 }}
+            />
+          </span>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-[12.5px] text-ink-muted">
+          <p>
+            {unpriced > 0
+              ? `${unpriced} card${unpriced === 1 ? ' has' : 's have'} no price and ${unpriced === 1 ? 'is' : 'are'} left out, so this balance is incomplete. `
+              : ''}
+            Values are market prices from when each card was added, or the price you typed. Fair
+            means within {FAIR_PCT}%.
+          </p>
+          {/* Only suggest settling up when every card is priced. */}
+          {even && unpriced === 0 && evaluation.kind !== 'fair' ? (
+            <button
+              type="button"
+              className="btn-secondary h-8 text-[13px]"
+              onClick={() =>
+                persist(
+                  even.payer === 'them'
+                    ? { ...draft, cashGet: Math.round((draft.cashGet + even.amount) * 100) / 100 }
+                    : { ...draft, cashGive: Math.round((draft.cashGive + even.amount) * 100) / 100 }
+                )
+              }
+            >
+              {even.payer === 'them' ? 'They add' : 'You add'} {formatCurrency(even.amount)} cash
+            </button>
+          ) : null}
+        </div>
+      </section>
+
+      <div className="grid gap-x-10 gap-y-8 lg:grid-cols-2">
         <TradeSideColumn
+          id="give"
           title="You give"
-          hint="Cards and cash leaving your side"
-          lines={draft.give}
-          cash={draft.cashGive}
-          total={evaluation.give.value}
-          missing={evaluation.give.missing}
-          vaultCount={vaultCount}
-          onAdd={() => setPickerSide('give')}
+          {...sideProps('give')}
           onAddFromVault={() => setVaultSide('give')}
-          onCash={(cashGive) => persist({ ...draft, cashGive })}
-          onQty={(id, quantity) => persist(applyLine(draft, 'give', id, { quantity }))}
-          onOverride={(id, priceOverride) =>
-            persist(applyLine(draft, 'give', id, { priceOverride }))
-          }
-          onRemove={(id) =>
-            persist({ ...draft, give: draft.give.filter((line) => line.id !== id) })
-          }
         />
-        <TradeSideColumn
-          title="You get"
-          hint="Cards and cash coming in"
-          lines={draft.get}
-          cash={draft.cashGet}
-          total={evaluation.get.value}
-          missing={evaluation.get.missing}
-          vaultCount={vaultCount}
-          onAdd={() => setPickerSide('get')}
-          onAddFromVault={() => setVaultSide('get')}
-          onCash={(cashGet) => persist({ ...draft, cashGet })}
-          onQty={(id, quantity) => persist(applyLine(draft, 'get', id, { quantity }))}
-          onOverride={(id, priceOverride) =>
-            persist(applyLine(draft, 'get', id, { priceOverride }))
-          }
-          onRemove={(id) => persist({ ...draft, get: draft.get.filter((line) => line.id !== id) })}
-        />
+        <TradeSideColumn id="get" title="You get" {...sideProps('get')} />
       </div>
 
-      {isAuthenticated && saved.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-ink-primary">Saved trades</h2>
-          <ul className="divide-y divide-border-subtle rounded-2xl border border-border-subtle">
-            {saved
-              .filter((row) => row.game === game)
-              .map((row) => (
-                <li key={row.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-ink-primary">
-                      {row.title || 'Untitled trade'}
-                    </p>
-                    <p className="text-xs text-ink-muted">
-                      Give {formatCurrency(row.giveTotal)} · Get {formatCurrency(row.getTotal)}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    className="btn-secondary text-xs"
-                    onClick={() => {
-                      const next = sharePayloadToDraft(row.payload);
-                      persist({
-                        ...next,
-                        remoteId: row.id,
-                        shareToken: row.shareToken,
-                        title: row.title,
-                      });
-                      showToast('Loaded saved trade', 'info');
-                    }}
-                  >
-                    Open
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary text-xs"
-                    onClick={async () => {
-                      const url = `${window.location.origin}/trade/${row.shareToken}`;
-                      try {
-                        await navigator.clipboard.writeText(url);
-                        showToast('Link copied', 'success');
-                      } catch {
-                        showToast('Could not copy', 'error');
-                      }
-                    }}
-                  >
-                    <Link2 className="h-3.5 w-3.5" />
-                    Link
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-lg p-2 text-ink-muted hover:text-loss"
-                    aria-label={`Delete ${row.title || 'trade'}`}
-                    onClick={async () => {
-                      try {
-                        await deleteSavedTrade(row.id);
-                        setSaved((prev) => prev.filter((item) => item.id !== row.id));
-                      } catch {
-                        showToast('Could not delete', 'error');
-                      }
-                    }}
-                  >
-                    ×
-                  </button>
-                </li>
-              ))}
-          </ul>
+      {isAuthenticated && saved.some((row) => row.game === game) ? (
+        <section aria-labelledby="saved-trades" className="space-y-2">
+          <h2 id="saved-trades" className="text-h2">
+            Saved trades
+          </h2>
+          <table className="ledger ledger-tight">
+            <thead>
+              <tr>
+                <th scope="col">Trade</th>
+                <th scope="col" className="num hidden sm:table-cell">
+                  You give
+                </th>
+                <th scope="col" className="num hidden sm:table-cell">
+                  You get
+                </th>
+                <th scope="col">
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {saved
+                .filter((row) => row.game === game)
+                .map((row) => (
+                  <tr key={row.id}>
+                    <th scope="row" className="text-left font-normal">
+                      <button
+                        type="button"
+                        className="max-w-[50vw] truncate text-left font-medium hover:underline sm:max-w-none"
+                        onClick={() => {
+                          const next = sharePayloadToDraft(row.payload);
+                          persist({
+                            ...next,
+                            remoteId: row.id,
+                            shareToken: row.shareToken,
+                            title: row.title,
+                          });
+                          showToast('Loaded saved trade', 'info');
+                        }}
+                      >
+                        {row.title || 'Untitled trade'}
+                      </button>
+                      <span className="block font-mono text-[12px] text-ink-muted sm:hidden">
+                        {formatCurrency(row.giveTotal)} for {formatCurrency(row.getTotal)}
+                      </span>
+                    </th>
+                    <td className="num hidden sm:table-cell">{formatCurrency(row.giveTotal)}</td>
+                    <td className="num hidden sm:table-cell">{formatCurrency(row.getTotal)}</td>
+                    <td className="w-px whitespace-nowrap text-right">
+                      <button
+                        type="button"
+                        className="btn-ghost h-8 text-[13px]"
+                        onClick={async () => {
+                          const url = `${window.location.origin}/trade/${row.shareToken}`;
+                          try {
+                            await navigator.clipboard.writeText(url);
+                            showToast('Link copied', 'success');
+                          } catch {
+                            showToast('Could not copy', 'error');
+                          }
+                        }}
+                      >
+                        <Link2 className="h-3.5 w-3.5" aria-hidden />
+                        Link
+                      </button>
+                      <button
+                        type="button"
+                        className="ml-1 inline-grid h-8 w-8 place-items-center rounded-md text-ink-muted hover:bg-loss-muted hover:text-loss"
+                        aria-label={`Delete ${row.title || 'trade'}`}
+                        onClick={async () => {
+                          try {
+                            await deleteSavedTrade(row.id);
+                            setSaved((prev) => prev.filter((item) => item.id !== row.id));
+                          } catch {
+                            showToast('Could not delete', 'error');
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" aria-hidden />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
         </section>
-      )}
+      ) : null}
 
       <CardSearchPickerModal
         isOpen={pickerSide != null}

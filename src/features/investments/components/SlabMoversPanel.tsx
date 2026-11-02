@@ -86,7 +86,7 @@ export function SlabMoversPanel({
         <div className="overflow-x-auto rounded-xl border border-border-default bg-surface-raised">
           <table className="w-full min-w-[640px] text-sm">
             <thead>
-              <tr className="border-b border-border-subtle text-left text-[11px] uppercase tracking-wide text-ink-muted">
+              <tr className="border-b border-border-subtle text-left text-[12px] text-ink-muted">
                 <th className="px-4 py-2.5 font-medium">Card</th>
                 <th className="px-4 py-2.5 font-medium">PSA 10</th>
                 <th className="px-4 py-2.5 font-medium">{data.days}d move</th>

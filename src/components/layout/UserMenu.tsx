@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, LogIn, LogOut, Settings, UserPlus, Vault } from 'lucide-react';
+import { ChevronDown, LogIn, LogOut, Moon, Settings, Sun, UserPlus, Vault } from 'lucide-react';
+import { useTheme } from '../../hooks/useTheme';
 import { useAuth } from '../../hooks/useAuth';
 import { env } from '../../config/env';
 import { useToast } from '../common/Toast';
@@ -9,6 +10,7 @@ import { AnimatePresence, motion } from 'motion/react';
 export const UserMenu: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout, openAuthModal } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const { showToast } = useToast();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -29,18 +31,19 @@ export const UserMenu: React.FC = () => {
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex h-9 items-center gap-2 rounded-[10px] py-1 pl-1 pr-2 transition-[background-color,transform] duration-150 ease-out hover:bg-surface-hover active:scale-[0.97]"
+        className="flex h-9 items-center gap-1.5 rounded-md py-1 pl-1 pr-1.5 transition-colors duration-100 hover:bg-surface-hover"
+        aria-label={`Account: ${displayName}`}
         aria-expanded={open}
         aria-haspopup="menu"
       >
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent-muted text-[11px] font-semibold text-accent">
+        <span className="flex h-7 w-7 items-center justify-center rounded-full border border-ink-primary font-mono text-[10.5px] font-semibold text-ink-primary">
           {initials}
         </span>
-        <span className="hidden max-w-[100px] truncate text-sm font-medium text-ink-secondary sm:block">
+        <span className="hidden max-w-[100px] truncate text-[13px] font-medium text-ink-secondary 2xl:block">
           {displayName}
         </span>
         <ChevronDown
-          className={`h-3.5 w-3.5 text-ink-muted transition-transform duration-200 ease-out ${open ? 'rotate-180' : ''}`}
+          className={`hidden h-3.5 w-3.5 sm:block text-ink-muted transition-transform duration-200 ease-out ${open ? 'rotate-180' : ''}`}
         />
       </button>
 
@@ -69,9 +72,9 @@ export const UserMenu: React.FC = () => {
                 navigate('/vault');
                 setOpen(false);
               }}
-              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] text-ink-secondary hover:bg-surface-hover"
+              className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] text-ink-secondary hover:bg-surface-hover"
             >
-              <Vault className="h-4 w-4 text-accent" />
+              <Vault className="h-4 w-4 text-ink-muted" />
               My Vault
             </button>
             <button
@@ -81,10 +84,26 @@ export const UserMenu: React.FC = () => {
                 navigate('/settings');
                 setOpen(false);
               }}
-              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] text-ink-secondary hover:bg-surface-hover"
+              className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] text-ink-secondary hover:bg-surface-hover"
             >
               <Settings className="h-4 w-4 text-ink-muted" />
               Settings
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                toggleTheme();
+                setOpen(false);
+              }}
+              className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] text-ink-secondary hover:bg-surface-hover"
+            >
+              {theme === 'dark' ? (
+                <Sun className="h-4 w-4 text-ink-muted" />
+              ) : (
+                <Moon className="h-4 w-4 text-ink-muted" />
+              )}
+              {theme === 'dark' ? 'Light theme' : 'Dark theme'}
             </button>
             {user && (
               <button
@@ -94,7 +113,7 @@ export const UserMenu: React.FC = () => {
                   void logout().then(() => showToast('Signed out — guest data restored', 'info'));
                   setOpen(false);
                 }}
-                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] text-loss hover:bg-loss-muted"
+                className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] text-loss hover:bg-loss-muted"
               >
                 <LogOut className="h-4 w-4" />
                 Sign out
@@ -109,7 +128,7 @@ export const UserMenu: React.FC = () => {
                     openAuthModal('login');
                     setOpen(false);
                   }}
-                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] text-accent hover:bg-accent-muted"
+                  className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] text-accent hover:bg-accent-muted"
                 >
                   <LogIn className="h-3.5 w-3.5" />
                   Sign in
@@ -121,7 +140,7 @@ export const UserMenu: React.FC = () => {
                     openAuthModal('register');
                     setOpen(false);
                   }}
-                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] text-ink-secondary hover:bg-surface-hover"
+                  className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] text-ink-secondary hover:bg-surface-hover"
                 >
                   <UserPlus className="h-3.5 w-3.5" />
                   Create account

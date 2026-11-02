@@ -73,9 +73,7 @@ export function ModelHealthPanel({ calibration, dataQuality, loading, error }: P
 
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="rounded-xl border border-border-default bg-surface-raised p-4">
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">
-            Calibration by horizon
-          </h3>
+          <h3 className="mb-3 text-xs font-medium text-ink-muted">Calibration by horizon</h3>
           {!calibration?.length ? (
             <p className="py-4 text-center text-sm text-ink-muted">No calibration models yet.</p>
           ) : (
@@ -123,9 +121,7 @@ export function ModelHealthPanel({ calibration, dataQuality, loading, error }: P
 
         <section className="rounded-xl border border-border-default bg-surface-raised p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
-              Data quality
-            </h3>
+            <h3 className="text-xs font-medium text-ink-muted">Data quality</h3>
             <span className="text-[11px] text-ink-muted">
               Last run: {formatRunAt(dataQuality?.runAt ?? null)}
             </span>

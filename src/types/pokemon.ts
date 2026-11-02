@@ -160,7 +160,13 @@ export interface RealData {
 export interface VaultCard {
   id: string; // Unique vault entry ID
   card: PokemonCard; // The actual card data
-  purchasePrice: number; // Price user paid
+  purchasePrice: number; // Price user paid per copy (0 with costKnown=false means unknown)
+  /**
+   * Whether the user actually entered a purchase price. `false` = unknown cost
+   * (never shown as $0 profit). Undefined on legacy entries: treated as known
+   * when purchasePrice > 0.
+   */
+  costKnown?: boolean;
   purchaseDate: string; // ISO date string
   quantity: number; // Number of copies
   condition: CardCondition; // Card condition

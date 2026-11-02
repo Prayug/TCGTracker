@@ -137,7 +137,7 @@ class TieredPackService {
       price: 1000,
       averageValue: 1000,
       cardsPerPack: 1,
-      description: 'Ultimate gambling experience',
+      description: 'The widest range and the biggest top pulls',
       imageUrl: '/images/pokemontcg/base1/logo.png',
       valueRanges: [
         { min: 400, max: 600, probability: 35, label: '$400-600' },

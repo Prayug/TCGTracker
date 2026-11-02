@@ -31,6 +31,8 @@ interface ModalProps {
   flush?: boolean;
   /** Ref to the scrolling body — used for sticky-header intersection. */
   bodyRef?: React.Ref<HTMLDivElement>;
+  /** Accessible name for the dialog when it has no visible heading wired up. */
+  ariaLabel?: string;
 }
 
 const sizeClasses: Record<NonNullable<ModalProps['size']>, string> = {
@@ -43,9 +45,9 @@ const sizeClasses: Record<NonNullable<ModalProps['size']>, string> = {
 
 const VARIANT_PANEL: Record<ModalVariant, Variants> = {
   default: {
-    hidden: { opacity: 0, scale: 0.97 },
-    visible: { opacity: 1, scale: 1 },
-    exit: { opacity: 0, scale: 0.98 },
+    hidden: { opacity: 0, y: 6 },
+    visible: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: 4 },
   },
   inspect: {
     hidden: { opacity: 0, rotateY: -28, scale: 0.88, z: -80 },
@@ -99,19 +101,30 @@ export const Modal: React.FC<ModalProps> = ({
   bodyClassName,
   flush = false,
   bodyRef,
+  ariaLabel,
 }) => {
   const previousActiveElement = useRef<Element | null>(null);
   const isPack = size === 'pack' || variant === 'stage';
   const reducedMotion = usePrefersReducedMotion();
   const isMobile = useIsMobileViewport();
-  const showScene = !reducedMotion && (variant === 'inspect' || variant === 'reveal') && isOpen;
-  const showFoil =
-    !reducedMotion && !isMobile && (variant === 'dive' || variant === 'reveal') && isOpen;
+  // Only the playful pack experience keeps expressive entrances; every other
+  // dialog opens with a short, flat fade so it reads as a tool, not a show.
+  const expressive = variant === 'stage' || variant === 'reveal';
+  const showScene = !reducedMotion && variant === 'reveal' && isOpen;
+  const showFoil = false;
+  const sheetOnMobile = isMobile && !isPack;
 
   const panelVariants = useMemo(() => {
     if (reducedMotion) return REDUCED;
-    return VARIANT_PANEL[variant] ?? VARIANT_PANEL.default;
-  }, [reducedMotion, variant]);
+    if (expressive) return VARIANT_PANEL[variant];
+    return sheetOnMobile
+      ? {
+          hidden: { opacity: 0, y: 24 },
+          visible: { opacity: 1, y: 0 },
+          exit: { opacity: 0, y: 16 },
+        }
+      : VARIANT_PANEL.default;
+  }, [reducedMotion, variant, expressive, sheetOnMobile]);
 
   useEffect(() => {
     if (isOpen) {
@@ -160,8 +173,11 @@ export const Modal: React.FC<ModalProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: reducedMotion ? 0.12 : 0.2 }}
-            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-2 backdrop-blur-sm sm:p-4"
-            style={{ perspective: 1400 }}
+            className={cn(
+              'fixed inset-0 z-[70] flex justify-center bg-[rgb(18_22_25/0.55)] sm:items-center sm:p-4',
+              sheetOnMobile ? 'items-end p-0' : 'items-center p-2'
+            )}
+            style={expressive ? { perspective: 1400 } : undefined}
             onClick={handleBackdropClick}
             role="presentation"
           >
@@ -184,35 +200,39 @@ export const Modal: React.FC<ModalProps> = ({
               transition={
                 reducedMotion
                   ? { duration: 0.15 }
-                  : {
-                      type: 'spring',
-                      stiffness: 420,
-                      damping: 34,
-                      // Blur cannot go negative — spring overshoot would
-                      // produce invalid keyframes like blur(-0.1px).
-                      filter: { type: 'tween', duration: 0.3, ease: 'easeOut' },
-                    }
+                  : !expressive
+                    ? { type: 'tween', duration: 0.18, ease: [0.23, 1, 0.32, 1] }
+                    : {
+                        type: 'spring',
+                        stiffness: 420,
+                        damping: 34,
+                        // Blur cannot go negative — spring overshoot would
+                        // produce invalid keyframes like blur(-0.1px).
+                        filter: { type: 'tween', duration: 0.3, ease: 'easeOut' },
+                      }
               }
               style={{ transformStyle: 'preserve-3d' }}
               className={cn(
-                'relative flex flex-col overflow-hidden rounded-2xl border bg-surface-overlay shadow-elevated',
+                'relative flex flex-col overflow-hidden border bg-surface-overlay shadow-popover',
+                sheetOnMobile ? 'w-full max-w-none rounded-b-none rounded-t-xl' : 'rounded-xl',
                 borderAccent,
-                sizeClasses[size],
-                maxHeight,
+                !sheetOnMobile && sizeClasses[size],
+                sheetOnMobile ? 'max-h-[92dvh]' : maxHeight,
                 className
               )}
               role="dialog"
               aria-modal="true"
+              aria-label={ariaLabel}
               onClick={(e) => e.stopPropagation()}
             >
               {!hideClose && (
                 <button
                   type="button"
                   onClick={onClose}
-                  className={`absolute right-3 top-3 z-30 cursor-pointer rounded-lg bg-surface-overlay/95 text-ink-secondary transition-colors hover:bg-surface-hover hover:text-ink-primary ${
+                  className={`absolute right-3 top-3 z-30 cursor-pointer rounded-md bg-surface-overlay text-ink-secondary transition-colors hover:bg-surface-hover hover:text-ink-primary ${
                     isPack ? 'p-1.5' : 'p-2'
                   }`}
-                  aria-label="Close modal"
+                  aria-label="Close dialog"
                 >
                   <X className={isPack ? 'h-4 w-4' : 'h-5 w-5'} aria-hidden="true" />
                 </button>

@@ -192,7 +192,7 @@ export function DirectionBadge({
   const Icon = DIRECTION_ICONS[direction];
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${DIRECTION_STYLES[direction]}`}
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11.5px] font-medium ${DIRECTION_STYLES[direction]}`}
     >
       <Icon className="h-2.5 w-2.5" aria-hidden />
       {label}

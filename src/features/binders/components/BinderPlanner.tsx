@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Sparkles,
-  DollarSign,
   Shuffle,
   Flame,
   Sun,
@@ -104,185 +102,185 @@ export const BinderPlanner: React.FC<BinderPlannerProps> = ({
     });
   };
 
+  const chip = (active: boolean) =>
+    `inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium transition-colors ${
+      active
+        ? 'border-ink-primary bg-ink-primary text-surface-base'
+        : 'border-border-strong text-ink-secondary hover:border-ink-muted hover:text-ink-primary'
+    }`;
+
+  const Group = ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <fieldset className="border-t border-rule pt-3">
+      <legend className="float-left mb-2 w-full text-h3">{title}</legend>
+      <div className="clear-both flex flex-wrap gap-1.5">{children}</div>
+    </fieldset>
+  );
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-bold text-ink-primary">Binder Planner</h2>
-        <p className="text-sm text-ink-muted">Describe your dream binder page and let AI fill it</p>
+        <h2 className="text-h2">Describe the page</h2>
+        <p className="text-meta text-ink-muted">
+          The planner picks real catalog cards that fit, priced at today’s market.
+        </p>
       </div>
 
-      <div className="space-y-2">
-        <label className="flex items-center gap-2 text-sm font-semibold text-ink-secondary">
-          <Sparkles className="h-4 w-4 text-accent" />
-          Prompt
+      <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_9rem]">
+        <label className="block" htmlFor="binder-prompt">
+          <span className="mb-1 block text-[13px] font-medium">Theme</span>
+          <textarea
+            id="binder-prompt"
+            value={prompt}
+            onChange={(e) => {
+              setPrompt(e.target.value);
+              clearError();
+            }}
+            placeholder="Warm colours, mostly fire types, a mix of holos and full arts"
+            className="input min-h-[5rem] py-2"
+            rows={3}
+          />
         </label>
-        <textarea
-          value={prompt}
-          onChange={(e) => {
-            setPrompt(e.target.value);
-            clearError();
-          }}
-          placeholder="e.g. warm sunny vibes, mostly fire types, mix of V and holos, under $80 ..."
-          className="w-full rounded-lg border border-border-default bg-surface-inset p-3 text-sm text-ink-primary placeholder:text-ink-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-          rows={3}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <div className="space-y-2">
-          <label className="flex items-center gap-2 text-sm font-semibold text-ink-secondary">
-            <DollarSign className="h-4 w-4 text-accent" />
-            Budget
-          </label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-ink-muted">
+        <label className="block" htmlFor="binder-budget">
+          <span className="mb-1 block text-[13px] font-medium">Budget</span>
+          <span className="relative block">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-mono text-ink-muted">
               $
             </span>
             <input
+              id="binder-budget"
               type="number"
+              inputMode="decimal"
               value={budget}
               onChange={(e) => setBudget(e.target.value)}
-              placeholder="100"
-              className="w-full rounded-lg border border-border-default bg-surface-inset py-2 pl-7 pr-3 text-sm text-ink-primary placeholder:text-ink-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+              placeholder="No limit"
+              className="input h-10 pl-7 font-mono tabular-nums"
               min="0"
               step="5"
             />
-          </div>
-        </div>
-
-        {constraintOptions?.compositionRules && (
-          <div className="space-y-2">
-            <p className="text-sm font-semibold text-ink-secondary">Composition Rules</p>
-            <div className="flex flex-wrap gap-1.5">
-              {constraintOptions.compositionRules.map((rule) => (
-                <button
-                  key={rule.id}
-                  type="button"
-                  onClick={() => handleRuleToggle(rule.id)}
-                  className={`rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider transition-all ${
-                    selectedRules.includes(rule.id)
-                      ? 'border-accent bg-accent text-black'
-                      : 'border-border-default bg-surface-inset text-ink-muted hover:border-accent/40'
-                  }`}
-                >
-                  {rule.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+          </span>
+        </label>
       </div>
 
-      {constraintOptions?.themes && (
-        <div className="space-y-2">
-          <p className="text-sm font-semibold text-ink-secondary">Theme</p>
-          <div className="flex flex-wrap gap-1.5">
-            {constraintOptions.themes.map((theme) => {
-              const ThemeIcon = THEME_ICON[theme.id];
-              return (
-                <button
-                  key={theme.id}
-                  type="button"
-                  onClick={() => handleThemeToggle(theme.id)}
-                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider transition-all ${
-                    selectedThemes.includes(theme.id)
-                      ? 'border-accent bg-accent text-black'
-                      : 'border-border-default bg-surface-inset text-ink-muted hover:border-accent/40'
-                  }`}
-                >
-                  {ThemeIcon ? <ThemeIcon className="h-3 w-3" aria-hidden /> : null}
-                  {theme.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {constraintOptions?.themes ? (
+        <Group title="Mood">
+          {constraintOptions.themes.map((theme) => {
+            const ThemeIcon = THEME_ICON[theme.id];
+            const on = selectedThemes.includes(theme.id);
+            return (
+              <button
+                key={theme.id}
+                type="button"
+                aria-pressed={on}
+                onClick={() => handleThemeToggle(theme.id)}
+                className={chip(on)}
+              >
+                {ThemeIcon ? <ThemeIcon className="h-3.5 w-3.5" aria-hidden /> : null}
+                {theme.label}
+              </button>
+            );
+          })}
+        </Group>
+      ) : null}
 
-      {constraintOptions?.pokemonTypes && (
-        <div className="space-y-2">
-          <p className="text-sm font-semibold text-ink-secondary">Pokemon Types</p>
-          <div className="flex flex-wrap gap-1.5">
-            {constraintOptions.pokemonTypes.map((type) => (
+      {constraintOptions?.pokemonTypes ? (
+        <Group title="Types">
+          {constraintOptions.pokemonTypes.map((type) => {
+            const on = selectedTypes.includes(type);
+            return (
               <button
                 key={type}
                 type="button"
+                aria-pressed={on}
                 onClick={() => handleTypeToggle(type)}
-                className={`rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider transition-all ${
-                  selectedTypes.includes(type)
-                    ? 'border-accent bg-accent text-black'
-                    : 'border-border-default bg-surface-inset text-ink-muted hover:border-accent/40'
-                }`}
+                className={chip(on)}
               >
                 {type}
               </button>
-            ))}
-          </div>
-        </div>
-      )}
+            );
+          })}
+        </Group>
+      ) : null}
 
-      {constraintOptions?.rarities && (
-        <div className="space-y-2">
-          <p className="text-sm font-semibold text-ink-secondary">Rarity</p>
-          <div className="flex flex-wrap gap-1.5">
-            {constraintOptions.rarities.map((rarity) => (
+      {constraintOptions?.rarities ? (
+        <Group title="Rarity">
+          {constraintOptions.rarities.map((rarity) => {
+            const on = selectedRarities.includes(rarity);
+            return (
               <button
                 key={rarity}
                 type="button"
+                aria-pressed={on}
                 onClick={() => handleRarityToggle(rarity)}
-                className={`rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider transition-all ${
-                  selectedRarities.includes(rarity)
-                    ? 'border-accent bg-accent text-black'
-                    : 'border-border-default bg-surface-inset text-ink-muted hover:border-accent/40'
-                }`}
+                className={chip(on)}
               >
                 {rarity}
               </button>
-            ))}
-          </div>
-        </div>
-      )}
+            );
+          })}
+        </Group>
+      ) : null}
 
-      {error && (
-        <div className="rounded-lg border border-loss/30 bg-loss-muted p-3 text-sm text-loss">
+      {constraintOptions?.compositionRules ? (
+        <Group title="Layout rules">
+          {constraintOptions.compositionRules.map((rule) => {
+            const on = selectedRules.includes(rule.id);
+            return (
+              <button
+                key={rule.id}
+                type="button"
+                aria-pressed={on}
+                onClick={() => handleRuleToggle(rule.id)}
+                className={chip(on)}
+              >
+                {rule.label}
+              </button>
+            );
+          })}
+        </Group>
+      ) : null}
+
+      {error ? (
+        <p
+          className="border-l-2 border-loss bg-loss-muted px-3 py-2 text-[13px] text-ink-primary"
+          role="alert"
+        >
           {error}
-        </div>
-      )}
+        </p>
+      ) : null}
 
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-2">
         <button
           type="button"
           onClick={() => void handleGenerate()}
           disabled={loading || (!prompt.trim() && selectedThemes.length === 0)}
-          className="flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-bold uppercase tracking-wider text-black transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+          className="btn-primary"
         >
           {loading ? (
-            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-black border-t-transparent" />
-          ) : (
-            <Sparkles className="h-4 w-4" />
-          )}
-          {loading ? 'Planning...' : 'Generate Plan'}
+            <span
+              className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent motion-reduce:animate-none"
+              aria-hidden
+            />
+          ) : null}
+          {loading ? 'Planning…' : plan ? 'Plan again' : 'Plan the page'}
         </button>
-
-        {plan && (
+        {plan ? (
           <button
             type="button"
             onClick={() => void handleGenerate()}
             disabled={loading}
-            className="flex items-center gap-2 rounded-lg border border-border-default bg-surface-raised px-5 py-2.5 text-sm font-semibold text-ink-secondary transition-all hover:border-accent/50 hover:text-ink-primary"
+            className="btn-secondary"
           >
-            <Shuffle className="h-4 w-4" />
-            Re-roll
+            <Shuffle className="h-4 w-4" aria-hidden />
+            Different picks
           </button>
-        )}
+        ) : null}
       </div>
 
-      {plan && plan.filledSlots === 0 && (
-        <div className="rounded-lg border border-neon-amber/30 bg-accent-muted p-3 text-sm text-neon-amber">
-          No cards matched your constraints. Try broadening your criteria — remove some type/rarity
-          filters or increase the budget.
-        </div>
-      )}
+      {plan && plan.filledSlots === 0 ? (
+        <p className="border-l-2 border-warn bg-warn-muted px-3 py-2 text-[13px] text-ink-secondary">
+          No cards matched. Remove a type or rarity, or raise the budget.
+        </p>
+      ) : null}
     </div>
   );
 };

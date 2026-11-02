@@ -201,9 +201,7 @@ export function PhoneCapturePage() {
   return (
     <div className="mx-auto flex min-h-[100dvh] max-w-lg flex-col bg-surface-base px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] text-ink-primary">
       <header className="mb-4">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-foil">
-          Phone capture
-        </p>
+        <p className="text-[11.5px] font-medium text-foil">Phone capture</p>
         <h1 className="font-display text-2xl text-ink-primary">
           {modeLabel === 'grade' ? 'Grade with phone' : 'Scan with phone'}
         </h1>
@@ -261,7 +259,7 @@ export function PhoneCapturePage() {
                 style={{ width: '58%', aspectRatio: '63 / 88', borderRadius: 8 }}
               />
             </div>
-            <div className="absolute left-3 top-3 rounded-md bg-black/65 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-white">
+            <div className="absolute left-3 top-3 rounded-md bg-black/65 px-2 py-1 text-[12px] font-medium text-white">
               {displaySide}
             </div>
             {!isCameraActive && phase === 'camera' && (

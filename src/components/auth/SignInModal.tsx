@@ -89,13 +89,13 @@ export function SignInModal({ isOpen, mode, onModeChange, onClose }: SignInModal
 
   const inputClass =
     'w-full rounded-lg border border-border-default bg-surface-inset px-3 py-2.5 text-sm text-ink-primary placeholder:text-ink-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30';
-  const labelClass = 'mb-1.5 block text-xs font-medium uppercase tracking-[0.08em] text-ink-muted';
+  const labelClass = 'mb-1 block text-[13px] font-medium text-ink-primary';
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="small" variant="confirm">
       <div className="space-y-5 p-1">
         <div>
-          <p className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-foil">
+          <p className="inline-flex items-center gap-2 text-xs font-medium text-foil">
             <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />
             Account
           </p>

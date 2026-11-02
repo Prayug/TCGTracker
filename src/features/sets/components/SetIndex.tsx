@@ -1,17 +1,18 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Search, Star, Layers } from 'lucide-react';
-import { PokemonSet } from '../../../types/pokemon';
-import { OnePieceSet } from '../../../types/onepiece';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Search, Star } from 'lucide-react';
+import type { PokemonSet } from '../../../types/pokemon';
+import type { OnePieceSet } from '../../../types/onepiece';
 import { setTrackerService } from '../../../services/setTrackerService';
 import { setWishlistService } from '../../../services/setWishlistService';
 import { onePieceApi } from '../../../services/onepieceApi';
 import { useGame } from '../../../contexts/GameContext';
-import { LoadingSpinner } from '../../../components/common/LoadingSpinner';
-import { ErrorMessage } from '../../../components/common/ErrorMessage';
-import { PageEmptyState } from '../../../components/common/PageEmptyState';
+import { useVault } from '../../../hooks/useVault';
+import { PageHeader, FilterChip } from '../../../components/layout/PageShell';
+import { Unavailable } from '../../../components/exchange/Price';
 import { groupSetsByEra, formatReleaseYear } from '../../../utils/setEra';
 import { SetLogo } from './SetLogo';
-import { CompletionRing } from './CompletionRing';
+import { cn } from '@/lib/utils';
 
 interface SetIndexProps {
   onSelectSet: (setId: string) => void;
@@ -23,269 +24,322 @@ function isPokemonSet(s: AnySet): s is PokemonSet {
   return 'releaseDate' in s || 'images' in s;
 }
 
-function SetCard({
-  set,
-  onSelect,
-  onTogglePin,
-  pinned,
-  isPokemon,
-}: {
-  set: AnySet;
-  onSelect: () => void;
-  onTogglePin: (e: React.MouseEvent) => void;
-  pinned: boolean;
-  isPokemon: boolean;
-}) {
-  let completion = 0;
-  let year: string | undefined;
-
-  if (isPokemon) {
-    const pokemonSet = set as PokemonSet;
-    completion = setTrackerService.getCompletionForSet(
-      pokemonSet.id,
-      pokemonSet.name,
-      pokemonSet.total
-    );
-    year = formatReleaseYear(pokemonSet.releaseDate);
-  }
-
+/** Owned count and share. Owned = distinct card numbers in the vault for this set. */
+function Progress({ owned, total }: { owned: number; total: number }) {
+  const pct = total > 0 ? Math.min(100, (owned / total) * 100) : 0;
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={onSelect}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onSelect();
-        }
-      }}
-      className="group relative flex w-full cursor-pointer items-center gap-3 rounded-2xl border border-border-default bg-gradient-chrome p-3.5 text-left shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/35 hover:shadow-glow-accent"
-    >
-      {isPokemon && <SetLogo set={set as PokemonSet} size="md" />}
-      {!isPokemon && (
-        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-accent-muted text-accent">
-          <Layers className="h-6 w-6" />
-        </div>
-      )}
-      <div className="min-w-0 flex-1">
-        <button
-          type="button"
-          onClick={onTogglePin}
-          className="absolute right-2 top-2 cursor-pointer rounded-lg p-1.5 text-ink-muted transition-colors duration-200 hover:bg-surface-hover hover:text-accent"
-          aria-label={pinned ? 'Unpin set' : 'Pin set'}
-        >
-          <Star className={`h-4 w-4 ${pinned ? 'fill-accent text-accent' : ''}`} />
-        </button>
-        <p className="pr-8 font-semibold text-ink-primary">{set.name}</p>
-        <p className="mt-0.5 text-xs text-ink-muted">
-          {isPokemon && `${(set as PokemonSet).total} cards`}
-          {!isPokemon && `Set ID: ${set.id}`}
-          {year ? ` · ${year}` : ''}
-        </p>
-      </div>
-      {isPokemon && <CompletionRing percent={completion} className="mr-1" />}
-    </div>
+    <span className="flex items-center justify-end gap-2.5">
+      <span className="font-mono text-[12.5px] tabular-nums text-ink-secondary">
+        {owned > 0 ? `${owned} / ${total}` : '—'}
+      </span>
+      <span
+        className="relative hidden h-1.5 w-20 overflow-hidden rounded-sm bg-surface-hover sm:block"
+        role="meter"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(pct)}
+        aria-label={`${Math.round(pct)}% of the set owned`}
+      >
+        <span
+          className={cn('absolute inset-y-0 left-0', pct >= 100 ? 'bg-gold' : 'bg-ink-primary')}
+          style={{ width: `${pct}%` }}
+        />
+      </span>
+    </span>
   );
 }
 
+function SetRow({
+  set,
+  owned,
+  pinned,
+  isPokemon,
+  onSelect,
+  onTogglePin,
+}: {
+  set: AnySet;
+  owned: number;
+  pinned: boolean;
+  isPokemon: boolean;
+  onSelect: () => void;
+  onTogglePin: () => void;
+}) {
+  const total = set.total ?? 0;
+  const year = isPokemonSet(set) ? formatReleaseYear(set.releaseDate) : undefined;
+  return (
+    <tr>
+      <td className="w-14 pr-0">
+        {isPokemonSet(set) ? (
+          <SetLogo set={set} size="sm" className="rounded-md border-0 bg-transparent" />
+        ) : (
+          <span className="font-mono text-[11.5px] text-ink-muted">{set.id}</span>
+        )}
+      </td>
+      <th scope="row" className="text-left font-normal">
+        <button
+          type="button"
+          onClick={onSelect}
+          className="block max-w-[52vw] truncate text-left font-medium hover:underline sm:max-w-none"
+        >
+          {set.name}
+        </button>
+        <span className="block font-mono text-[11.5px] uppercase text-ink-muted">
+          {set.id}
+          <span className="font-sans normal-case sm:hidden">{year ? ` · ${year}` : ''}</span>
+        </span>
+      </th>
+      <td className="num hidden text-ink-secondary sm:table-cell">{year ?? '—'}</td>
+      <td className="num hidden text-ink-secondary md:table-cell">{total || '—'}</td>
+      <td className="num">{total > 0 ? <Progress owned={owned} total={total} /> : '—'}</td>
+      <td className="w-10 pl-0 text-right">
+        {isPokemon ? (
+          <button
+            type="button"
+            onClick={onTogglePin}
+            aria-pressed={pinned}
+            aria-label={pinned ? `Unpin ${set.name}` : `Pin ${set.name}`}
+            className={cn(
+              'grid h-8 w-8 place-items-center rounded-md hover:bg-surface-hover',
+              pinned ? 'text-gold' : 'text-ink-muted'
+            )}
+          >
+            <Star className="h-4 w-4" fill={pinned ? 'currentColor' : 'none'} aria-hidden />
+          </button>
+        ) : null}
+      </td>
+    </tr>
+  );
+}
+
+function SetTable({ children, caption }: { children: React.ReactNode; caption: string }) {
+  // Fixed layout so every era's table lines up column for column.
+  return (
+    <table className="ledger ledger-tight table-fixed">
+      <caption className="sr-only">{caption}</caption>
+      <thead>
+        <tr>
+          <th scope="col" className="w-14">
+            <span className="sr-only">Symbol</span>
+          </th>
+          <th scope="col">Set</th>
+          <th scope="col" className="num hidden w-24 sm:table-cell">
+            Released
+          </th>
+          <th scope="col" className="num hidden w-20 md:table-cell">
+            Cards
+          </th>
+          <th scope="col" className="num w-28 sm:w-48">
+            You own
+          </th>
+          <th scope="col" className="w-10">
+            <span className="sr-only">Pin</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody>{children}</tbody>
+    </table>
+  );
+}
+
+/**
+ * Set archive: an index you can scan, grouped by era, newest first. Owned
+ * counts come from your vault (distinct card numbers), not estimates.
+ */
 export const SetIndex: React.FC<SetIndexProps> = ({ onSelectSet }) => {
   const { isPokemon, isOnePiece } = useGame();
+  const { cards: vault } = useVault();
+  const [params, setParams] = useSearchParams();
+  const search = params.get('q') ?? '';
+  const view = params.get('show') ?? 'all';
   const [sets, setSets] = useState<AnySet[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const [pinnedOnly, setPinnedOnly] = useState(false);
   const [, setPinTick] = useState(0);
 
-  const loadSets = React.useCallback(async () => {
+  const setParam = (k: string, v: string) =>
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (v && v !== 'all') next.set(k, v);
+        else next.delete(k);
+        return next;
+      },
+      { replace: true }
+    );
+
+  const loadSets = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      if (isPokemon) {
-        const data = await setTrackerService.getSets();
-        setSets(data);
-      } else if (isOnePiece) {
-        const data = await onePieceApi.getSets();
-        setSets(data);
-      }
+      setSets(isPokemon ? await setTrackerService.getSets() : await onePieceApi.getSets());
     } catch (e) {
-      const msg = (e as Error).message;
-      // Make backend errors more user-friendly
-      if (msg.includes('502') || msg.includes('503') || msg.includes('504')) {
-        setError(
-          'The set catalog backend is temporarily unavailable. This may be a network issue — please try again.'
-        );
-      } else if (
-        msg.includes('fetch') ||
-        msg.includes('network') ||
-        msg.includes('Failed to fetch')
-      ) {
-        setError('Unable to reach the server. Check your connection and try again.');
-      } else {
-        setError(msg);
-      }
+      const msg = (e as Error).message || '';
+      setError(
+        /50[234]/.test(msg)
+          ? 'The set catalog is temporarily unavailable.'
+          : /fetch|network/i.test(msg)
+            ? 'Could not reach the server. Check your connection.'
+            : msg || 'The set catalog did not load.'
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [isPokemon, isOnePiece]);
+  }, [isPokemon]);
 
   useEffect(() => {
-    loadSets();
-  }, [loadSets]);
+    void loadSets();
+  }, [loadSets, isOnePiece]);
+
+  const ownedBySet = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!isPokemon) return map;
+    for (const s of sets) {
+      if (!isPokemonSet(s) || !s.total) continue;
+      const pct = setTrackerService.getCompletionForSet(s.id, s.name, s.total);
+      if (pct > 0) map.set(s.id, Math.round((pct / 100) * s.total));
+    }
+    return map;
+    // vault in deps: recompute when holdings change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sets, vault, isPokemon]);
+
+  const pinnedIds = isPokemon ? new Set(setWishlistService.getPinnedSets()) : new Set<string>();
 
   const filtered = useMemo(() => {
-    let list = sets;
     const q = search.trim().toLowerCase();
-    if (q) {
-      list = list.filter(
-        (s) =>
-          s.name.toLowerCase().includes(q) ||
-          s.id.toLowerCase().includes(q) ||
-          (isPokemonSet(s) && ((s as PokemonSet).eraLabel || '').toLowerCase().includes(q)) ||
-          (isPokemonSet(s) && ((s as PokemonSet).series || '').toLowerCase().includes(q))
-      );
-    }
-    if (pinnedOnly && isPokemon) {
-      const pinned = new Set(setWishlistService.getPinnedSets());
-      list = list.filter((s) => pinned.has(s.id));
-    }
-    return list;
-  }, [sets, search, pinnedOnly, isPokemon]);
+    return sets.filter((s) => {
+      if (q) {
+        const hay =
+          `${s.name} ${s.id} ${isPokemonSet(s) ? `${s.series ?? ''} ${s.eraLabel ?? ''}` : ''}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (view === 'pinned' && !setWishlistService.isPinned(s.id)) return false;
+      if (view === 'started' && !(ownedBySet.get(s.id) ?? 0)) return false;
+      return true;
+    });
+  }, [sets, search, view, ownedBySet]);
 
-  const grouped = useMemo(() => {
-    if (!isPokemon) return [{ era: 'All Sets', label: 'All Sets', sets: filtered }];
-    return groupSetsByEra(filtered as PokemonSet[]);
-  }, [filtered, isPokemon]);
-  const showGrouped = !search.trim() && !pinnedOnly && isPokemon;
+  const groups = useMemo(
+    () =>
+      isPokemon
+        ? groupSetsByEra(filtered as PokemonSet[])
+        : [{ era: 'all', label: 'All sets', sets: filtered as PokemonSet[] }],
+    [filtered, isPokemon]
+  );
 
-  const handleTogglePin = (e: React.MouseEvent, setId: string) => {
-    e.stopPropagation();
-    setWishlistService.togglePinnedSet(setId);
+  const togglePin = (id: string) => {
+    setWishlistService.togglePinnedSet(id);
     setPinTick((t) => t + 1);
   };
 
-  const gameLabel = isPokemon ? 'Pokemon' : 'One Piece';
-
-  if (isLoading) {
-    return (
-      <div className="flex min-h-[320px] items-center justify-center">
-        <LoadingSpinner />
-      </div>
-    );
-  }
-
-  if (error) {
-    return <ErrorMessage message={error} onRetry={loadSets} />;
-  }
-
-  if (sets.length === 0) {
-    return (
-      <PageEmptyState
-        icon={Layers}
-        title="No sets in catalog"
-        message={
-          isPokemon
-            ? 'Run catalog sync on the backend to populate set checklists.'
-            : 'Loading One Piece sets...'
-        }
-      />
-    );
-  }
+  const startedCount = ownedBySet.size;
 
   return (
-    <div className="space-y-8">
-      <section className="space-y-2">
-        <p className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-foil">
-          <span className="h-1.5 w-1.5 rounded-full bg-accent shadow-glow-accent" aria-hidden />
-          Set tracker
-        </p>
-        <h1 className="font-display text-h1 text-ink-primary">Browse {gameLabel} sets</h1>
-        <p className="max-w-2xl text-sm text-ink-secondary">
-          {isPokemon
-            ? 'Newest releases first, grouped by generation — Mega, SV, SWSH, and more.'
-            : 'All One Piece TCG sets with card images and market prices.'}
-        </p>
-      </section>
+    <div className="space-y-6">
+      <PageHeader
+        title="Sets"
+        meta={
+          sets.length
+            ? `${sets.length} ${isPokemon ? 'Pokémon' : 'One Piece'} sets${startedCount ? ` · ${startedCount} started` : ''}`
+            : undefined
+        }
+      />
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative min-w-[200px] flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[12rem] flex-1">
+          <label htmlFor="set-q" className="sr-only">
+            Search sets
+          </label>
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted"
+            aria-hidden
+          />
           <input
+            id="set-q"
             type="search"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search sets..."
-            className="input input-with-icon"
+            onChange={(e) => setParam('q', e.target.value)}
+            placeholder="Search by set name, code or series"
+            className="input h-10 w-full pl-9"
           />
         </div>
-        {isPokemon && (
-          <button
-            type="button"
-            onClick={() => setPinnedOnly((p) => !p)}
-            className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
-              pinnedOnly
-                ? 'border-neon-amber/40 bg-accent-muted text-neon-amber'
-                : 'border-border-subtle bg-surface-hover text-ink-secondary hover:text-ink-primary'
-            }`}
-          >
-            <Star className={`h-4 w-4 ${pinnedOnly ? 'fill-neon-amber' : ''}`} />
-            Pinned only
-          </button>
-        )}
+        {isPokemon ? (
+          <>
+            <FilterChip
+              active={view === 'started'}
+              onClick={() => setParam('show', view === 'started' ? 'all' : 'started')}
+            >
+              Sets I’ve started
+            </FilterChip>
+            <FilterChip
+              active={view === 'pinned'}
+              onClick={() => setParam('show', view === 'pinned' ? 'all' : 'pinned')}
+            >
+              Pinned
+              {pinnedIds.size ? (
+                <span className="ml-1.5 font-mono text-[12px]">{pinnedIds.size}</span>
+              ) : null}
+            </FilterChip>
+          </>
+        ) : null}
       </div>
 
-      {showGrouped ? (
-        <div className="space-y-8">
-          {grouped.map((group) => (
-            <section
-              key={group.era}
-              className="relative space-y-3 border-l-2 border-border-default pl-5"
-            >
-              <div className="sticky top-[4.25rem] z-10 -ml-5 flex items-center gap-3 bg-surface-base/95 py-2 pl-5 ">
-                <span
-                  className="absolute -left-[5px] h-2 w-2 rounded-full bg-accent"
-                  aria-hidden="true"
-                />
-                <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-secondary">
-                  {group.label}
+      {isLoading ? (
+        <div className="space-y-2" aria-busy="true">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="skeleton h-12 rounded" />
+          ))}
+        </div>
+      ) : error ? (
+        <Unavailable title="Sets did not load">
+          {error}{' '}
+          <button
+            type="button"
+            onClick={() => void loadSets()}
+            className="text-accent hover:underline"
+          >
+            Try again
+          </button>
+        </Unavailable>
+      ) : filtered.length === 0 ? (
+        <Unavailable title={sets.length ? 'No sets match' : 'The set catalog is empty'}>
+          {sets.length
+            ? view === 'started'
+              ? 'You don’t own a card from any set yet. Add cards to your vault to track progress.'
+              : 'Try another name or clear the filter.'
+            : 'The backend has not synced any sets yet.'}
+        </Unavailable>
+      ) : (
+        <div className="space-y-10">
+          {groups.map((g) => (
+            <section key={g.era} aria-labelledby={`era-${g.era}`}>
+              <div className="sticky top-[96px] z-10 flex items-baseline justify-between gap-2 border-b border-rule-strong bg-surface-base pb-2 pt-2 md:top-[var(--header-h)]">
+                <h2
+                  id={`era-${g.era}`}
+                  className="font-display text-[22px] font-medium leading-tight"
+                >
+                  {g.label}
                 </h2>
-                <span className="text-xs tabular-nums text-ink-muted">
-                  {group.sets.length} sets
+                <span className="font-mono text-[12px] text-ink-muted">
+                  {g.sets.length} set{g.sets.length === 1 ? '' : 's'}
                 </span>
               </div>
-              <div className="stagger-children grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {group.sets.map((set) => (
-                  <SetCard
-                    key={`${set.id}::${set.name}`}
-                    set={set}
-                    onSelect={() => onSelectSet(set.id)}
-                    onTogglePin={(e) => handleTogglePin(e, set.id)}
-                    pinned={isPokemon ? setWishlistService.isPinned(set.id) : false}
+              <SetTable caption={`${g.label} sets`}>
+                {g.sets.map((s) => (
+                  <SetRow
+                    key={`${s.id}::${s.name}`}
+                    set={s}
+                    owned={ownedBySet.get(s.id) ?? 0}
+                    pinned={pinnedIds.has(s.id)}
                     isPokemon={isPokemon}
+                    onSelect={() => onSelectSet(s.id)}
+                    onTogglePin={() => togglePin(s.id)}
                   />
                 ))}
-              </div>
+              </SetTable>
             </section>
           ))}
         </div>
-      ) : (
-        <div className="stagger-children grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((set) => (
-            <SetCard
-              key={`${set.id}::${set.name}`}
-              set={set}
-              onSelect={() => onSelectSet(set.id)}
-              onTogglePin={(e) => handleTogglePin(e, set.id)}
-              pinned={isPokemon ? setWishlistService.isPinned(set.id) : false}
-              isPokemon={isPokemon}
-            />
-          ))}
-        </div>
-      )}
-
-      {filtered.length === 0 && (
-        <p className="text-center text-sm text-ink-muted">No sets match your search.</p>
       )}
     </div>
   );

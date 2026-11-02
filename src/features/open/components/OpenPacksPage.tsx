@@ -1,16 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  BookOpen,
-  Box,
-  ChevronDown,
-  History,
-  Layers,
-  Package,
-  Sparkles,
-  Zap,
-  ArrowRight,
-} from 'lucide-react';
+import { BookOpen, Box, ChevronDown, Layers, Package, Zap } from 'lucide-react';
 import { PageHeader, PageShell } from '../../../components/layout/PageShell';
 import { OddsRow, OpenedPack, PullCard, BoxSession, BulkOpenSession } from '../types';
 import { onePiecePackService, sortPullsBestFirst } from '../services/onePiecePackService';
@@ -147,36 +137,36 @@ export const OpenPacksPage: React.FC = () => {
     }
     return [...counts.values()];
   }, [sessionCards]);
-  const sessionValue = useMemo(
-    () => sessionCards.reduce((sum, c) => sum + (c.marketPrice ?? 0), 0),
-    [sessionCards]
-  );
+  // Only priced cards count toward the value; unpriced ones are reported, not zeroed.
+  const sessionValue = useMemo(() => {
+    let sum = 0;
+    let unpriced = 0;
+    for (const c of sessionCards) {
+      if (c.marketPrice != null && Number.isFinite(c.marketPrice) && c.marketPrice > 0)
+        sum += c.marketPrice;
+      else unpriced += 1;
+    }
+    return { sum, unpriced };
+  }, [sessionCards]);
 
   return (
     <PageShell>
       <PageHeader
-        eyebrow="Tools"
-        title="OP booster simulator"
-        description="Pick a set and open a pack, box, or case using that set’s published rates. Save pulls to your collection."
+        title="One Piece booster simulator"
+        meta="Simulated"
+        description="Pick a set and open a pack, box or case using community-estimated rates for that set. Save pulls to your collection."
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-default bg-surface-raised px-4 py-3">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-ink-primary">Tiered pack shop</p>
-          <p className="text-xs text-ink-secondary">Play-money EV packs with disclosed brackets.</p>
-        </div>
-        <Link
-          to="/packs"
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border-default bg-surface-inset px-3 py-1.5 text-xs font-semibold text-ink-secondary transition-colors hover:bg-surface-hover hover:text-ink-primary"
-        >
-          Open pack shop
-          <ArrowRight className="h-3.5 w-3.5" />
+      <p className="text-[13px] text-ink-muted">
+        Looking for play-money packs with value brackets?{' '}
+        <Link to="/packs" className="text-accent hover:underline">
+          Go to the pack shop
         </Link>
-      </div>
+      </p>
 
       {/* Set selector */}
       <div className="flex flex-wrap items-center gap-3">
-        <label htmlFor="op-set-select" className="text-sm font-semibold text-ink-secondary">
+        <label htmlFor="op-set-select" className="text-[13px] font-medium">
           Set
         </label>
         <div className="relative min-w-[15rem]">
@@ -185,7 +175,7 @@ export const OpenPacksPage: React.FC = () => {
             value={selectedCode}
             onChange={(e) => setSelectedCode(e.target.value)}
             disabled={isLoadingSets || sets.length === 0}
-            className="w-full cursor-pointer appearance-none rounded-xl border border-border-strong bg-surface-inset px-4 py-2.5 pr-10 text-sm font-semibold text-ink-primary outline-none transition-colors hover:border-border-default focus:border-accent"
+            className="input h-10 w-full cursor-pointer appearance-none pr-10"
           >
             {sets.length === 0 && <option value="">Loading sets…</option>}
             {sets.map((s) => (
@@ -199,103 +189,83 @@ export const OpenPacksPage: React.FC = () => {
         {oddsLoading && <span className="text-xs text-ink-muted">Loading pull rates…</span>}
       </div>
 
-      {/* Opening hero card */}
-      <div className="relative overflow-hidden rounded-2xl border border-border-subtle bg-surface-inset shadow-card">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_0%_0%,rgba(91,196,212,0.08),transparent_55%)]"
-        />
-        <div className="relative flex flex-col gap-6 p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
-          <div className="max-w-xl space-y-2">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-foil">
-              Currently opening
-            </p>
-            <h3 className="font-display text-2xl font-bold text-ink-primary sm:text-3xl">
-              {selectedSet ? (
-                <>
-                  {selectedSet.code}{' '}
-                  <span className="text-ink-secondary">· {selectedSet.name}</span>
-                </>
-              ) : (
-                'Pick a set to begin'
-              )}
-            </h3>
-            <p className="text-sm text-ink-secondary">
-              Pick your experience — just a taste, or the full adventure. One pack contains 12
-              cards; a booster box is {selectedSet?.boxPacks ?? 24} packs.
-            </p>
-          </div>
-          <div className="flex w-full flex-col gap-3 lg:w-auto lg:shrink-0">
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={handleOpenPack}
-                disabled={isOpening || !selectedSet}
-                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-accent px-6 py-3.5 text-sm font-bold text-primary-foreground shadow-glow-accent transition-all hover:bg-accent-hover active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Package className="h-4 w-4" />
-                Open a pack
-              </button>
-              <button
-                type="button"
-                onClick={handleOpenBox}
-                disabled={isOpening || !selectedSet}
-                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-foil/40 bg-surface-overlay px-6 py-3.5 text-sm font-bold text-ink-primary transition-all hover:border-foil hover:bg-surface-hover active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Box className="h-4 w-4 text-foil" />
-                Open a booster box
-              </button>
-            </div>
-            <div className="flex flex-col gap-2 rounded-xl border border-border-subtle bg-surface-overlay/80 p-3 sm:flex-row sm:items-center">
-              <button
-                type="button"
-                onClick={() => handleBulkOpen(BOXES_PER_CASE)}
-                disabled={isOpening || !selectedSet}
-                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-accent/40 bg-accent/10 px-4 py-2.5 text-sm font-bold text-ink-primary transition-all hover:border-accent hover:bg-accent/20 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Layers className="h-4 w-4 text-accent" />
-                Open a case ({BOXES_PER_CASE} boxes)
-              </button>
-              <div className="flex flex-1 items-center gap-2">
-                <label htmlFor="bulk-box-count" className="sr-only">
-                  Boxes to spam-open
-                </label>
-                <select
-                  id="bulk-box-count"
-                  value={bulkCount}
-                  onChange={(e) => setBulkCount(Number(e.target.value))}
-                  disabled={isOpening || !selectedSet}
-                  className="cursor-pointer appearance-none rounded-lg border border-border-default bg-surface-inset px-3 py-2 text-sm font-semibold text-ink-primary outline-none focus:border-accent disabled:opacity-50"
-                >
-                  {[1, 3, 5, 10, 12, 24].map((n) => (
-                    <option key={n} value={n}>
-                      {n} {n === 1 ? 'box' : 'boxes'}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => handleBulkOpen(bulkCount)}
-                  disabled={isOpening || !selectedSet}
-                  className="inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-border-default bg-surface-hover px-4 py-2.5 text-sm font-bold text-ink-primary transition-all hover:border-border-strong hover:bg-surface-raised active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Zap className="h-4 w-4 text-foil" />
-                  Spam open
-                </button>
-              </div>
-            </div>
-            <p className="text-[11px] text-ink-muted">
-              Case / spam skips pack flips and dumps chase hits + live market value.
-            </p>
-          </div>
+      {/* What to open */}
+      <section aria-labelledby="open-title" className="space-y-4 border-y border-rule py-5">
+        <div>
+          <h2 id="open-title" className="text-h2">
+            {selectedSet ? `${selectedSet.code} · ${selectedSet.name}` : 'Pick a set to begin'}
+          </h2>
+          <p className="text-[13px] text-ink-muted">
+            One pack holds 12 cards; a booster box is {selectedSet?.boxPacks ?? 24} packs. Every
+            pull is simulated from the rates below.
+          </p>
         </div>
-      </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleOpenPack}
+            disabled={isOpening || !selectedSet}
+            className="btn-primary"
+          >
+            <Package className="h-4 w-4" aria-hidden />
+            Open a pack
+          </button>
+          <button
+            type="button"
+            onClick={handleOpenBox}
+            disabled={isOpening || !selectedSet}
+            className="btn-secondary"
+          >
+            <Box className="h-4 w-4" aria-hidden />
+            Open a booster box
+          </button>
+          <button
+            type="button"
+            onClick={() => handleBulkOpen(BOXES_PER_CASE)}
+            disabled={isOpening || !selectedSet}
+            className="btn-secondary"
+          >
+            <Layers className="h-4 w-4" aria-hidden />
+            Open a case ({BOXES_PER_CASE} boxes)
+          </button>
+          <span className="inline-flex items-center gap-1.5">
+            <label htmlFor="bulk-box-count" className="sr-only">
+              Boxes to open at once
+            </label>
+            <select
+              id="bulk-box-count"
+              value={bulkCount}
+              onChange={(e) => setBulkCount(Number(e.target.value))}
+              disabled={isOpening || !selectedSet}
+              className="input h-10 w-auto"
+            >
+              {[1, 3, 5, 10, 12, 24].map((n) => (
+                <option key={n} value={n}>
+                  {n} {n === 1 ? 'box' : 'boxes'}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => handleBulkOpen(bulkCount)}
+              disabled={isOpening || !selectedSet}
+              className="btn-ghost"
+            >
+              <Zap className="h-4 w-4" aria-hidden />
+              Open all at once
+            </button>
+          </span>
+        </div>
+        <p className="text-[12px] text-ink-muted">
+          Cases and bulk opens skip the pack-by-pack reveal and go straight to the hits.
+        </p>
+      </section>
 
       {/* Odds disclosure */}
-      <details className="group/odds rounded-2xl border border-border-subtle bg-surface-inset">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 [&::-webkit-details-marker]:hidden">
-          <span className="text-sm font-bold text-ink-primary">
-            Pull rates (full disclosure)
+      <details className="group/odds border-b border-rule">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-3 [&::-webkit-details-marker]:hidden">
+          <span className="text-[14px] font-medium">
+            All pull rates
             {selectedSet && (
               <span className="ml-2 text-xs font-medium text-ink-muted">
                 {selectedSet.code} — {selectedSet.name}
@@ -306,7 +276,7 @@ export const OpenPacksPage: React.FC = () => {
         </summary>
         <div className="border-t border-border-subtle px-5 py-4">
           <div className="overflow-x-auto" role="table" aria-label="Pull rates">
-            <div className="grid min-w-[36rem] grid-cols-[1fr_8rem_10rem_10rem] gap-2 px-2 pb-2 text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+            <div className="grid min-w-[36rem] grid-cols-[1fr_8rem_10rem_10rem] gap-2 px-2 pb-2 text-[12px] font-bold text-ink-muted">
               <span role="columnheader">Rarity</span>
               <span role="columnheader" className="text-right">
                 Per pack
@@ -344,9 +314,9 @@ export const OpenPacksPage: React.FC = () => {
               </div>
             ))}
           </div>
-          <p className="mt-4 rounded-xl border border-border-subtle bg-surface-hover/60 p-3 text-xs leading-relaxed text-ink-muted">
+          <p className="mt-4 max-w-[72ch] text-[12.5px] leading-relaxed text-ink-muted">
             Simulated odds based on community pull-rate estimates compiled from large sample
-            openings — Bandai publishes no official rates. Every roll uses exactly these
+            openings. Bandai publishes no official rates. Every roll uses exactly these
             probabilities; booster boxes are case-mapped so box-level averages hold. This fan-made
             simulator is not affiliated with or endorsed by Bandai, Shueisha or Toei Animation.
           </p>
@@ -358,18 +328,20 @@ export const OpenPacksPage: React.FC = () => {
         <section aria-labelledby="session-pulls-title" className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <History className="h-5 w-5 text-foil" />
-              <h3 id="session-pulls-title" className="text-lg font-semibold text-ink-primary">
+              <h3 id="session-pulls-title" className="text-h2">
                 Your pulled cards
               </h3>
-              <span className="rounded-md border border-border-subtle bg-surface-hover px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
+              <span className="rounded-md border border-border-subtle bg-surface-hover px-1.5 py-0.5 text-[11.5px] font-medium text-ink-muted">
                 This session
               </span>
             </div>
             <div className="flex items-center gap-4 text-sm">
               <span className="tabular-nums text-ink-muted">{sessionCards.length} cards</span>
               <span className="tabular-nums text-ink-secondary">
-                {formatCurrency(sessionValue)}
+                {formatCurrency(sessionValue.sum)} market
+                {sessionValue.unpriced ? (
+                  <span className="text-ink-muted"> · {sessionValue.unpriced} unpriced</span>
+                ) : null}
               </span>
               <button
                 type="button"
@@ -385,7 +357,7 @@ export const OpenPacksPage: React.FC = () => {
                   });
                   setPullsRefresh((n) => n + 1);
                 }}
-                className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border-default bg-surface-hover px-3 py-1.5 text-xs font-bold text-ink-primary transition-colors hover:border-border-strong hover:bg-surface-overlay"
+                className="btn-secondary h-9"
               >
                 <BookOpen className="h-3.5 w-3.5" />
                 Save all session pulls
@@ -408,39 +380,38 @@ export const OpenPacksPage: React.FC = () => {
       {/* Saved collection */}
       <section aria-labelledby="collection-title" className="space-y-4">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-foil" />
-          <h3 id="collection-title" className="text-lg font-semibold text-ink-primary">
+          <h3 id="collection-title" className="text-h2">
             Saved collection
           </h3>
-          <span className="rounded-md border border-border-subtle bg-surface-hover px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
+          <span className="rounded-md border border-border-subtle bg-surface-hover px-1.5 py-0.5 text-[11.5px] font-medium text-ink-muted">
             This browser
           </span>
         </div>
         <PullsCollection refreshKey={pullsRefresh} />
       </section>
 
-      {/* Info */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        {[
-          {
-            title: 'How it works',
-            body: 'Pick a supported set, open one virtual pack or a 24-pack booster box, reveal the cards, then save pulls to your collection. Booster boxes are case-mapped so box-level hits stay realistic.',
-          },
-          {
-            title: 'Rarities & chase cards',
-            body: 'English packs are 7C + 3UC + 1R + 1 hit (EB: 10C). Chase treatments are split out of base SEC — Super Alt Art ≈ manga (~1/5 cases), Red Super Alt Art ≈ 1/200 boxes. Base SEC stays ~⅔ per box.',
-          },
-          {
-            title: 'Not official',
-            body: 'This fan-made simulator uses simulated pull logic and community-estimated English rates (OP.LOG / case openings). Results are not real-world pull data and are for entertainment and collecting practice only.',
-          },
-        ].map((item) => (
-          <article key={item.title} className="card min-w-0 p-5">
-            <h4 className="mb-2 text-sm font-bold text-ink-primary">{item.title}</h4>
-            <p className="text-sm leading-relaxed text-ink-secondary">{item.body}</p>
-          </article>
-        ))}
-      </div>
+      <section
+        aria-labelledby="about-sim"
+        className="max-w-[72ch] space-y-2 text-[13px] text-ink-secondary"
+      >
+        <h2 id="about-sim" className="text-h3">
+          About this simulator
+        </h2>
+        <p>
+          Pick a supported set, open one virtual pack or a 24-pack booster box, reveal the cards,
+          then save pulls to your collection. Booster boxes are case-mapped so box-level hits stay
+          realistic.
+        </p>
+        <p>
+          English packs are 7C + 3UC + 1R + 1 hit (EB: 10C). Chase treatments are split out of base
+          SEC: Super Alt Art ≈ manga (about 1 in 5 cases), Red Super Alt Art ≈ 1 in 200 boxes. Base
+          SEC stays about ⅔ per box.
+        </p>
+        <p className="text-ink-muted">
+          Fan-made and unofficial. Rates are community estimates (OP.LOG and case openings), not
+          real pull data. For fun and collecting practice only.
+        </p>
+      </section>
 
       <PackRevealModal
         pack={selectedPack}

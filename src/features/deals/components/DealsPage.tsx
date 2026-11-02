@@ -1,7 +1,8 @@
 /* @refresh reset */
 import { useEffect, useMemo, useState } from 'react';
 import { Bookmark, RefreshCw } from 'lucide-react';
-import { FilterChip, PageHeader, PageShell } from '../../../components/layout/PageShell';
+import { PageHeader, PageShell } from '../../../components/layout/PageShell';
+import { Price } from '../../../components/exchange/Price';
 import { PageEmptyState } from '../../../components/common/PageEmptyState';
 import { useCardModal } from '../../../contexts/CardModalContext';
 import { formatCurrency, formatPercent } from '../../../utils/cardDisplay';
@@ -109,7 +110,6 @@ export function DealsPage() {
   return (
     <PageShell wide>
       <PageHeader
-        eyebrow="Market"
         title="eBay deals"
         description="Live listings for this game compared to TCGTracker market value. If eBay rate-limits, leave this page open."
         actions={
@@ -119,7 +119,7 @@ export function DealsPage() {
                 type="button"
                 onClick={fullRescan}
                 title="Walk every eBay search again instead of only listings posted since the last scan"
-                className="rounded-lg px-2 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:bg-surface-hover hover:text-ink-secondary"
+                className="btn-ghost"
               >
                 Full rescan
               </button>
@@ -129,10 +129,11 @@ export function DealsPage() {
               onClick={refresh}
               title="Check listings posted since the last scan"
               disabled={waitingForEbay}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border-default bg-surface-inset px-3 py-1.5 text-xs font-medium text-ink-secondary transition-colors hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
+              className="btn-secondary"
             >
               <RefreshCw
-                className={`h-3.5 w-3.5${scanning || (reconnecting && !gaveUp) ? ' animate-spin' : ''}`}
+                className={`h-4 w-4${scanning || (reconnecting && !gaveUp) ? ' animate-spin motion-reduce:animate-none' : ''}`}
+                aria-hidden
               />
               {waitingForEbay
                 ? `Waiting ${formatEbayWait(waitMs)}`
@@ -153,7 +154,7 @@ export function DealsPage() {
       />
 
       {cardId && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-accent/20 bg-accent/10 px-4 py-3 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-l-2 border-accent pl-3 text-[13px]">
           <p className="text-ink-secondary">
             Card watch: live eBay listings for this TCGTracker card.
           </p>
@@ -183,7 +184,7 @@ export function DealsPage() {
       ) : null}
 
       {result?.meta?.error === 'rate_limited' && !scanning && (
-        <p className="text-sm text-neon-amber">
+        <p className="text-[13px] text-warn" role="status">
           {`eBay rate-limited the scan${
             result.meta.listingsScanned
               ? ` after ${result.meta.listingsScanned.toLocaleString()} listings`
@@ -192,11 +193,26 @@ export function DealsPage() {
         </p>
       )}
 
-      <div className="flex gap-1 overflow-x-auto rounded-xl border border-border-default bg-surface-inset p-1">
+      <div
+        role="tablist"
+        aria-label="Deal feeds"
+        className="flex gap-1 overflow-x-auto border-b border-rule"
+      >
         {TABS.map((item) => (
-          <FilterChip key={item.id} active={tab === item.id} onClick={() => setActiveTab(item.id)}>
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === item.id}
+            onClick={() => setActiveTab(item.id)}
+            className={`-mb-px h-10 shrink-0 border-b-2 px-2.5 text-[13.5px] font-medium transition-colors ${
+              tab === item.id
+                ? 'border-ink-primary text-ink-primary'
+                : 'border-transparent text-ink-muted hover:text-ink-primary'
+            }`}
+          >
             {item.label}
-          </FilterChip>
+          </button>
         ))}
       </div>
 
@@ -205,7 +221,7 @@ export function DealsPage() {
       {tab === 'saved' ? (
         savedLoading ? (
           <div className="flex h-40 items-center justify-center">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent motion-reduce:animate-none" />
           </div>
         ) : saved.length === 0 ? (
           <PageEmptyState
@@ -214,41 +230,55 @@ export function DealsPage() {
             message="Save a listing to keep its market snapshot. Current TCGTracker value is shown beside the price you saved."
           />
         ) : (
-          <div className="space-y-3">
-            {saved.map((row) => (
-              <div
-                key={row.id}
-                className="rounded-xl border border-border-default bg-surface-raised p-4"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium text-ink-primary">{row.cardId}</p>
-                    <p className="text-xs uppercase tracking-wide text-ink-muted">{row.status}</p>
-                  </div>
-                  <a
-                    href={row.listingUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn-secondary h-8 text-xs"
-                  >
-                    View on eBay
-                  </a>
-                </div>
-                <p className="mt-2 text-sm text-ink-secondary">
-                  Saved at {formatCurrency(row.marketPriceSnapshot)} market ·{' '}
-                  {formatPercent(row.discountPercentSnapshot)} discount
-                </p>
-                <p className="text-sm text-ink-secondary">
-                  Current:{' '}
-                  {row.currentMarketValue != null ? formatCurrency(row.currentMarketValue) : '—'}
-                </p>
-                <p className="text-xs text-ink-muted">
-                  Listed {formatCurrency(row.listingPrice)}
-                  {row.shippingPrice > 0 ? ` + ${formatCurrency(row.shippingPrice)} shipping` : ''}
-                </p>
-              </div>
-            ))}
-          </div>
+          <table className="ledger ledger-tight">
+            <caption className="sr-only">Saved deals</caption>
+            <thead>
+              <tr>
+                <th scope="col">Listing</th>
+                <th scope="col" className="num">
+                  Asking, all in
+                </th>
+                <th scope="col" className="num hidden sm:table-cell">
+                  Market when saved
+                </th>
+                <th scope="col" className="num">
+                  Market now
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {saved.map((row) => (
+                <tr key={row.id}>
+                  <th scope="row" className="text-left font-normal">
+                    <a
+                      href={row.listingUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block max-w-[40vw] truncate font-medium hover:underline sm:max-w-[24rem]"
+                    >
+                      {row.cardId}
+                      <span className="sr-only"> on eBay (opens in a new tab)</span>
+                    </a>
+                    <span className="block text-[12px] text-ink-muted">
+                      {row.status} · {formatPercent(row.discountPercentSnapshot)} under market when
+                      saved
+                    </span>
+                  </th>
+                  <td className="num">
+                    {formatCurrency(
+                      row.listingPrice + (row.shippingPrice > 0 ? row.shippingPrice : 0)
+                    )}
+                  </td>
+                  <td className="num hidden sm:table-cell">
+                    {formatCurrency(row.marketPriceSnapshot)}
+                  </td>
+                  <td className="num">
+                    <Price value={row.currentMarketValue} size="sm" unavailableLabel="No price" />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )
       ) : (
         <DealFeed

@@ -1,59 +1,37 @@
 import { ReactNode } from 'react';
-import { motion } from 'motion/react';
 import { cn } from '@/lib/utils';
-import { usePrefersReducedMotion } from '@/hooks/useMotionPreferences';
 
 interface PageShellProps {
   children: ReactNode;
   className?: string;
-  /** Wider shell for dense dashboards */
+  /** Data-dense page: up to 1680px. */
   wide?: boolean;
-  /** Use full main-column width (no max-width cap) — for dense grids */
+  /** No max width at all. */
   fluid?: boolean;
-  /** Skip horizontal padding (hero full-bleed) */
+  /** Skip horizontal padding (full-bleed compositions). */
   flush?: boolean;
-  /** Skip the zoom-in stage enter (rare) */
+  /** @deprecated kept for call-site compatibility; there is no enter animation. */
   plain?: boolean;
-  /** Soften the ambient glow (portfolio / dense tables) */
+  /** @deprecated ambient glows were removed in the Collector's Exchange redesign. */
   atmosphere?: 'default' | 'subtle';
 }
 
-export function PageShell({
-  children,
-  className,
-  wide,
-  fluid,
-  flush,
-  plain,
-  atmosphere = 'default',
-}: PageShellProps) {
-  const reduced = usePrefersReducedMotion();
-  const glow =
-    atmosphere === 'subtle'
-      ? 'bg-[radial-gradient(ellipse_at_50%_0%,rgba(110,231,183,0.02),transparent_42%)]'
-      : 'bg-[radial-gradient(ellipse_at_50%_0%,rgba(110,231,183,0.035),transparent_46%)]';
-
+/**
+ * Page frame. No entrance animation and no ambient glow: navigation should
+ * feel immediate. Width is chosen by task density, not decoration.
+ */
+export function PageShell({ children, className, wide, fluid, flush }: PageShellProps) {
   return (
-    <div className="relative isolate min-h-[calc(100dvh-3.5rem)]">
-      <div aria-hidden className={`pointer-events-none absolute inset-0 -z-10 ${glow}`} />
-
-      <motion.div
-        // Route changes happen dozens of times a session, so the enter is a
-        // short fade with a few pixels of lift, not a zoom.
-        initial={plain || reduced ? false : { opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
-        className={cn(
-          'mx-auto w-full',
-          !flush && 'px-4 py-6 sm:px-6 sm:py-8 lg:px-8',
-          !flush && !fluid && (wide ? 'max-w-7xl' : 'max-w-6xl'),
-          fluid && 'max-w-none',
-          'space-y-8',
-          className
-        )}
-      >
-        {children}
-      </motion.div>
+    <div
+      className={cn(
+        'mx-auto w-full',
+        !flush && 'px-4 pb-10 pt-5 sm:px-6 sm:pt-7 lg:px-8',
+        !fluid && (wide ? 'max-w-[1680px]' : 'max-w-[1280px]'),
+        'space-y-8',
+        className
+      )}
+    >
+      {children}
     </div>
   );
 }
@@ -62,23 +40,31 @@ interface PageHeaderProps {
   title: string;
   description?: string;
   actions?: ReactNode;
-  eyebrow?: string;
+  /** Inline metadata displayed beside the title baseline (counts, freshness). */
+  meta?: ReactNode;
   className?: string;
 }
 
-export function PageHeader({ title, description, actions, eyebrow, className }: PageHeaderProps) {
+/**
+ * Contextual page header: editorial title, one line of purpose, actions on
+ * the right, closed by a strong rule. Not a hero.
+ */
+export function PageHeader({ title, description, actions, meta, className }: PageHeaderProps) {
   return (
     <div
-      className={cn('flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between', className)}
+      className={cn(
+        'flex flex-col gap-3 border-b border-rule-strong pb-4 sm:flex-row sm:items-end sm:justify-between',
+        className
+      )}
     >
-      <div className="min-w-0 space-y-2">
-        {eyebrow ? (
-          <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-muted">
-            {eyebrow}
-          </p>
+      <div className="min-w-0 space-y-1">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h1 className="font-display text-h1 text-ink-primary">{title}</h1>
+          {meta ? <span className="text-meta text-ink-muted">{meta}</span> : null}
+        </div>
+        {description ? (
+          <p className="max-w-[68ch] text-[13.5px] text-ink-secondary">{description}</p>
         ) : null}
-        <h1 className="font-display text-h1 text-ink-primary">{title}</h1>
-        {description ? <p className="max-w-2xl text-sm text-ink-secondary">{description}</p> : null}
       </div>
       {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
     </div>
@@ -93,21 +79,22 @@ interface StatBlockProps {
   className?: string;
 }
 
+/** A figure on a hairline, not in a box. Use in rows separated by dividers. */
 export function StatBlock({ label, value, hint, trend, className }: StatBlockProps) {
   return (
-    <div className={cn('card-chrome space-y-1.5', className)}>
-      <p className="text-xs text-ink-muted">{label}</p>
+    <div className={cn('min-w-0 space-y-1 border-t border-rule pt-2.5', className)}>
+      <p className="text-meta text-ink-muted">{label}</p>
       <p
         className={cn(
-          'font-mono text-2xl font-medium tabular-nums tracking-[-0.03em]',
+          'font-mono text-[22px] font-medium tabular-nums tracking-[-0.02em]',
           trend === 'up' && 'text-gain',
           trend === 'down' && 'text-loss',
-          !trend && 'text-ink-primary'
+          (!trend || trend === 'neutral') && 'text-ink-primary'
         )}
       >
         {value}
       </p>
-      {hint ? <p className="text-xs text-ink-muted">{hint}</p> : null}
+      {hint ? <p className="text-meta text-ink-muted">{hint}</p> : null}
     </div>
   );
 }
@@ -128,17 +115,18 @@ interface FilterChipProps {
   className?: string;
 }
 
+/** Filter token. The one place a pill shape is used. */
 export function FilterChip({ active, children, onClick, className }: FilterChipProps) {
   return (
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={cn(
-        'h-8 cursor-pointer rounded-full px-3 text-[13px] font-medium',
-        'transition-[background-color,color,box-shadow,transform] duration-150 ease-out active:scale-[0.97]',
+        'h-8 cursor-pointer rounded-full border px-3 text-[13px] font-medium transition-colors duration-100',
         active
-          ? 'bg-ink-primary text-surface-base'
-          : 'text-ink-secondary shadow-[inset_0_0_0_1px_var(--border-default)] hover:bg-surface-hover hover:text-ink-primary',
+          ? 'border-ink-primary bg-ink-primary text-surface-base'
+          : 'border-border-strong text-ink-secondary hover:border-ink-muted hover:text-ink-primary',
         className
       )}
     >

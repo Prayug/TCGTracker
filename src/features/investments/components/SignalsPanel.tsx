@@ -60,9 +60,7 @@ function FilterChip({
 function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-muted">
-        {label}
-      </p>
+      <p className="text-[11.5px] font-medium text-ink-muted">{label}</p>
       <div className="flex flex-wrap gap-1.5">{children}</div>
     </div>
   );
@@ -94,9 +92,7 @@ function MarketPulseBar({ pulse }: { pulse: InvestmentSignalsResult['pulse'] }) 
   return (
     <div className="rounded-xl border border-border-default/80 bg-surface-overlay p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-muted">
-          Market pulse
-        </p>
+        <p className="text-xs font-medium text-ink-muted">Market pulse</p>
         <span className="text-[11px] text-ink-muted">
           {pulse.analyzedLast24h > 0
             ? `${pulse.analyzedLast24h} signals analyzed in the last 24h`
@@ -113,7 +109,7 @@ function MarketPulseBar({ pulse }: { pulse: InvestmentSignalsResult['pulse'] }) 
             <p className={`font-mono text-lg font-semibold tabular-nums ${item.tone}`}>
               {item.value}
             </p>
-            <p className="text-[10px] uppercase tracking-wide text-ink-muted">{item.label}</p>
+            <p className="text-[11.5px] text-ink-muted">{item.label}</p>
             {item.insight && (
               <p className="mt-1.5 text-[10px] leading-snug text-ink-secondary">{item.insight}</p>
             )}
@@ -123,9 +119,7 @@ function MarketPulseBar({ pulse }: { pulse: InvestmentSignalsResult['pulse'] }) 
 
       {pulse.strongestSignal && pulse.strongestSignal.score >= 35 && (
         <div className="mt-3 rounded-lg border border-gain/20 bg-gain-muted/50 px-3 py-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-gain">
-            Strongest actionable signal
-          </p>
+          <p className="text-[11.5px] font-medium text-gain">Strongest actionable signal</p>
           <p className="mt-1 font-display text-sm font-semibold text-ink-primary">
             {pulse.strongestSignal.signalTitle}
           </p>
@@ -211,9 +205,7 @@ function SignalSourcesRow({
 
   return (
     <div className="space-y-1.5">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-muted">
-        Sources ({sources.length})
-      </p>
+      <p className="text-[11.5px] font-medium text-ink-muted">Sources ({sources.length})</p>
       <div className="flex gap-2 overflow-x-auto pb-1">
         {sources.map((src) => (
           <SignalSourceCard key={src.url} source={src} compact={compact} />
@@ -262,7 +254,7 @@ function MarketSignalMetrics({ signal }: { signal: InvestmentSignal }) {
         },
       ].map((m) => (
         <div key={m.label} className="min-w-[4rem]">
-          <p className="text-[9px] uppercase tracking-wider text-ink-muted">{m.label}</p>
+          <p className="text-[11.5px] text-ink-muted">{m.label}</p>
           <p className="font-mono text-xs font-semibold tabular-nums text-ink-primary">{m.value}</p>
         </div>
       ))}
@@ -353,9 +345,7 @@ function SignalCard({
 
           {signal.whyItMatters.length > 0 && (
             <div>
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-ink-muted">
-                Why it matters
-              </p>
+              <p className="mb-2 text-[11.5px] font-medium text-ink-muted">Why it matters</p>
               <ul className="space-y-1">
                 {signal.whyItMatters.map((item) => (
                   <li key={item} className="flex gap-2 text-sm text-ink-secondary">
@@ -369,30 +359,22 @@ function SignalCard({
 
           {signal.sourceTitle && signal.sources.length <= 1 && (
             <div>
-              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-muted">
-                Source headline
-              </p>
+              <p className="mb-1 text-[11.5px] font-medium text-ink-muted">Source headline</p>
               <p className="text-sm text-ink-muted">{signal.sourceTitle}</p>
             </div>
           )}
 
           <div className="grid gap-3 sm:grid-cols-3">
             <div>
-              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-muted">
-                Observed
-              </p>
+              <p className="mb-1 text-[11.5px] font-medium text-ink-muted">Observed</p>
               <p className="text-sm text-ink-secondary">{signal.observedEffect}</p>
             </div>
             <div>
-              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-muted">
-                Interpretation
-              </p>
+              <p className="mb-1 text-[11.5px] font-medium text-ink-muted">Interpretation</p>
               <p className="text-sm text-ink-secondary">{signal.interpretation}</p>
             </div>
             <div>
-              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-muted">
-                Opportunity
-              </p>
+              <p className="mb-1 text-[11.5px] font-medium text-ink-muted">Opportunity</p>
               <p className="text-sm text-ink-secondary">{signal.opportunity}</p>
             </div>
           </div>

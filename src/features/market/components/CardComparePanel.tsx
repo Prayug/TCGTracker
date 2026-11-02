@@ -128,7 +128,7 @@ export const CardComparePanel: React.FC = () => {
             key={i}
             type="button"
             onClick={() => setActiveSlot(i)}
-            className={`rounded-lg border px-3 py-1.5 text-xs font-semibold uppercase tracking-wider ${
+            className={`rounded-lg border px-3 py-1.5 text-xs font-medium ${
               activeSlot === i
                 ? 'border-accent/40 bg-accent-muted text-accent'
                 : 'border-border-default text-ink-muted'

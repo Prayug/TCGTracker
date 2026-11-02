@@ -113,9 +113,7 @@ export function SimilarSlabsPanel({
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-border-default bg-surface-raised p-4">
-        <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-ink-muted">
-          Anchors (up to 8)
-        </p>
+        <p className="mb-2 text-[11.5px] font-medium text-ink-muted">Anchors (up to 8)</p>
 
         {ownedIds.length > 0 && (
           <div className="mb-3">
@@ -252,7 +250,7 @@ export function SimilarSlabsPanel({
                 if (comps.length === 0) return null;
                 return (
                   <div key={cls} className="mb-4 last:mb-0">
-                    <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-ink-muted">
+                    <p className="mb-2 text-[11.5px] font-medium text-ink-muted">
                       {CLASS_LABELS[cls]}
                     </p>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">

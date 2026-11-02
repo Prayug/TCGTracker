@@ -18,7 +18,7 @@ function MetricCard({
 }) {
   return (
     <div className="rounded-xl border border-border-default bg-surface-raised p-3">
-      <div className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">{label}</div>
+      <div className="text-[11.5px] font-medium text-ink-muted">{label}</div>
       <div
         className={`mt-1 font-mono text-sm font-semibold ${positive === true ? 'text-gain' : positive === false ? 'text-loss' : 'text-ink-primary'}`}
       >

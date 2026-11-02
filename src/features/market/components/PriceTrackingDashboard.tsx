@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { Modal } from '../../../components/common/Modal';
 import { Activity, BookMarked, Brain, Layers, Scale, Sparkles } from 'lucide-react';
 import type { ServerAlertType } from '../../../services/alertService';
 import { unifiedAlertService } from '../../../services/unifiedAlertService';
@@ -18,7 +18,7 @@ import {
   PopRegimePanel,
   SlabBookPanel,
 } from './SlabInsightsPanels';
-import { FilterChip } from '../../../components/layout/PageShell';
+import { FilterChip, PageHeader } from '../../../components/layout/PageShell';
 import { CardComparePanel } from './CardComparePanel';
 import { SlabInsightsPanel } from '../../market-insights/components/MarketInsightsPage';
 import { priceTrackingService, TrackedCard } from '../../../services/priceTrackingService';
@@ -159,32 +159,34 @@ export const PriceTrackingDashboard: React.FC = () => {
   const gradedVaultCards = vaultService
     .getVaultCards(game)
     .filter((vc) => vc.gradingResult != null);
+  // Only cards with a known raw price count; a missing price is not $0.
   const gradingDiff = gradedVaultCards.reduce(
     (acc, vc) => {
-      const raw = vc.card.marketPrice || 0;
+      const raw = vc.card.marketPrice;
+      if (raw == null || !Number.isFinite(raw) || raw <= 0) {
+        acc.skipped += 1;
+        return acc;
+      }
       const graded =
         vc.gradingResult!.estimatedGradedValue ??
         calculateGradedValue(raw, vc.gradingResult!.grade);
       acc.raw += raw * vc.quantity;
       acc.graded += graded * vc.quantity;
+      acc.counted += 1;
       return acc;
     },
-    { raw: 0, graded: 0 }
+    { raw: 0, graded: 0, counted: 0, skipped: 0 }
   );
   const gradingUpliftTotal = gradingDiff.graded - gradingDiff.raw;
 
   return (
     <div className="section-stack">
-      <div className="animate-slide-up space-y-2">
-        <p className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-foil">
-          <span className="h-1.5 w-1.5 rounded-full bg-accent shadow-glow-accent" aria-hidden />
-          Slab market
-        </p>
-        <h2 className="font-display text-h1 text-ink-primary">Slab market</h2>
-        <p className="max-w-2xl text-sm text-ink-secondary">
-          {isPokemon ? SLAB_TAB_COPY[slabTab] : 'Graded market tools are available for Pokemon.'}
-        </p>
-      </div>
+      <PageHeader
+        title="Slabs"
+        description={
+          isPokemon ? SLAB_TAB_COPY[slabTab] : 'Graded market tools are available for Pokémon.'
+        }
+      />
 
       {isOnePiece && (
         <PageEmptyState
@@ -196,7 +198,7 @@ export const PriceTrackingDashboard: React.FC = () => {
 
       {isPokemon && (
         <>
-          <div className="sticky top-0 z-20 space-y-1.5 bg-surface-overlay/90 py-2 backdrop-blur-md">
+          <div className="space-y-1.5">
             <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 [scrollbar-width:thin]">
               {(
                 [
@@ -276,47 +278,44 @@ export const PriceTrackingDashboard: React.FC = () => {
 
             {slabTab === 'owned' && (
               <>
-                {gradedVaultCards.length > 0 && (
-                  <div className="card-glass-scene">
-                    <h3 className="mb-1 text-sm font-semibold text-ink-primary">
-                      Graded vs raw differential
+                {gradingDiff.counted > 0 && (
+                  <section aria-labelledby="graded-diff" className="border-t border-rule pt-3">
+                    <h3 id="graded-diff" className="text-h3">
+                      Photo-graded vault cards: raw vs estimated graded
                     </h3>
-                    <p className="mb-3 text-xs text-ink-muted">
-                      From {gradedVaultCards.length} AI-graded vault card
-                      {gradedVaultCards.length === 1 ? '' : 's'}
+                    <p className="text-[12px] text-ink-muted">
+                      {gradingDiff.counted} card{gradingDiff.counted === 1 ? '' : 's'} with a photo
+                      grade estimate
+                      {gradingDiff.skipped
+                        ? `; ${gradingDiff.skipped} left out because they have no raw price`
+                        : ''}
+                      . Graded values are estimates, not sales.
                     </p>
-                    <div className="grid grid-cols-3 gap-3">
+                    <dl className="mt-3 grid max-w-xl grid-cols-3 gap-4">
                       <div>
-                        <p className="text-[10px] uppercase tracking-wider text-ink-muted">
-                          Raw total
-                        </p>
-                        <p className="font-mono text-sm font-semibold tabular-nums text-ink-primary">
+                        <dt className="text-meta text-ink-muted">Raw market</dt>
+                        <dd className="font-mono text-[15px] tabular-nums">
                           {formatCurrency(gradingDiff.raw)}
-                        </p>
+                        </dd>
                       </div>
                       <div>
-                        <p className="text-[10px] uppercase tracking-wider text-ink-muted">
-                          Est. graded
-                        </p>
-                        <p className="font-mono text-sm font-semibold tabular-nums text-ink-primary">
+                        <dt className="text-meta text-ink-muted">Estimated graded</dt>
+                        <dd className="font-mono text-[15px] tabular-nums">
                           {formatCurrency(gradingDiff.graded)}
-                        </p>
+                        </dd>
                       </div>
                       <div>
-                        <p className="text-[10px] uppercase tracking-wider text-ink-muted">
-                          Uplift
-                        </p>
-                        <p
-                          className={`font-mono text-sm font-semibold tabular-nums ${
+                        <dt className="text-meta text-ink-muted">Difference</dt>
+                        <dd
+                          className={`font-mono text-[15px] tabular-nums ${
                             gradingUpliftTotal >= 0 ? 'text-gain' : 'text-loss'
                           }`}
                         >
-                          {gradingUpliftTotal >= 0 ? '+' : ''}
-                          {formatCurrency(gradingUpliftTotal)}
-                        </p>
+                          {formatCurrency(gradingUpliftTotal, { signed: true })}
+                        </dd>
                       </div>
-                    </div>
-                  </div>
+                    </dl>
+                  </section>
                 )}
                 <SlabBookPanel />
               </>
@@ -336,14 +335,15 @@ export const PriceTrackingDashboard: React.FC = () => {
         </>
       )}
 
-      {showAlertForm && selectedCardForAlert && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4">
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="w-full max-w-md rounded-2xl border border-border-strong bg-surface-overlay p-6 shadow-elevated"
-          >
-            <h3 className="text-xl font-bold text-ink-primary">Create alert</h3>
+      <Modal
+        isOpen={showAlertForm && selectedCardForAlert != null}
+        onClose={() => setShowAlertForm(false)}
+        size="small"
+        ariaLabel="Create alert"
+      >
+        {selectedCardForAlert ? (
+          <div>
+            <h3 className="text-h2">Create alert</h3>
             <p className="mt-1 text-sm text-ink-muted">{selectedCardForAlert.card.name}</p>
             <div className="mt-4 space-y-4">
               <label className="block">
@@ -476,9 +476,9 @@ export const PriceTrackingDashboard: React.FC = () => {
                 Cancel
               </button>
             </div>
-          </motion.div>
-        </div>
-      )}
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 };
