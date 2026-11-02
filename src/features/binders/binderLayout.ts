@@ -107,3 +107,31 @@ export function plannedCost(binder: Pick<Binder, 'slots'>): { cents: number; pri
   }
   return { cents, priced };
 }
+
+/** Put a different card into a filled pocket: one slot update. Empty pockets have no slot to update. */
+export function replaceUpdate(
+  pocket: Pocket,
+  card: Pick<
+    BinderCard,
+    | 'cardId'
+    | 'cardName'
+    | 'setId'
+    | 'setName'
+    | 'cardNumber'
+    | 'rarity'
+    | 'imageSmall'
+    | 'imageLarge'
+    | 'marketPrice'
+  >
+): SlotUpdate | null {
+  if (!pocket.slot) return null;
+  return {
+    slotId: pocket.slot.id,
+    cardId: card.cardId,
+    cardSnapshot: JSON.stringify(card),
+    marketPriceCents:
+      card.marketPrice != null && card.marketPrice > 0
+        ? Math.round(card.marketPrice * 100)
+        : undefined,
+  };
+}

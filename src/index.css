@@ -1707,3 +1707,67 @@
     transform: translateY(1px) scale(0.985);
   }
 }
+
+/* ───────────── Binders: album, pages, sleeves ───────────── */
+@layer components {
+  .binder-shell {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.25),
+      0 30px 60px -30px rgba(5, 8, 15, 0.65),
+      0 8px 18px -10px rgba(5, 8, 15, 0.5);
+  }
+
+  .binder-page {
+    background:
+      radial-gradient(120% 80% at 50% 0%, rgba(255, 255, 255, 0.05), transparent 60%),
+      repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.018) 0 2px, transparent 2px 4px), #1a1e27;
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+      inset 0 -20px 40px -30px rgba(0, 0, 0, 0.6);
+  }
+
+  [data-theme='light'] .binder-page,
+  :root:not([data-theme='dark']) .binder-page {
+    background:
+      radial-gradient(120% 80% at 50% 0%, rgba(255, 255, 255, 0.7), transparent 60%),
+      repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.02) 0 2px, transparent 2px 4px), #e9e4d8;
+  }
+
+  .sleeve {
+    border-radius: 4.6% / 3.3%;
+    padding: 3.5%;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06));
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.22),
+      inset 0 6px 0 -4px rgba(255, 255, 255, 0.35),
+      0 1px 2px rgba(0, 0, 0, 0.35);
+  }
+
+  .sleeve-empty {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)),
+      rgba(0, 0, 0, 0.12);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+      inset 0 10px 18px -12px rgba(0, 0, 0, 0.5);
+  }
+
+  .sleeve-gloss {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(
+      115deg,
+      transparent 30%,
+      rgba(255, 255, 255, 0.16) 42%,
+      transparent 52%
+    );
+    mix-blend-mode: screen;
+  }
+
+  .binder-ring {
+    background: linear-gradient(180deg, #f3f4f6, #9aa1ab 45%, #f3f4f6 55%, #6b7280);
+    box-shadow: 0 2px 3px rgba(0, 0, 0, 0.45);
+  }
+}
