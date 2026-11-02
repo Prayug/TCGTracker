@@ -32,6 +32,7 @@ import { useResolvedPredictionCards } from '../hooks/useResolvedPredictionCards'
 import { MarketOverview } from './MarketOverview';
 import { PredictionCardsView } from './PredictionCardsView';
 import { PredictionDetailPanel } from './PredictionDetailPanel';
+import { ForecastWorkspace } from './ForecastWorkspace';
 import { BacktestPanel } from './BacktestPanel';
 import { ForwardTestPanel } from './ForwardTestPanel';
 import { ModelHealthPanel } from './ModelHealthPanel';
@@ -587,6 +588,16 @@ export function MarketInsightsPage({
         >
           {activeTab === 'overview' && (
             <MarketOverview data={overview} loading={overviewLoading} error={overviewError} />
+          )}
+
+          {activeTab === 'cards' && predictions.length > 0 && (
+            <div className="mb-8">
+              <ForecastWorkspace
+                predictions={predictions}
+                cardsById={cardsById}
+                onViewDetail={(p) => setSelectedPrediction(p)}
+              />
+            </div>
           )}
 
           {activeTab === 'cards' && (
