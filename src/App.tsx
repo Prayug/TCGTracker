@@ -208,14 +208,7 @@ function AppRoutes() {
               }
             />
             <Route path="/vault" element={<VaultPage />} />
-            <Route
-              path="/wishlist"
-              element={
-                <ShellPage>
-                  <WishlistView />
-                </ShellPage>
-              }
-            />
+            <Route path="/wishlist" element={<WishlistView />} />
             <Route
               path="/trade"
               element={
