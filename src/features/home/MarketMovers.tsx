@@ -7,7 +7,7 @@ import { useGame } from '../../contexts/GameContext';
 import { CardArt } from '../../components/exchange/CardArt';
 import { InteractiveCardFan } from '../../components/collectible/InteractiveCardFan';
 import { useIsMobileViewport } from '../../hooks/useMotionPreferences';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Delta, Price, Unavailable } from '../../components/exchange/Price';
 import { cn } from '@/lib/utils';
 
@@ -37,6 +37,7 @@ export function MarketMovers() {
   });
   const [loading, setLoading] = useState(!data);
   const [fanSide, setFanSide] = useState<'up' | 'down'>('up');
+  const [selected, setSelected] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -78,7 +79,7 @@ export function MarketMovers() {
       (a, b) =>
         Math.abs(b.currentPrice - b.previousPrice) - Math.abs(a.currentPrice - a.previousPrice)
     )[0];
-    return { gainers: g.slice(0, 6), losers: l.slice(0, 6), lead: leadEntry ?? null };
+    return { gainers: g.slice(0, 12), losers: l.slice(0, 12), lead: leadEntry ?? null };
   }, [data]);
 
   const period = PERIODS.find((p) => p.days === days)?.label ?? `${days}d`;
@@ -132,25 +133,32 @@ export function MarketMovers() {
           after the next daily snapshot.
         </Unavailable>
       ) : (
-        <div className="mt-5 grid gap-x-8 gap-y-6 md:grid-cols-2 lg:grid-cols-2">
+        <div className="mt-5 space-y-6">
           {lead ? (
             <MoverFanPanel
               entries={fanSide === 'up' ? gainers : losers}
               side={fanSide}
-              onSide={setFanSide}
+              onSide={(v) => {
+                setFanSide(v);
+                setSelected(null);
+              }}
+              selected={selected}
+              onSelect={setSelected}
               period={period}
               onOpen={(e) => openCard(moverToCard(e))}
             />
           ) : null}
-          <MoverColumn
-            title={`Rising · ${period}`}
-            entries={gainers}
-            onOpen={(e) => openCard(moverToCard(e))}
-          />
-          <MoverColumn
-            title={`Falling · ${period}`}
-            entries={losers}
-            onOpen={(e) => openCard(moverToCard(e))}
+          <MoverGallery
+            entries={fanSide === 'up' ? gainers : losers}
+            side={fanSide}
+            period={period}
+            selected={selected}
+            onSelect={(k) => {
+              setSelected(k);
+              document
+                .getElementById('movers-h')
+                ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}
           />
         </div>
       )}
@@ -158,50 +166,109 @@ export function MarketMovers() {
   );
 }
 
-function MoverColumn({
-  title,
+/**
+ * Every mover of the chosen side as a card, not a row: art first, then the
+ * move drawn as two bars. Selecting one brings it to the front of the hand.
+ */
+function MoverGallery({
   entries,
-  onOpen,
+  side,
+  period,
+  selected,
+  onSelect,
 }: {
-  title: string;
   entries: TopMoverEntry[];
-  onOpen: (e: TopMoverEntry) => void;
+  side: 'up' | 'down';
+  period: string;
+  selected: string | null;
+  onSelect: (key: string) => void;
 }) {
+  const reduce = useReducedMotion();
+  if (entries.length === 0)
+    return (
+      <p className="text-meta text-ink-muted">
+        No {side === 'up' ? 'rising' : 'falling'} cards over the threshold this period.
+      </p>
+    );
   return (
-    <div className="min-w-0">
-      <h3 className="text-h3">{title}</h3>
-      {entries.length === 0 ? (
-        <p className="mt-2 text-meta text-ink-muted">None over the threshold.</p>
-      ) : (
-        <ol className="mt-1">
-          {entries.map((e, i) => (
-            <li key={moverKey(e)}>
-              <button
-                type="button"
-                onClick={() => onOpen(e)}
-                className={cn(
-                  'grid w-full grid-cols-[1.25rem_2rem_minmax(0,1fr)_auto] items-center gap-x-3 border-b border-rule py-2 text-left hover:bg-surface-hover/60'
-                )}
-              >
-                <span className="font-mono text-[11.5px] text-ink-muted">{i + 1}</span>
-                <span className="w-8">
-                  <CardArt card={moverToCard(e)} flat />
-                </span>
-                <span className="min-w-0">
-                  <span className="block truncate text-[13.5px] font-medium">{e.productName}</span>
-                  <span className="block truncate text-meta text-ink-muted">
+    <div>
+      <div className="flex items-baseline justify-between">
+        <h3 className="text-h3">
+          {side === 'up' ? 'Rising' : 'Falling'} · {period}
+        </h3>
+        <Link to="/money-flow" className="text-[13px] text-accent hover:underline">
+          All of the market →
+        </Link>
+      </div>
+      <motion.ul
+        key={side}
+        className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6"
+        initial={reduce ? false : { opacity: 0, x: side === 'up' ? -16 : 16 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.28, ease: [0.2, 0.8, 0.2, 1] }}
+      >
+        {(entries.length > 6 ? entries.slice(0, Math.floor(entries.length / 6) * 6) : entries).map(
+          (e) => {
+            const k = moverKey(e);
+            const max = Math.max(e.currentPrice, e.previousPrice, 0.01);
+            const active = selected === k;
+            return (
+              <li key={k}>
+                <button
+                  type="button"
+                  onClick={() => onSelect(k)}
+                  aria-pressed={active}
+                  aria-label={`${e.productName}, ${e.changePercent > 0 ? 'up' : 'down'} ${Math.abs(e.changePercent).toFixed(1)}% to $${e.currentPrice.toFixed(2)}. Show in the hand.`}
+                  className={cn(
+                    'group block w-full rounded-xl p-1.5 text-left transition-colors',
+                    active ? 'bg-surface-hover ring-1 ring-ink-muted' : 'hover:bg-surface-hover/70'
+                  )}
+                >
+                  <span className="relative block">
+                    <CardArt
+                      card={moverToCard(e)}
+                      alt=""
+                      className="transition-transform duration-200 group-hover:-translate-y-0.5"
+                    />
+                    <span
+                      className={cn(
+                        'absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 font-mono text-[11px] font-medium tabular-nums text-white shadow',
+                        e.changePercent >= 0 ? 'bg-[#0f8a66]' : 'bg-[#c2402f]'
+                      )}
+                    >
+                      {e.changePercent > 0 ? '+' : ''}
+                      {e.changePercent.toFixed(1)}%
+                    </span>
+                  </span>
+                  <span className="mt-2 block truncate text-[12.5px] font-medium">
+                    {e.productName}
+                  </span>
+                  <span className="block truncate text-[11px] text-ink-muted">
                     {moverSubtitle(e)}
                   </span>
-                </span>
-                <span className="text-right">
-                  <Price value={e.currentPrice} size="sm" className="block" />
-                  <Delta pct={e.changePercent} />
-                </span>
-              </button>
-            </li>
-          ))}
-        </ol>
-      )}
+                  <span className="mt-1.5 block space-y-1" aria-hidden>
+                    <span
+                      className="block h-1 rounded-full bg-rule-strong"
+                      style={{ width: `${(e.previousPrice / max) * 100}%` }}
+                    />
+                    <span
+                      className={cn(
+                        'block h-1 rounded-full',
+                        e.changePercent >= 0 ? 'bg-gain' : 'bg-loss'
+                      )}
+                      style={{ width: `${(e.currentPrice / max) * 100}%` }}
+                    />
+                  </span>
+                  <span className="mt-1 flex items-baseline justify-between font-mono text-[11px] tabular-nums">
+                    <span className="text-ink-muted">${e.previousPrice.toFixed(2)}</span>
+                    <span>${e.currentPrice.toFixed(2)}</span>
+                  </span>
+                </button>
+              </li>
+            );
+          }
+        )}
+      </motion.ul>
     </div>
   );
 }
@@ -213,16 +280,26 @@ function MoverFanPanel({
   onSide,
   period,
   onOpen,
+  selected,
+  onSelect,
 }: {
   entries: TopMoverEntry[];
   side: 'up' | 'down';
   onSide: (s: 'up' | 'down') => void;
+  selected: string | null;
+  onSelect: (key: string | null) => void;
   period: string;
   onOpen: (e: TopMoverEntry) => void;
 }) {
   const mobile = useIsMobileViewport(640);
-  const withArt = entries.filter((e) => e.imageSmall || e.imageLarge).slice(0, mobile ? 5 : 7);
-  const [selected, setSelected] = useState<string | null>(null);
+  const all = entries.filter((e) => e.imageSmall || e.imageLarge);
+  const head = all.slice(0, mobile ? 5 : 7);
+  // A card picked in the gallery joins the hand if it is not already in it.
+  const extra =
+    selected && !head.some((e) => moverKey(e) === selected)
+      ? all.find((e) => moverKey(e) === selected)
+      : undefined;
+  const withArt = extra ? [...head.slice(0, -1), extra] : head;
   const current = withArt.find((e) => moverKey(e) === selected) ?? withArt[0] ?? null;
   const items = withArt.map((e) => ({
     key: moverKey(e),
@@ -258,7 +335,7 @@ function MoverFanPanel({
           <InteractiveCardFan
             items={items}
             selectedKey={current ? moverKey(current) : null}
-            onSelect={setSelected}
+            onSelect={onSelect}
             cardWidth={mobile ? 104 : 150}
             spread={mobile ? 34 : 44}
             className="mx-auto w-full max-w-[640px]"
