@@ -9,7 +9,30 @@ import { Delta, Price } from '../../../components/exchange/Price';
 import { formatCurrency } from '../../../utils/cardDisplay';
 import { holdingMarketValue, knownHoldingProfit, marketUnitPrice } from '../../../utils/vaultCost';
 import { usePrefersReducedMotion } from '../../../hooks/useMotionPreferences';
+import { useProgressiveCount } from '../../../hooks/useProgressiveCount';
 import { cn } from '@/lib/utils';
+
+type Density = 'showcase' | 'gallery' | 'compact';
+const DENSITIES: { id: Density; label: string }[] = [
+  { id: 'showcase', label: 'Showcase' },
+  { id: 'gallery', label: 'Gallery' },
+  { id: 'compact', label: 'Compact' },
+];
+const GRID: Record<Density, string> = {
+  showcase: 'grid-cols-2 gap-x-5 gap-y-9 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5',
+  gallery: 'grid-cols-3 gap-x-4 gap-y-6 sm:grid-cols-4 lg:grid-cols-6 2xl:grid-cols-7',
+  compact: 'grid-cols-4 gap-x-2.5 gap-y-4 sm:grid-cols-6 lg:grid-cols-8 2xl:grid-cols-10',
+};
+const DENSITY_KEY = 'tcg.vault.density';
+
+function readDensity(): Density {
+  try {
+    const v = localStorage.getItem(DENSITY_KEY);
+    return v === 'gallery' || v === 'compact' ? v : 'showcase';
+  } catch {
+    return 'showcase';
+  }
+}
 
 type ShowSort = 'value' | 'rarity' | 'set' | 'date' | 'name';
 const SORTS: { id: ShowSort; label: string }[] = [
@@ -58,7 +81,21 @@ export function CollectionShowcase({
   onEdit: (vc: VaultCard) => void;
 }) {
   const [sort, setSort] = useState<ShowSort>('value');
+  const [density, setDensityState] = useState<Density>(readDensity);
+  const setDensity = (d: Density) => {
+    setDensityState(d);
+    try {
+      localStorage.setItem(DENSITY_KEY, d);
+    } catch {
+      /* per-viewer convenience only */
+    }
+  };
   const sorted = useMemo(() => sortShowcase(rows, sort), [rows, sort]);
+  const { count, sentinel, done } = useProgressiveCount(
+    sorted.length,
+    48,
+    `${sort}|${rows.length}`
+  );
   const featured = useMemo(
     () =>
       sortShowcase(rows, 'value')
@@ -81,39 +118,53 @@ export function CollectionShowcase({
             The whole case{' '}
             <span className="font-mono text-[15px] font-normal text-ink-muted">{rows.length}</span>
           </h2>
-          <div
-            className="relative flex rounded-full border border-border-default bg-surface-inset p-1"
-            role="group"
-            aria-label="Arrange by"
-          >
-            {SORTS.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                aria-pressed={sort === s.id}
-                onClick={() => setSort(s.id)}
-                className={cn(
-                  'relative z-[1] h-8 rounded-full px-3.5 text-[13px] font-medium transition-colors',
-                  sort === s.id
-                    ? 'text-accent-foreground'
-                    : 'text-ink-secondary hover:text-ink-primary'
-                )}
-              >
-                {sort === s.id ? (
-                  <motion.span
-                    layoutId="show-sort"
-                    className="absolute inset-0 -z-[1] rounded-full bg-accent"
-                    transition={{ type: 'spring', stiffness: 400, damping: 32 }}
-                  />
-                ) : null}
-                {s.label}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="segmented" role="group" aria-label="Density">
+              {DENSITIES.map((d) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  aria-pressed={density === d.id}
+                  onClick={() => setDensity(d.id)}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </div>
+            <div
+              className="relative flex rounded-full border border-border-default bg-surface-inset p-1"
+              role="group"
+              aria-label="Arrange by"
+            >
+              {SORTS.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  aria-pressed={sort === s.id}
+                  onClick={() => setSort(s.id)}
+                  className={cn(
+                    'relative z-[1] h-8 rounded-full px-3.5 text-[13px] font-medium transition-colors',
+                    sort === s.id
+                      ? 'text-accent-foreground'
+                      : 'text-ink-secondary hover:text-ink-primary'
+                  )}
+                >
+                  {sort === s.id ? (
+                    <motion.span
+                      layoutId="show-sort"
+                      className="absolute inset-0 -z-[1] rounded-full bg-accent"
+                      transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+                    />
+                  ) : null}
+                  {s.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
         <LayoutGroup>
-          <ul className="mt-6 grid grid-cols-2 gap-x-5 gap-y-9 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
-            {sorted.map((vc) => {
+          <ul className={cn('mt-4 grid', GRID[density])}>
+            {sorted.slice(0, count).map((vc) => {
               const layoutId = `case-${vc.id}`;
               const pl = knownHoldingProfit(vc);
               return (
@@ -127,7 +178,14 @@ export function CollectionShowcase({
                     <HolographicCard
                       card={vc.card}
                       layoutId={layoutId}
-                      level={finishOf(vc.card) === 'none' ? 'standard' : 'featured'}
+                      // Rich foil and tilt only in Showcase; denser grids stay calm.
+                      level={
+                        density === 'showcase' && finishOf(vc.card) !== 'none'
+                          ? 'featured'
+                          : 'standard'
+                      }
+                      interactive={density !== 'compact'}
+                      elevated={density !== 'compact'}
                       label={`${vc.card.name}, view holding`}
                       onSelect={() => setOpen({ vc, layoutId })}
                     />
@@ -137,18 +195,43 @@ export function CollectionShowcase({
                       </span>
                     ) : null}
                   </div>
-                  <p className="mt-3 truncate text-[14px] font-medium">{vc.card.name}</p>
-                  <p className="truncate text-[12.5px] text-ink-muted">
-                    {vc.card.set?.name}
-                    {vc.card.number ? ` · No. ${vc.card.number}` : ''}
-                  </p>
-                  <p className="mt-1 flex items-baseline gap-2">
-                    <Price value={holdingMarketValue(vc)} size="sm" />
-                    {pl?.profitPct != null ? <Delta pct={pl.profitPct} /> : null}
-                  </p>
+                  {density === 'compact' ? (
+                    <p className="mt-1.5 truncate font-mono text-[11.5px] tabular-nums text-ink-secondary">
+                      {holdingMarketValue(vc) > 0 ? formatCurrency(holdingMarketValue(vc)) : '—'}
+                    </p>
+                  ) : (
+                    <>
+                      <p
+                        className={cn(
+                          'truncate font-medium',
+                          density === 'showcase' ? 'mt-3 text-[14px]' : 'mt-2 text-[13px]'
+                        )}
+                      >
+                        {vc.card.name}
+                      </p>
+                      <p className="truncate text-[12px] text-ink-muted">
+                        {vc.card.set?.name}
+                        {vc.card.number ? ` · No. ${vc.card.number}` : ''}
+                      </p>
+                      <p className="mt-1 flex items-baseline gap-2">
+                        <Price value={holdingMarketValue(vc)} size="sm" />
+                        {pl?.profitPct != null && density === 'showcase' ? (
+                          <Delta pct={pl.profitPct} />
+                        ) : null}
+                      </p>
+                    </>
+                  )}
                 </motion.li>
               );
             })}
+            {!done ? (
+              <li
+                ref={sentinel}
+                className="col-span-full py-6 text-center text-[12.5px] text-ink-muted"
+              >
+                Showing {count} of {sorted.length}
+              </li>
+            ) : null}
           </ul>
         </LayoutGroup>
       </section>
