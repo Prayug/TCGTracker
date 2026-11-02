@@ -304,7 +304,7 @@ export function BrowsePage() {
             ))}
         </select>
         <div className="segmented" role="radiogroup" aria-label="Layout">
-          {(['grid', 'list'] as const).map((v) => (
+          {(['grid', 'compact', 'list'] as const).map((v) => (
             <button
               key={v}
               type="button"
@@ -312,7 +312,7 @@ export function BrowsePage() {
               aria-checked={state.view === v}
               onClick={() => update({ view: v })}
             >
-              {v === 'grid' ? 'Grid' : 'List'}
+              {v === 'grid' ? 'Large' : v === 'compact' ? 'Compact' : 'Research'}
             </button>
           ))}
         </div>
@@ -457,6 +457,7 @@ export function BrowsePage() {
                 <CatalogGrid
                   cards={reveal.visible}
                   game={game}
+                  dense={state.view === 'compact'}
                   onOpen={(c) => openCard(c as PokemonCard)}
                   onAdd={setAdding}
                   onPreview={(card, layoutId) => setPreview({ card, layoutId })}
