@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { VaultCard } from '../../../types/pokemon';
@@ -7,7 +8,16 @@ import { CardSpotlight } from '../../../components/collectible/CardSpotlight';
 import { FINISH_LABEL, finishOf, finishRank } from '../../../components/collectible/finish';
 import { Delta, Price } from '../../../components/exchange/Price';
 import { formatCurrency } from '../../../utils/cardDisplay';
-import { holdingMarketValue, knownHoldingProfit, marketUnitPrice } from '../../../utils/vaultCost';
+import {
+  costStatus,
+  holdingMarketValue,
+  knownHoldingProfit,
+  marketUnitPrice,
+} from '../../../utils/vaultCost';
+import { vaultService } from '../../../services/vaultService';
+import { fetchGradedSpreads, type GradedSpreadSummary } from '../../../services/gradedPricesApi';
+import { cardPath } from '../../../contexts/CardModalContext';
+import { CONDITION_LABEL } from '../ledger';
 import { usePrefersReducedMotion } from '../../../hooks/useMotionPreferences';
 import { useProgressiveCount } from '../../../hooks/useProgressiveCount';
 import { cn } from '@/lib/utils';
@@ -104,6 +114,8 @@ export function CollectionShowcase({
     [rows]
   );
   const [open, setOpen] = useState<{ vc: VaultCard; layoutId: string } | null>(null);
+  // Follow the live record so edits made from the spotlight (e.g. confirming a cost) show at once.
+  const openVc = open ? (rows.find((r) => r.id === open.vc.id) ?? open.vc) : null;
 
   return (
     <div className="space-y-8">
@@ -237,15 +249,15 @@ export function CollectionShowcase({
       </section>
 
       <CardSpotlight
-        card={open?.vc.card ?? null}
+        card={openVc?.card ?? null}
         layoutId={open?.layoutId}
         onClose={() => setOpen(null)}
       >
-        {open ? (
+        {openVc ? (
           <HoldingFacts
-            vc={open.vc}
+            vc={openVc}
             onEdit={() => {
-              const vc = open.vc;
+              const vc = openVc;
               setOpen(null);
               onEdit(vc);
             }}
@@ -259,43 +271,89 @@ export function CollectionShowcase({
 function HoldingFacts({ vc, onEdit }: { vc: VaultCard; onEdit: () => void }) {
   const pl = knownHoldingProfit(vc);
   const unit = marketUnitPrice(vc.card);
+  const status = costStatus(vc);
+  const game = vc.game ?? 'pokemon';
+  const [spreads, setSpreads] = useState<GradedSpreadSummary | null | 'loading'>('loading');
+  useEffect(() => {
+    let alive = true;
+    setSpreads('loading');
+    fetchGradedSpreads(vc.card.id).then((r) => alive && setSpreads(r));
+    return () => {
+      alive = false;
+    };
+  }, [vc.card.id]);
+  const grades =
+    spreads && spreads !== 'loading'
+      ? [...spreads.spreads]
+          .filter((g) => g.gradedPrice > 0)
+          .sort((x, y) => x.gradedPrice - y.gradedPrice)
+          .slice(-4)
+      : [];
+  const top = Math.max(unit, ...grades.map((g) => g.gradedPrice), 1);
+
   return (
-    <div>
-      <dl className="grid grid-cols-2 gap-3 text-white">
-        <div className="rounded-xl bg-white/5 p-3">
-          <dt className="text-[12px] text-white/55">Holding value</dt>
-          <dd className="mt-1">
+    <div className="space-y-4 text-white">
+      <dl className="grid grid-cols-2 gap-x-5 gap-y-3 sm:grid-cols-3">
+        <div>
+          <dt className="text-[11.5px] text-white/55">Holding value</dt>
+          <dd className="mt-0.5">
             <Price value={holdingMarketValue(vc)} size="lg" className="text-white" />
           </dd>
-          <dd className="mt-1 text-[11.5px] text-white/50">
-            {vc.quantity} × {unit > 0 ? formatCurrency(unit) : 'no price'} market
+          <dd className="text-[11px] text-white/50">
+            {vc.quantity} × {unit > 0 ? formatCurrency(unit) : 'no price'}
           </dd>
         </div>
-        <div className="rounded-xl bg-white/5 p-3">
-          <dt className="text-[12px] text-white/55">Profit / loss</dt>
+        <div>
+          <dt className="text-[11.5px] text-white/55">Cost basis</dt>
+          <dd className="mt-1 font-mono text-[16px] tabular-nums">
+            {status === 'recorded' ? (
+              formatCurrency(vc.purchasePrice * vc.quantity)
+            ) : status === 'unverified' ? (
+              <span className="text-[#f0bd55]">
+                {formatCurrency(vc.purchasePrice * vc.quantity)}
+                <span className="ml-1 font-sans text-[11px]">unverified</span>
+              </span>
+            ) : (
+              <span className="font-sans text-[13px] text-white/60">Not recorded</span>
+            )}
+          </dd>
+          {status === 'unverified' ? (
+            <dd>
+              <button
+                type="button"
+                className="text-[11.5px] text-[#9db4ff] hover:underline"
+                onClick={() => vaultService.confirmCosts([vc.id], game)}
+              >
+                Confirm this is what I paid
+              </button>
+            </dd>
+          ) : null}
+        </div>
+        <div>
+          <dt className="text-[11.5px] text-white/55">Profit / loss</dt>
           <dd
             className={cn(
-              'mt-1 font-mono text-[22px]',
+              'mt-1 font-mono text-[16px] tabular-nums',
               pl == null
-                ? 'text-[14px] text-white/60'
+                ? 'font-sans text-[13px] text-white/60'
                 : pl.profit >= 0
                   ? 'text-[#3fd3a8]'
                   : 'text-[#ff7a6b]'
             )}
           >
-            {pl == null ? 'No recorded cost' : formatCurrency(pl.profit, { signed: true })}
+            {pl == null ? 'Needs a recorded cost' : formatCurrency(pl.profit, { signed: true })}
+            {pl?.profitPct != null ? (
+              <span className="ml-1 text-[11px] text-white/55">{pl.profitPct.toFixed(1)}%</span>
+            ) : null}
           </dd>
-          {pl?.profitPct != null ? (
-            <dd className="mt-1 text-[11.5px] text-white/50">{pl.profitPct.toFixed(1)}% on cost</dd>
-          ) : null}
         </div>
-        <div className="rounded-xl bg-white/5 p-3">
-          <dt className="text-[12px] text-white/55">Condition</dt>
-          <dd className="mt-1 text-[15px] capitalize">{vc.condition.replace('-', ' ')}</dd>
+        <div>
+          <dt className="text-[11.5px] text-white/55">Condition</dt>
+          <dd className="mt-0.5 text-[14px]">{CONDITION_LABEL[vc.condition] ?? vc.condition}</dd>
         </div>
-        <div className="rounded-xl bg-white/5 p-3">
-          <dt className="text-[12px] text-white/55">Added</dt>
-          <dd className="mt-1 text-[15px]">
+        <div>
+          <dt className="text-[11.5px] text-white/55">Added</dt>
+          <dd className="mt-0.5 text-[14px]">
             {vc.purchaseDate
               ? new Date(vc.purchaseDate).toLocaleDateString('en-US', {
                   month: 'short',
@@ -305,10 +363,80 @@ function HoldingFacts({ vc, onEdit }: { vc: VaultCard; onEdit: () => void }) {
               : 'No date'}
           </dd>
         </div>
+        <div>
+          <dt className="text-[11.5px] text-white/55">Photo grade</dt>
+          <dd className="mt-0.5 text-[14px]">
+            {vc.gradingResult ? 'On file' : <span className="text-white/60">None yet</span>}
+          </dd>
+        </div>
       </dl>
-      <button type="button" className="btn-tactile mt-5" onClick={onEdit}>
-        Edit holding, sell or grade
-      </button>
+
+      <div className="border-t border-white/10 pt-3">
+        <p className="text-[12px] font-medium text-white/70">Raw against graded sales</p>
+        {spreads === 'loading' ? (
+          <div className="mt-2 h-16 animate-pulse rounded-lg bg-white/5" />
+        ) : grades.length === 0 ? (
+          <p className="mt-1 text-[12px] text-white/50">
+            No graded sales on file for this card, so there is nothing to compare yet.
+          </p>
+        ) : (
+          <ul className="mt-2 space-y-1.5" aria-label="Raw market and graded sale prices">
+            {[
+              { k: 'Raw', v: unit, n: null as number | null },
+              ...grades.map((g) => ({
+                k: `${g.grader.toUpperCase()} ${g.grade}`,
+                v: g.gradedPrice,
+                n: g.soldListings,
+              })),
+            ].map((r) => (
+              <li
+                key={r.k}
+                className="grid grid-cols-[4.5rem_minmax(0,1fr)_5.5rem] items-center gap-2 text-[12px]"
+              >
+                <span className="text-white/65">{r.k}</span>
+                <span className="h-2 rounded-full bg-white/10">
+                  <motion.span
+                    className={cn(
+                      'block h-full rounded-full',
+                      r.k === 'Raw' ? 'bg-white/45' : 'bg-[#f0bd55]'
+                    )}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${(Math.max(0, r.v) / top) * 100}%` }}
+                    transition={{ type: 'spring', stiffness: 140, damping: 22 }}
+                  />
+                </span>
+                <span className="text-right font-mono tabular-nums">
+                  {r.v > 0 ? formatCurrency(r.v) : '—'}
+                  {r.n != null ? <span className="ml-1 text-white/40">{r.n}</span> : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {grades.length ? (
+          <p className="mt-1.5 text-[11px] text-white/45">
+            Graded figures are recorded sales (count shown); fees and grade risk not included.
+          </p>
+        ) : null}
+      </div>
+
+      <div className="flex flex-wrap gap-2 pt-1">
+        <button type="button" className="btn-tactile" onClick={onEdit}>
+          Edit, sell or record cost
+        </button>
+        <Link
+          to={cardPath(vc.card.id)}
+          className="inline-flex h-10 items-center rounded-full border border-white/20 px-4 text-[13px] hover:bg-white/10"
+        >
+          Full research
+        </Link>
+        <Link
+          to="/grading"
+          className="inline-flex h-10 items-center rounded-full border border-white/20 px-4 text-[13px] hover:bg-white/10"
+        >
+          Photo grade
+        </Link>
+      </div>
     </div>
   );
 }
