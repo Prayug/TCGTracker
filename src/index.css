@@ -940,7 +940,7 @@
   }
 
   .animate-text-shimmer {
-    animation: shimmerText 4s ease-in-out infinite;
+    animation: shimmerText 4s ease-in-out 2;
   }
 
   /* Hero foil sweep */

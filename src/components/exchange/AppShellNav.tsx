@@ -1,4 +1,5 @@
 import { Link, NavLink, useLocation } from 'react-router-dom';
+import { motion } from 'motion/react';
 import { Moon, Search, Settings, Sun } from 'lucide-react';
 import {
   NAV_AREAS,
@@ -61,12 +62,16 @@ export function AppRail() {
               )}
             >
               {isActive ? (
-                <span
+                <motion.span
+                  layoutId="nav-rail-mark"
                   aria-hidden
-                  className="absolute -left-2 top-2 bottom-2 w-[3px] rounded-r bg-ink-primary"
+                  className="absolute -left-2 bottom-2 top-2 w-[3px] rounded-r bg-accent"
+                  transition={{ type: 'spring', stiffness: 500, damping: 38 }}
                 />
               ) : null}
-              <Icon size={22} strokeWidth={isActive ? 1.75 : 1.5} />
+              <span className={cn('transition-colors', isActive && 'text-accent')}>
+                <Icon size={22} strokeWidth={isActive ? 1.75 : 1.5} />
+              </span>
               <span>{area.label}</span>
             </Link>
           );
@@ -127,9 +132,11 @@ function SectionTabs({ area, className }: { area: NavArea; className?: string })
               >
                 {section.label}
                 {isActive ? (
-                  <span
+                  <motion.span
+                    layoutId="nav-tab-mark"
                     aria-hidden
-                    className="absolute inset-x-2.5 bottom-0 h-[2px] rounded-t bg-ink-primary"
+                    className="absolute inset-x-2.5 bottom-0 h-[2px] rounded-t bg-accent"
+                    transition={{ type: 'spring', stiffness: 500, damping: 38 }}
                   />
                 ) : null}
               </Link>
@@ -234,12 +241,16 @@ export function MobileNav() {
                 )}
               >
                 {isActive ? (
-                  <span
+                  <motion.span
+                    layoutId="nav-bottom-mark"
                     aria-hidden
-                    className="absolute inset-x-5 top-0 h-[2px] rounded-b bg-ink-primary"
+                    className="absolute inset-x-5 top-0 h-[2px] rounded-b bg-accent"
+                    transition={{ type: 'spring', stiffness: 500, damping: 38 }}
                   />
                 ) : null}
-                <Icon size={22} strokeWidth={isActive ? 1.8 : 1.5} />
+                <span className={cn(isActive && 'text-accent')}>
+                  <Icon size={22} strokeWidth={isActive ? 1.8 : 1.5} />
+                </span>
                 {area.label}
               </Link>
             </li>
