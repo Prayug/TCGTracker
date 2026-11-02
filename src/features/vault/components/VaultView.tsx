@@ -1,151 +1,174 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { VaultCard as VaultCardType, CardCondition } from '../../../types/pokemon';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Download, MoreHorizontal, Plus, Search, Trash2, Upload, X } from 'lucide-react';
+import type { CardCondition, VaultCard } from '../../../types/pokemon';
 import { vaultService } from '../../../services/vaultService';
-import { useGame } from '../../../contexts/GameContext';
-import { VaultCard } from './VaultCard';
-import { VaultPortfolioBySet } from './VaultPortfolioBySet';
-import { VaultPerformanceReport } from './VaultPerformanceReport';
-import { VaultKpiStrip } from './VaultKpiStrip';
-import { VaultInsightStrip } from './VaultInsightStrip';
-import { VaultActivityFeed } from './VaultActivityFeed';
-import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
-import { useToast } from '../../../components/common/Toast';
-import { FilterChip } from '../../../components/layout/PageShell';
-import {
-  Vault,
-  Download,
-  Upload,
-  Camera,
-  Search,
-  Plus,
-  MoreHorizontal,
-  Trash2,
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { holdingMarketValue, holdingProfit, isAssumedCost } from '../../../utils/vaultCost';
+import { useVault } from '../../../hooks/useVault';
 import { useAuth } from '../../../hooks/useAuth';
+import { useToast } from '../../../components/common/Toast';
+import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
+import { PageHeader, FilterChip } from '../../../components/layout/PageShell';
+import { Basis, Delta, Price, Unavailable } from '../../../components/exchange/Price';
+import { CoverageMeter } from '../../../components/exchange/CoverageMeter';
 import {
   fetchPortfolioStats,
   type PortfolioStatsSummary,
 } from '../../../services/portfolioApiService';
 import { formatCurrency } from '../../../utils/cardDisplay';
+import { summarizePortfolio } from '../../../utils/portfolio';
 import { GradeWorthinessList } from '../../market/components/GradeWorthinessList';
-import { ViewModeToggle } from '../../../components/common/ViewModeToggle';
+import { HoldingsTable } from './HoldingsTable';
+import { HoldingSheet } from './HoldingSheet';
+import { VaultActivity, VaultAnalysis, VaultGallery, VaultSets } from './VaultModes';
+import {
+  CONDITION_LABEL,
+  type HoldingSort,
+  type SortDir,
+  defaultDir,
+  filterHoldings,
+  setKey,
+  sortHoldings,
+} from '../ledger';
+import { cn } from '@/lib/utils';
 
-interface VaultViewProps {
-  onOpenSet?: (setId: string) => void;
-}
-
-type VaultPanel = 'holdings' | 'performance' | 'sets' | 'activity';
-type SortKey = 'value' | 'pl' | 'name' | 'date' | 'qty';
-type ViewMode = 'table' | 'grid';
-
-const CONDITION_OPTIONS: { value: '' | CardCondition; label: string }[] = [
-  { value: '', label: 'All conditions' },
-  { value: 'raw', label: 'Raw' },
-  { value: 'near-mint', label: 'NM' },
-  { value: 'lightly-played', label: 'LP' },
-  { value: 'moderately-played', label: 'MP' },
-  { value: 'heavily-played', label: 'HP' },
-  { value: 'damaged', label: 'Damaged' },
+type Mode = 'holdings' | 'gallery' | 'sets' | 'analysis' | 'activity';
+const MODES: { id: Mode; label: string }[] = [
+  { id: 'holdings', label: 'Holdings' },
+  { id: 'gallery', label: 'Gallery' },
+  { id: 'sets', label: 'By set' },
+  { id: 'analysis', label: 'Allocation' },
+  { id: 'activity', label: 'Activity' },
 ];
+const SORTS: HoldingSort[] = ['value', 'pl', 'plPct', 'cost', 'name', 'set', 'qty', 'date'];
 
-export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
-  const { game, isPokemon } = useGame();
+/**
+ * The personal collection ledger. Every summary figure states what it
+ * covers: value counts priced holdings, P/L counts holdings with a recorded
+ * cost, and coverage shows how much of the collection those two describe.
+ */
+export function VaultView({ onOpenSet }: { onOpenSet?: (setId: string) => void }) {
+  const { cards, activity, game, refresh } = useVault();
   const { isAuthenticated } = useAuth();
   const { showToast } = useToast();
-  const [vaultCards, setVaultCards] = useState<VaultCardType[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [panel, setPanel] = useState<VaultPanel>('holdings');
-  const [overflowOpen, setOverflowOpen] = useState(false);
-  const overflowRef = useRef<HTMLDivElement>(null);
-  const [remoteStats, setRemoteStats] = useState<PortfolioStatsSummary | null>(null);
-
-  const [search, setSearch] = useState('');
-  const [setFilter, setSetFilter] = useState('');
-  const [conditionFilter, setConditionFilter] = useState<'' | CardCondition>('');
-  const [sortKey, setSortKey] = useState<SortKey>('value');
-  const [viewMode, setViewMode] = useState<ViewMode>('table');
-  const [assumedOnly, setAssumedOnly] = useState(false);
+  const [params, setParams] = useSearchParams();
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [focusEditId, setFocusEditId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [confirmBulk, setConfirmBulk] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [remote, setRemote] = useState<PortfolioStatsSummary | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
-  const loadVaultCards = useCallback(() => {
-    setIsLoading(true);
-    setVaultCards(vaultService.getVaultCards(game));
-    setIsLoading(false);
-  }, [game]);
-
-  const loadRemoteStats = useCallback(() => {
-    if (!isAuthenticated) {
-      setRemoteStats(null);
-      return;
-    }
-    void fetchPortfolioStats()
-      .then((s) => setRemoteStats(s))
-      .catch(() => setRemoteStats(null));
-  }, [isAuthenticated]);
-
-  useEffect(() => {
-    loadVaultCards();
-    loadRemoteStats();
-    const onVaultUpdated = () => {
-      loadVaultCards();
-      loadRemoteStats();
-    };
-    window.addEventListener('tcg:vault-updated', onVaultUpdated);
-    return () => window.removeEventListener('tcg:vault-updated', onVaultUpdated);
-  }, [loadVaultCards, loadRemoteStats]);
-
-  useEffect(() => {
-    const onDoc = (e: MouseEvent) => {
-      if (overflowRef.current && !overflowRef.current.contains(e.target as Node)) {
-        setOverflowOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, []);
-
-  const handleRemoveCard = (id: string) => {
-    vaultService.removeFromVault(id, game);
-    setSelected((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-    loadVaultCards();
+  const mode = (MODES.find((m) => m.id === params.get('mode'))?.id ?? 'holdings') as Mode;
+  const sort = (SORTS.find((s) => s === params.get('sort')) ?? 'value') as HoldingSort;
+  const dir: SortDir =
+    params.get('dir') === 'asc' ? 'asc' : params.get('dir') === 'desc' ? 'desc' : defaultDir(sort);
+  const filter = {
+    q: params.get('q') ?? '',
+    set: params.get('set') ?? '',
+    condition: (params.get('condition') ?? '') as '' | CardCondition,
+    missingCost: params.get('filter') === 'missing-cost',
   };
 
-  const handleExport = () => {
-    const data = vaultService.exportVault(game);
-    const blob = new Blob([data], { type: 'application/json' });
+  const update = useCallback(
+    (patch: Record<string, string | null>) => {
+      setParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          for (const [k, v] of Object.entries(patch)) {
+            if (v == null || v === '') next.delete(k);
+            else next.set(k, v);
+          }
+          return next;
+        },
+        { replace: true, preventScrollReset: true }
+      );
+    },
+    [setParams]
+  );
+
+  useEffect(() => {
+    if (!isAuthenticated) return setRemote(null);
+    let alive = true;
+    fetchPortfolioStats()
+      .then((s) => alive && setRemote(s))
+      .catch(() => alive && setRemote(null));
+    return () => {
+      alive = false;
+    };
+  }, [isAuthenticated, cards.length]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMenuOpen(false);
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
+
+  // Drop selections that no longer exist (removed elsewhere).
+  useEffect(() => {
+    setSelected((prev) => {
+      const ids = new Set(cards.map((c) => c.id));
+      const next = new Set([...prev].filter((id) => ids.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [cards]);
+
+  const summary = useMemo(() => summarizePortfolio(cards), [cards]);
+  const rows = useMemo(
+    () => sortHoldings(filterHoldings(cards, filter), sort, dir),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- filter is derived from params
+    [cards, params, sort, dir]
+  );
+  const setOptions = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const vc of cards) m.set(setKey(vc), vc.card.set?.name || 'Unknown set');
+    return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [cards]);
+  const openHolding = cards.find((c) => c.id === openId) ?? null;
+  const filtersActive = Boolean(filter.q || filter.set || filter.condition || filter.missingCost);
+
+  const onSort = (key: HoldingSort) => {
+    const nextDir = key === sort ? (dir === 'asc' ? 'desc' : 'asc') : defaultDir(key);
+    update({
+      sort: key === 'value' ? null : key,
+      dir: nextDir === defaultDir(key) ? null : nextDir,
+    });
+  };
+
+  const exportVault = () => {
+    const blob = new Blob([vaultService.exportVault(game)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `tcg-vault-${game}-${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `tcg-vault-${game}-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    setOverflowOpen(false);
+    setMenuOpen(false);
   };
 
-  const handleImport = () => {
+  const importVault = () => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'application/json';
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
+    input.onchange = () => {
+      const file = input.files?.[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = (ev) => {
+      reader.onload = () => {
         try {
-          vaultService.importVault(ev.target?.result as string, game);
-          loadVaultCards();
-          showToast('Vault imported successfully!', 'success');
+          vaultService.importVault(String(reader.result), game);
+          refresh();
+          showToast('Collection imported', 'success');
         } catch {
-          showToast('Error importing vault: Invalid file format', 'error');
+          showToast('That file is not a TCGTracker collection export', 'error');
         }
       };
       reader.readAsText(file);
@@ -153,515 +176,419 @@ export const VaultView: React.FC<VaultViewProps> = ({ onOpenSet }) => {
     input.click();
   };
 
-  const handleClearConfirm = () => {
-    vaultService.clearVault(game);
-    loadVaultCards();
-    setSelected(new Set());
-    setShowClearConfirm(false);
-    showToast('Vault cleared successfully', 'info');
-  };
-
-  const handleBulkDelete = () => {
+  const bulkDelete = () => {
     selected.forEach((id) => vaultService.removeFromVault(id, game));
-    setSelected(new Set());
-    loadVaultCards();
     showToast(`Removed ${selected.size} holding${selected.size === 1 ? '' : 's'}`, 'info');
+    setSelected(new Set());
+    setConfirmBulk(false);
   };
 
-  const stats = vaultService.getVaultStats(game);
-  const activity = useMemo(() => vaultService.getActivity(game), [vaultCards, game]);
-  const gameLabel = isPokemon ? 'Pokémon' : 'One Piece';
+  const gameLabel = game === 'onepiece' ? 'One Piece' : 'Pokémon';
 
-  const setOptions = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const vc of vaultCards) {
-      const id = vc.card.set?.id || vc.card.set?.name || '';
-      const name = vc.card.set?.name || 'Unknown';
-      if (id) map.set(id, name);
-    }
-    return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1]));
-  }, [vaultCards]);
-
-  const setCount = setOptions.length;
-
-  const vaultCardIds = useMemo(
-    () => [...new Set(vaultCards.map((vc) => vc.card.id).filter(Boolean))],
-    [vaultCards]
-  );
-
-  const filteredSorted = useMemo(() => {
-    let list = [...vaultCards];
-    const q = search.trim().toLowerCase();
-    if (q) {
-      list = list.filter((vc) => {
-        const name = vc.card.name?.toLowerCase() ?? '';
-        const set = vc.card.set?.name?.toLowerCase() ?? '';
-        const num = vc.card.number?.toLowerCase() ?? '';
-        return name.includes(q) || set.includes(q) || num.includes(q);
-      });
-    }
-    if (setFilter) {
-      list = list.filter((vc) => vc.card.set?.id === setFilter || vc.card.set?.name === setFilter);
-    }
-    if (conditionFilter) {
-      list = list.filter((vc) => vc.condition === conditionFilter);
-    }
-    if (assumedOnly) {
-      list = list.filter(isAssumedCost);
-    }
-
-    list.sort((a, b) => {
-      switch (sortKey) {
-        case 'name':
-          return a.card.name.localeCompare(b.card.name);
-        case 'date':
-          return new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime();
-        case 'qty':
-          return b.quantity - a.quantity;
-        case 'pl':
-          return holdingProfit(b).profit - holdingProfit(a).profit;
-        case 'value':
-        default:
-          return holdingMarketValue(b) - holdingMarketValue(a);
-      }
-    });
-    return list;
-  }, [vaultCards, search, setFilter, conditionFilter, assumedOnly, sortKey]);
-
-  const allVisibleSelected =
-    filteredSorted.length > 0 && filteredSorted.every((vc) => selected.has(vc.id));
-
-  const toggleSelectAll = () => {
-    if (allVisibleSelected) {
-      setSelected((prev) => {
-        const next = new Set(prev);
-        filteredSorted.forEach((vc) => next.delete(vc.id));
-        return next;
-      });
-    } else {
-      setSelected((prev) => {
-        const next = new Set(prev);
-        filteredSorted.forEach((vc) => next.add(vc.id));
-        return next;
-      });
-    }
-  };
-
-  const toggleSelect = (id: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const reviewAssumed = () => {
-    setPanel('holdings');
-    setAssumedOnly(true);
-    setSearch('');
-  };
-
-  if (isLoading) {
+  if (cards.length === 0) {
     return (
-      <div
-        className="flex min-h-[40vh] items-center justify-center"
-        role="status"
-        aria-live="polite"
-      >
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-border-subtle border-t-accent" />
+      <div className="space-y-8">
+        <PageHeader title="Vault" meta={`${gameLabel} collection`} />
+        <div className="grid gap-8 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <div>
+            <h2 className="font-display text-[24px] leading-tight">Start your ledger</h2>
+            <p className="mt-2 max-w-[52ch] text-[14px] text-ink-secondary">
+              Add the cards you own and what you paid. The vault values them at today’s market,
+              shows profit only where you recorded a cost, and tells you what the collection is made
+              of.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <Link to="/browse" className="btn-primary">
+                <Search className="h-4 w-4" aria-hidden />
+                Find a card
+              </Link>
+              {game === 'pokemon' ? (
+                <Link to="/scanner" className="btn-secondary">
+                  Scan a card
+                </Link>
+              ) : null}
+              <button type="button" onClick={importVault} className="btn-ghost">
+                <Upload className="h-4 w-4" aria-hidden />
+                Import an export file
+              </button>
+            </div>
+          </div>
+          <ol className="border-t border-rule-strong text-[13.5px] md:mt-1">
+            {[
+              ['Find it', 'Search the catalog or scan the card.'],
+              ['Record it', 'Copies, condition, and what you paid. Unknown is fine.'],
+              ['Read it', 'Value, known-cost profit, and allocation by set and era.'],
+            ].map(([t, d], i) => (
+              <li key={t} className="grid grid-cols-[2rem_minmax(0,1fr)] border-b border-rule py-3">
+                <span className="font-mono text-ink-muted">{i + 1}</span>
+                <span>
+                  <span className="font-medium">{t}.</span>{' '}
+                  <span className="text-ink-secondary">{d}</span>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0 space-y-1.5">
-          <h1 className="font-display text-h1 tracking-tight text-ink-primary sm:text-[clamp(2rem,4vw,3rem)]">
-            {gameLabel} Vault
-          </h1>
-          <p className="text-sm text-ink-secondary">
-            Personal Collection
-            {vaultCards.length > 0 ? (
-              <>
-                {' '}
-                · {stats.uniqueCards} unique · {stats.totalCards} total
-              </>
-            ) : (
-              <> · Add cards to start tracking</>
-            )}
-          </p>
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-          <Link to="/browse" className="btn-primary h-9 px-3 text-xs">
-            <Plus className="h-3.5 w-3.5" />
-            Add cards
-          </Link>
-          <button type="button" onClick={handleImport} className="btn-secondary h-9 px-3 text-xs">
-            <Upload className="h-3.5 w-3.5" />
-            Import
-          </button>
-          <div className="relative" ref={overflowRef}>
-            <button
-              type="button"
-              onClick={() => setOverflowOpen((v) => !v)}
-              className="btn-secondary h-9 w-9 px-0"
-              aria-label="More actions"
-              aria-expanded={overflowOpen}
-            >
-              <MoreHorizontal className="h-4 w-4" />
+    <div className="space-y-6">
+      <PageHeader
+        title="Vault"
+        meta={`${summary.uniqueCards} cards · ${summary.copies} copies · ${setOptions.length} sets`}
+        actions={
+          <>
+            <Link to="/browse" className="btn-primary">
+              <Plus className="h-4 w-4" aria-hidden />
+              Add cards
+            </Link>
+            <button type="button" onClick={importVault} className="btn-secondary">
+              <Upload className="h-4 w-4" aria-hidden />
+              Import
             </button>
-            {overflowOpen ? (
-              <div
-                role="menu"
-                className="absolute right-0 top-full z-30 mt-1.5 w-44 overflow-hidden rounded-lg border border-border-default bg-surface-overlay py-1 shadow-popover"
+            <div className="relative" ref={menuRef}>
+              <button
+                type="button"
+                onClick={() => setMenuOpen((v) => !v)}
+                className="btn-secondary w-10 px-0"
+                aria-label="More collection actions"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
               >
-                <button
-                  type="button"
-                  role="menuitem"
-                  disabled={vaultCards.length === 0}
-                  onClick={handleExport}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-ink-secondary hover:bg-surface-hover disabled:opacity-40"
+                <MoreHorizontal className="h-4 w-4" aria-hidden />
+              </button>
+              {menuOpen ? (
+                <div
+                  role="menu"
+                  className="absolute right-0 top-full z-30 mt-1 w-48 rounded-lg border border-border-default bg-surface-overlay py-1 shadow-popover"
                 >
-                  <Download className="h-3.5 w-3.5" />
-                  Export
-                </button>
-                {vaultCards.length > 0 ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={exportVault}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-[13.5px] hover:bg-surface-hover"
+                  >
+                    <Download className="h-4 w-4" aria-hidden />
+                    Export as JSON
+                  </button>
                   <button
                     type="button"
                     role="menuitem"
                     onClick={() => {
-                      setOverflowOpen(false);
-                      setShowClearConfirm(true);
+                      setMenuOpen(false);
+                      setConfirmClear(true);
                     }}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-loss hover:bg-surface-hover"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-[13.5px] text-loss hover:bg-surface-hover"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Clear vault
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </div>
-
-      {vaultCards.length === 0 ? (
-        <div className="flex flex-col items-center rounded-2xl border border-dashed border-border-default bg-surface-raised/50 px-6 py-16 text-center">
-          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-accent/40 bg-accent/10">
-            <Vault className="h-7 w-7 text-accent" aria-hidden />
-          </div>
-          <h2 className="font-display text-lg font-semibold text-ink-primary">
-            Your vault is empty
-          </h2>
-          <p className="mt-1.5 max-w-sm text-sm text-ink-secondary">
-            {isPokemon
-              ? 'Scan a card or browse the marketplace to start your collection.'
-              : 'Browse One Piece cards to add your first entry.'}
-          </p>
-          <div className="mt-6 flex flex-wrap justify-center gap-2">
-            {isPokemon ? (
-              <Link to="/scanner" className="btn-primary h-9 text-sm">
-                <Camera className="h-4 w-4" aria-hidden />
-                Scan a card
-              </Link>
-            ) : null}
-            <Link
-              to="/browse"
-              className={cn('h-9 text-sm', isPokemon ? 'btn-secondary' : 'btn-primary')}
-            >
-              <Search className="h-4 w-4" aria-hidden />
-              Browse {gameLabel}
-            </Link>
-          </div>
-        </div>
-      ) : (
-        <>
-          <VaultKpiStrip
-            stats={stats}
-            vaultCards={vaultCards}
-            realizedPnl={remoteStats?.realizedPnl}
-          />
-
-          <VaultInsightStrip
-            vaultCards={vaultCards}
-            assumedCostCount={stats.assumedCostCount}
-            onReviewAssumed={reviewAssumed}
-            onFocusHolding={(id) => {
-              setPanel('holdings');
-              setFocusEditId(id);
-              setAssumedOnly(false);
-            }}
-          />
-
-          <div className="flex flex-wrap items-center gap-1">
-            {(
-              [
-                { id: 'holdings' as const, label: 'Holdings', badge: vaultCards.length },
-                { id: 'performance' as const, label: 'Performance' },
-                ...(isPokemon ? [{ id: 'sets' as const, label: 'Sets', badge: setCount }] : []),
-                { id: 'activity' as const, label: 'Activity', badge: activity.length || undefined },
-              ] as { id: VaultPanel; label: string; badge?: number }[]
-            ).map((tab) => (
-              <FilterChip key={tab.id} active={panel === tab.id} onClick={() => setPanel(tab.id)}>
-                {tab.label}
-                {tab.badge !== undefined ? (
-                  <span
-                    className={cn(
-                      'ml-1.5 rounded-md px-1.5 py-0.5 text-[10px] font-medium tabular-nums',
-                      panel === tab.id
-                        ? 'bg-accent/20 text-accent'
-                        : 'bg-surface-inset text-ink-muted'
-                    )}
-                  >
-                    {tab.badge}
-                  </span>
-                ) : null}
-              </FilterChip>
-            ))}
-          </div>
-
-          {panel === 'holdings' ? (
-            <div className="space-y-3">
-              <div className="flex flex-col gap-2 sm:flex-row sm:flex-nowrap sm:items-center">
-                <div className="relative min-w-[10rem] flex-1">
-                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-muted" />
-                  <input
-                    type="search"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search holdings..."
-                    className="input h-9 w-full pl-8 text-sm"
-                  />
-                </div>
-                <select
-                  value={setFilter}
-                  onChange={(e) => setSetFilter(e.target.value)}
-                  className="input h-9 w-full shrink-0 text-xs sm:w-[9.5rem]"
-                  aria-label="Filter by set"
-                >
-                  <option value="">All sets</option>
-                  {setOptions.map(([id, name]) => (
-                    <option key={id} value={id}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={conditionFilter}
-                  onChange={(e) => setConditionFilter(e.target.value as '' | CardCondition)}
-                  className="input h-9 w-full shrink-0 text-xs sm:w-[8.5rem]"
-                  aria-label="Filter by condition"
-                >
-                  {CONDITION_OPTIONS.map((o) => (
-                    <option key={o.value || 'all'} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={sortKey}
-                  onChange={(e) => setSortKey(e.target.value as SortKey)}
-                  className="input h-9 w-full shrink-0 text-xs sm:w-[10rem]"
-                  aria-label="Sort holdings"
-                >
-                  <option value="value">Value high → low</option>
-                  <option value="pl">P/L high → low</option>
-                  <option value="name">Name</option>
-                  <option value="date">Date</option>
-                  <option value="qty">Quantity</option>
-                </select>
-                {assumedOnly ? (
-                  <button
-                    type="button"
-                    onClick={() => setAssumedOnly(false)}
-                    className="h-9 shrink-0 rounded-lg bg-accent-muted px-2.5 text-xs font-medium text-neon-amber"
-                  >
-                    Assumed cost · Clear
-                  </button>
-                ) : null}
-                <ViewModeToggle
-                  className="ml-auto shrink-0"
-                  compact
-                  viewMode={viewMode === 'grid' ? 'grid' : 'list'}
-                  onChange={(mode) => setViewMode(mode === 'grid' ? 'grid' : 'table')}
-                />
-              </div>
-
-              {selected.size > 0 ? (
-                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border-subtle bg-surface-raised px-3 py-2">
-                  <span className="text-xs text-ink-secondary">{selected.size} selected</span>
-                  <button
-                    type="button"
-                    onClick={handleBulkDelete}
-                    className="btn-destructive h-8 px-3 text-xs"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Delete
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelected(new Set())}
-                    className="btn-ghost h-8 text-xs"
-                  >
-                    Cancel
+                    <Trash2 className="h-4 w-4" aria-hidden />
+                    Clear collection…
                   </button>
                 </div>
               ) : null}
+            </div>
+          </>
+        }
+      />
 
-              {filteredSorted.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-border-default px-6 py-10 text-center text-sm text-ink-secondary">
-                  No holdings match these filters.
-                </div>
-              ) : viewMode === 'grid' ? (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                  {filteredSorted.map((vaultCard) => (
-                    <VaultCard
-                      key={vaultCard.id}
-                      vaultCard={vaultCard}
-                      onRemove={handleRemoveCard}
-                      onUpdate={loadVaultCards}
-                      selected={selected.has(vaultCard.id)}
-                      onToggleSelect={toggleSelect}
-                      forceEdit={focusEditId === vaultCard.id}
-                      onEditHandled={() => setFocusEditId(null)}
-                      view="grid"
-                      onSold={(pnl) => {
-                        loadRemoteStats();
-                        showToast(
-                          pnl != null
-                            ? `Sale recorded · realized ${formatCurrency(pnl, { signed: true })}`
-                            : 'Sale recorded',
-                          'success'
-                        );
-                      }}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="overflow-hidden rounded-2xl border border-border-subtle bg-surface-raised">
-                  <div className="max-h-[min(70vh,52rem)] overflow-auto">
-                    <div
-                      className={cn(
-                        'sticky top-0 z-10 hidden border-b border-border-subtle bg-surface-raised/95 px-3 py-2 text-[11px] font-medium uppercase tracking-[0.12em] text-ink-muted backdrop-blur-sm sm:grid sm:gap-x-3',
-                        'sm:grid-cols-[1.5rem_2.75rem_minmax(0,1.4fr)_2.5rem_2.75rem_4.75rem_4.75rem_4.5rem_4rem_2rem]'
-                      )}
-                    >
-                      <button
-                        type="button"
-                        onClick={toggleSelectAll}
-                        className="flex h-7 w-7 items-center justify-center"
-                        aria-label="Select all"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={allVisibleSelected}
-                          readOnly
-                          className="h-3.5 w-3.5 cursor-pointer accent-[var(--accent)]"
-                        />
-                      </button>
-                      <span />
-                      <button
-                        type="button"
-                        className="cursor-pointer text-left hover:text-ink-primary"
-                        onClick={() => setSortKey('name')}
-                      >
-                        Card
-                      </button>
-                      <button
-                        type="button"
-                        className="cursor-pointer text-right hover:text-ink-primary"
-                        onClick={() => setSortKey('qty')}
-                      >
-                        Qty
-                      </button>
-                      <span className="text-right">Cond.</span>
-                      <span className="text-right">Cost</span>
-                      <button
-                        type="button"
-                        className="cursor-pointer text-right hover:text-ink-primary"
-                        onClick={() => setSortKey('value')}
-                      >
-                        Market
-                      </button>
-                      <button
-                        type="button"
-                        className="cursor-pointer text-right hover:text-ink-primary"
-                        onClick={() => setSortKey('pl')}
-                      >
-                        P/L
-                      </button>
-                      <button
-                        type="button"
-                        className="cursor-pointer text-right hover:text-ink-primary"
-                        onClick={() => setSortKey('date')}
-                      >
-                        Updated
-                      </button>
-                      <span />
-                    </div>
-                    <div>
-                      {filteredSorted.map((vaultCard) => (
-                        <VaultCard
-                          key={vaultCard.id}
-                          vaultCard={vaultCard}
-                          onRemove={handleRemoveCard}
-                          onUpdate={loadVaultCards}
-                          selected={selected.has(vaultCard.id)}
-                          onToggleSelect={toggleSelect}
-                          forceEdit={focusEditId === vaultCard.id}
-                          onEditHandled={() => setFocusEditId(null)}
-                          view="table"
-                          onSold={(pnl) => {
-                            loadRemoteStats();
-                            showToast(
-                              pnl != null
-                                ? `Sale recorded · realized ${formatCurrency(pnl, { signed: true })}`
-                                : 'Sale recorded',
-                              'success'
-                            );
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
+      {/* Ledger summary: three figures, each with its coverage stated. */}
+      <section
+        aria-label="Collection summary"
+        className="grid gap-x-10 gap-y-6 border-b border-rule pb-6 md:grid-cols-3"
+      >
+        <div>
+          <p className="text-meta text-ink-muted">Market value</p>
+          <Price value={summary.marketValue} size="lg" className="mt-1 block" />
+          <Basis
+            kind="Market estimate"
+            source="TCGplayer"
+            detail={
+              summary.unpricedEntries > 0
+                ? `${summary.unpricedEntries} unpriced holding${summary.unpricedEntries === 1 ? '' : 's'} not counted`
+                : 'Near Mint, raw'
+            }
+            className="mt-1.5"
+          />
+        </div>
+        <div>
+          <p className="text-meta text-ink-muted">Unrealized profit / loss</p>
+          {summary.unrealized != null ? (
+            <>
+              <p
+                className={cn(
+                  'mt-1 font-mono text-[28px] font-medium leading-none tabular-nums tracking-[-0.025em]',
+                  summary.unrealized > 0 && 'text-gain',
+                  summary.unrealized < 0 && 'text-loss'
+                )}
+              >
+                {formatCurrency(summary.unrealized, { signed: true })}
+              </p>
+              <p className="mt-1.5 text-[12px] text-ink-muted">
+                <Delta pct={summary.unrealizedPct} className="mr-1" />
+                on {formatCurrency(summary.knownCost)} of recorded cost
+              </p>
+            </>
+          ) : (
+            <p className="mt-2 text-[13.5px] text-ink-secondary">
+              Record what you paid for a card to see profit and loss.
+            </p>
+          )}
+          {remote?.realizedPnl != null && remote.realizedPnl !== 0 ? (
+            <p className="mt-1 text-[12px] text-ink-muted">
+              Realized from recorded sales:{' '}
+              <span className="font-mono text-ink-primary">
+                {formatCurrency(remote.realizedPnl, { signed: true })}
+              </span>
+            </p>
+          ) : null}
+        </div>
+        <div>
+          <p className="text-meta text-ink-muted">Cost coverage</p>
+          <p className="mt-1 font-mono text-[28px] font-medium leading-none tabular-nums tracking-[-0.025em]">
+            {Math.round(summary.costCoverage * 100)}%
+          </p>
+          <span className="mt-2.5 block">
+            <CoverageMeter value={summary.costCoverage} />
+          </span>
+          <p className="mt-1.5 text-[12px] text-ink-muted">
+            of value has a recorded cost.{' '}
+            {summary.missingCostEntries > 0 ? (
+              <button
+                type="button"
+                onClick={() => update({ mode: null, filter: 'missing-cost' })}
+                className="text-accent hover:underline"
+              >
+                {summary.missingCostEntries} holding{summary.missingCostEntries === 1 ? '' : 's'}{' '}
+                need a cost
+              </button>
+            ) : (
+              'Every holding has one.'
+            )}
+          </p>
+        </div>
+      </section>
+
+      <div
+        role="tablist"
+        aria-label="Collection view"
+        className="segmented max-w-full overflow-x-auto"
+      >
+        {MODES.map((m) => (
+          <button
+            key={m.id}
+            type="button"
+            role="tab"
+            aria-selected={mode === m.id}
+            onClick={() => update({ mode: m.id === 'holdings' ? null : m.id })}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+
+      {mode === 'holdings' || mode === 'gallery' ? (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative min-w-[12rem] flex-1">
+              <label htmlFor="vault-q" className="sr-only">
+                Search holdings
+              </label>
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted"
+                aria-hidden
+              />
+              <input
+                id="vault-q"
+                type="search"
+                value={filter.q}
+                onChange={(e) => update({ q: e.target.value })}
+                placeholder="Search by name, set or number"
+                className="input h-10 w-full pl-9"
+              />
+            </div>
+            <label htmlFor="vault-set" className="sr-only">
+              Set
+            </label>
+            <select
+              id="vault-set"
+              value={filter.set}
+              onChange={(e) => update({ set: e.target.value })}
+              className="input h-10 w-auto max-w-[14rem] text-[13px]"
+            >
+              <option value="">All sets</option>
+              {setOptions.map(([k, name]) => (
+                <option key={k} value={k}>
+                  {name}
+                </option>
+              ))}
+            </select>
+            <label htmlFor="vault-cond" className="sr-only">
+              Condition
+            </label>
+            <select
+              id="vault-cond"
+              value={filter.condition}
+              onChange={(e) => update({ condition: e.target.value })}
+              className="input h-10 w-auto text-[13px]"
+            >
+              <option value="">Any condition</option>
+              {(Object.keys(CONDITION_LABEL) as CardCondition[]).map((c) => (
+                <option key={c} value={c}>
+                  {CONDITION_LABEL[c]}
+                </option>
+              ))}
+            </select>
+            <FilterChip
+              active={filter.missingCost}
+              onClick={() => update({ filter: filter.missingCost ? null : 'missing-cost' })}
+            >
+              Missing cost
+              {summary.missingCostEntries > 0 ? (
+                <span className="ml-1.5 font-mono text-[12px]">{summary.missingCostEntries}</span>
+              ) : null}
+            </FilterChip>
+            {filtersActive ? (
+              <button
+                type="button"
+                onClick={() => update({ q: null, set: null, condition: null, filter: null })}
+                className="inline-flex h-8 items-center gap-1 px-2 text-[13px] text-ink-muted hover:text-ink-primary"
+              >
+                <X className="h-3.5 w-3.5" aria-hidden />
+                Clear
+              </button>
+            ) : null}
+          </div>
+
+          {filter.missingCost && rows.length > 0 && mode === 'holdings' ? (
+            <p className="border-l-2 border-warn bg-warn-muted px-3 py-2 text-[13px] text-ink-secondary">
+              These holdings have no recorded cost, so they are left out of profit and loss. Use{' '}
+              <span className="font-medium">Add cost</span> in a row (wider screens) or open a
+              holding to fill it in. Leave it blank if you genuinely don’t know.
+            </p>
+          ) : null}
+
+          {selected.size > 0 && mode === 'holdings' ? (
+            <div
+              className="flex flex-wrap items-center gap-3 border-y border-rule-strong bg-surface-raised px-3 py-2"
+              role="region"
+              aria-label="Bulk actions"
+            >
+              <span className="font-mono text-[13px]">{selected.size} selected</span>
+              <button
+                type="button"
+                onClick={() => setConfirmBulk(true)}
+                className="btn-ghost h-8 text-loss"
+              >
+                <Trash2 className="h-4 w-4" aria-hidden />
+                Remove
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelected(new Set())}
+                className="btn-ghost h-8"
+              >
+                Clear selection
+              </button>
             </div>
           ) : null}
 
-          {panel === 'performance' ? <VaultPerformanceReport vaultCards={vaultCards} /> : null}
-
-          {panel === 'sets' && isPokemon ? (
-            <VaultPortfolioBySet vaultCards={vaultCards} onOpenSet={onOpenSet} />
-          ) : null}
-
-          {panel === 'activity' ? <VaultActivityFeed items={activity} /> : null}
-
-          {isPokemon && vaultCardIds.length > 0 && panel === 'holdings' && (
-            <GradeWorthinessList
-              variant="compact"
-              cardIds={vaultCardIds}
-              limit={10}
-              title="Best cards to grade"
-              subtitle="Among your holdings — net after PSA fees × gem rate"
-              emptyMessage="No vault cards clear the fee hurdle with a verified PSA 10 quote and pop report."
+          {rows.length === 0 ? (
+            <Unavailable title="No holdings match">
+              {filter.missingCost && !filter.q && !filter.set && !filter.condition
+                ? 'Every holding has a recorded cost.'
+                : 'Try a different search or clear the filters.'}
+            </Unavailable>
+          ) : mode === 'holdings' ? (
+            <HoldingsTable
+              rows={rows}
+              game={game}
+              sort={sort}
+              dir={dir}
+              onSort={onSort}
+              selected={selected}
+              onToggle={(id) =>
+                setSelected((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(id)) next.delete(id);
+                  else next.add(id);
+                  return next;
+                })
+              }
+              onToggleAll={() =>
+                setSelected((prev) => {
+                  const all = rows.every((r) => prev.has(r.id));
+                  const next = new Set(prev);
+                  rows.forEach((r) => (all ? next.delete(r.id) : next.add(r.id)));
+                  return next;
+                })
+              }
+              onOpen={(vc: VaultCard) => setOpenId(vc.id)}
             />
+          ) : (
+            <VaultGallery rows={rows} onOpen={(vc) => setOpenId(vc.id)} />
           )}
-        </>
-      )}
 
+          {mode === 'holdings' && game === 'pokemon' && !filtersActive ? (
+            <div className="pt-6">
+              <GradeWorthinessList
+                variant="compact"
+                cardIds={[...new Set(cards.map((c) => c.card.id))]}
+                limit={10}
+                title="Worth grading"
+                subtitle="Among your holdings · net after PSA fees, weighted by gem rate"
+                emptyMessage="None of your holdings clears the grading fee with a verified PSA 10 quote and population report."
+              />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {mode === 'sets' ? (
+        <VaultSets cards={cards} onOpenSet={game === 'pokemon' ? onOpenSet : undefined} />
+      ) : null}
+      {mode === 'analysis' ? (
+        <VaultAnalysis cards={cards} onFilterSet={(k) => update({ mode: null, set: k })} />
+      ) : null}
+      {mode === 'activity' ? <VaultActivity items={activity} /> : null}
+
+      <HoldingSheet
+        holding={openHolding}
+        game={game}
+        onClose={() => setOpenId(null)}
+        onSold={(pnl) =>
+          showToast(
+            pnl != null
+              ? `Sale recorded · realized ${formatCurrency(pnl, { signed: true })}`
+              : 'Sale recorded',
+            'success'
+          )
+        }
+      />
       <ConfirmDialog
-        isOpen={showClearConfirm}
-        onConfirm={handleClearConfirm}
-        onCancel={() => setShowClearConfirm(false)}
-        title="Clear vault?"
-        message="This permanently removes every holding in this vault. Type CLEAR to confirm."
-        confirmLabel="Clear vault"
+        isOpen={confirmBulk}
+        onConfirm={bulkDelete}
+        onCancel={() => setConfirmBulk(false)}
+        title={`Remove ${selected.size} holding${selected.size === 1 ? '' : 's'}?`}
+        message="Their cost records are removed too. Export your collection first if you may want them back."
+        confirmLabel="Remove"
+        variant="destructive"
+      />
+      <ConfirmDialog
+        isOpen={confirmClear}
+        onConfirm={() => {
+          vaultService.clearVault(game);
+          setConfirmClear(false);
+          setSelected(new Set());
+          showToast('Collection cleared', 'info');
+        }}
+        onCancel={() => setConfirmClear(false)}
+        title="Clear the whole collection?"
+        message="This permanently removes every holding for this game. Type CLEAR to confirm."
+        confirmLabel="Clear collection"
         variant="destructive"
         confirmText="CLEAR"
       />
     </div>
   );
-};
+}

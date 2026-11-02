@@ -21,7 +21,9 @@ export function formatCurrency(value: number, options?: { signed?: boolean }): s
 }
 
 export function formatPercent(value: number, options?: { signed?: boolean }): string {
-  const abs = Math.abs(value).toFixed(1);
+  const n = Math.abs(value);
+  // Large moves read better grouped and without a meaningless decimal.
+  const abs = n >= 1000 ? Math.round(n).toLocaleString('en-US') : n.toFixed(1);
   if (!options?.signed) return `${abs}%`;
   if (value > 0) return `+${abs}%`;
   if (value < 0) return `-${abs}%`;

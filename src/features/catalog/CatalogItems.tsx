@@ -26,7 +26,7 @@ function useWishlisted(card: AnyCard, game: Game) {
   return [on, () => setOn(cardWishlistService.toggle(card as PokemonCard, game))] as const;
 }
 
-export function weekMove(card: AnyCard): number | null {
+function weekMove(card: AnyCard): number | null {
   return isPokemonCard(card) ? getCardDeltaPct(card, '7d') : null;
 }
 
