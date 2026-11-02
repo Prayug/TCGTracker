@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, Camera, Plus, Scale } from 'lucide-react';
 import { useVault } from '../../hooks/useVault';
-import { useAuth } from '../../hooks/useAuth';
 import { useGame } from '../../contexts/GameContext';
 import { useCardModal } from '../../contexts/CardModalContext';
 import { cardWishlistService, type WishlistItem } from '../../services/cardWishlistService';
@@ -24,32 +23,29 @@ import { CardArt } from '../../components/exchange/CardArt';
 import { Delta, Price } from '../../components/exchange/Price';
 import { CardLookup } from './CardLookup';
 import { MarketMovers } from './MarketMovers';
+import { CinematicCardHero } from './CinematicCardHero';
 import type { VaultCard } from '../../types/pokemon';
 import { cn } from '@/lib/utils';
 
 export function HomePage() {
   const { cards } = useVault();
   return (
-    <div className="mx-auto w-full max-w-[1520px] px-4 pb-16 pt-6 sm:px-6 lg:px-8">
-      {cards.length > 0 ? <CommandCenter /> : <VisitorHome />}
-      <div className="mt-14">
-        <MarketMovers />
+    <>
+      <CinematicCardHero />
+      <div className="mx-auto w-full max-w-[1520px] px-4 pb-16 pt-8 sm:px-6 lg:px-8">
+        {cards.length > 0 ? <CommandCenter /> : <VisitorHome />}
+        <div className="mt-14">
+          <MarketMovers />
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
 /* ───────────────────────── Signed-in / has holdings ───────────────────────── */
 
-function greeting(name?: string | null) {
-  const h = new Date().getHours();
-  const part = h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
-  return name ? `${part}, ${name}` : part;
-}
-
 function CommandCenter() {
   const { cards, activity, game } = useVault();
-  const { user } = useAuth();
   const { openCard } = useCardModal();
   const navigate = useNavigate();
   const [groupBy, setGroupBy] = useState<'set' | 'era'>('set');
@@ -82,19 +78,9 @@ function CommandCenter() {
 
   return (
     <>
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="text-meta text-ink-muted">
-            {new Date().toLocaleDateString('en-US', {
-              weekday: 'long',
-              month: 'long',
-              day: 'numeric',
-            })}{' '}
-            · {game === 'onepiece' ? 'One Piece' : 'Pokémon'} collection
-          </p>
-          <h1 className="font-display text-h1">{greeting(user?.username)}</h1>
-        </div>
-      </header>
+      <h2 className="font-display text-[clamp(1.5rem,2.4vw,2rem)] font-semibold tracking-[-0.02em]">
+        Today in your collection
+      </h2>
 
       {/* Row 1: valuation | allocation | actions */}
       <section
@@ -482,15 +468,18 @@ function VisitorHome() {
       className="grid gap-10 border-b-2 border-rule-strong pb-12 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-16"
     >
       <div>
-        <h1 id="visitor-h" className="font-display text-display">
+        <h2
+          id="visitor-h"
+          className="font-display text-[clamp(1.6rem,3vw,2.4rem)] font-semibold tracking-[-0.02em]"
+        >
           What is this card worth?
-        </h1>
+        </h2>
         <p className="mt-3 max-w-[52ch] text-[15px] text-ink-secondary">
           Look up any {isOnePiece ? 'One Piece' : 'Pokémon'} card to see its market price for each
           finish, where that number comes from, graded comparisons and whether grading would pay.
         </p>
         <div className="mt-6 max-w-[38rem]">
-          <CardLookup autoFocus />
+          <CardLookup />
         </div>
       </div>
       <aside aria-label="What you can do here" className="lg:pt-2">

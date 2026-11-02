@@ -1,10 +1,10 @@
 /**
- * TCGTracker mark: a trading card in portrait with a catalog rule across the
- * top and a stepped price tick below — "the card and its ledger line".
- * The corner notch is the gold "graded" accent. Uses currentColor for the
- * body so it inherits ink, and --gold-line for the accent.
+ * TCGTracker mark: two cards fanned from one corner. The back card is the
+ * collection, the front card carries a foil stripe: the piece you are
+ * looking at. Body uses currentColor; the stripe uses the holo gradient.
  */
 export function BrandMark({ className, title }: { className?: string; title?: string }) {
+  const id = 'tt-holo';
   return (
     <svg
       viewBox="0 0 24 24"
@@ -14,15 +14,37 @@ export function BrandMark({ className, title }: { className?: string; title?: st
       aria-hidden={title ? undefined : true}
       aria-label={title}
     >
-      <rect x="4.5" y="1.75" width="15" height="20.5" rx="2" fill="currentColor" />
-      <path d="M15.5 1.75h2a2 2 0 0 1 2 2v2z" fill="var(--gold-line)" />
-      <path d="M7.5 6.25h6" stroke="var(--surface-base)" strokeWidth="1.4" strokeLinecap="round" />
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#ff6fae" />
+          <stop offset="0.35" stopColor="#ffd36e" />
+          <stop offset="0.65" stopColor="#7cf2c2" />
+          <stop offset="1" stopColor="#6fb7ff" />
+        </linearGradient>
+      </defs>
+      <rect
+        x="3.2"
+        y="3.4"
+        width="11.5"
+        height="16"
+        rx="1.8"
+        transform="rotate(-12 9 11.4)"
+        fill="currentColor"
+        opacity="0.45"
+      />
+      <rect
+        x="8.3"
+        y="4.2"
+        width="11.5"
+        height="16"
+        rx="1.8"
+        transform="rotate(8 14 12.2)"
+        fill="currentColor"
+      />
       <path
-        d="M7.5 17.5h2.25v-2.75h2.5v1.5h2.25V11.5h2"
-        stroke="var(--surface-base)"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
+        d="M10.6 14.4 18.2 8.3l.5 3.6-7.6 6.1z"
+        fill={`url(#${id})`}
+        transform="rotate(8 14 12.2)"
       />
     </svg>
   );
@@ -32,8 +54,8 @@ export function BrandMark({ className, title }: { className?: string; title?: st
 export function Wordmark({ className }: { className?: string }) {
   return (
     <span className={className}>
-      <span className="font-display text-[19px] font-medium tracking-[-0.01em] text-ink-primary">
-        TCG<span className="italic">Tracker</span>
+      <span className="font-display text-[19px] font-semibold tracking-[-0.02em] text-ink-primary">
+        TCG<span className="font-normal">Tracker</span>
       </span>
     </span>
   );

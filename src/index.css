@@ -8,6 +8,7 @@
 @import '@fontsource/ibm-plex-mono/500.css';
 @import '@fontsource/ibm-plex-mono/600.css';
 @import '@fontsource-variable/newsreader/opsz.css';
+@import '@fontsource-variable/bricolage-grotesque/index.css';
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -40,13 +41,13 @@
     --ink-muted: #6b7276;
     --ink-faint: #a3a59f;
 
-    --accent: #3559b7;
-    --accent-hover: #2a4796;
-    --accent-muted: rgba(53, 89, 183, 0.09);
+    --accent: #2f56e6;
+    --accent-hover: #2345c4;
+    --accent-muted: rgba(47, 86, 230, 0.1);
     --accent-foreground: #ffffff;
-    --gold: #8a6427;
+    --gold: #9a6a12;
     --gold-muted: rgba(181, 138, 67, 0.14);
-    --gold-line: #b58a43;
+    --gold-line: #d79b2b;
     --warn: #8f6210;
     --warn-muted: rgba(196, 140, 32, 0.13);
 
@@ -72,7 +73,7 @@
 
     --chart-grid: rgba(32, 39, 43, 0.07);
     --chart-tick: #6b7276;
-    --chart-series-1: #3559b7;
+    --chart-series-1: #2f56e6;
     --chart-series-2: #b58a43;
     --chart-series-3: #167f73;
     --chart-series-4: #7d5ba6;
@@ -83,7 +84,7 @@
     --scrollbar-thumb-hover: #c2bba9;
     --selection-bg: rgba(53, 89, 183, 0.16);
     --selection-fg: #20272b;
-    --focus-ring: #3559b7;
+    --focus-ring: #2f56e6;
     --ring-accent: rgba(53, 89, 183, 0.2);
     --shadow-glow: 0 10px 30px rgba(32, 39, 43, 0.1);
     --card-shadow: 0 1px 1px rgba(32, 39, 43, 0.08), 0 6px 14px -6px rgba(32, 39, 43, 0.28);
@@ -98,34 +99,48 @@
     --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
     --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 
+    --holo: linear-gradient(
+      115deg,
+      #ff6fae 0%,
+      #ffd36e 18%,
+      #7cf2c2 36%,
+      #6fb7ff 54%,
+      #b18cff 72%,
+      #ff6fae 90%
+    );
+    --cobalt: #2f56e6;
+    --cobalt-deep: #10205e;
+    --ember: #ff7a3d;
+    --ink-stage: #0b0e14;
+
     --rail-w: 76px;
     --header-h: 56px;
   }
 
   [data-theme='dark'] {
     color-scheme: dark;
-    --surface-inset: #12171a;
-    --surface-base: #171d21;
-    --surface-raised: #1e262a;
-    --surface-overlay: #242c30;
-    --surface-hover: #2a3338;
-    --surface-chrome: #1b2226;
-    --surface-band: #1b2226;
-    --surface-glass: rgba(30, 38, 42, 0.95);
+    --surface-inset: #0a0d12;
+    --surface-base: #0e1117;
+    --surface-raised: #161a22;
+    --surface-overlay: #1b202a;
+    --surface-hover: #232a36;
+    --surface-chrome: #0b0e13;
+    --surface-band: #12161e;
+    --surface-glass: rgba(22, 26, 34, 0.92);
     --surface-glass-border: rgba(236, 233, 225, 0.1);
 
-    --ink-primary: #ece9e1;
-    --ink-secondary: #b0b5b0;
-    --ink-muted: #878e90;
+    --ink-primary: #f1eee7;
+    --ink-secondary: #b9bcc4;
+    --ink-muted: #8d93a0;
     --ink-faint: #5b6366;
 
-    --accent: #93acf0;
-    --accent-hover: #b0c3f5;
-    --accent-muted: rgba(147, 172, 240, 0.13);
-    --accent-foreground: #141a2c;
-    --gold: #d6b274;
+    --accent: #7f9bff;
+    --accent-hover: #a3b7ff;
+    --accent-muted: rgba(127, 155, 255, 0.14);
+    --accent-foreground: #0b1233;
+    --gold: #f0bd55;
     --gold-muted: rgba(214, 178, 116, 0.14);
-    --gold-line: #b58a43;
+    --gold-line: #e3a73a;
     --warn: #e2b759;
     --warn-muted: rgba(226, 183, 89, 0.13);
 
@@ -143,15 +158,15 @@
     --rule: rgba(236, 233, 225, 0.1);
     --rule-strong: #ece9e1;
 
-    --gain: #55c2ad;
+    --gain: #3fd3a8;
     --gain-muted: rgba(85, 194, 173, 0.12);
-    --loss: #ef8a74;
+    --loss: #ff7a6b;
     --loss-muted: rgba(239, 138, 116, 0.12);
 
     --chart-grid: rgba(236, 233, 225, 0.07);
     --chart-tick: #878e90;
-    --chart-series-1: #93acf0;
-    --chart-series-2: #d6b274;
+    --chart-series-1: #7f9bff;
+    --chart-series-2: #f0bd55;
     --chart-series-3: #55c2ad;
     --chart-series-4: #b99be0;
     --chart-series-5: #878e90;
@@ -161,7 +176,7 @@
     --scrollbar-thumb-hover: #46525a;
     --selection-bg: rgba(147, 172, 240, 0.25);
     --selection-fg: #ece9e1;
-    --focus-ring: #93acf0;
+    --focus-ring: #a3b7ff;
     --ring-accent: rgba(147, 172, 240, 0.25);
     --shadow-glow: 0 12px 32px rgba(0, 0, 0, 0.4);
     --card-shadow: 0 1px 1px rgba(0, 0, 0, 0.4), 0 8px 18px -8px rgba(0, 0, 0, 0.7);
@@ -1459,5 +1474,236 @@
     .marquee-content {
       animation: none !important;
     }
+  }
+}
+
+/* ───────────── Collectible system: signature card, foil, card back ───────────── */
+@layer components {
+  .holo-card {
+    border-radius: 4.6% / 3.3%;
+    will-change: transform;
+  }
+
+  .card-back {
+    background:
+      radial-gradient(120% 80% at 50% 0%, rgba(127, 155, 255, 0.55), transparent 60%),
+      repeating-conic-gradient(
+        from 0deg at 50% 50%,
+        rgba(255, 255, 255, 0.05) 0 8deg,
+        transparent 8deg 16deg
+      ),
+      linear-gradient(160deg, #2340b8, #0d1740 70%);
+  }
+
+  .foil {
+    background-size: 260% 260%;
+    mix-blend-mode: color-dodge;
+  }
+
+  /* Classic holo: the rainbow lives in the art window only. */
+  .foil-holo {
+    background-image:
+      repeating-linear-gradient(
+        110deg,
+        rgba(255, 90, 160, 0.7) 0%,
+        rgba(255, 220, 110, 0.7) 6%,
+        rgba(110, 255, 200, 0.7) 12%,
+        rgba(100, 170, 255, 0.7) 18%,
+        rgba(190, 130, 255, 0.7) 24%,
+        rgba(255, 90, 160, 0.7) 30%
+      ),
+      repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.12) 0 2px, transparent 2px 6px);
+    -webkit-mask-image: linear-gradient(#000, #000);
+    mask-image: linear-gradient(#000, #000);
+    -webkit-mask-size: 84% 40%;
+    mask-size: 84% 40%;
+    -webkit-mask-position: 50% 26%;
+    mask-position: 50% 26%;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+  }
+
+  /* Reverse holo: everything except the art window. */
+  .foil-reverse {
+    background-image: repeating-linear-gradient(
+      120deg,
+      rgba(255, 120, 180, 0.45) 0%,
+      rgba(255, 230, 140, 0.45) 8%,
+      rgba(120, 240, 220, 0.45) 16%,
+      rgba(130, 160, 255, 0.45) 24%,
+      rgba(255, 120, 180, 0.45) 32%
+    );
+    -webkit-mask-image: linear-gradient(#000, #000), linear-gradient(#000, #000);
+    -webkit-mask-size:
+      100% 100%,
+      84% 40%;
+    -webkit-mask-position:
+      0 0,
+      50% 26%;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-composite: xor;
+    mask-image: linear-gradient(#000, #000), linear-gradient(#000, #000);
+    mask-size:
+      100% 100%,
+      84% 40%;
+    mask-position:
+      0 0,
+      50% 26%;
+    mask-repeat: no-repeat;
+    mask-composite: exclude;
+  }
+
+  /* Full art / ultra: fine etched diagonals over the whole card. */
+  .foil-textured {
+    background-image:
+      repeating-linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0) 0 3px,
+        rgba(255, 255, 255, 0.22) 3px 4px
+      ),
+      linear-gradient(
+        115deg,
+        rgba(255, 110, 170, 0.5),
+        rgba(255, 220, 120, 0.45) 25%,
+        rgba(120, 245, 210, 0.45) 50%,
+        rgba(120, 160, 255, 0.5) 75%,
+        rgba(200, 140, 255, 0.5)
+      );
+  }
+
+  .foil-rainbow {
+    background-image: linear-gradient(
+      125deg,
+      rgba(255, 80, 150, 0.75),
+      rgba(255, 200, 80, 0.75) 20%,
+      rgba(90, 255, 170, 0.75) 40%,
+      rgba(80, 170, 255, 0.75) 60%,
+      rgba(180, 110, 255, 0.75) 80%,
+      rgba(255, 80, 150, 0.75)
+    );
+    mix-blend-mode: color;
+  }
+
+  .foil-gold {
+    background-image:
+      repeating-linear-gradient(
+        115deg,
+        rgba(255, 255, 255, 0) 0 5px,
+        rgba(255, 245, 200, 0.28) 5px 6px
+      ),
+      linear-gradient(
+        120deg,
+        rgba(160, 110, 20, 0.55),
+        rgba(255, 225, 140, 0.8) 45%,
+        rgba(170, 120, 30, 0.55)
+      );
+  }
+
+  .foil-illustration {
+    background-image:
+      radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.35), transparent 40%),
+      linear-gradient(
+        115deg,
+        rgba(255, 140, 190, 0.35),
+        rgba(255, 230, 160, 0.3) 30%,
+        rgba(140, 240, 220, 0.3) 60%,
+        rgba(150, 170, 255, 0.35)
+      );
+    mix-blend-mode: soft-light;
+  }
+
+  /* Atmospheres: distinct, purposeful backdrops for feature sections. */
+  .atmo-stage {
+    background:
+      radial-gradient(60% 70% at 72% 40%, rgba(47, 86, 230, 0.45), transparent 70%),
+      radial-gradient(40% 50% at 92% 85%, rgba(255, 122, 61, 0.22), transparent 70%),
+      radial-gradient(50% 60% at 10% 10%, rgba(177, 140, 255, 0.12), transparent 70%),
+      var(--ink-stage);
+    color: #f1eee7;
+  }
+
+  .atmo-cobalt {
+    background:
+      radial-gradient(
+        70% 90% at 85% 0%,
+        color-mix(in srgb, var(--accent) 22%, transparent),
+        transparent 70%
+      ),
+      var(--surface-raised);
+  }
+
+  .atmo-gold {
+    background:
+      radial-gradient(
+        70% 90% at 15% 0%,
+        color-mix(in srgb, var(--gold-line) 22%, transparent),
+        transparent 70%
+      ),
+      var(--surface-raised);
+  }
+
+  .atmo-ember {
+    background:
+      radial-gradient(70% 90% at 90% 100%, rgba(255, 122, 61, 0.2), transparent 70%),
+      var(--surface-raised);
+  }
+
+  .holo-text {
+    background: var(--holo);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .holo-rule {
+    height: 2px;
+    background: var(--holo);
+  }
+
+  /* Tactile press for primary actions. */
+  .btn-tactile {
+    @apply inline-flex h-11 cursor-pointer select-none items-center justify-center gap-2 whitespace-nowrap rounded-xl px-5 text-[15px] font-semibold;
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent) 88%, white),
+      var(--accent)
+    );
+    color: var(--accent-foreground);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      0 1px 0 rgba(0, 0, 0, 0.25),
+      0 8px 20px -8px color-mix(in srgb, var(--accent) 80%, transparent);
+    transition:
+      transform 120ms var(--ease-out),
+      box-shadow 120ms var(--ease-out);
+  }
+
+  .btn-tactile:hover {
+    transform: translateY(-1px);
+  }
+
+  .btn-tactile:active {
+    transform: translateY(1px) scale(0.985);
+    box-shadow:
+      inset 0 2px 4px rgba(0, 0, 0, 0.25),
+      0 0 0 rgba(0, 0, 0, 0);
+  }
+
+  .btn-glass {
+    @apply inline-flex h-11 cursor-pointer select-none items-center justify-center gap-2 whitespace-nowrap rounded-xl border px-5 text-[15px] font-medium;
+    border-color: rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.06);
+    color: inherit;
+    transition:
+      transform 120ms var(--ease-out),
+      background-color 120ms var(--ease-out);
+  }
+
+  .btn-glass:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .btn-glass:active {
+    transform: translateY(1px) scale(0.985);
   }
 }
