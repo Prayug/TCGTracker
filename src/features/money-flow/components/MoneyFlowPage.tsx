@@ -1,24 +1,16 @@
 import { useMemo, useState } from 'react';
+import { motion } from 'motion/react';
 import type {
   MoneyFlowBreadthBucket,
   MoneyFlowCohort,
-  MoneyFlowEra,
-  MoneyFlowFinish,
   MoneyFlowMoverRow,
   MoneyFlowResponse,
   MoneyFlowWindowDays,
 } from '@tcgtracker/shared';
-import {
-  MONEY_FLOW_ERA_LABELS,
-  MONEY_FLOW_ERAS,
-  MONEY_FLOW_FINISH_LABELS,
-  MONEY_FLOW_FINISHES,
-  MONEY_FLOW_PSA10_MIN_PRICE,
-  MONEY_FLOW_RAW_MIN_PRICE,
-} from '@tcgtracker/shared';
+import { MONEY_FLOW_PSA10_MIN_PRICE, MONEY_FLOW_RAW_MIN_PRICE } from '@tcgtracker/shared';
 import { useSearchParams } from 'react-router-dom';
 import { useCardModal } from '../../../contexts/CardModalContext';
-import { PageHeader } from '../../../components/layout/PageShell';
+import { EraHeatmap, MarketTreemap, MoversGallery, PulseStage } from './MarketPulse';
 import { CardArt } from '../../../components/exchange/CardArt';
 import { Delta, Price, Unavailable } from '../../../components/exchange/Price';
 import { useMoneyFlow } from '../hooks/useMoneyFlow';
@@ -69,30 +61,6 @@ export function MoneyFlowPage() {
 
   return (
     <div className="space-y-10">
-      <PageHeader
-        title="Market overview"
-        meta={
-          data
-            ? `${formatDate(data.date || data.headline.asOfDate)} · ${data.summary.trackedCount.toLocaleString()} prints tracked${refreshing ? ' · updating' : ''}`
-            : undefined
-        }
-        actions={
-          <div className="segmented" role="radiogroup" aria-label="Window">
-            {WINDOWS.map((w) => (
-              <button
-                key={w}
-                type="button"
-                role="radio"
-                aria-checked={days === w}
-                onClick={() => setDays(w)}
-              >
-                {w} days
-              </button>
-            ))}
-          </div>
-        }
-      />
-
       {loading && !data ? (
         <div className="space-y-6" aria-busy="true">
           <div className="skeleton h-8 w-2/3 rounded" />
@@ -111,6 +79,22 @@ export function MoneyFlowPage() {
         <Overview
           data={data}
           days={days}
+          refreshing={refreshing}
+          windowControl={
+            <div className="segmented" role="radiogroup" aria-label="Window">
+              {WINDOWS.map((w) => (
+                <button
+                  key={w}
+                  type="button"
+                  role="radio"
+                  aria-checked={days === w}
+                  onClick={() => setDays(w)}
+                >
+                  {w} days
+                </button>
+              ))}
+            </div>
+          }
           filter={filter}
           onPick={pick}
           onClear={() => setFilter(null)}
@@ -123,12 +107,16 @@ export function MoneyFlowPage() {
 function Overview({
   data,
   days,
+  refreshing,
+  windowControl,
   filter,
   onPick,
   onClear,
 }: {
   data: MoneyFlowResponse;
   days: number;
+  refreshing: boolean;
+  windowControl: React.ReactNode;
   filter: SegmentFilter | null;
   onPick: (c: MoneyFlowCohort) => void;
   onClear: () => void;
@@ -136,43 +124,26 @@ function Overview({
   const { headline, summary } = data;
   return (
     <>
-      <section
-        aria-labelledby="read-h"
-        className="grid gap-x-10 gap-y-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]"
-      >
-        <div>
-          <h2 id="read-h" className="sr-only">
-            This window’s read
-          </h2>
-          <p className="max-w-[60ch] font-display text-[24px] leading-snug sm:text-[28px]">
-            {headline.summary}
-          </p>
-          <dl className="mt-4 grid max-w-xl grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-[13.5px]">
-            <dt className="text-ink-muted">Money moving into</dt>
-            <dd>
-              {headline.intoLabels.length ? headline.intoLabels.join(', ') : 'No clear segment'}
-            </dd>
-            <dt className="text-ink-muted">Moving out of</dt>
-            <dd>
-              {headline.outLabels.length ? headline.outLabels.join(', ') : 'No clear segment'}
-            </dd>
-          </dl>
-        </div>
-        <div className="border-t border-rule pt-3 text-[12.5px] leading-relaxed text-ink-muted lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
-          <p className="font-medium text-ink-secondary">How this is measured</p>
-          <p className="mt-1">
-            {days}-day change in TCGplayer market price for{' '}
-            {headline.rawSampleSize.toLocaleString()} raw prints over ${MONEY_FLOW_RAW_MIN_PRICE}{' '}
-            and {headline.slabSampleSize.toLocaleString()} PSA 10 prints over $
-            {MONEY_FLOW_PSA10_MIN_PRICE}.{' '}
-            {headline.filteredOutCount > 0
-              ? `${headline.filteredOutCount.toLocaleString()} bulk or low-value prints were left out. `
-              : ''}
-            Segment figures are medians, so one runaway card can’t carry a segment. Price change is
-            not volume: a segment can rise on very few sales.
-          </p>
-        </div>
-      </section>
+      <PulseStage data={data} days={days} windowControl={windowControl} />
+      <p className="-mt-4 max-w-[95ch] text-[12.5px] leading-relaxed text-ink-muted">
+        {formatDate(data.date || headline.asOfDate)}
+        {refreshing ? ' · updating' : ''}. {days}-day change in TCGplayer market price for{' '}
+        {headline.rawSampleSize.toLocaleString()} raw prints over ${MONEY_FLOW_RAW_MIN_PRICE} and{' '}
+        {headline.slabSampleSize.toLocaleString()} PSA 10 prints over ${MONEY_FLOW_PSA10_MIN_PRICE}.{' '}
+        {headline.filteredOutCount > 0
+          ? `${headline.filteredOutCount.toLocaleString()} bulk or low-value prints were left out. `
+          : ''}
+        Segment figures are medians, so one runaway card can’t carry a segment. Price change is not
+        volume: a segment can rise on very few sales.
+      </p>
+
+      <MarketTreemap
+        cohorts={data.eraFinishes}
+        specials={data.specials}
+        filter={filter}
+        onPick={onPick}
+        days={days}
+      />
 
       <BreadthStrip
         buckets={data.breadthBuckets}
@@ -184,13 +155,7 @@ function Overview({
       />
 
       <div className="grid gap-x-10 gap-y-10 xl:grid-cols-2">
-        <EraMatrix
-          cohorts={data.eraFinishes}
-          specials={data.specials}
-          filter={filter}
-          onPick={onPick}
-          days={days}
-        />
+        <EraHeatmap cohorts={data.eraFinishes} filter={filter} onPick={onPick} days={days} />
         <RotationBoard
           into={data.rotationInto}
           out={data.rotationOut}
@@ -213,6 +178,14 @@ function Overview({
           </ul>
         </section>
       ) : null}
+
+      <MoversGallery
+        gainers={data.topGainers}
+        losers={data.topLosers}
+        filter={filter}
+        match={(r) => moverMatchesFilter(r, filter)}
+        days={days}
+      />
 
       <Movers
         gainers={data.topGainers}
@@ -267,7 +240,10 @@ function BreadthStrip({
   return (
     <section aria-labelledby="breadth-h">
       <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-rule-strong pb-2">
-        <h2 id="breadth-h" className="text-h2">
+        <h2
+          id="breadth-h"
+          className="font-display text-[clamp(1.35rem,2.2vw,1.75rem)] font-semibold tracking-[-0.02em]"
+        >
           Breadth
         </h2>
         <p className="text-meta text-ink-muted">Tracked prints by size of {days}-day move</p>
@@ -381,159 +357,6 @@ function Fact({
 
 /* ------------------------------------------------------------- era matrix */
 
-function cellTint(c: MoneyFlowCohort | undefined): string | undefined {
-  if (!c || c.confidence === 'thin' || c.medianReturnPct == null) return undefined;
-  const m = c.medianReturnPct;
-  if (Math.abs(m) < 0.5) return undefined;
-  const pct = Math.round(Math.min(1, Math.abs(m) / 20) * 22);
-  return `color-mix(in srgb, ${m > 0 ? 'var(--gain)' : 'var(--loss)'} ${pct}%, transparent)`;
-}
-
-function CohortCell({
-  c,
-  active,
-  onPick,
-}: {
-  c?: MoneyFlowCohort;
-  active: boolean;
-  onPick: (c: MoneyFlowCohort) => void;
-}) {
-  if (!c || c.sampleSize === 0) {
-    return <td className="text-center text-[12.5px] text-ink-muted">No prints</td>;
-  }
-  const thin = c.confidence === 'thin';
-  return (
-    <td className="p-0" style={{ background: cellTint(c) }}>
-      <button
-        type="button"
-        onClick={() => onPick(c)}
-        aria-pressed={active}
-        className={cn(
-          'block w-full px-3 py-3 text-left hover:bg-surface-hover/60',
-          active && 'outline outline-2 -outline-offset-2 outline-accent'
-        )}
-      >
-        <span className="block">
-          {thin ? (
-            <span className="font-mono text-[13px] text-ink-muted">thin</span>
-          ) : (
-            <Delta pct={c.medianReturnPct} size="md" />
-          )}
-        </span>
-        <span className="mt-0.5 block font-mono text-[11.5px] text-ink-muted">
-          {formatShare(c.breadthUpPct)} up · n={c.sampleSize}
-        </span>
-        <span className="sr-only">
-          {c.label}: median {c.medianReturnPct?.toFixed(1) ?? 'unknown'} percent,{' '}
-          {CONFIDENCE_COPY[c.confidence]}. Show these prints.
-        </span>
-      </button>
-    </td>
-  );
-}
-
-function EraMatrix({
-  cohorts,
-  specials,
-  filter,
-  onPick,
-  days,
-}: {
-  cohorts: MoneyFlowCohort[];
-  specials: MoneyFlowCohort[];
-  filter: SegmentFilter | null;
-  onPick: (c: MoneyFlowCohort) => void;
-  days: number;
-}) {
-  const find = (era: MoneyFlowEra, finish: MoneyFlowFinish) =>
-    cohorts.find((c) => c.era === era && c.finish === finish);
-  const shownSpecials = specials.filter((s) => s.sampleSize > 0);
-  return (
-    <section aria-labelledby="matrix-h">
-      <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-rule-strong pb-2">
-        <h2 id="matrix-h" className="text-h2">
-          Era and grade
-        </h2>
-        <p className="text-meta text-ink-muted">Median {days}-day move · share rising · prints</p>
-      </div>
-      <table className="ledger mt-1 table-fixed">
-        <caption className="sr-only">
-          Median price move by era and grade. Select a cell to list its prints.
-        </caption>
-        <thead>
-          <tr>
-            <th scope="col" className="w-[28%]">
-              <span className="sr-only">Era</span>
-            </th>
-            {MONEY_FLOW_FINISHES.map((f) => (
-              <th key={f} scope="col">
-                {MONEY_FLOW_FINISH_LABELS[f]}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {MONEY_FLOW_ERAS.map((era) => (
-            <tr key={era}>
-              <th scope="row" className="text-left font-medium">
-                {MONEY_FLOW_ERA_LABELS[era]}
-                <span className="block text-[11.5px] font-normal text-ink-muted">
-                  {era === 'vintage' ? 'to 2003' : era === 'mid' ? '2004–2016' : '2017 on'}
-                </span>
-              </th>
-              {MONEY_FLOW_FINISHES.map((f) => {
-                const c = find(era, f);
-                return (
-                  <CohortCell
-                    key={f}
-                    c={c}
-                    active={!!c && filter?.cohortId === c.id}
-                    onPick={onPick}
-                  />
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {shownSpecials.length > 0 ? (
-        <>
-          <h3 className="mt-6 text-h3">Collector segments</h3>
-          <ul className="mt-1">
-            {shownSpecials.map((s) => (
-              <li key={s.id}>
-                <button
-                  type="button"
-                  onClick={() => onPick(s)}
-                  aria-pressed={filter?.cohortId === s.id}
-                  className={cn(
-                    'grid w-full grid-cols-[minmax(0,1fr)_auto_auto] items-baseline gap-x-4 border-b border-rule py-2 text-left hover:bg-surface-hover/60',
-                    filter?.cohortId === s.id && 'bg-accent-muted'
-                  )}
-                >
-                  <span className="truncate text-[13.5px]">{s.label}</span>
-                  <span className="font-mono text-[11.5px] text-ink-muted">n={s.sampleSize}</span>
-                  {s.confidence === 'thin' ? (
-                    <span className="w-20 text-right font-mono text-[12.5px] text-ink-muted">
-                      thin
-                    </span>
-                  ) : (
-                    <Delta pct={s.medianReturnPct} className="w-20 justify-end" />
-                  )}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : null}
-      <p className="mt-3 text-[12px] text-ink-muted">
-        Cells marked thin have too few prints for the median to mean much. Tint strength follows the
-        size of the median move.
-      </p>
-    </section>
-  );
-}
-
 /* --------------------------------------------------------------- rotation */
 
 function RotationBoard({
@@ -553,11 +376,27 @@ function RotationBoard({
   return (
     <section aria-labelledby="rot-h">
       <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-rule-strong pb-2">
-        <h2 id="rot-h" className="text-h2">
+        <h2
+          id="rot-h"
+          className="font-display text-[clamp(1.35rem,2.2vw,1.75rem)] font-semibold tracking-[-0.02em]"
+        >
           Rotation
         </h2>
         <p className="text-meta text-ink-muted">Net dollar change across each segment’s prints</p>
       </div>
+      {rows.length ? (
+        <div
+          aria-hidden
+          className="mt-2 grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)_5.5rem] gap-x-3 font-mono text-[11px] uppercase tracking-[0.1em] text-ink-muted sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)_6rem]"
+        >
+          <span />
+          <span className="flex justify-between">
+            <span className="whitespace-nowrap text-loss">← Out</span>
+            <span className="whitespace-nowrap text-gain">Into →</span>
+          </span>
+          <span />
+        </div>
+      ) : null}
       {rows.length === 0 ? (
         <p className="mt-3 text-meta text-ink-muted">
           No segment moved clearly enough to call a rotation.
@@ -582,15 +421,17 @@ function RotationBoard({
                       n={c.sampleSize} · {c.confidence}
                     </span>
                   </span>
-                  <span className="relative block h-4" aria-hidden>
+                  <span className="relative block h-5" aria-hidden>
                     <span className="absolute inset-y-0 left-1/2 w-px bg-rule-strong" />
-                    <span
+                    <motion.span
                       className={cn(
-                        'absolute inset-y-0.5 rounded-[1px]',
+                        'absolute inset-y-0.5 rounded-[3px]',
                         up ? 'left-1/2 bg-gain' : 'right-1/2 bg-loss',
                         c.confidence === 'thin' && 'opacity-40'
                       )}
-                      style={{ width: `${share * 50}%` }}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${share * 50}%` }}
+                      transition={{ duration: 0.7, ease: [0.2, 0.8, 0.2, 1] }}
                     />
                   </span>
                   <span
