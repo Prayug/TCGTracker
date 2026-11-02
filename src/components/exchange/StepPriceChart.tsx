@@ -75,6 +75,7 @@ export function StepPriceChart({
   const ref = useRef<SVGSVGElement>(null);
   const [wrapRef, width] = useElementWidth<HTMLDivElement>(720);
   const [hover, setHover] = useState<number | null>(null);
+  const [tableOpen, setTableOpen] = useState(false);
 
   const prepared = useMemo(
     () =>
@@ -349,39 +350,45 @@ export function StepPriceChart({
               : ''}
           </span>
         </span>
-        <details className="group">
+        <details
+          className="group open:basis-full"
+          onToggle={(e) => setTableOpen((e.currentTarget as HTMLDetailsElement).open)}
+        >
           <summary className="cursor-pointer select-none text-accent hover:underline">
             Data table
           </summary>
-          <div className="mt-2 max-h-56 overflow-auto rounded-md border border-border-default">
-            <table className="ledger">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  {prepared.map((s) => (
-                    <th key={s.key} className="num">
-                      {s.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {[...timeline].reverse().map((p) => (
-                  <tr key={p.t}>
-                    <td className="font-mono">{fmtDate(p.t, true)}</td>
-                    {prepared.map((s) => {
-                      const at = s.pts.find((q) => q.t === p.t);
-                      return (
-                        <td key={s.key} className="num">
-                          {at ? formatCurrency(at.v) : ''}
-                        </td>
-                      );
-                    })}
+          {/* Rendered only when open: a closed <details> still lays out its content. */}
+          {tableOpen ? (
+            <div className="mt-2 max-h-56 overflow-auto rounded-md border border-border-default">
+              <table className="ledger">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    {prepared.map((s) => (
+                      <th key={s.key} className="num">
+                        {s.label}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {[...timeline].reverse().map((p) => (
+                    <tr key={p.t}>
+                      <td className="font-mono">{fmtDate(p.t, true)}</td>
+                      {prepared.map((s) => {
+                        const at = s.pts.find((q) => q.t === p.t);
+                        return (
+                          <td key={s.key} className="num">
+                            {at ? formatCurrency(at.v) : ''}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
         </details>
       </div>
     </figure>

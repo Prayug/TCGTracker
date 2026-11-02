@@ -26,10 +26,21 @@ export const sortSetTrackerCards = (
   const price = (c: SetTrackerCard) => c.marketPrice ?? 0;
 
   switch (sortBy) {
+    // Unpriced cards go last in both directions: no price is not a $0 price.
     case 'price-high':
-      return sorted.sort((a, b) => price(b) - price(a) || a.name.localeCompare(b.name));
+      return sorted.sort(
+        (a, b) =>
+          Number(price(b) > 0) - Number(price(a) > 0) ||
+          price(b) - price(a) ||
+          a.name.localeCompare(b.name)
+      );
     case 'price-low':
-      return sorted.sort((a, b) => price(a) - price(b) || a.name.localeCompare(b.name));
+      return sorted.sort(
+        (a, b) =>
+          Number(price(b) > 0) - Number(price(a) > 0) ||
+          price(a) - price(b) ||
+          a.name.localeCompare(b.name)
+      );
     case 'name':
       return sorted.sort((a, b) => a.name.localeCompare(b.name));
     case 'rarity':
