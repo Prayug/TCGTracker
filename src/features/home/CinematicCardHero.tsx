@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Search } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -15,6 +15,7 @@ import { useIsMobileViewport, usePrefersReducedMotion } from '../../hooks/useMot
 import { summarizePortfolio } from '../../utils/portfolio';
 import { formatCurrency } from '../../utils/cardDisplay';
 import { useShowcaseCards, type ShowcaseCard } from './useShowcaseCards';
+import { heroTone } from './heroTone';
 import { cn } from '@/lib/utils';
 
 /**
@@ -45,11 +46,11 @@ export function CinematicCardHero() {
   const heading = owner ? (
     <>
       {user?.username ? `${user.username}’s collection,` : 'Your collection,'}{' '}
-      <span className="holo-text">on display.</span>
+      <span className="tone-text">on display.</span>
     </>
   ) : (
     <>
-      Your collection. <span className="holo-text">In a whole new dimension.</span>
+      Your collection. <span className="tone-text">In a whole new dimension.</span>
     </>
   );
 
@@ -58,6 +59,12 @@ export function CinematicCardHero() {
       data-theme="dark"
       aria-labelledby="hero-h"
       className="atmo-stage relative isolate overflow-hidden"
+      style={
+        {
+          '--hero-tone': heroTone(front?.card),
+          transition: reduced ? undefined : '--hero-tone 700ms ease',
+        } as CSSProperties
+      }
     >
       <StageBackdrop />
       <div className="relative mx-auto grid w-full max-w-[1520px] gap-8 px-4 pb-10 pt-8 sm:px-6 md:pt-12 lg:min-h-[640px] lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center lg:gap-4 lg:px-8 lg:pb-16">
@@ -178,7 +185,7 @@ function FrontCaption({ item, owned }: { item: ShowcaseCard; owned: boolean }) {
       key={item.key}
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      className="pointer-events-none absolute bottom-16 left-0 z-[55] hidden max-w-[15rem] rounded-xl border border-white/10 bg-black/40 px-3.5 py-2.5 text-white backdrop-blur-md lg:block"
+      className="pointer-events-none relative z-[55] mx-auto mt-3 max-w-[18rem] border-l-2 border-[var(--hero-tone)] bg-gradient-to-r from-black/55 to-transparent py-2 pl-3.5 pr-6 text-white lg:absolute lg:bottom-16 lg:left-0 lg:mx-0 lg:mt-0 lg:max-w-[15rem]"
       aria-live="polite"
     >
       <p className="truncate text-[14px] font-semibold">{item.card.name}</p>
@@ -280,7 +287,10 @@ function StackPlaceholder({ compact }: { compact: boolean }) {
 function StageBackdrop() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 -z-[1]">
-      <div className="absolute bottom-[-30%] left-[45%] h-[70%] w-[70%] rounded-[50%] bg-[radial-gradient(closest-side,rgba(127,155,255,0.35),transparent)]" />
+      {/* Floor light and a rim light, both in the front card's colour. */}
+      <div className="absolute bottom-[-30%] left-[45%] h-[70%] w-[70%] rounded-[50%] bg-[radial-gradient(closest-side,color-mix(in_srgb,var(--hero-tone)_38%,transparent),transparent)]" />
+      <div className="absolute right-[-10%] top-[-20%] h-[80%] w-[55%] rounded-[50%] bg-[radial-gradient(closest-side,color-mix(in_srgb,var(--hero-tone)_16%,transparent),transparent)]" />
+      <div className="absolute inset-0 opacity-[0.05] mix-blend-overlay [background-image:radial-gradient(rgba(255,255,255,0.9)_0.6px,transparent_0.6px)] [background-size:3px_3px]" />
       <div
         className="absolute inset-x-0 bottom-0 h-[45%] opacity-40 [mask-image:linear-gradient(to_top,black,transparent)]"
         style={{

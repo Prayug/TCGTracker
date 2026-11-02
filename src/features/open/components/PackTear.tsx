@@ -52,12 +52,13 @@ export function PackTear({
         <motion.div
           className="relative h-[22rem] w-[14rem] overflow-hidden rounded-[14px] shadow-[0_40px_80px_-30px_rgba(0,0,0,0.8)] sm:h-[25rem] sm:w-[16rem]"
           initial={reduce ? false : { rotateY: -18, y: 20, opacity: 0 }}
-          animate={{ rotateY: torn ? 0 : [-6, 6, -6], y: torn ? 12 : 0, opacity: 1 }}
+          animate={{ rotateY: torn ? 0 : [-6, 6, 0], y: torn ? 12 : 0, opacity: 1 }}
           transition={
             torn
               ? { duration: 0.6 }
               : {
-                  rotateY: { duration: 5, repeat: Infinity, ease: 'easeInOut' },
+                  // One slow turn to show the pack is 3D, then it holds still.
+                  rotateY: { duration: 3, ease: 'easeInOut' },
                   y: { duration: 0.6 },
                   opacity: { duration: 0.6 },
                 }

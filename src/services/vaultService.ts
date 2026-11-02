@@ -10,7 +10,6 @@ import { syncVaultToServer } from './vaultSyncService';
 import { hasUsableCardImage, withResolvedCardImages } from '../utils/tcgPlayerImages';
 import {
   effectiveCostBasis,
-  hasKnownCost,
   holdingMarketValue,
   isAssumedCost,
   normalizePurchasePrice,
@@ -161,6 +160,28 @@ class VaultService {
     }
   }
 
+  /**
+   * Mark stored prices as really paid, for holdings whose cost is unverified.
+   * The price itself is not changed; only the user's confirmation is recorded.
+   */
+  confirmCosts(ids: string[], game?: 'pokemon' | 'onepiece'): number {
+    const wanted = new Set(ids);
+    let count = 0;
+    const vaultCards = this.getVaultCards(game).map((vc) => {
+      if (!wanted.has(vc.id) || vc.costKnown !== undefined || !(vc.purchasePrice > 0)) return vc;
+      count += 1;
+      return { ...vc, costKnown: true };
+    });
+    if (count === 0) return 0;
+    this.saveVaultCards(vaultCards, game);
+    void syncVaultToServer(vaultCards);
+    this.appendActivity(
+      { action: 'update', detail: `Confirmed cost on ${count} holding${count === 1 ? '' : 's'}` },
+      game
+    );
+    return count;
+  }
+
   removeFromVault(id: string, game?: 'pokemon' | 'onepiece'): void {
     const vaultCards = this.getVaultCards(game);
     const removed = vaultCards.find((vc) => vc.id === id);
@@ -256,9 +277,11 @@ class VaultService {
       const normalized = cards.map((entry) => ({
         ...entry,
         notes: entry.notes ?? undefined,
+        // Legacy rows keep no flag, so a cost that matches market stays
+        // recognisable as unverified rather than becoming a confirmed cost.
         ...(typeof entry.costKnown === 'boolean'
           ? { purchasePrice: entry.costKnown ? entry.purchasePrice : 0 }
-          : { purchasePrice: entry.purchasePrice, costKnown: hasKnownCost(entry) }),
+          : { purchasePrice: entry.purchasePrice }),
         game: entry.game || game || 'pokemon',
       }));
       this.saveVaultCards(normalized, game);

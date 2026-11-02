@@ -281,6 +281,7 @@ export interface InvestmentSignalsResult {
 export type ExternalFactorsResult = InvestmentSignalsResult;
 
 export type InvestmentsTab =
+  | 'overview'
   | 'strategy'
   | 'opportunities'
   | 'movers'

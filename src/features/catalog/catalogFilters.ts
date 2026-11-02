@@ -23,7 +23,8 @@ export type CatalogSort =
   | 'date-old'
   | 'rarity';
 
-export type CatalogView = 'grid' | 'list';
+/** grid = large cards, compact = dense cards, list = research table. */
+export type CatalogView = 'grid' | 'compact' | 'list';
 export type QuickFilter = 'all' | 'priced' | 'rising' | 'falling' | 'below-avg';
 export type PriceBand = 'all' | 'under-10' | '10-50' | '50-150' | '150-plus';
 
@@ -87,7 +88,7 @@ export function parseCatalogState(params: URLSearchParams): CatalogState {
     q: params.get('q') ?? '',
     lang: params.get('lang') === 'ja' ? 'ja' : 'en',
     sort: oneOf(params.get('sort'), SORTS, DEFAULT_CATALOG_STATE.sort),
-    view: params.get('view') === 'list' ? 'list' : 'grid',
+    view: oneOf(params.get('view'), ['grid', 'compact', 'list'] as const, 'grid'),
     quick: oneOf(params.get('quick'), QUICK, 'all'),
     set: params.get('set') ?? '',
     rarity: params.get('rarity') ?? '',

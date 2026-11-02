@@ -3,15 +3,29 @@ import { getCardPrice } from './cardPrice';
 
 /**
  * Cost-basis rules (Collector's Exchange data audit):
- * - A cost the user typed is known, including a deliberate $0 (gift, pull).
+ * - A cost the user typed or confirmed is recorded, including a deliberate $0
+ *   (gift, pull).
  * - A blank cost is unknown. It is stored as purchasePrice 0 + costKnown false
  *   and is never replaced with the market price, because that manufactures a
  *   $0 profit that looks real.
- * - Legacy entries (no costKnown flag) count as known only when > 0.
+ * - Legacy entries (no costKnown flag) with a price are unverified. Older
+ *   imports filled the cost in from the market price of the day, and nothing
+ *   on the record says which legacy prices were really paid. Comparing with
+ *   today's market cannot tell either: once prices move, a filled-in cost
+ *   would start to show a gain that never happened. So the price is kept as
+ *   it is, labelled unverified, and left out of P/L until the user confirms
+ *   or corrects it (one click, or all at once).
  */
+export type CostStatus = 'recorded' | 'unverified' | 'unknown';
+
+export function costStatus(vaultCard: VaultCard): CostStatus {
+  if (vaultCard.costKnown === false) return 'unknown';
+  if (vaultCard.costKnown === true) return 'recorded';
+  return vaultCard.purchasePrice > 0 ? 'unverified' : 'unknown';
+}
+
 export function hasKnownCost(vaultCard: VaultCard): boolean {
-  if (typeof vaultCard.costKnown === 'boolean') return vaultCard.costKnown;
-  return vaultCard.purchasePrice > 0;
+  return costStatus(vaultCard) === 'recorded';
 }
 
 /** True when the user never set a real paid price. */

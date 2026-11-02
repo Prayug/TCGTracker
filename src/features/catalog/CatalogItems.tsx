@@ -50,7 +50,8 @@ export function CatalogTile({
   onAdd,
   onPreview,
   layoutId,
-}: { card: AnyCard; game: Game; layoutId: string } & CatalogItemActions) {
+  dense = false,
+}: { card: AnyCard; game: Game; layoutId: string; dense?: boolean } & CatalogItemActions) {
   const [wished, toggleWish] = useWishlisted(card, game);
   const price = knownPrice(card);
   const move = weekMove(card);
@@ -59,21 +60,32 @@ export function CatalogTile({
       <HolographicCard
         card={card as PokemonCard}
         layoutId={layoutId}
-        level={finishOf(card as PokemonCard) === 'none' ? 'standard' : 'featured'}
+        // Foil and tilt only on large tiles; dense grids stay calm.
+        level={!dense && finishOf(card as PokemonCard) !== 'none' ? 'featured' : 'standard'}
+        interactive={!dense}
+        elevated={!dense}
         label={`${card.name}, ${subtitle(card)}`}
         onSelect={() => (onPreview ? onPreview(card, layoutId) : onOpen(card))}
       />
-      <div className="mt-2.5 min-w-0">
-        <p className="truncate text-[13.5px] font-medium leading-snug" title={card.name}>
+      <div className={cn('min-w-0', dense ? 'mt-1.5' : 'mt-2.5')}>
+        <p
+          className={cn(
+            'truncate font-medium leading-snug',
+            dense ? 'text-[12.5px]' : 'text-[13.5px]'
+          )}
+          title={card.name}
+        >
           {card.name}
         </p>
-        <p className="truncate text-meta text-ink-muted" title={subtitle(card)}>
-          {subtitle(card)}
-        </p>
+        {dense ? null : (
+          <p className="truncate text-meta text-ink-muted" title={subtitle(card)}>
+            {subtitle(card)}
+          </p>
+        )}
         <div className="mt-1 flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-baseline gap-2">
             <Price value={price} size="sm" />
-            {move != null ? <Delta pct={move} /> : null}
+            {move != null && !dense ? <Delta pct={move} /> : null}
           </div>
           <div className="flex shrink-0 gap-0.5 transition-opacity duration-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-focus-within:opacity-100 [@media(hover:hover)]:group-hover:opacity-100">
             <button
@@ -106,13 +118,27 @@ export function CatalogTile({
 export function CatalogGrid({
   cards,
   game,
+  dense = false,
   ...actions
-}: { cards: AnyCard[]; game: Game } & CatalogItemActions) {
+}: { cards: AnyCard[]; game: Game; dense?: boolean } & CatalogItemActions) {
   return (
-    <ul className="grid grid-cols-2 gap-x-4 gap-y-9 sm:grid-cols-3 md:gap-x-7 lg:grid-cols-4 2xl:grid-cols-5">
+    <ul
+      className={cn(
+        'grid',
+        dense
+          ? 'grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6'
+          : 'grid-cols-2 gap-x-4 gap-y-9 sm:grid-cols-3 md:gap-x-7 lg:grid-cols-4 2xl:grid-cols-5'
+      )}
+    >
       {cards.map((card, i) => (
         <li key={`${card.id}-${i}`} className="min-w-0">
-          <CatalogTile card={card} game={game} layoutId={`cat-${card.id}-${i}`} {...actions} />
+          <CatalogTile
+            card={card}
+            game={game}
+            dense={dense}
+            layoutId={`cat-${card.id}-${i}`}
+            {...actions}
+          />
         </li>
       ))}
     </ul>

@@ -38,8 +38,9 @@ export function FramingGuide({
         {!reduce ? (
           <motion.span
             className="absolute inset-x-[4%] h-[2px] rounded-full bg-gradient-to-r from-transparent via-[#7f9bff] to-transparent shadow-[0_0_14px_2px_rgba(127,155,255,0.6)]"
-            animate={{ top: ['8%', '92%', '8%'] }}
-            transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
+            // Two passes to show where to aim, then it rests: guidance, not decoration.
+            animate={{ top: ['8%', '92%', '8%'], opacity: [1, 1, 0] }}
+            transition={{ duration: 3.2, repeat: 1, ease: 'easeInOut' }}
           />
         ) : null}
         {bare ? null : (

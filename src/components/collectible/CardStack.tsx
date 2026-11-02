@@ -109,6 +109,9 @@ export function CardStack({
   return (
     <div
       className={cn('relative', className)}
+      role="region"
+      aria-roledescription="carousel"
+      aria-label="Featured cards"
       onPointerMove={onMove}
       onPointerLeave={() => {
         mx.set(0);
@@ -132,7 +135,7 @@ export function CardStack({
               z={hovered === item.key && !isFront ? 45 : slot.z}
             >
               <motion.div
-                className={cn('pointer-events-auto', cardClassName)}
+                className={cn('pointer-events-auto relative', cardClassName)}
                 initial={reduced ? false : { opacity: 0, x: '0%', y: '24%', rotate: 0, scale: 0.7 }}
                 animate={{
                   opacity: hiddenKey === item.key ? 0 : 1,
@@ -155,6 +158,14 @@ export function CardStack({
                 drag={isFront && !reduced ? 'x' : false}
                 dragSnapToOrigin
                 dragElastic={0.6}
+                dragDirectionLock
+                // Horizontal drags cycle; vertical swipes still scroll the page on touch.
+                style={isFront ? { touchAction: 'pan-y' } : undefined}
+                whileDrag={{
+                  scale: slot.scale * 1.03,
+                  rotate: slot.rotate + 3,
+                  cursor: 'grabbing',
+                }}
                 onDragEnd={(_, info) => {
                   if (Math.abs(info.offset.x) > 70 || Math.abs(info.velocity.x) > 500)
                     cycle(info.offset.x < 0 ? 1 : -1);
@@ -162,6 +173,12 @@ export function CardStack({
                 onHoverStart={() => setHovered(item.key)}
                 onHoverEnd={() => setHovered((h) => (h === item.key ? null : h))}
               >
+                {isFront ? (
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute -inset-[8%] -z-[1] rounded-[12%] bg-[radial-gradient(closest-side,color-mix(in_srgb,var(--hero-tone,#7f9bff)_45%,transparent),transparent)] blur-xl"
+                  />
+                ) : null}
                 <HolographicCard
                   card={item.card}
                   layoutId={layoutId}
@@ -179,7 +196,15 @@ export function CardStack({
         })}
       </div>
       {items.length > 1 ? (
-        <div className="absolute inset-x-0 bottom-0 z-[60] flex items-center justify-center gap-3">
+        <div
+          className="absolute inset-x-0 bottom-0 z-[60] flex items-center justify-center gap-3"
+          role="toolbar"
+          aria-label="Stack controls. Left and right arrow keys cycle the cards."
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowRight') cycle(1);
+            else if (e.key === 'ArrowLeft') cycle(-1);
+          }}
+        >
           <button
             type="button"
             onClick={() => cycle(-1)}
@@ -188,16 +213,32 @@ export function CardStack({
           >
             <ChevronLeft className="h-5 w-5" aria-hidden />
           </button>
-          <div className="flex items-center gap-1.5" aria-hidden>
+          <div className="flex items-center gap-0.5">
             {items.map((item, idx) => (
-              <span
+              <button
                 key={item.key}
-                className={cn(
-                  'h-1.5 rounded-full transition-all duration-300',
-                  order[0] === idx ? 'w-6 bg-white' : 'w-1.5 bg-white/35'
-                )}
-              />
+                type="button"
+                onClick={() => bringToFront(idx)}
+                aria-current={order[0] === idx ? 'true' : undefined}
+                aria-label={`Show ${item.card.name}, ${idx + 1} of ${items.length}`}
+                className="group grid h-8 place-items-center px-1"
+              >
+                <span
+                  className={cn(
+                    'block h-1.5 rounded-full transition-all duration-300',
+                    order[0] === idx
+                      ? 'w-7 bg-[var(--hero-tone,#fff)]'
+                      : 'w-1.5 bg-white/35 group-hover:bg-white/70'
+                  )}
+                />
+              </button>
             ))}
+            <span
+              className="ml-1.5 font-mono text-[11.5px] tabular-nums text-white/55"
+              aria-live="polite"
+            >
+              {(order[0] ?? 0) + 1} / {items.length}
+            </span>
           </div>
           <button
             type="button"
