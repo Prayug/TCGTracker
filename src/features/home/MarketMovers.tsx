@@ -236,7 +236,7 @@ function MoverFanPanel({
       data-theme="dark"
       className="atmo-stage col-span-full overflow-hidden rounded-3xl p-5 text-white sm:p-8"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="relative z-20 flex flex-wrap items-center justify-between gap-3">
         <p className="font-display text-[20px] font-semibold">
           The hand this {period === '24h' ? 'day' : period === '7d' ? 'week' : 'month'} dealt
         </p>
@@ -254,7 +254,7 @@ function MoverFanPanel({
           No {side === 'up' ? 'rising' : 'falling'} cards with artwork this period.
         </p>
       ) : (
-        <div className="mt-4 grid items-end gap-8 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+        <div className="mt-10 grid items-end gap-8 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
           <InteractiveCardFan
             items={items}
             selectedKey={current ? moverKey(current) : null}
