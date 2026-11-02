@@ -1,13 +1,15 @@
 import { Bookmark, ExternalLink, X } from 'lucide-react';
 import { formatCurrency, formatPercent } from '../../../utils/cardDisplay';
+import { Basis } from '../../../components/exchange/Price';
 import type { Deal } from '../types';
 import { RISK_FLAG_LABELS, isLiveAuction } from '../types';
+import { cn } from '@/lib/utils';
 
-const CONFIDENCE_STYLES: Record<Deal['matchConfidenceTier'], string> = {
-  high: 'border-gain/30 bg-gain-muted text-gain',
-  medium: 'border-foil/30 bg-foil-muted text-foil',
-  low: 'border-neon-amber/30 bg-accent-muted text-neon-amber',
-  unresolved: 'border-border-subtle bg-surface-inset text-ink-muted',
+const CONFIDENCE_LABEL: Record<Deal['matchConfidenceTier'], string> = {
+  high: 'Strong match',
+  medium: 'Likely match',
+  low: 'Weak match, check the listing',
+  unresolved: 'Unconfirmed match',
 };
 
 function formatTimeRemaining(hours: number | null): string | null {
@@ -18,6 +20,11 @@ function formatTimeRemaining(hours: number | null): string | null {
   return `${Math.round(hours / 24)}d left`;
 }
 
+/**
+ * One eBay listing next to our market estimate. The listing figure is an
+ * asking price or current bid, never a sale; the market figure carries its
+ * source and date.
+ */
 export function DealCard({
   deal,
   saved,
@@ -38,129 +45,139 @@ export function DealCard({
   const live = isLiveAuction(deal);
 
   return (
-    <article className="flex flex-col rounded-xl border border-border-default bg-surface-raised p-4 text-left transition-colors hover:border-border-strong">
+    <article className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-x-4 border-b border-rule py-4">
       <button
         type="button"
         onClick={onOpen}
-        className="flex cursor-pointer items-start gap-3 text-left"
+        className="self-start overflow-hidden rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        aria-label={`Details for ${deal.cardName} listing`}
       >
         {deal.listingImage ? (
           <img
             src={deal.listingImage}
             alt=""
-            className="h-24 w-[4.5rem] shrink-0 rounded-lg object-cover"
+            loading="lazy"
+            className="aspect-[3/4] w-full bg-surface-inset object-cover"
           />
         ) : (
-          <div className="flex h-24 w-[4.5rem] shrink-0 items-center justify-center rounded-lg border border-border-subtle bg-surface-inset text-[10px] text-ink-muted">
-            {deal.cardName.slice(0, 2)}
-          </div>
+          <span className="grid aspect-[3/4] w-full place-items-center border border-dashed border-border-strong text-[11px] text-ink-muted">
+            No photo
+          </span>
         )}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <h3 className="truncate font-medium text-ink-primary">{deal.cardName}</h3>
-              <p className="truncate text-xs text-ink-muted">
-                {deal.setName}
-                {deal.cardNumber ? ` · ${deal.cardNumber}` : ''}
-              </p>
-            </div>
-            <span className="shrink-0 rounded-full border border-foil/30 bg-foil/10 px-2 py-0.5 text-[10px] font-semibold text-foil">
-              {deal.gradeLabel}
-            </span>
-          </div>
-
-          {live ? (
-            <>
-              <p className="mt-2 font-mono text-lg font-semibold tabular-nums text-ink-primary">
-                {formatCurrency(deal.listingPrice)} current bid
-              </p>
-              <p className="text-sm text-ink-secondary">
-                Market value {formatCurrency(deal.marketValue)}
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="mt-2 font-mono text-lg font-semibold tabular-nums text-ink-primary">
-                {formatCurrency(deal.allInCost)} all-in
-                <span className="mx-1.5 text-ink-muted">vs</span>
-                <span className="text-ink-secondary">{formatCurrency(deal.marketValue)}</span>
-              </p>
-              <p className="text-sm font-medium text-gain">
-                Save {formatCurrency(deal.discountAmount)} · {formatPercent(deal.discountPercent)}{' '}
-                below market
-              </p>
-            </>
-          )}
-        </div>
       </button>
 
-      <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        <span
-          className={`rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${CONFIDENCE_STYLES[deal.matchConfidenceTier]}`}
-        >
-          {deal.matchConfidenceTier} match
-        </span>
-        {deal.listingType === 'auction' ? (
-          <span className="rounded-full border border-neon-amber/30 bg-accent-muted px-1.5 py-0.5 text-[10px] font-medium text-neon-amber">
-            {live ? 'Live auction' : 'Ending soon'}
-          </span>
-        ) : (
-          <span className="rounded-full border border-border-subtle px-1.5 py-0.5 text-[10px] text-ink-muted">
-            Buy It Now
-          </span>
-        )}
-        {remaining && <span className="text-[10px] text-ink-muted">{remaining}</span>}
-        {deal.liquidityLabel && (
-          <span className="text-[10px] text-ink-muted">{deal.liquidityLabel}</span>
-        )}
-        {visibleFlags.map((flag) => (
-          <span
-            key={flag}
-            className="rounded-full border border-neon-amber/20 bg-accent-muted px-1.5 py-0.5 text-[10px] text-neon-amber"
+      <div className="min-w-0">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <button
+              type="button"
+              onClick={onOpen}
+              className="block max-w-full truncate text-left text-[14.5px] font-medium hover:underline"
+            >
+              {deal.cardName}
+            </button>
+            <p className="truncate text-[12px] text-ink-muted">
+              {deal.setName}
+              {deal.cardNumber ? ` · ${deal.cardNumber}` : ''} · {deal.gradeLabel}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-ink-muted hover:bg-surface-hover hover:text-ink-primary"
+            aria-label={`Dismiss ${deal.cardName} deal`}
           >
-            {RISK_FLAG_LABELS[flag]}
+            <X className="h-4 w-4" aria-hidden />
+          </button>
+        </div>
+
+        <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
+          <div>
+            <dt className="text-meta text-ink-muted">{live ? 'Current bid' : 'Asking, all in'}</dt>
+            <dd className="font-mono text-[17px] tabular-nums">
+              {formatCurrency(live ? deal.listingPrice : deal.allInCost)}
+            </dd>
+            {!live && deal.shipping > 0 ? (
+              <dd className="text-[11.5px] text-ink-muted">
+                {formatCurrency(deal.listingPrice)} + {formatCurrency(deal.shipping)} shipping
+              </dd>
+            ) : null}
+          </div>
+          <div>
+            <dt className="text-meta text-ink-muted">Market estimate</dt>
+            <dd className="font-mono text-[17px] tabular-nums text-ink-secondary">
+              {formatCurrency(deal.marketValue)}
+            </dd>
+            <dd>
+              <Basis
+                kind={deal.marketSource}
+                asOf={deal.marketUpdatedAt}
+                stale={deal.marketStale}
+                className="text-[11.5px]"
+              />
+            </dd>
+          </div>
+        </dl>
+
+        {!live ? (
+          <p className="mt-1.5 text-[13px] font-medium text-gain">
+            {formatCurrency(deal.discountAmount)} ({formatPercent(deal.discountPercent)}) under the
+            market estimate
+          </p>
+        ) : null}
+        {deal.listingType === 'auction' && deal.maxBid != null ? (
+          <p className="mt-1 text-[12.5px] text-ink-secondary">
+            Bid up to {formatCurrency(deal.maxBid)} to keep a {deal.desiredAuctionMargin}% margin
+          </p>
+        ) : null}
+
+        <p className="mt-2 text-[12px] text-ink-muted">
+          <span
+            className={cn(
+              deal.matchConfidenceTier === 'low' || deal.matchConfidenceTier === 'unresolved'
+                ? 'text-warn'
+                : undefined
+            )}
+          >
+            {CONFIDENCE_LABEL[deal.matchConfidenceTier]}
           </span>
-        ))}
-      </div>
-
-      {deal.listingType === 'auction' && deal.maxBid != null && (
-        <p className="mt-2 text-xs text-ink-secondary">
-          Max bid for {deal.desiredAuctionMargin}% margin: {formatCurrency(deal.maxBid)}
+          {' · '}
+          {deal.listingType === 'auction' ? (live ? 'Live auction' : 'Auction') : 'Buy It Now'}
+          {remaining ? ` · ${remaining}` : ''}
+          {deal.liquidityLabel ? ` · ${deal.liquidityLabel}` : ''}
         </p>
-      )}
+        {visibleFlags.length ? (
+          <ul className="mt-1 flex flex-wrap gap-x-3 text-[12px] text-warn">
+            {visibleFlags.map((flag) => (
+              <li key={flag}>{RISK_FLAG_LABELS[flag]}</li>
+            ))}
+          </ul>
+        ) : null}
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <a
-          href={deal.listingUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn-primary h-9 px-3 text-xs"
-        >
-          <ExternalLink className="h-3.5 w-3.5" />
-          View on eBay
-        </a>
-        <button type="button" onClick={onOpenCard} className="btn-secondary h-9 px-3 text-xs">
-          Open Card
-        </button>
-        <button
-          type="button"
-          onClick={onSave}
-          className={
-            saved ? 'btn-secondary h-9 px-3 text-xs text-accent' : 'btn-secondary h-9 px-3 text-xs'
-          }
-          aria-pressed={saved}
-        >
-          <Bookmark className={`h-3.5 w-3.5 ${saved ? 'fill-current' : ''}`} />
-          {saved ? 'Saved' : 'Save'}
-        </button>
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="btn-icon h-9 w-9"
-          aria-label="Dismiss deal"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <a
+            href={deal.listingUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-primary h-9"
+          >
+            <ExternalLink className="h-4 w-4" aria-hidden />
+            View on eBay
+            <span className="sr-only"> (opens in a new tab)</span>
+          </a>
+          <button type="button" onClick={onOpenCard} className="btn-secondary h-9">
+            Card details
+          </button>
+          <button
+            type="button"
+            onClick={onSave}
+            className={cn('btn-ghost h-9', saved && 'text-accent')}
+            aria-pressed={saved}
+          >
+            <Bookmark className={cn('h-4 w-4', saved && 'fill-current')} aria-hidden />
+            {saved ? 'Saved' : 'Save'}
+          </button>
+        </div>
       </div>
     </article>
   );

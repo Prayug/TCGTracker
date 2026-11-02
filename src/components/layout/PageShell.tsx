@@ -40,8 +40,6 @@ interface PageHeaderProps {
   title: string;
   description?: string;
   actions?: ReactNode;
-  /** Short context shown before the title, in sentence case (e.g. game or count). */
-  eyebrow?: string;
   /** Inline metadata displayed beside the title baseline (counts, freshness). */
   meta?: ReactNode;
   className?: string;
@@ -51,14 +49,7 @@ interface PageHeaderProps {
  * Contextual page header: editorial title, one line of purpose, actions on
  * the right, closed by a strong rule. Not a hero.
  */
-export function PageHeader({
-  title,
-  description,
-  actions,
-  eyebrow,
-  meta,
-  className,
-}: PageHeaderProps) {
+export function PageHeader({ title, description, actions, meta, className }: PageHeaderProps) {
   return (
     <div
       className={cn(
@@ -67,7 +58,6 @@ export function PageHeader({
       )}
     >
       <div className="min-w-0 space-y-1">
-        {eyebrow ? <p className="text-meta text-ink-muted">{eyebrow}</p> : null}
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h1 className="font-display text-h1 text-ink-primary">{title}</h1>
           {meta ? <span className="text-meta text-ink-muted">{meta}</span> : null}

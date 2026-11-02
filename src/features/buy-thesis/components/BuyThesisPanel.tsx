@@ -80,9 +80,7 @@ export function BuyThesisPanel({ cardId, compact = false, className }: Props) {
       )}
     >
       <div>
-        <p className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">
-          Worth buying now?
-        </p>
+        <p className="text-[11.5px] font-medium text-ink-muted">Worth buying now?</p>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <span
             className={cn(

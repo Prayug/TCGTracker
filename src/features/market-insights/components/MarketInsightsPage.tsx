@@ -36,6 +36,7 @@ import { BacktestPanel } from './BacktestPanel';
 import { ForwardTestPanel } from './ForwardTestPanel';
 import { ModelHealthPanel } from './ModelHealthPanel';
 import { PredictionRunProgress, runCompletionPercent } from './PredictionRunProgress';
+import { PageHeader } from '../../../components/layout/PageShell';
 
 const TABS = [
   {
@@ -92,7 +93,7 @@ export interface InsightsWorkspaceProps {
 export function MarketInsightsPage({
   embedded = false,
   api = marketInsightsApi,
-  title = 'Market Insights',
+  title = 'Insights',
   subtitle,
   cardsTabLabel = 'Cards',
   allLabel = 'All Cards',
@@ -179,60 +180,76 @@ export function MarketInsightsPage({
   return (
     <InsightsApiContext.Provider value={api}>
       <div className={`insights-page w-full ${embedded ? '' : ''}`}>
-        <div
-          className={`flex flex-wrap items-end justify-between gap-[var(--insights-space-2,0.75rem)] ${embedded ? 'mb-4' : 'mb-[var(--insights-space-3,1.5rem)]'}`}
-        >
-          {!embedded && (
-            <div className="insights-header-block min-w-0 space-y-1.5 sm:space-y-2">
-              <h1 className="font-display text-h1 text-ink-primary">{title}</h1>
-              <p className="insights-subtitle-long text-sm text-ink-secondary sm:text-base">
-                {subtitle ?? (
-                  <>
-                    Forecasts, classifications, and model checks
-                    {isOnePiece ? ' for One Piece' : ' for Pokémon'}
-                  </>
-                )}
-              </p>
-              <p className="insights-subtitle-short text-xs text-ink-secondary">
-                {subtitle ?? `Price forecasts${isOnePiece ? ' for One Piece' : ''}`}
-              </p>
-            </div>
-          )}
-          {embedded && (
-            <p className="max-w-xl text-xs text-ink-muted">
-              {subtitle ?? 'PSA 10 price forecasts from graded history.'}
+        {!embedded ? (
+          <PageHeader
+            title={title}
+            description={
+              subtitle ??
+              `Model forecasts and how well past forecasts held up, for ${isOnePiece ? 'One Piece' : 'Pokémon'}. Forecasts are estimates, not prices.`
+            }
+            actions={
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleRunPredictions}
+                  disabled={runningPrediction}
+                  className="btn-primary"
+                >
+                  <Play className="h-4 w-4" aria-hidden />
+                  {runningPrediction
+                    ? runPercent != null
+                      ? `Scoring ${runPercent}%`
+                      : 'Running…'
+                    : 'Run forecasts'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    loadPredictions();
+                    loadOverview();
+                  }}
+                  className="btn-secondary"
+                >
+                  <RefreshCw className="h-4 w-4" aria-hidden />
+                  Refresh
+                </button>
+              </div>
+            }
+            className="mb-6"
+          />
+        ) : (
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <p className="max-w-xl text-[12.5px] text-ink-muted">
+              {subtitle ?? 'PSA 10 price forecasts from graded history. Forecasts are estimates.'}
             </p>
-          )}
-          <div className="insights-header-actions flex shrink-0 items-center gap-2 sm:gap-3">
-            <button
-              onClick={handleRunPredictions}
-              disabled={runningPrediction}
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-accent px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Play className={`h-3.5 w-3.5 ${runningPrediction ? 'animate-pulse' : ''}`} />
-              <span className="insights-btn-label-long">
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={handleRunPredictions}
+                disabled={runningPrediction}
+                className="btn-primary"
+              >
+                <Play className="h-4 w-4" aria-hidden />
                 {runningPrediction
                   ? runPercent != null
                     ? `Scoring ${runPercent}%`
-                    : 'Running...'
-                  : 'Run Predictions'}
-              </span>
-              <span className="insights-btn-label-short">
-                {runningPrediction ? (runPercent != null ? `${runPercent}%` : '...') : 'Run'}
-              </span>
-            </button>
-            <button
-              onClick={() => {
-                loadPredictions();
-                loadOverview();
-              }}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border-default bg-surface-inset px-3 py-1.5 text-xs font-medium text-ink-secondary transition-colors hover:bg-surface-hover"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-              Refresh
-            </button>
+                    : 'Running…'
+                  : 'Run forecasts'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  loadPredictions();
+                  loadOverview();
+                }}
+                className="btn-secondary"
+              >
+                <RefreshCw className="h-4 w-4" aria-hidden />
+                Refresh
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         <PredictionRunProgress
           status={runStatus}
@@ -241,13 +258,12 @@ export function MarketInsightsPage({
         />
 
         {message && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-4 rounded-lg border border-accent/20 bg-accent/10 px-4 py-2 text-sm text-accent"
+          <p
+            className="mb-4 border-l-2 border-accent pl-3 text-[13px] text-ink-secondary"
+            role="status"
           >
             {message}
-          </motion.div>
+          </p>
         )}
         {isOnePiece && !predictionsLoading && predictions.length === 0 && !predictionsError && (
           <div className="mb-4 rounded-lg border border-border-default bg-surface-raised px-4 py-3 text-sm text-ink-secondary">
@@ -257,7 +273,8 @@ export function MarketInsightsPage({
 
         <div
           role="tablist"
-          className="scroll-rail scroll-rail-tabs isolate mb-4 -mx-1 gap-0.5 rounded-xl bg-surface-inset p-1 shadow-[inset_0_0_0_1px_var(--border-subtle)]"
+          aria-label="Insights sections"
+          className="mb-4 flex gap-1 overflow-x-auto border-b border-rule"
         >
           {TABS.map((tab) => (
             <button
@@ -266,27 +283,14 @@ export function MarketInsightsPage({
               role="tab"
               aria-selected={activeTab === tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`relative flex h-8 shrink-0 items-center gap-2 rounded-lg px-[clamp(0.625rem,1vw,0.875rem)] text-[13px] font-medium transition-[color,transform] duration-150 ease-out active:scale-[0.97] [&_svg]:h-3.5 [&_svg]:w-3.5 ${
+              className={`-mb-px flex h-10 shrink-0 items-center gap-1.5 border-b-2 px-2.5 text-[13.5px] font-medium transition-colors [&_svg]:h-3.5 [&_svg]:w-3.5 ${
                 activeTab === tab.id
-                  ? 'text-ink-primary'
-                  : 'text-ink-muted hover:text-ink-secondary'
+                  ? 'border-ink-primary text-ink-primary'
+                  : 'border-transparent text-ink-muted hover:text-ink-primary'
               }`}
             >
-              {activeTab === tab.id && (
-                <motion.span
-                  layoutId="insights-tab"
-                  aria-hidden
-                  className="absolute inset-0 -z-10 rounded-lg bg-surface-raised shadow-[inset_0_0_0_1px_var(--border-default),0_1px_2px_rgba(0,0,0,0.2)]"
-                  transition={{ type: 'spring', duration: 0.35, bounce: 0.12 }}
-                />
-              )}
               {tab.icon}
-              <span className="insights-tab-label-long">
-                {tab.id === 'cards' ? cardsTabLabel : tab.label}
-              </span>
-              <span className="insights-tab-label-short">
-                {tab.id === 'cards' ? cardsTabLabel : tab.shortLabel}
-              </span>
+              {tab.id === 'cards' ? cardsTabLabel : tab.label}
             </button>
           ))}
         </div>
@@ -295,7 +299,7 @@ export function MarketInsightsPage({
           <div className="mb-4 space-y-[var(--insights-space-2,0.75rem)]">
             <div className="flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
               <div className="min-w-0">
-                <span className="block text-[11px] font-medium uppercase tracking-wide text-ink-muted">
+                <span className="block text-[12px] font-medium text-ink-muted">
                   Forecast window
                 </span>
                 <p className="text-[11px] text-ink-muted">
@@ -316,9 +320,9 @@ export function MarketInsightsPage({
                         disabled={unsupported}
                         title={
                           unsupported
-                            ? 'Unsupported — not enough price history for this horizon'
+                            ? 'Not enough price history for this horizon'
                             : experimental
-                              ? 'Experimental — limited history; treat estimates cautiously'
+                              ? 'Limited history: treat these estimates with extra caution'
                               : `${PREDICTION_WINDOW_LABELS[w]} forecast horizon`
                         }
                         className={`relative cursor-pointer rounded-lg px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed ${
@@ -331,12 +335,12 @@ export function MarketInsightsPage({
                       >
                         {PREDICTION_WINDOW_LABELS[w]}
                         {experimental && (
-                          <span className="ml-1 rounded bg-accent-muted px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-neon-amber">
+                          <span className="ml-1 rounded bg-accent-muted px-1 py-px text-[11.5px] font-medium text-neon-amber">
                             exp
                           </span>
                         )}
                         {unsupported && (
-                          <span className="ml-1 rounded bg-surface-hover px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-ink-muted">
+                          <span className="ml-1 rounded bg-surface-hover px-1 py-px text-[11.5px] font-medium text-ink-muted">
                             n/a
                           </span>
                         )}

@@ -197,7 +197,6 @@ export const GradingPage: React.FC = () => {
     <PageShell className="relative">
       {!result && (
         <PageHeader
-          eyebrow="Grading"
           title="AI card grading"
           description="Photograph the front and back. We’ll return a predicted PSA number from those photos. Not a substitute for a slab."
           actions={

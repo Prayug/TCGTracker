@@ -296,7 +296,7 @@ export function StrategyPanel() {
             </p>
             <table className="mt-3 w-full min-w-[34rem]">
               <thead>
-                <tr className="text-left text-[11px] font-medium uppercase tracking-wide text-ink-muted">
+                <tr className="text-left text-[12px] font-medium text-ink-muted">
                   <th className="pb-2 pr-4 font-medium">Strategy</th>
                   <th className="pb-2 pr-4 text-right font-medium">vs random</th>
                   <th className="pb-2 pr-4 text-right font-medium">Weeks ahead</th>

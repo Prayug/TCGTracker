@@ -167,9 +167,7 @@ export function PredictionCardsView({
 
       <div>
         <div className="mb-1.5 flex items-baseline justify-between gap-2">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-ink-muted">
-            Classification
-          </span>
+          <span className="text-[12px] font-medium text-ink-muted">Classification</span>
         </div>
         <div className="scroll-rail scroll-rail-chips -mx-1 px-1 pb-0.5">
           {CATEGORY_OPTIONS.map((opt) => {

@@ -109,9 +109,7 @@ export const GradeBadge: React.FC<GradeBadgeProps> = ({
           className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-br from-white/25 via-white/[0.05] to-transparent"
         />
       </div>
-      {label && (
-        <span className={`text-xs font-semibold uppercase tracking-[0.12em] ${text}`}>{label}</span>
-      )}
+      {label && <span className={`text-xs font-medium ${text}`}>{label}</span>}
     </motion.div>
   );
 };

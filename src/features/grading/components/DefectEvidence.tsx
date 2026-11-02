@@ -60,7 +60,7 @@ function CategoryCard({
 
   const severityBadge = (severity: string) => (
     <span
-      className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${SEVERITY_STYLES[severity] || SEVERITY_STYLES.minor}`}
+      className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[11.5px] font-medium ${SEVERITY_STYLES[severity] || SEVERITY_STYLES.minor}`}
     >
       {severity}
     </span>
@@ -78,9 +78,7 @@ function CategoryCard({
         >
           <div className="flex items-center gap-2">
             <span className={`text-sm ${config.color}`}>{config.icon}</span>
-            <span className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">
-              {config.label}
-            </span>
+            <span className="text-xs font-medium text-ink-secondary">{config.label}</span>
             {regions.length > 0 && (
               <span className="rounded-full bg-surface-overlay px-1.5 py-0.5 text-[9px] text-ink-muted">
                 {regions.length} region{regions.length !== 1 ? 's' : ''}
@@ -196,7 +194,7 @@ export const DefectEvidence: React.FC<DefectEvidenceProps> = ({ regions, defects
 
   return (
     <div className="mt-5">
-      <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-neon-amber">
+      <div className="mb-3 flex items-center gap-2 text-xs font-medium text-neon-amber">
         <AlertTriangle className="h-3.5 w-3.5" />
         Defect evidence — tap regions to zoom
       </div>

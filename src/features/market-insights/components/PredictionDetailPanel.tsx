@@ -86,7 +86,7 @@ function PriceRangeRow({
         </span>
       </div>
       <div className="mb-1.5 flex items-baseline gap-2">
-        <span className="text-[10px] uppercase tracking-wide text-ink-muted">Expected</span>
+        <span className="text-[11.5px] text-ink-muted">Expected</span>
         <span className="font-mono text-sm font-semibold tabular-nums text-ink-primary">
           ${mid.toFixed(2)}
         </span>
@@ -183,15 +183,13 @@ export function PredictionDetailPanel({
 
             <div className="mb-4 grid grid-cols-2 gap-3">
               <div className="rounded-xl border border-border-default bg-surface-inset p-3">
-                <span className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">
-                  Current Price
-                </span>
+                <span className="text-[11.5px] font-medium text-ink-muted">Current Price</span>
                 <div className="mt-1 font-mono text-lg font-semibold tabular-nums text-ink-primary">
                   ${prediction.currentPrice?.toFixed(2) || 'N/A'}
                 </div>
               </div>
               <div className="rounded-xl border border-border-default bg-surface-inset p-3">
-                <span className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">
+                <span className="text-[11.5px] font-medium text-ink-muted">
                   {windowLabel} Expected Return
                 </span>
                 <div

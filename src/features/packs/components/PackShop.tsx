@@ -139,7 +139,7 @@ export const PackShop: React.FC = () => {
           <article className="card min-w-0">
             <div className="mb-2 flex items-center justify-between gap-2">
               <p className="section-label">Session P/L</p>
-              <span className="rounded-md border border-border-subtle bg-surface-hover px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-ink-muted">
+              <span className="rounded-md border border-border-subtle bg-surface-hover px-1.5 py-0.5 text-[11.5px] font-medium text-ink-muted">
                 Simulated
               </span>
             </div>
@@ -229,13 +229,11 @@ export const PackShop: React.FC = () => {
                 <div className="flex flex-1 flex-col gap-4 p-5">
                   <div className="flex justify-between border-b border-border-subtle pb-3 text-center text-sm">
                     <div>
-                      <p className="text-[10px] uppercase tracking-wider text-ink-muted">Cards</p>
+                      <p className="text-[11.5px] text-ink-muted">Cards</p>
                       <p className="font-bold tabular-nums text-ink-primary">{pack.cardsPerPack}</p>
                     </div>
                     <div>
-                      <p className="text-[10px] uppercase tracking-wider text-ink-muted">
-                        Avg value
-                      </p>
+                      <p className="text-[11.5px] text-ink-muted">Avg value</p>
                       <p className="font-bold tabular-nums text-gain">
                         {formatCurrency(pack.averageValue)}
                       </p>

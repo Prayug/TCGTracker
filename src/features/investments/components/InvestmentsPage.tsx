@@ -1,15 +1,5 @@
-import { motion } from 'framer-motion';
-import {
-  FlaskConical,
-  Flame,
-  Layers,
-  Radio,
-  RefreshCw,
-  Target,
-  TrendingDown,
-  TrendingUp,
-} from 'lucide-react';
-import { PageHeader, PageShell, StatBlock } from '@/components/layout/PageShell';
+import { FlaskConical, Flame, Layers, Radio, RefreshCw, Target, TrendingUp } from 'lucide-react';
+import { PageHeader, PageShell } from '@/components/layout/PageShell';
 import { useInvestments } from '../hooks/useInvestments';
 import type { InvestmentsTab } from '../types';
 import { OpportunityListPanel } from './OpportunityListPanel';
@@ -71,17 +61,9 @@ export function InvestmentsPage() {
     setSignalSort,
   } = useInvestments();
 
-  const topMovers = [...(movers?.rows ?? [])]
-    .sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct))
-    .slice(0, 8);
-  const topMover = topMovers[0] ?? null;
-  const opportunityCount = opportunities?.count ?? opportunities?.rows.length ?? null;
-  const signalsAnalyzed = signals?.pulse?.analyzedLast24h ?? null;
-
   return (
     <PageShell wide>
       <PageHeader
-        eyebrow="Market"
         title="Investments"
         description="What buying cards has actually returned after fees, where it's fair to buy now, and the market signals behind it."
         actions={
@@ -89,7 +71,7 @@ export function InvestmentsPage() {
             <button
               type="button"
               onClick={refresh}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border-default bg-surface-inset px-3 py-1.5 text-xs font-medium text-ink-secondary transition-colors hover:bg-surface-hover"
+              className="btn-secondary"
               aria-label="Refresh investments data"
             >
               <RefreshCw className="h-3.5 w-3.5" />
@@ -98,57 +80,6 @@ export function InvestmentsPage() {
           )
         }
       />
-
-      {activeTab !== 'strategy' && (
-        <>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <StatBlock
-              label="Opportunities"
-              value={opportunityCount ?? '—'}
-              hint="Scored buy candidates live now"
-            />
-            <StatBlock
-              label="Top mover"
-              value={
-                topMover
-                  ? `${topMover.changePct >= 0 ? '+' : ''}${topMover.changePct.toFixed(1)}%`
-                  : '—'
-              }
-              trend={topMover ? (topMover.changePct >= 0 ? 'up' : 'down') : undefined}
-              hint={topMover?.cardName ?? 'No movers yet'}
-            />
-            <StatBlock
-              label="Signals analyzed"
-              value={signalsAnalyzed ?? '—'}
-              hint="Last 24 hours"
-            />
-          </div>
-
-          {topMovers.length > 0 && (
-            <div className="marquee-container rounded-xl border border-border-subtle bg-surface-raised/60 py-2.5">
-              <div className="marquee-content" style={{ animationDuration: '32s' }}>
-                {[...topMovers, ...topMovers].map((m, i) => (
-                  <span
-                    key={`${m.cardId}-${i}`}
-                    className="inline-flex items-center gap-1.5 text-xs font-medium"
-                  >
-                    {m.changePct >= 0 ? (
-                      <TrendingUp className="h-3 w-3 text-gain" aria-hidden />
-                    ) : (
-                      <TrendingDown className="h-3 w-3 text-loss" aria-hidden />
-                    )}
-                    <span className="text-ink-secondary">{m.cardName ?? 'Unknown card'}</span>
-                    <span className={m.changePct >= 0 ? 'text-gain' : 'text-loss'}>
-                      {m.changePct >= 0 ? '+' : ''}
-                      {m.changePct.toFixed(1)}%
-                    </span>
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </>
-      )}
 
       {activeTab === 'signals' && signalsLoadedAt && (
         <p className="text-xs text-ink-muted">
@@ -165,7 +96,8 @@ export function InvestmentsPage() {
 
       <div
         role="tablist"
-        className="isolate flex w-fit gap-0.5 rounded-xl bg-surface-inset p-1 shadow-[inset_0_0_0_1px_var(--border-subtle)]"
+        aria-label="Investment views"
+        className="flex gap-1 overflow-x-auto border-b border-rule"
       >
         {TABS.map((tab) => (
           <button
@@ -174,30 +106,19 @@ export function InvestmentsPage() {
             role="tab"
             aria-selected={activeTab === tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`relative flex h-8 cursor-pointer items-center gap-2 rounded-lg px-3.5 text-[13px] font-medium transition-[color,transform] duration-150 ease-out active:scale-[0.97] [&_svg]:h-3.5 [&_svg]:w-3.5 ${
-              activeTab === tab.id ? 'text-ink-primary' : 'text-ink-muted hover:text-ink-secondary'
+            className={`-mb-px flex h-10 shrink-0 items-center gap-1.5 border-b-2 px-2.5 text-[13.5px] font-medium transition-colors [&_svg]:h-3.5 [&_svg]:w-3.5 ${
+              activeTab === tab.id
+                ? 'border-ink-primary text-ink-primary'
+                : 'border-transparent text-ink-muted hover:text-ink-primary'
             }`}
           >
-            {activeTab === tab.id && (
-              <motion.span
-                layoutId="investments-tab"
-                aria-hidden
-                className="absolute inset-0 -z-10 rounded-lg bg-surface-raised shadow-[inset_0_0_0_1px_var(--border-default),0_1px_2px_rgba(0,0,0,0.2)]"
-                transition={{ type: 'spring', duration: 0.35, bounce: 0.12 }}
-              />
-            )}
             {tab.icon}
-            <span className="hidden sm:inline">{tab.label}</span>
+            {tab.label}
           </button>
         ))}
       </div>
 
-      <motion.div
-        key={activeTab}
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.2 }}
-      >
+      <div>
         {activeTab === 'strategy' && <StrategyPanel />}
         {activeTab === 'opportunities' && (
           <OpportunityListPanel
@@ -245,7 +166,7 @@ export function InvestmentsPage() {
             error={error}
           />
         )}
-      </motion.div>
+      </div>
     </PageShell>
   );
 }

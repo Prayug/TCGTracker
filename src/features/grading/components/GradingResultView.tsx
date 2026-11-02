@@ -378,7 +378,7 @@ export const GradingResultView: React.FC<GradingResultViewProps> = ({
                         }`}
                       >
                         <span
-                          className={`mt-0.5 shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${LEVEL_CLASS[row.level]}`}
+                          className={`mt-0.5 shrink-0 rounded-full border px-2 py-0.5 text-[11.5px] font-medium ${LEVEL_CLASS[row.level]}`}
                         >
                           {LEVEL_LABEL[row.level]}
                         </span>
@@ -575,7 +575,7 @@ export const GradingResultView: React.FC<GradingResultViewProps> = ({
                                 </span>
                               )}
                               {row.confidenceBand && (
-                                <span className="text-[10px] uppercase tracking-wide text-ink-muted">
+                                <span className="text-[11.5px] text-ink-muted">
                                   {row.confidenceBand}
                                 </span>
                               )}
@@ -660,9 +660,7 @@ function MeasurementDetails({ result }: { result: GradingResult }) {
   return (
     <div className="space-y-3 rounded-xl border border-border-subtle p-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">
-          TCGTracker condition score
-        </p>
+        <p className="text-xs font-medium text-ink-muted">TCGTracker condition score</p>
         <span className="text-xs text-ink-muted">Internal score</span>
       </div>
       {tcg ? (
@@ -788,9 +786,7 @@ function EconomicsBlock({
       </dl>
       {decision.showDistribution && e.distribution && (
         <div className="mt-3">
-          <p className="mb-1 text-xs font-medium uppercase tracking-wide text-ink-muted">
-            Condition-adjusted PSA mass
-          </p>
+          <p className="mb-1 text-xs font-medium text-ink-muted">Condition-adjusted PSA mass</p>
           <ul className="space-y-1">
             {e.distribution.map((row) => (
               <li key={row.grade} className="flex items-center gap-2 text-sm">

@@ -155,7 +155,6 @@ export const OpenPacksPage: React.FC = () => {
   return (
     <PageShell>
       <PageHeader
-        eyebrow="Tools"
         title="OP booster simulator"
         description="Pick a set and open a pack, box, or case using that set’s published rates. Save pulls to your collection."
       />
@@ -207,9 +206,7 @@ export const OpenPacksPage: React.FC = () => {
         />
         <div className="relative flex flex-col gap-6 p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-xl space-y-2">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-foil">
-              Currently opening
-            </p>
+            <p className="text-xs font-bold text-foil">Currently opening</p>
             <h3 className="font-display text-2xl font-bold text-ink-primary sm:text-3xl">
               {selectedSet ? (
                 <>
@@ -306,7 +303,7 @@ export const OpenPacksPage: React.FC = () => {
         </summary>
         <div className="border-t border-border-subtle px-5 py-4">
           <div className="overflow-x-auto" role="table" aria-label="Pull rates">
-            <div className="grid min-w-[36rem] grid-cols-[1fr_8rem_10rem_10rem] gap-2 px-2 pb-2 text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+            <div className="grid min-w-[36rem] grid-cols-[1fr_8rem_10rem_10rem] gap-2 px-2 pb-2 text-[12px] font-bold text-ink-muted">
               <span role="columnheader">Rarity</span>
               <span role="columnheader" className="text-right">
                 Per pack
@@ -362,7 +359,7 @@ export const OpenPacksPage: React.FC = () => {
               <h3 id="session-pulls-title" className="text-lg font-semibold text-ink-primary">
                 Your pulled cards
               </h3>
-              <span className="rounded-md border border-border-subtle bg-surface-hover px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
+              <span className="rounded-md border border-border-subtle bg-surface-hover px-1.5 py-0.5 text-[11.5px] font-medium text-ink-muted">
                 This session
               </span>
             </div>
@@ -412,7 +409,7 @@ export const OpenPacksPage: React.FC = () => {
           <h3 id="collection-title" className="text-lg font-semibold text-ink-primary">
             Saved collection
           </h3>
-          <span className="rounded-md border border-border-subtle bg-surface-hover px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
+          <span className="rounded-md border border-border-subtle bg-surface-hover px-1.5 py-0.5 text-[11.5px] font-medium text-ink-muted">
             This browser
           </span>
         </div>

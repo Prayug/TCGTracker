@@ -181,7 +181,7 @@ function MoverColumn({
   if (rows.length === 0) {
     return (
       <div>
-        <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+        <p className="mb-1.5 flex items-center gap-1.5 text-[12px] font-medium text-ink-muted">
           {icon}
           {title}
         </p>
@@ -191,7 +191,7 @@ function MoverColumn({
   }
   return (
     <div>
-      <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+      <p className="mb-1.5 flex items-center gap-1.5 text-[12px] font-medium text-ink-muted">
         {icon}
         {title}
       </p>

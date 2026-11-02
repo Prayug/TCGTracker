@@ -33,23 +33,19 @@ function SummaryBand({
       />
       <div className="grid grid-cols-3 divide-x divide-border-subtle/80">
         <div className="px-3 py-2.5 sm:px-4">
-          <p className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">
-            Pull value
-          </p>
+          <p className="text-[11.5px] font-medium text-ink-muted">Pull value</p>
           <p className="mt-0.5 text-lg font-bold tabular-nums leading-none text-ink-primary sm:text-xl">
             {formatCurrency(value)}
           </p>
         </div>
         <div className="px-3 py-2.5 sm:px-4">
-          <p className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">
-            Pack cost
-          </p>
+          <p className="text-[11.5px] font-medium text-ink-muted">Pack cost</p>
           <p className="mt-0.5 text-lg font-bold tabular-nums leading-none text-ink-secondary sm:text-xl">
             {formatCurrency(cost)}
           </p>
         </div>
         <div className="px-3 py-2.5 sm:px-4">
-          <p className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">P/L</p>
+          <p className="text-[11.5px] font-medium text-ink-muted">P/L</p>
           <p
             className={cn(
               'mt-0.5 text-lg font-bold tabular-nums leading-none sm:text-xl',
@@ -144,9 +140,7 @@ export const PackPullResults: React.FC<PackPullResultsProps> = ({ packPull, rari
                   isWin ? 'border-gain/25 bg-gain/5' : 'border-border-subtle bg-surface-overlay/40'
                 )}
               >
-                <p className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">
-                  Market value
-                </p>
+                <p className="text-[11.5px] font-medium text-ink-muted">Market value</p>
                 <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
                   <p className="text-2xl font-bold tabular-nums text-ink-primary sm:text-3xl">
                     {formatCurrency(pullValue)}

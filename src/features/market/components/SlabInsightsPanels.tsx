@@ -390,19 +390,19 @@ export const SlabBookPanel: React.FC = () => {
       {lots.length > 0 && (
         <div className="mb-3 grid grid-cols-3 gap-3">
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-ink-muted">Cost</p>
+            <p className="text-[11.5px] text-ink-muted">Cost</p>
             <p className="font-mono text-sm font-semibold tabular-nums text-ink-primary">
               {formatCurrency(totals.cost)}
             </p>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-ink-muted">Mark</p>
+            <p className="text-[11.5px] text-ink-muted">Mark</p>
             <p className="font-mono text-sm font-semibold tabular-nums text-ink-primary">
               {loadingMarks ? '…' : formatCurrency(totals.mtm)}
             </p>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-ink-muted">P&amp;L</p>
+            <p className="text-[11.5px] text-ink-muted">P&amp;L</p>
             <p
               className={`font-mono text-sm font-semibold tabular-nums ${
                 totals.pnl >= 0 ? 'text-gain' : 'text-loss'

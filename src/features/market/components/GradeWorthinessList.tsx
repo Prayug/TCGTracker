@@ -266,7 +266,7 @@ function SetPicker({
             ) : (
               grouped.map((group) => (
                 <div key={group.era} className="pt-1">
-                  <p className="sticky top-0 bg-surface-overlay/95 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-muted backdrop-blur-sm">
+                  <p className="sticky top-0 bg-surface-overlay/95 px-3 py-1 text-[11.5px] font-medium text-ink-muted backdrop-blur-sm">
                     {group.label}
                   </p>
                   {group.sets.map((set) => {
@@ -623,7 +623,7 @@ export const GradeWorthinessList: React.FC<GradeWorthinessListProps> = ({
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <p className="font-display text-[10px] font-semibold uppercase tracking-[0.16em] text-foil">
+                          <p className="font-display text-[11.5px] font-medium text-foil">
                             #{rows.findIndex((r) => r.cardId === featured.cardId) + 1} pick
                           </p>
                           <TrustCue
@@ -654,9 +654,7 @@ export const GradeWorthinessList: React.FC<GradeWorthinessListProps> = ({
 
                     <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                       <div className="rounded-lg bg-surface-inset/80 px-2 py-1.5">
-                        <p className="text-[10px] uppercase tracking-wider text-ink-muted">
-                          PSA 10
-                        </p>
+                        <p className="text-[11.5px] text-ink-muted">PSA 10</p>
                         <p className="font-mono text-xs font-semibold tabular-nums text-ink-primary">
                           {formatCurrency(featured.psa10Price)}
                         </p>
@@ -667,21 +665,19 @@ export const GradeWorthinessList: React.FC<GradeWorthinessListProps> = ({
                         )}
                       </div>
                       <div className="rounded-lg bg-surface-inset/80 px-2 py-1.5">
-                        <p className="text-[10px] uppercase tracking-wider text-ink-muted">Raw</p>
+                        <p className="text-[11.5px] text-ink-muted">Raw</p>
                         <p className="font-mono text-xs font-semibold tabular-nums text-ink-primary">
                           {formatCurrency(featured.rawPrice)}
                         </p>
                       </div>
                       <div className="rounded-lg bg-surface-inset/80 px-2 py-1.5">
-                        <p className="text-[10px] uppercase tracking-wider text-ink-muted">
-                          Fee · {featured.gradingTier}
-                        </p>
+                        <p className="text-[11.5px] text-ink-muted">Fee · {featured.gradingTier}</p>
                         <p className="font-mono text-xs font-semibold tabular-nums text-ink-primary">
                           {formatCurrency(featured.gradingFee)}
                         </p>
                       </div>
                       <div className="rounded-lg bg-surface-inset/80 px-2 py-1.5">
-                        <p className="text-[10px] uppercase tracking-wider text-ink-muted">Gem</p>
+                        <p className="text-[11.5px] text-ink-muted">Gem</p>
                         <p className="font-mono text-xs font-semibold tabular-nums text-ink-primary">
                           {featured.gemRatePct.toFixed(1)}%
                           <span className="ml-1 font-normal text-ink-muted">

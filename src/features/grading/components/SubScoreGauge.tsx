@@ -50,9 +50,7 @@ export const SubScoreGauge: React.FC<SubScoreGaugeProps> = ({
       />
 
       <div className="flex items-baseline justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-secondary">
-          {label}
-        </p>
+        <p className="text-[12px] font-medium text-ink-secondary">{label}</p>
         <div className="flex items-baseline gap-1">
           <span
             className="font-display text-[1.7rem] font-bold leading-none tabular-nums"

@@ -183,22 +183,8 @@ function AppRoutes() {
                 }
               />
             ) : null}
-            <Route
-              path="/investments"
-              element={
-                <ShellPage wide>
-                  <InvestmentsPage />
-                </ShellPage>
-              }
-            />
-            <Route
-              path="/deals"
-              element={
-                <ShellPage wide>
-                  <DealsPage />
-                </ShellPage>
-              }
-            />
+            <Route path="/investments" element={<InvestmentsPage />} />
+            <Route path="/deals" element={<DealsPage />} />
             <Route
               path="/money-flow"
               element={

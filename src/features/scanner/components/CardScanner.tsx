@@ -77,28 +77,20 @@ function ScanResultSheet({ result }: { result: ScanResult }) {
         )}
         <dl className="grid flex-1 grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-border-subtle bg-surface-inset p-3">
           <div>
-            <dt className="mb-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-muted">
-              Name
-            </dt>
+            <dt className="mb-0.5 text-[11.5px] font-medium text-ink-muted">Name</dt>
             <dd className="text-sm font-semibold text-ink-primary">{name}</dd>
           </div>
           <div>
-            <dt className="mb-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-muted">
-              Set
-            </dt>
+            <dt className="mb-0.5 text-[11.5px] font-medium text-ink-muted">Set</dt>
             <dd className="text-sm font-semibold text-ink-primary">{set}</dd>
           </div>
           <div>
-            <dt className="mb-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-muted">
-              Number
-            </dt>
+            <dt className="mb-0.5 text-[11.5px] font-medium text-ink-muted">Number</dt>
             <dd className="text-sm font-semibold tabular-nums text-ink-primary">{number || '—'}</dd>
           </div>
           {id && (
             <div>
-              <dt className="mb-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-muted">
-                ID
-              </dt>
+              <dt className="mb-0.5 text-[11.5px] font-medium text-ink-muted">ID</dt>
               <dd className="truncate text-sm font-mono text-ink-secondary">{id}</dd>
             </div>
           )}
@@ -359,7 +351,7 @@ export function CardScanner() {
 
           {retryProgress < 100 && (
             <div className="mx-auto mt-6 max-w-xs">
-              <div className="mb-1 flex justify-between text-[10px] uppercase tracking-wider text-ink-muted">
+              <div className="mb-1 flex justify-between text-[11.5px] text-ink-muted">
                 <span>Auto-retry</span>
                 <span>{retryProgress}%</span>
               </div>
@@ -449,7 +441,7 @@ export function CardScanner() {
   return (
     <div className="mx-auto max-w-3xl">
       <div className="mb-8 space-y-2">
-        <p className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-foil">
+        <p className="inline-flex items-center gap-2 text-xs font-medium text-foil">
           <span className="h-1.5 w-1.5 rounded-full bg-accent shadow-glow-accent" aria-hidden />
           Scanner
         </p>
@@ -594,7 +586,7 @@ export function CardScanner() {
             {isCameraActive && !isScanning && (
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                 <div className="relative h-[68%] w-[42%] max-w-[220px] rounded-xl border-2 border-accent/70 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]">
-                  <span className="absolute -top-7 left-0 right-0 text-center text-[10px] font-semibold uppercase tracking-wider text-accent">
+                  <span className="absolute -top-7 left-0 right-0 text-center text-[11.5px] font-medium text-accent">
                     Align card here
                   </span>
                   <span className="absolute -left-1 -top-1 h-4 w-4 border-l-2 border-t-2 border-accent" />

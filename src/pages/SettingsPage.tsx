@@ -121,7 +121,7 @@ export function SettingsPage() {
 
   const inputClass =
     'w-full rounded-lg border border-border-default bg-surface-inset px-3 py-2 text-sm text-ink-primary placeholder:text-ink-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30';
-  const labelClass = 'mb-1.5 block text-xs font-medium uppercase tracking-[0.08em] text-ink-muted';
+  const labelClass = 'mb-1 block text-[13px] font-medium text-ink-primary';
 
   if (isLoading) {
     return (
