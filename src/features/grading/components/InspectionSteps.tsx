@@ -139,7 +139,7 @@ export function InspectionSequence({ src }: { src: string | null }) {
         {src ? (
           <img
             src={src}
-            alt="Front photo being graded"
+            alt="Front of the card being graded"
             className="aspect-[5/7] w-full object-cover"
           />
         ) : (

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Modal } from '../../../components/common/Modal';
 import { OpenedPack, PullCard } from '../types';
+import { PackTear } from './PackTear';
 import { PackFan } from './PackFan';
 import { opRarityStyle, OP_RARITY_LABELS } from './opRarityStyles';
 import { rarityRank } from '../services/onePiecePackService';
@@ -28,12 +29,14 @@ export const PackRevealModal: React.FC<PackRevealModalProps> = ({
   const [saved, setSaved] = useState(false);
   const [allFlipped, setAllFlipped] = useState(false);
   const [flippedIndices, setFlippedIndices] = useState<number[]>([]);
+  const [opened, setOpened] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setSaved(false);
       setAllFlipped(false);
       setFlippedIndices([]);
+      setOpened(false);
     }
   }, [isOpen, pack]);
 
@@ -148,12 +151,21 @@ export const PackRevealModal: React.FC<PackRevealModalProps> = ({
         )}
 
         <div className="mt-2 min-h-0 flex-1">
-          <PackFan
-            key={pack.id}
-            cards={revealOrder}
-            onDone={() => setAllFlipped(true)}
-            onFlippedChange={handleFlippedChange}
-          />
+          {opened ? (
+            <PackFan
+              key={pack.id}
+              cards={revealOrder}
+              onDone={() => setAllFlipped(true)}
+              onFlippedChange={handleFlippedChange}
+            />
+          ) : (
+            <PackTear
+              title={pack.setName}
+              code={pack.code}
+              count={revealOrder.length}
+              onOpened={() => setOpened(true)}
+            />
+          )}
         </div>
       </div>
     </Modal>
