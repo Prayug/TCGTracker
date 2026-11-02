@@ -1,0 +1,356 @@
+import { useMemo, useState } from 'react';
+import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import type { VaultCard } from '../../../types/pokemon';
+import { HolographicCard } from '../../../components/collectible/HolographicCard';
+import { CardSpotlight } from '../../../components/collectible/CardSpotlight';
+import { FINISH_LABEL, finishOf, finishRank } from '../../../components/collectible/finish';
+import { Delta, Price } from '../../../components/exchange/Price';
+import { formatCurrency } from '../../../utils/cardDisplay';
+import { holdingMarketValue, knownHoldingProfit, marketUnitPrice } from '../../../utils/vaultCost';
+import { usePrefersReducedMotion } from '../../../hooks/useMotionPreferences';
+import { cn } from '@/lib/utils';
+
+type ShowSort = 'value' | 'rarity' | 'set' | 'date' | 'name';
+const SORTS: { id: ShowSort; label: string }[] = [
+  { id: 'value', label: 'Value' },
+  { id: 'rarity', label: 'Rarity' },
+  { id: 'set', label: 'Set' },
+  { id: 'date', label: 'Newest' },
+  { id: 'name', label: 'Name' },
+];
+
+function sortShowcase(rows: VaultCard[], sort: ShowSort): VaultCard[] {
+  const by = [...rows];
+  switch (sort) {
+    case 'value':
+      return by.sort((a, b) => holdingMarketValue(b) - holdingMarketValue(a));
+    case 'rarity':
+      return by.sort(
+        (a, b) =>
+          finishRank(finishOf(b.card)) - finishRank(finishOf(a.card)) ||
+          holdingMarketValue(b) - holdingMarketValue(a)
+      );
+    case 'set':
+      return by.sort(
+        (a, b) =>
+          (a.card.set?.releaseDate || '9999').localeCompare(b.card.set?.releaseDate || '9999') ||
+          (a.card.set?.name || '').localeCompare(b.card.set?.name || '') ||
+          (parseInt(a.card.number, 10) || 0) - (parseInt(b.card.number, 10) || 0)
+      );
+    case 'date':
+      return by.sort((a, b) => (b.purchaseDate || '').localeCompare(a.purchaseDate || ''));
+    case 'name':
+      return by.sort((a, b) => a.card.name.localeCompare(b.card.name));
+  }
+}
+
+/**
+ * The vault as a display case. A spotlight pedestal for the most valuable
+ * pieces, then the whole collection as large cards that re-flow (animated)
+ * when the sort changes. Selecting a card grows it into a detail view.
+ */
+export function CollectionShowcase({
+  rows,
+  onEdit,
+}: {
+  rows: VaultCard[];
+  onEdit: (vc: VaultCard) => void;
+}) {
+  const [sort, setSort] = useState<ShowSort>('value');
+  const sorted = useMemo(() => sortShowcase(rows, sort), [rows, sort]);
+  const featured = useMemo(
+    () =>
+      sortShowcase(rows, 'value')
+        .filter((r) => holdingMarketValue(r) > 0)
+        .slice(0, 5),
+    [rows]
+  );
+  const [open, setOpen] = useState<{ vc: VaultCard; layoutId: string } | null>(null);
+
+  return (
+    <div className="space-y-8">
+      {featured.length ? <CollectionSpotlight pieces={featured} onEdit={onEdit} /> : null}
+
+      <section aria-labelledby="case-h">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h2
+            id="case-h"
+            className="font-display text-[clamp(1.4rem,2.4vw,1.9rem)] font-semibold tracking-[-0.02em]"
+          >
+            The whole case{' '}
+            <span className="font-mono text-[15px] font-normal text-ink-muted">{rows.length}</span>
+          </h2>
+          <div
+            className="relative flex rounded-full border border-border-default bg-surface-inset p-1"
+            role="group"
+            aria-label="Arrange by"
+          >
+            {SORTS.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                aria-pressed={sort === s.id}
+                onClick={() => setSort(s.id)}
+                className={cn(
+                  'relative z-[1] h-8 rounded-full px-3.5 text-[13px] font-medium transition-colors',
+                  sort === s.id
+                    ? 'text-accent-foreground'
+                    : 'text-ink-secondary hover:text-ink-primary'
+                )}
+              >
+                {sort === s.id ? (
+                  <motion.span
+                    layoutId="show-sort"
+                    className="absolute inset-0 -z-[1] rounded-full bg-accent"
+                    transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+                  />
+                ) : null}
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <LayoutGroup>
+          <ul className="mt-6 grid grid-cols-2 gap-x-5 gap-y-9 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
+            {sorted.map((vc) => {
+              const layoutId = `case-${vc.id}`;
+              const pl = knownHoldingProfit(vc);
+              return (
+                <motion.li
+                  key={vc.id}
+                  layout
+                  transition={{ type: 'spring', stiffness: 260, damping: 30 }}
+                  className="min-w-0"
+                >
+                  <div className="relative">
+                    <HolographicCard
+                      card={vc.card}
+                      layoutId={layoutId}
+                      level={finishOf(vc.card) === 'none' ? 'standard' : 'featured'}
+                      label={`${vc.card.name}, view holding`}
+                      onSelect={() => setOpen({ vc, layoutId })}
+                    />
+                    {vc.quantity > 1 ? (
+                      <span className="pointer-events-none absolute -right-2 -top-2 z-10 grid h-7 min-w-7 place-items-center rounded-full bg-ink-primary px-2 font-mono text-[12px] text-surface-base shadow-md">
+                        ×{vc.quantity}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-3 truncate text-[14px] font-medium">{vc.card.name}</p>
+                  <p className="truncate text-[12.5px] text-ink-muted">
+                    {vc.card.set?.name}
+                    {vc.card.number ? ` · No. ${vc.card.number}` : ''}
+                  </p>
+                  <p className="mt-1 flex items-baseline gap-2">
+                    <Price value={holdingMarketValue(vc)} size="sm" />
+                    {pl?.profitPct != null ? <Delta pct={pl.profitPct} /> : null}
+                  </p>
+                </motion.li>
+              );
+            })}
+          </ul>
+        </LayoutGroup>
+      </section>
+
+      <CardSpotlight
+        card={open?.vc.card ?? null}
+        layoutId={open?.layoutId}
+        onClose={() => setOpen(null)}
+      >
+        {open ? (
+          <HoldingFacts
+            vc={open.vc}
+            onEdit={() => {
+              const vc = open.vc;
+              setOpen(null);
+              onEdit(vc);
+            }}
+          />
+        ) : null}
+      </CardSpotlight>
+    </div>
+  );
+}
+
+function HoldingFacts({ vc, onEdit }: { vc: VaultCard; onEdit: () => void }) {
+  const pl = knownHoldingProfit(vc);
+  const unit = marketUnitPrice(vc.card);
+  return (
+    <div>
+      <dl className="grid grid-cols-2 gap-3 text-white">
+        <div className="rounded-xl bg-white/5 p-3">
+          <dt className="text-[12px] text-white/55">Holding value</dt>
+          <dd className="mt-1">
+            <Price value={holdingMarketValue(vc)} size="lg" className="text-white" />
+          </dd>
+          <dd className="mt-1 text-[11.5px] text-white/50">
+            {vc.quantity} × {unit > 0 ? formatCurrency(unit) : 'no price'} market
+          </dd>
+        </div>
+        <div className="rounded-xl bg-white/5 p-3">
+          <dt className="text-[12px] text-white/55">Profit / loss</dt>
+          <dd
+            className={cn(
+              'mt-1 font-mono text-[22px]',
+              pl == null
+                ? 'text-[14px] text-white/60'
+                : pl.profit >= 0
+                  ? 'text-[#3fd3a8]'
+                  : 'text-[#ff7a6b]'
+            )}
+          >
+            {pl == null ? 'No recorded cost' : formatCurrency(pl.profit, { signed: true })}
+          </dd>
+          {pl?.profitPct != null ? (
+            <dd className="mt-1 text-[11.5px] text-white/50">{pl.profitPct.toFixed(1)}% on cost</dd>
+          ) : null}
+        </div>
+        <div className="rounded-xl bg-white/5 p-3">
+          <dt className="text-[12px] text-white/55">Condition</dt>
+          <dd className="mt-1 text-[15px] capitalize">{vc.condition.replace('-', ' ')}</dd>
+        </div>
+        <div className="rounded-xl bg-white/5 p-3">
+          <dt className="text-[12px] text-white/55">Added</dt>
+          <dd className="mt-1 text-[15px]">
+            {vc.purchaseDate
+              ? new Date(vc.purchaseDate).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                })
+              : 'No date'}
+          </dd>
+        </div>
+      </dl>
+      <button type="button" className="btn-tactile mt-5" onClick={onEdit}>
+        Edit holding, sell or grade
+      </button>
+    </div>
+  );
+}
+
+/** A pedestal for the five most valuable pieces, stepped through like a display case. */
+function CollectionSpotlight({
+  pieces,
+  onEdit,
+}: {
+  pieces: VaultCard[];
+  onEdit: (vc: VaultCard) => void;
+}) {
+  const reduced = usePrefersReducedMotion();
+  const [i, setI] = useState(0);
+  const vc = pieces[Math.min(i, pieces.length - 1)];
+  const pl = knownHoldingProfit(vc);
+  const go = (d: number) => setI((x) => (x + d + pieces.length) % pieces.length);
+  return (
+    <section
+      data-theme="dark"
+      aria-labelledby="spot-h"
+      className="atmo-stage relative overflow-hidden rounded-3xl px-5 pb-6 pt-6 sm:px-10 sm:pt-10"
+    >
+      <div
+        aria-hidden
+        className="pointer-events-none absolute bottom-6 left-[8%] h-16 w-[min(60%,26rem)] rounded-[50%] bg-[radial-gradient(closest-side,rgba(227,167,58,0.35),transparent)] sm:left-[10%]"
+      />
+      <div className="relative grid items-center gap-8 md:grid-cols-[minmax(0,19rem)_minmax(0,1fr)] md:gap-14">
+        <div className="relative mx-auto w-[min(62vw,19rem)] md:w-full">
+          <AnimatePresence mode="popLayout" initial={false}>
+            <motion.div
+              key={vc.id}
+              initial={reduced ? false : { opacity: 0, y: 30, rotateY: -25 }}
+              animate={{ opacity: 1, y: 0, rotateY: 0 }}
+              exit={reduced ? { opacity: 0 } : { opacity: 0, y: -20, rotateY: 25 }}
+              transition={{ type: 'spring', stiffness: 180, damping: 22 }}
+              style={{ transformPerspective: 900 }}
+            >
+              <HolographicCard
+                card={vc.card}
+                level="showcase"
+                size="large"
+                priority
+                label={`Edit ${vc.card.name}`}
+                onSelect={() => onEdit(vc)}
+              />
+            </motion.div>
+          </AnimatePresence>
+        </div>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={vc.id}
+            initial={reduced ? false : { opacity: 0, x: 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -10 }}
+            transition={{ duration: 0.22 }}
+            className="text-white"
+            aria-live="polite"
+          >
+            <p id="spot-h" className="text-[13px] font-medium text-[#f0bd55]">
+              Collection spotlight · No. {i + 1} by value
+            </p>
+            <h2 className="mt-2 font-display text-[clamp(2rem,4.4vw,3.6rem)] font-semibold leading-[0.98] tracking-[-0.03em]">
+              {vc.card.name}
+            </h2>
+            <p className="mt-2 text-[14px] text-white/65">
+              {vc.card.set?.name}
+              {vc.card.number ? ` · No. ${vc.card.number}` : ''} · {FINISH_LABEL[finishOf(vc.card)]}
+            </p>
+            <dl className="mt-6 grid max-w-[32rem] grid-cols-3 gap-4 border-t border-white/10 pt-5">
+              <div>
+                <dt className="text-[12px] text-white/55">Worth today</dt>
+                <dd className="mt-1">
+                  <Price value={holdingMarketValue(vc)} size="md" className="text-white" />
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[12px] text-white/55">You paid</dt>
+                <dd className="mt-1 font-mono text-[17px]">
+                  {pl ? (
+                    formatCurrency(vc.purchasePrice * vc.quantity)
+                  ) : (
+                    <span className="text-[13px] text-white/55">Not recorded</span>
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[12px] text-white/55">Copies</dt>
+                <dd className="mt-1 font-mono text-[17px]">{vc.quantity}</dd>
+              </div>
+            </dl>
+            {pl ? (
+              <p
+                className={cn(
+                  'mt-3 font-mono text-[14px]',
+                  pl.profit >= 0 ? 'text-[#3fd3a8]' : 'text-[#ff7a6b]'
+                )}
+              >
+                {formatCurrency(pl.profit, { signed: true })} since you bought it
+              </p>
+            ) : null}
+            <div className="mt-7 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => go(-1)}
+                className="grid h-11 w-11 place-items-center rounded-full border border-white/20 hover:bg-white/10"
+                aria-label="Previous piece"
+              >
+                <ChevronLeft className="h-5 w-5" aria-hidden />
+              </button>
+              <button
+                type="button"
+                onClick={() => go(1)}
+                className="grid h-11 w-11 place-items-center rounded-full border border-white/20 hover:bg-white/10"
+                aria-label="Next piece"
+              >
+                <ChevronRight className="h-5 w-5" aria-hidden />
+              </button>
+              <span className="font-mono text-[12.5px] text-white/55">
+                {i + 1} / {pieces.length}
+              </span>
+            </div>
+          </motion.div>
+        </AnimatePresence>
+      </div>
+    </section>
+  );
+}

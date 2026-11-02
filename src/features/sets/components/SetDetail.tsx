@@ -22,6 +22,10 @@ import { Basis, Price, Unavailable } from '../../../components/exchange/Price';
 import { StepPriceChart } from '../../../components/exchange/StepPriceChart';
 import { SetLogo } from './SetLogo';
 import { cn } from '@/lib/utils';
+import { motion, useReducedMotion } from 'motion/react';
+import { HolographicCard } from '../../../components/collectible/HolographicCard';
+import { finishOf } from '../../../components/collectible/finish';
+import { tone } from '../eraTone';
 
 interface SetDetailProps {
   setId: string;
@@ -237,22 +241,17 @@ export const SetDetail: React.FC<SetDetailProps> = ({ setId, onBack }) => {
     <div className="space-y-8">
       <div>
         <BackLink onBack={onBack} />
-        <div className="mt-3 flex items-end gap-4 border-b border-rule-strong pb-4">
-          {meta ? <SetLogo set={meta} size="lg" className="border-0 bg-transparent p-0" /> : null}
-          <div className="min-w-0">
-            <h1 className="font-display text-h1">{name}</h1>
-            <p className="text-meta text-ink-muted">
-              {[
-                meta?.series,
-                year ? `Released ${year}` : null,
-                `${cards.length} cards`,
-                meta?.id?.toUpperCase(),
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-            </p>
-          </div>
-        </div>
+        <SetAlbumCover
+          name={name}
+          meta={meta}
+          year={year}
+          cards={cards}
+          owned={summary?.ownedCount ?? counts.owned}
+          total={summary?.totalCards ?? cards.length}
+          wished={counts.wishlist}
+          isOnePiece={isOnePiece}
+          onOpen={open}
+        />
       </div>
 
       {/* Ruled summary */}
@@ -642,34 +641,70 @@ function ChecklistTile({
 }) {
   const c = card as SetTrackerCard;
   const owned = Boolean(c.owned);
+  const missing = showActions && !owned;
+  const state = !showActions
+    ? ''
+    : owned
+      ? ', owned'
+      : wished
+        ? ', wishlisted, missing'
+        : ', missing';
   return (
     <li className="group min-w-0">
-      <button
-        type="button"
-        onClick={onOpen}
-        className="relative block w-full text-left"
-        aria-label={`${c.number ? `No. ${c.number} ` : ''}${c.name}${showActions ? (owned ? ', owned' : ', missing') : ''}`}
-      >
-        <CardArt
-          card={c}
-          className={cn(
-            'transition-[filter,opacity] duration-150',
-            showActions &&
-              !owned &&
-              'opacity-55 grayscale-[0.7] group-hover:opacity-100 group-hover:grayscale-0'
-          )}
-          flat={showActions && !owned}
-        />
-        {owned ? (
+      <div className="relative">
+        {missing ? (
+          // A missing card sits in an empty sleeve: the art is a faint ghost until you look at it.
+          <button
+            type="button"
+            onClick={onOpen}
+            aria-label={`${c.number ? `No. ${c.number} ` : ''}${c.name}${state}`}
+            className={cn(
+              'relative block w-full overflow-hidden rounded-[6%/4.3%] border-2 border-dashed p-[5%] text-left transition-colors',
+              wished
+                ? 'border-[color:var(--ember)] bg-[color:var(--ember)]/5'
+                : 'border-rule-strong bg-surface-hover/50'
+            )}
+          >
+            <CardArt
+              card={c}
+              flat
+              className="opacity-30 grayscale transition-[filter,opacity] duration-300 group-hover:opacity-90 group-hover:grayscale-0"
+            />
+            <span className="pointer-events-none absolute inset-x-0 bottom-[8%] text-center font-mono text-[11px] font-medium text-ink-muted group-hover:opacity-0">
+              {c.number ? `#${c.number}` : 'Missing'}
+            </span>
+          </button>
+        ) : (
+          <HolographicCard
+            card={c}
+            level={owned && finishOf(c) !== 'none' ? 'featured' : 'standard'}
+            onSelect={onOpen}
+            label={`${c.number ? `No. ${c.number} ` : ''}${c.name}${state}`}
+          />
+        )}
+        {owned && showActions ? (
           <span
-            className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-gold text-surface-base shadow-sm"
+            className="pointer-events-none absolute -right-1.5 -top-1.5 z-10 grid h-6 w-6 place-items-center rounded-full bg-gold text-surface-base shadow-md ring-2 ring-surface-base"
             aria-hidden
           >
-            <Check className="h-3 w-3" strokeWidth={3} />
+            <Check className="h-3.5 w-3.5" strokeWidth={3} />
+          </span>
+        ) : wished && showActions ? (
+          <span
+            className="pointer-events-none absolute -right-1.5 -top-1.5 z-10 grid h-6 w-6 place-items-center rounded-full bg-[color:var(--ember)] text-white shadow-md ring-2 ring-surface-base"
+            aria-hidden
+          >
+            <Heart className="h-3 w-3" fill="currentColor" />
           </span>
         ) : null}
-      </button>
-      <p className="mt-2 truncate text-[12.5px] font-medium leading-snug" title={c.name}>
+      </div>
+      <p
+        className={cn(
+          'mt-2 truncate text-[12.5px] font-medium leading-snug',
+          missing && 'text-ink-muted'
+        )}
+        title={c.name}
+      >
         <span className="font-mono text-[11.5px] text-ink-muted">{c.number}</span> {c.name}
       </p>
       <div className="flex items-center justify-between gap-1">
@@ -681,5 +716,169 @@ function ChecklistTile({
         ) : null}
       </div>
     </li>
+  );
+}
+
+/**
+ * The set as an album cover: its era colour, the real logo, the three most
+ * valuable cards fanned out (owned ones first), and a completion ring.
+ */
+function SetAlbumCover({
+  name,
+  meta,
+  year,
+  cards,
+  owned,
+  total,
+  wished,
+  isOnePiece,
+  onOpen,
+}: {
+  total: number;
+  name: string;
+  meta: PokemonSet | null;
+  year?: string;
+  cards: SetTrackerCard[];
+  owned: number;
+  wished: number;
+  isOnePiece: boolean;
+  onOpen: (c: SetTrackerCard) => void;
+}) {
+  const reduce = useReducedMotion();
+  const t = tone(meta?.era || (isOnePiece ? 'promo' : 'other'));
+  const pct = total ? Math.min(100, (owned / total) * 100) : 0;
+  const chase = useMemo(
+    () =>
+      [...cards]
+        .filter((c) => c.images?.small || c.images?.large)
+        .sort((a, b) => (priceOf(b) ?? -1) - (priceOf(a) ?? -1))
+        .slice(0, 3),
+    [cards]
+  );
+  const R = 46;
+  const C = 2 * Math.PI * R;
+  return (
+    <section
+      data-theme="dark"
+      aria-label={`${name} album`}
+      className="relative mt-3 overflow-hidden rounded-3xl text-white"
+      style={{ background: `radial-gradient(110% 120% at 90% 10%, ${t.from}, #0b0e14 72%)` }}
+    >
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-[repeating-linear-gradient(135deg,rgba(255,255,255,0.03)_0_2px,transparent_2px_10px)]"
+      />
+      <div className="relative grid gap-6 p-5 sm:p-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-center">
+        <div className="min-w-0">
+          {meta ? (
+            <SetLogo
+              set={meta}
+              size="lg"
+              className="h-16 w-48 border-0 bg-transparent p-0 [&_img]:max-h-16"
+            />
+          ) : null}
+          <h1 className="mt-3 font-display text-[clamp(2rem,4.4vw,3.4rem)] font-semibold leading-[0.95] tracking-[-0.03em]">
+            {name}
+          </h1>
+          <p className="mt-2 font-mono text-[12.5px] text-white/65">
+            {[
+              meta?.series,
+              year ? `Released ${year}` : null,
+              `${total} cards`,
+              meta?.id?.toUpperCase(),
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </p>
+          {!isOnePiece && total ? (
+            <div className="mt-6 flex items-center gap-5">
+              <svg
+                viewBox="0 0 110 110"
+                className="h-24 w-24 shrink-0 -rotate-90"
+                role="img"
+                aria-label={`${owned} of ${total} owned, ${Math.round(pct)} percent`}
+              >
+                <circle
+                  cx="55"
+                  cy="55"
+                  r={R}
+                  fill="none"
+                  stroke="rgba(255,255,255,0.14)"
+                  strokeWidth="9"
+                />
+                <motion.circle
+                  cx="55"
+                  cy="55"
+                  r={R}
+                  fill="none"
+                  stroke={pct >= 100 ? '#f0bd55' : t.accent}
+                  strokeWidth="9"
+                  strokeLinecap="round"
+                  strokeDasharray={C}
+                  initial={{ strokeDashoffset: reduce ? C * (1 - pct / 100) : C }}
+                  animate={{ strokeDashoffset: C * (1 - pct / 100) }}
+                  transition={{ duration: 1.1, ease: [0.2, 0.8, 0.2, 1] }}
+                />
+              </svg>
+              <div>
+                <p className="font-mono text-[30px] font-medium leading-none tabular-nums">
+                  {owned}
+                  <span className="text-[16px] text-white/55"> / {total}</span>
+                </p>
+                <p className="mt-1.5 text-[13px] text-white/70">
+                  {owned === 0 ? 'Not started' : pct >= 100 ? 'Complete' : `${total - owned} to go`}
+                  {wished ? ` · ${wished} on your wishlist` : ''}
+                </p>
+              </div>
+            </div>
+          ) : null}
+        </div>
+        {chase.length ? (
+          <div
+            className="relative mx-auto h-[15rem] w-full max-w-[26rem] sm:h-[19rem]"
+            aria-label="Most valuable cards in this set"
+          >
+            {chase.map((c, i) => {
+              // Most valuable in the middle and in front, the next two either side.
+              const slot = chase.length === 1 ? 1 : [1, 0, 2][i];
+              const pose = [
+                { left: '28%', r: -10, y: 18, z: 1 },
+                { left: '50%', r: 0, y: 0, z: 3 },
+                { left: '72%', r: 10, y: 18, z: 2 },
+              ][slot];
+              return (
+                <motion.div
+                  key={c.id}
+                  className="absolute top-0 w-[38%] max-w-[10.5rem]"
+                  style={{ left: pose.left, zIndex: pose.z, x: '-50%' }}
+                  initial={reduce ? false : { opacity: 0, y: 40, rotate: 0 }}
+                  animate={{ opacity: 1, y: pose.y, rotate: pose.r }}
+                  transition={{
+                    type: 'spring',
+                    stiffness: 160,
+                    damping: 20,
+                    delay: reduce ? 0 : 0.1 + i * 0.08,
+                  }}
+                >
+                  <HolographicCard
+                    card={c}
+                    level={i === 0 ? 'showcase' : 'featured'}
+                    onSelect={() => onOpen(c)}
+                    label={`${c.name}, ${priceOf(c) != null ? `$${(priceOf(c) as number).toFixed(2)}` : 'no price'}${c.owned ? ', owned' : ', not owned'}`}
+                    priority
+                  />
+                </motion.div>
+              );
+            })}
+            <p className="absolute inset-x-0 bottom-0 text-center font-mono text-[11.5px] text-white/60">
+              {chase.length === 1
+                ? 'The most valuable card'
+                : `The ${chase.length} most valuable cards`}{' '}
+              · {chase.filter((c) => c.owned).length} owned
+            </p>
+          </div>
+        ) : null}
+      </div>
+    </section>
   );
 }

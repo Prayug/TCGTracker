@@ -18,9 +18,9 @@ import {
   ScanResult,
 } from '../../../services/cardScannerApi';
 import { ScanResultActions } from './ScanResultActions';
+import { FramingGuide, MatchCompare, ReadingSweep } from './ScanVisuals';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '../../../components/layout/PageShell';
-import { CardArt } from '../../../components/exchange/CardArt';
 import { Unavailable } from '../../../components/exchange/Price';
 import { cn } from '@/lib/utils';
 import { confidenceLabel } from '../confidence';
@@ -30,20 +30,18 @@ import { compressImageDataUrl } from '../../../utils/imageCompress';
 
 type Mode = 'idle' | 'upload' | 'camera' | 'phone';
 
-function ScanResultSheet({ result }: { result: ScanResult }) {
+function ScanResultSheet({ result, photo = null }: { result: ScanResult; photo?: string | null }) {
   if (!result.success || !result.card) return null;
   const { name, set, number, confidence, id, image } = result.card;
   const conf = confidenceLabel(confidence);
 
   return (
     <section
-      className="grid gap-4 border-t border-rule-strong pt-4 sm:grid-cols-[9rem_minmax(0,1fr)]"
+      className="grid gap-5 border-t border-rule-strong pt-4 sm:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]"
       aria-live="polite"
       aria-label="Scan result"
     >
-      <div className="w-32 sm:w-36">
-        <CardArt card={{ name, images: image, number, set: { name: set } }} size="large" />
-      </div>
+      <MatchCompare photo={photo} card={{ name, image, number, set }} confidence={confidence} />
       <div className="min-w-0">
         <h2 className="text-h2">{name}</h2>
         <p className="text-[13px] text-ink-secondary">
@@ -400,19 +398,35 @@ export function CardScanner() {
         <div className="space-y-4">
           <button
             type="button"
+            data-theme="dark"
             onClick={() => handleModeSelect('camera')}
-            className="group flex w-full items-center gap-4 rounded-lg border border-border-strong bg-surface-raised p-5 text-left transition-colors hover:border-ink-muted"
+            className="atmo-stage group relative grid w-full overflow-hidden rounded-3xl text-left text-white sm:grid-cols-[minmax(0,1fr)_15rem]"
           >
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-md bg-ink-primary text-surface-base">
-              <Camera className="h-6 w-6" aria-hidden />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[16px] font-medium">Use this device’s camera</span>
-              <span className="block text-[13px] text-ink-muted">
-                Hold the card flat in good light and fill the frame.
+            <span className="flex flex-col justify-center gap-2 p-6 sm:p-8">
+              <span className="grid h-11 w-11 place-items-center rounded-xl bg-white text-[#0b0e14]">
+                <Camera className="h-5 w-5" aria-hidden />
+              </span>
+              <span className="mt-2 font-display text-[clamp(1.5rem,3vw,2.1rem)] font-semibold leading-tight tracking-[-0.02em]">
+                Point your camera at a card
+              </span>
+              <span className="text-[14px] text-white/70">
+                Hold it flat in even light and fill the frame. You will see the match next to your
+                photo before anything is saved.
+              </span>
+              <span className="mt-2 inline-flex items-center gap-1 text-[13.5px] font-medium text-[#a3b7ff]">
+                Start the camera
+                <ChevronRight
+                  className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+                  aria-hidden
+                />
               </span>
             </span>
-            <ChevronRight className="h-5 w-5 text-ink-muted" aria-hidden />
+            <span className="relative hidden h-full min-h-[17rem] sm:block" aria-hidden>
+              <span className="absolute left-1/2 top-1/2 aspect-[5/7] h-[62%] -translate-x-1/2 -translate-y-1/2 rotate-[-4deg] rounded-[10px] bg-gradient-to-br from-[#f0bd55] via-[#d79b2b] to-[#7f4b0c] shadow-2xl">
+                <span className="absolute inset-[7%] rounded-[6px] bg-gradient-to-b from-[#7f9bff]/70 to-[#2f56e6]/40" />
+              </span>
+              <FramingGuide bare className="[&>div]:h-[80%] [&>div]:shadow-none" />
+            </span>
           </button>
           <div className="flex flex-wrap gap-2">
             <button
@@ -447,22 +461,14 @@ export function CardScanner() {
             />
           )}
           {isScanning && (
-            <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-border-default bg-surface-raised py-10">
-              {previewUrl && (
-                <img
-                  src={previewUrl}
-                  alt="Captured card"
-                  className="mb-2 max-h-40 rounded-lg object-contain"
-                />
-              )}
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-border-default border-t-gain" />
-              <p className="text-sm text-ink-muted">Analyzing card from phone…</p>
+            <div className="rounded-xl border border-border-default bg-surface-raised">
+              <ReadingSweep src={previewUrl} text="Reading the card from your phone…" />
             </div>
           )}
           {error && <ErrorBanner message={error} />}
           {scanResult?.success && (
             <>
-              <ScanResultSheet result={scanResult} />
+              <ScanResultSheet result={scanResult} photo={previewUrl} />
               <button type="button" onClick={reset} className="btn-secondary w-full justify-center">
                 <Scan className="h-4 w-4" />
                 Scan another card
@@ -510,19 +516,7 @@ export function CardScanner() {
                 <p className="text-sm">Starting camera…</p>
               </div>
             )}
-            {isCameraActive && !isScanning && (
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                <div className="relative h-[68%] w-[42%] max-w-[220px] rounded-xl border-2 border-accent/70 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]">
-                  <span className="absolute -top-7 left-0 right-0 text-center text-[11.5px] font-medium text-accent">
-                    Align card here
-                  </span>
-                  <span className="absolute -left-1 -top-1 h-4 w-4 border-l-2 border-t-2 border-accent" />
-                  <span className="absolute -right-1 -top-1 h-4 w-4 border-r-2 border-t-2 border-accent" />
-                  <span className="absolute -bottom-1 -left-1 h-4 w-4 border-b-2 border-l-2 border-accent" />
-                  <span className="absolute -bottom-1 -right-1 h-4 w-4 border-b-2 border-r-2 border-accent" />
-                </div>
-              </div>
-            )}
+            {isCameraActive && !isScanning && <FramingGuide />}
             {isScanning && (
               <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-3">
                 <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -551,7 +545,7 @@ export function CardScanner() {
             </button>
 
             {error && <ErrorBanner message={error} />}
-            {scanResult?.success && <ScanResultSheet result={scanResult} />}
+            {scanResult?.success && <ScanResultSheet result={scanResult} photo={previewUrl} />}
           </div>
         </div>
       )}
@@ -636,18 +630,13 @@ export function CardScanner() {
               </button>
             )}
 
-            {isScanning && (
-              <div className="flex items-center justify-center gap-3 py-4">
-                <div className="w-5 h-5 border-2 border-border-default border-t-gain rounded-full animate-spin" />
-                <p className="text-sm text-ink-muted">Analyzing card…</p>
-              </div>
-            )}
+            {isScanning && <ReadingSweep src={previewUrl} />}
 
             {error && <ErrorBanner message={error} />}
 
             {scanResult?.success && (
               <>
-                <ScanResultSheet result={scanResult} />
+                <ScanResultSheet result={scanResult} photo={previewUrl} />
                 <button
                   onClick={() => {
                     setScanResult(null);

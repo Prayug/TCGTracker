@@ -29,6 +29,7 @@ import {
   SubmissionQueueItem,
 } from '../submissionQueue';
 import { CardSearchPickerModal } from './CardSearchPickerModal';
+import { InspectionSequence } from './InspectionSteps';
 import { GradingCapture } from './GradingCapture';
 import { GradingHistory } from './GradingHistory';
 import { GradingResultView } from './GradingResultView';
@@ -42,6 +43,7 @@ export const GradingPage: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<GradingResult | null>(null);
+  const [inspectingSrc, setInspectingSrc] = useState<string | null>(null);
   const [history, setHistory] = useState<GradingResult[]>([]);
   const [captureKey, setCaptureKey] = useState(0);
   const [rawPrice, setRawPrice] = useState<number | undefined>();
@@ -97,6 +99,10 @@ export const GradingPage: React.FC = () => {
   }, [result, rawPrice, identifiedCard]);
 
   const handleCapture = async (payload: GradeCapturePayload) => {
+    setInspectingSrc((prev) => {
+      if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return typeof payload.front === 'string' ? payload.front : URL.createObjectURL(payload.front);
+    });
     setIsProcessing(true);
     setError(null);
     setResult(null);
@@ -240,23 +246,7 @@ export const GradingPage: React.FC = () => {
           </div>
         )}
 
-        {isProcessing && (
-          <div
-            className="mx-auto flex max-w-3xl items-center gap-3 border-y border-rule py-5"
-            role="status"
-          >
-            <span
-              className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-border-default border-t-accent motion-reduce:animate-none"
-              aria-hidden
-            />
-            <div>
-              <p className="text-[14px] font-medium">
-                Checking the photos, then centering, corners, edges and surface…
-              </p>
-              <p className="text-[12.5px] text-ink-muted">This takes a few seconds.</p>
-            </div>
-          </div>
-        )}
+        {isProcessing && <InspectionSequence src={inspectingSrc} />}
 
         {error && (
           <p className="mx-auto max-w-3xl border-l-2 border-loss pl-3 text-[13px]" role="alert">

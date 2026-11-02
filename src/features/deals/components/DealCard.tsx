@@ -4,6 +4,7 @@ import { Basis } from '../../../components/exchange/Price';
 import type { Deal } from '../types';
 import { RISK_FLAG_LABELS, isLiveAuction } from '../types';
 import { cn } from '@/lib/utils';
+import { PriceRuler } from './PriceRuler';
 
 const CONFIDENCE_LABEL: Record<Deal['matchConfidenceTier'], string> = {
   high: 'Strong match',
@@ -45,7 +46,7 @@ export function DealCard({
   const live = isLiveAuction(deal);
 
   return (
-    <article className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-x-4 border-b border-rule py-4">
+    <article className="grid grid-cols-[5.5rem_minmax(0,1fr)] sm:grid-cols-[6.5rem_minmax(0,1fr)] gap-x-4 border-b border-rule py-4">
       <button
         type="button"
         onClick={onOpen}
@@ -59,6 +60,18 @@ export function DealCard({
             loading="lazy"
             className="aspect-[3/4] w-full bg-surface-inset object-cover"
           />
+        ) : deal.cardImage ? (
+          <span className="relative block">
+            <img
+              src={deal.cardImage}
+              alt=""
+              loading="lazy"
+              className="aspect-[5/7] w-full object-contain"
+            />
+            <span className="absolute inset-x-0 bottom-0 bg-black/60 py-0.5 text-center text-[10px] text-white">
+              Reference art
+            </span>
+          </span>
         ) : (
           <span className="grid aspect-[3/4] w-full place-items-center border border-dashed border-border-strong text-[11px] text-ink-muted">
             No photo
@@ -119,8 +132,15 @@ export function DealCard({
           </div>
         </dl>
 
+        <PriceRuler
+          ask={live ? deal.listingPrice : deal.allInCost}
+          market={deal.marketValue}
+          askLabel={live ? 'Bid' : 'Ask'}
+          showSaving={!live}
+        />
+
         {!live ? (
-          <p className="mt-1.5 text-[13px] font-medium text-gain">
+          <p className="text-[13px] font-medium text-gain">
             {formatCurrency(deal.discountAmount)} ({formatPercent(deal.discountPercent)}) under the
             market estimate
           </p>

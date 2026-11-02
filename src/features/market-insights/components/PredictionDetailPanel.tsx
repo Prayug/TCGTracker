@@ -14,6 +14,7 @@ import { PokemonCard } from '../../../types/pokemon';
 import { useInsightsApi } from '../hooks/insightsApiContext';
 import { formatInsightScore, insightScoreValue } from '../utils/formatInsightNumbers';
 import { ExternalSignalsPanel } from './ExternalSignalsPanel';
+import { ForecastFan } from './charts/ForecastFan';
 import { parseExternalSignalsJson } from '../utils/parseExternalSignals';
 import { BuyThesisPanel } from '../../buy-thesis/components/BuyThesisPanel';
 
@@ -275,6 +276,7 @@ export function PredictionDetailPanel({
                   Expected is the midpoint forecast; Low / High is the model&apos;s range.
                 </p>
               </div>
+              <ForecastFan prediction={prediction} height={200} />
               <PriceRangeRow
                 label="7-Day"
                 low={prediction.predicted7dLow}

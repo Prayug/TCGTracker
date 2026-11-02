@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeftRight, Check, Copy, Link2, RotateCcw, Save, Trash2 } from 'lucide-react';
+import { ArrowLeftRight, Copy, Link2, RotateCcw, Save, Trash2 } from 'lucide-react';
 import { PageHeader, PageShell } from '../../../components/layout/PageShell';
 import { CardSearchPickerModal } from '../../grading/components/CardSearchPickerModal';
 import { useGame } from '../../../contexts/GameContext';
@@ -29,7 +29,7 @@ import { clearDraft, loadDraft, saveDraft } from '../tradeStorage';
 import type { TradeCardLine, TradeDraft, TradeSideKey } from '../types';
 import { TradeSideColumn } from './TradeSideColumn';
 import { VaultPickerModal } from './VaultPickerModal';
-import { cn } from '@/lib/utils';
+import { TradeStage } from './TradeStage';
 
 function applyLine(
   draft: TradeDraft,
@@ -216,13 +216,6 @@ export function TradePage() {
 
   const even = evenOut(evaluation);
   const unpriced = unpricedCount(evaluation);
-  const scale = Math.max(evaluation.give.value, evaluation.get.value);
-  const verdictClass =
-    evaluation.favors === 'you'
-      ? 'text-gain'
-      : evaluation.favors === 'them'
-        ? 'text-loss'
-        : 'text-ink-primary';
 
   const sideProps = (side: TradeSideKey) => ({
     lines: draft[side],
@@ -309,59 +302,29 @@ export function TradePage() {
         />
       </label>
 
-      {/* The balance: both totals, the difference, and how to settle it. */}
-      <section aria-labelledby="trade-balance" className="border-y border-rule-strong py-5">
-        <h2 id="trade-balance" className="sr-only">
-          Balance
-        </h2>
-        <div className="grid grid-cols-2 items-end gap-4 sm:grid-cols-[1fr_auto_1fr]">
-          <div>
-            <p className="text-meta text-ink-muted">You give</p>
-            <p className="font-mono text-[22px] tabular-nums sm:text-[28px]">
-              {formatCurrency(evaluation.give.value)}
-            </p>
-          </div>
-          <div className="order-last col-span-2 text-center sm:order-none sm:col-span-1">
-            <p className={cn('text-[17px] font-medium', verdictClass)} aria-live="polite">
-              {evaluation.kind === 'fair' ? (
-                <Check className="mr-1 inline h-4 w-4 align-[-2px]" aria-hidden />
-              ) : null}
-              {copy.title}
-            </p>
-            {evaluation.kind !== 'empty' && evaluation.kind !== 'incomplete' ? (
-              <p className="mt-0.5 text-[13px] tabular-nums text-ink-secondary">
-                {evaluation.delta === 0
-                  ? 'Dead even'
-                  : `${evaluation.delta > 0 ? 'You get' : 'You give'} ${formatCurrency(Math.abs(evaluation.delta))} more · ${formatPercent(Math.abs(evaluation.imbalancePct))} of the larger side`}
-              </p>
-            ) : (
-              <p className="mt-0.5 text-[13px] text-ink-muted">{copy.hint}</p>
-            )}
-          </div>
-          <div className="text-right">
-            <p className="text-meta text-ink-muted">You get</p>
-            <p className="font-mono text-[22px] tabular-nums sm:text-[28px]">
-              {formatCurrency(evaluation.get.value)}
-            </p>
-          </div>
-        </div>
-
-        {/* Two bars meeting in the middle, sized against the larger side. */}
-        <div className="mt-3 grid grid-cols-2 gap-px" aria-hidden>
-          <span className="flex h-2 justify-end overflow-hidden rounded-l-sm bg-surface-hover">
-            <span
-              className="h-full bg-ink-muted transition-[width] duration-200 motion-reduce:transition-none"
-              style={{ width: scale > 0 ? `${(evaluation.give.value / scale) * 100}%` : 0 }}
-            />
-          </span>
-          <span className="flex h-2 overflow-hidden rounded-r-sm bg-surface-hover">
-            <span
-              className="h-full bg-ink-primary transition-[width] duration-200 motion-reduce:transition-none"
-              style={{ width: scale > 0 ? `${(evaluation.get.value / scale) * 100}%` : 0 }}
-            />
-          </span>
-        </div>
-
+      {/* The balance: both piles, the beam between them, and how to settle it. */}
+      <div>
+        <TradeStage
+          give={draft.give}
+          get={draft.get}
+          giveValue={evaluation.give.value}
+          getValue={evaluation.get.value}
+          cashGive={draft.cashGive}
+          cashGet={draft.cashGet}
+          verdict={copy.title}
+          verdictTone={
+            evaluation.favors === 'you' ? 'gain' : evaluation.favors === 'them' ? 'loss' : 'neutral'
+          }
+          fair={evaluation.kind === 'fair'}
+          detail={
+            evaluation.kind !== 'empty' && evaluation.kind !== 'incomplete'
+              ? evaluation.delta === 0
+                ? 'Dead even'
+                : `${evaluation.delta > 0 ? 'You get' : 'You give'} ${formatCurrency(Math.abs(evaluation.delta))} more · ${formatPercent(Math.abs(evaluation.imbalancePct))} of the larger side`
+              : copy.hint
+          }
+          onAdd={(side) => setPickerSide(side)}
+        />
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-[12.5px] text-ink-muted">
           <p>
             {unpriced > 0
@@ -387,7 +350,7 @@ export function TradePage() {
             </button>
           ) : null}
         </div>
-      </section>
+      </div>
 
       <div className="grid gap-x-10 gap-y-8 lg:grid-cols-2">
         <TradeSideColumn

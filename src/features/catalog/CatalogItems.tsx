@@ -4,6 +4,8 @@ import type { PokemonCard } from '../../types/pokemon';
 import { type AnyCard, getCardDeltaPct, isPokemonCard } from '../../utils/cardPrice';
 import { cardWishlistService } from '../../services/cardWishlistService';
 import { CardArt } from '../../components/exchange/CardArt';
+import { HolographicCard } from '../../components/collectible/HolographicCard';
+import { finishOf } from '../../components/collectible/finish';
 import { Delta, Price } from '../../components/exchange/Price';
 import { knownPrice } from './catalogFilters';
 import { cn } from '@/lib/utils';
@@ -13,6 +15,8 @@ type Game = 'pokemon' | 'onepiece';
 export interface CatalogItemActions {
   onOpen: (card: AnyCard) => void;
   onAdd: (card: AnyCard) => void;
+  /** Quick preview that grows out of the tile (shared layout id). Falls back to onOpen. */
+  onPreview?: (card: AnyCard, layoutId: string) => void;
 }
 
 function useWishlisted(card: AnyCard, game: Game) {
@@ -44,23 +48,21 @@ export function CatalogTile({
   game,
   onOpen,
   onAdd,
-}: { card: AnyCard; game: Game } & CatalogItemActions) {
+  onPreview,
+  layoutId,
+}: { card: AnyCard; game: Game; layoutId: string } & CatalogItemActions) {
   const [wished, toggleWish] = useWishlisted(card, game);
   const price = knownPrice(card);
   const move = weekMove(card);
   return (
     <article className="group relative min-w-0">
-      <button
-        type="button"
-        onClick={() => onOpen(card)}
-        className="block w-full rounded-[4.6%/3.3%] text-left focus-visible:outline-offset-4"
-        aria-label={`${card.name}, ${subtitle(card)}`}
-      >
-        <CardArt
-          card={card}
-          className="transition-transform duration-150 motion-safe:group-hover:-translate-y-1"
-        />
-      </button>
+      <HolographicCard
+        card={card as PokemonCard}
+        layoutId={layoutId}
+        level={finishOf(card as PokemonCard) === 'none' ? 'standard' : 'featured'}
+        label={`${card.name}, ${subtitle(card)}`}
+        onSelect={() => (onPreview ? onPreview(card, layoutId) : onOpen(card))}
+      />
       <div className="mt-2.5 min-w-0">
         <p className="truncate text-[13.5px] font-medium leading-snug" title={card.name}>
           {card.name}
@@ -107,10 +109,10 @@ export function CatalogGrid({
   ...actions
 }: { cards: AnyCard[]; game: Game } & CatalogItemActions) {
   return (
-    <ul className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 md:gap-x-6 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+    <ul className="grid grid-cols-2 gap-x-4 gap-y-9 sm:grid-cols-3 md:gap-x-7 lg:grid-cols-4 2xl:grid-cols-5">
       {cards.map((card, i) => (
         <li key={`${card.id}-${i}`} className="min-w-0">
-          <CatalogTile card={card} game={game} {...actions} />
+          <CatalogTile card={card} game={game} layoutId={`cat-${card.id}-${i}`} {...actions} />
         </li>
       ))}
     </ul>

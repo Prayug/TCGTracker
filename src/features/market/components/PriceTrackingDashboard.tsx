@@ -1,3 +1,4 @@
+import { GradeComparisonStage } from './GradeComparisonStage';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Modal } from '../../../components/common/Modal';
 import { Activity, BookMarked, Brain, Layers, Scale, Sparkles } from 'lucide-react';
@@ -198,6 +199,7 @@ export const PriceTrackingDashboard: React.FC = () => {
 
       {isPokemon && (
         <>
+          <GradeComparisonStage rows={topPremiums} />
           <div className="space-y-1.5">
             <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 [scrollbar-width:thin]">
               {(

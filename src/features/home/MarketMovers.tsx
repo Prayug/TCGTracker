@@ -5,6 +5,9 @@ import { moverKey, moverSubtitle, moverToCard } from '../../utils/topMovers';
 import { useCardModal } from '../../contexts/CardModalContext';
 import { useGame } from '../../contexts/GameContext';
 import { CardArt } from '../../components/exchange/CardArt';
+import { InteractiveCardFan } from '../../components/collectible/InteractiveCardFan';
+import { useIsMobileViewport } from '../../hooks/useMotionPreferences';
+import { AnimatePresence, motion } from 'motion/react';
 import { Delta, Price, Unavailable } from '../../components/exchange/Price';
 import { cn } from '@/lib/utils';
 
@@ -33,6 +36,7 @@ export function MarketMovers() {
     return c ? { gainers: c.gainers, losers: c.losers, date: c.date } : null;
   });
   const [loading, setLoading] = useState(!data);
+  const [fanSide, setFanSide] = useState<'up' | 'down'>('up');
 
   useEffect(() => {
     let alive = true;
@@ -128,31 +132,15 @@ export function MarketMovers() {
           after the next daily snapshot.
         </Unavailable>
       ) : (
-        <div className="mt-5 grid gap-x-8 gap-y-6 md:grid-cols-2 lg:grid-cols-[13rem_minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="mt-5 grid gap-x-8 gap-y-6 md:grid-cols-2 lg:grid-cols-2">
           {lead ? (
-            <button
-              type="button"
-              onClick={() => openCard(moverToCard(lead))}
-              className="group col-span-full flex gap-4 text-left lg:col-span-1 lg:flex-col"
-            >
-              <div className="w-28 shrink-0 transition-transform duration-150 group-hover:-translate-y-0.5 lg:w-full">
-                <CardArt card={moverToCard(lead)} />
-              </div>
-              <div className="min-w-0">
-                <p className="text-meta text-ink-muted">Largest dollar move · {period}</p>
-                <p className="mt-0.5 font-medium leading-snug group-hover:underline">
-                  {lead.productName}
-                </p>
-                <p className="truncate text-meta text-ink-muted">{moverSubtitle(lead)}</p>
-                <div className="mt-2 flex flex-wrap items-baseline gap-x-3">
-                  <Price value={lead.currentPrice} size="md" />
-                  <Delta pct={lead.changePercent} />
-                </div>
-                <p className="mt-0.5 font-mono text-[11.5px] text-ink-muted">
-                  from ${lead.previousPrice.toFixed(2)}
-                </p>
-              </div>
-            </button>
+            <MoverFanPanel
+              entries={fanSide === 'up' ? gainers : losers}
+              side={fanSide}
+              onSide={setFanSide}
+              period={period}
+              onOpen={(e) => openCard(moverToCard(e))}
+            />
           ) : null}
           <MoverColumn
             title={`Rising · ${period}`}
@@ -213,6 +201,124 @@ function MoverColumn({
             </li>
           ))}
         </ol>
+      )}
+    </div>
+  );
+}
+
+/** A hand of this period's movers; the selected card's move is drawn beside it. */
+function MoverFanPanel({
+  entries,
+  side,
+  onSide,
+  period,
+  onOpen,
+}: {
+  entries: TopMoverEntry[];
+  side: 'up' | 'down';
+  onSide: (s: 'up' | 'down') => void;
+  period: string;
+  onOpen: (e: TopMoverEntry) => void;
+}) {
+  const mobile = useIsMobileViewport(640);
+  const withArt = entries.filter((e) => e.imageSmall || e.imageLarge).slice(0, mobile ? 5 : 7);
+  const [selected, setSelected] = useState<string | null>(null);
+  const current = withArt.find((e) => moverKey(e) === selected) ?? withArt[0] ?? null;
+  const items = withArt.map((e) => ({
+    key: moverKey(e),
+    card: { ...moverToCard(e), subTypeName: e.subTypeName },
+    label: `${e.productName}, ${e.changePercent > 0 ? 'up' : 'down'} ${Math.abs(e.changePercent).toFixed(1)}%`,
+  }));
+  const max = current ? Math.max(current.currentPrice, current.previousPrice) : 1;
+
+  return (
+    <div
+      data-theme="dark"
+      className="atmo-stage col-span-full overflow-hidden rounded-3xl p-5 text-white sm:p-8"
+    >
+      <div className="relative z-20 flex flex-wrap items-center justify-between gap-3">
+        <p className="font-display text-[20px] font-semibold">
+          The hand this {period === '24h' ? 'day' : period === '7d' ? 'week' : 'month'} dealt
+        </p>
+        <div className="segmented" role="group" aria-label="Show">
+          <button type="button" aria-pressed={side === 'up'} onClick={() => onSide('up')}>
+            Rising
+          </button>
+          <button type="button" aria-pressed={side === 'down'} onClick={() => onSide('down')}>
+            Falling
+          </button>
+        </div>
+      </div>
+      {items.length === 0 ? (
+        <p className="mt-6 text-white/70">
+          No {side === 'up' ? 'rising' : 'falling'} cards with artwork this period.
+        </p>
+      ) : (
+        <div className="mt-10 grid items-end gap-8 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+          <InteractiveCardFan
+            items={items}
+            selectedKey={current ? moverKey(current) : null}
+            onSelect={setSelected}
+            cardWidth={mobile ? 104 : 150}
+            spread={mobile ? 34 : 44}
+            className="mx-auto w-full max-w-[640px]"
+          />
+          <AnimatePresence mode="wait">
+            {current ? (
+              <motion.div
+                key={moverKey(current)}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.22 }}
+                className="pb-2"
+                aria-live="polite"
+              >
+                <p className="text-[13px] text-white/60">{moverSubtitle(current)}</p>
+                <p className="mt-1 font-display text-[clamp(1.5rem,2.6vw,2.2rem)] font-semibold leading-tight">
+                  {current.productName}
+                </p>
+                <div className="mt-3 flex flex-wrap items-baseline gap-3">
+                  <Price value={current.currentPrice} size="lg" className="text-white" />
+                  <Delta pct={current.changePercent} />
+                </div>
+                <div className="mt-5 space-y-2" aria-hidden>
+                  {[
+                    ['Before', current.previousPrice, 'bg-white/35'],
+                    [
+                      'Now',
+                      current.currentPrice,
+                      current.changePercent >= 0 ? 'bg-[#3fd3a8]' : 'bg-[#ff7a6b]',
+                    ],
+                  ].map(([k, v, c]) => (
+                    <div
+                      key={k as string}
+                      className="grid grid-cols-[3.5rem_minmax(0,1fr)_5.5rem] items-center gap-3 text-[12.5px]"
+                    >
+                      <span className="text-white/60">{k}</span>
+                      <motion.span
+                        className={cn('h-2.5 rounded-full', c as string)}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${((v as number) / max) * 100}%` }}
+                        transition={{ type: 'spring', stiffness: 120, damping: 20 }}
+                      />
+                      <span className="text-right font-mono tabular-nums">
+                        ${(v as number).toFixed(2)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-3 text-[12px] text-white/50">
+                  Raw Near Mint market price, {period} change. Drag across the hand or use the arrow
+                  keys.
+                </p>
+                <button type="button" onClick={() => onOpen(current)} className="btn-tactile mt-5">
+                  Open {current.productName}
+                </button>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+        </div>
       )}
     </div>
   );

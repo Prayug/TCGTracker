@@ -38,6 +38,7 @@ import { addToSubmissionQueue, isInSubmissionQueue } from '../submissionQueue';
 import { submitGradingFeedback } from '../../../services/gradingService';
 import { GradingReport } from './GradingReport';
 import { InspectCanvas } from './InspectCanvas';
+import { InspectionStepper } from './InspectionSteps';
 
 interface GradingResultViewProps {
   result: GradingResult;
@@ -241,6 +242,7 @@ export const GradingResultView: React.FC<GradingResultViewProps> = ({
     >
       <div className="grid gap-0 lg:grid-cols-[minmax(280px,1.15fr)_minmax(300px,0.85fr)]">
         <div className="border-b border-border-subtle p-4 sm:p-6 lg:border-b-0 lg:border-r">
+          <InspectionStepper rows={rows} active={category} onSelect={selectCategory} />
           <InspectCanvas
             result={result}
             side={side}

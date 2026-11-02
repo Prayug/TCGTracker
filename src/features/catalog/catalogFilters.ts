@@ -6,6 +6,7 @@ import {
   isOnePieceCard,
   isPokemonCard,
 } from '../../utils/cardPrice';
+import { finishOf, type Finish } from '../../components/collectible/finish';
 
 /**
  * Catalog view state lives in the URL so a filtered view can be shared,
@@ -36,6 +37,8 @@ export interface CatalogState {
   rarity: string;
   type: string;
   price: PriceBand;
+  /** Print finish read from rarity/variant ('' = any). */
+  finish: Finish | '';
 }
 
 export const DEFAULT_CATALOG_STATE: CatalogState = {
@@ -48,6 +51,7 @@ export const DEFAULT_CATALOG_STATE: CatalogState = {
   rarity: '',
   type: '',
   price: 'all',
+  finish: '',
 };
 
 const SORTS: CatalogSort[] = [
@@ -62,6 +66,16 @@ const SORTS: CatalogSort[] = [
   'rarity',
 ];
 const QUICK: QuickFilter[] = ['all', 'priced', 'rising', 'falling', 'below-avg'];
+const FINISHES: (Finish | '')[] = [
+  '',
+  'none',
+  'holo',
+  'reverse',
+  'textured',
+  'rainbow',
+  'gold',
+  'illustration',
+];
 const BANDS: PriceBand[] = ['all', 'under-10', '10-50', '50-150', '150-plus'];
 
 function oneOf<T extends string>(value: string | null, allowed: readonly T[], fallback: T): T {
@@ -79,6 +93,7 @@ export function parseCatalogState(params: URLSearchParams): CatalogState {
     rarity: params.get('rarity') ?? '',
     type: params.get('type') ?? '',
     price: oneOf(params.get('price'), BANDS, 'all'),
+    finish: oneOf(params.get('finish'), FINISHES, '' as Finish | ''),
   };
 }
 
@@ -166,6 +181,7 @@ export function applyCatalogFilters(cards: AnyCard[], state: CatalogState): AnyC
     if (state.rarity && (card.rarity || '') !== state.rarity) return false;
     if (state.type && !cardTypes(card).includes(state.type)) return false;
     if (!inPriceBand(knownPrice(card), state.price)) return false;
+    if (state.finish && finishOf(card as PokemonCard) !== state.finish) return false;
     return matchesQuick(card, state.quick);
   });
 }
@@ -192,7 +208,11 @@ export function facetOptions(cards: AnyCard[]) {
 }
 
 export function activeFacetCount(state: CatalogState): number {
-  return [state.set, state.rarity, state.type, state.price !== 'all' ? state.price : ''].filter(
-    Boolean
-  ).length;
+  return [
+    state.set,
+    state.rarity,
+    state.type,
+    state.price !== 'all' ? state.price : '',
+    state.finish,
+  ].filter(Boolean).length;
 }

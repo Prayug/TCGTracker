@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BinderSlot } from '../types';
-import { layoutPages, moveWithin, plannedCost, swapUpdates } from '../binderLayout';
+import { layoutPages, moveWithin, plannedCost, replaceUpdate, swapUpdates } from '../binderLayout';
 
 function slot(id: number, pos: number, page = 1, price: number | null = 100): BinderSlot {
   return {
@@ -66,5 +66,44 @@ describe('plannedCost', () => {
       cents: 100,
       priced: 1,
     });
+  });
+});
+
+describe('replaceUpdate', () => {
+  const slot = {
+    id: 7,
+    binderId: 1,
+    pageNumber: 1,
+    slotPosition: 0,
+    cardId: 'a',
+    cardSnapshot: null,
+    marketPriceCents: 100,
+    notes: null,
+    createdAt: '',
+  };
+  const card = {
+    cardId: 'b',
+    cardName: 'B',
+    setId: 's',
+    setName: 'S',
+    cardNumber: '1',
+    rarity: 'Rare',
+    imageSmall: null,
+    imageLarge: null,
+    marketPrice: 12.5,
+  };
+  it('writes the new card and its price into the existing slot', () => {
+    const u = replaceUpdate({ index: 0, slot, card: { cardId: 'a' } }, card);
+    expect(u).toMatchObject({ slotId: 7, cardId: 'b', marketPriceCents: 1250 });
+    expect(JSON.parse(u!.cardSnapshot!)).toMatchObject({ cardName: 'B' });
+  });
+  it('leaves an unknown price unset rather than zero', () => {
+    expect(
+      replaceUpdate({ index: 0, slot, card: null }, { ...card, marketPrice: null })
+        ?.marketPriceCents
+    ).toBeUndefined();
+  });
+  it('cannot fill an empty pocket', () => {
+    expect(replaceUpdate({ index: 3, slot: null, card: null }, card)).toBeNull();
   });
 });

@@ -146,7 +146,8 @@ export default {
       fontFamily: {
         sans: ['"IBM Plex Sans"', 'system-ui', '-apple-system', 'sans-serif'],
         mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
-        display: ['"Newsreader Variable"', '"Newsreader"', 'Georgia', 'serif'],
+        display: ['"Bricolage Grotesque Variable"', '"IBM Plex Sans"', 'system-ui', 'sans-serif'],
+        editorial: ['"Newsreader Variable"', '"Newsreader"', 'Georgia', 'serif'],
       },
       fontSize: {
         display: [

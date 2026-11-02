@@ -19,7 +19,10 @@ import { summarizePortfolio } from '../../../utils/portfolio';
 import { GradeWorthinessList } from '../../market/components/GradeWorthinessList';
 import { HoldingsTable } from './HoldingsTable';
 import { HoldingSheet } from './HoldingSheet';
-import { VaultActivity, VaultAnalysis, VaultGallery, VaultSets } from './VaultModes';
+import { VaultActivity, VaultSets } from './VaultModes';
+import { CollectionShowcase } from './CollectionShowcase';
+import { PortfolioVisualization } from './PortfolioVisualization';
+import { motion } from 'motion/react';
 import {
   CONDITION_LABEL,
   type HoldingSort,
@@ -31,14 +34,16 @@ import {
 } from '../ledger';
 import { cn } from '@/lib/utils';
 
-type Mode = 'holdings' | 'gallery' | 'sets' | 'analysis' | 'activity';
+type Mode = 'showcase' | 'portfolio' | 'holdings' | 'sets' | 'activity';
 const MODES: { id: Mode; label: string }[] = [
+  { id: 'showcase', label: 'Showcase' },
+  { id: 'portfolio', label: 'Portfolio' },
   { id: 'holdings', label: 'Holdings' },
-  { id: 'gallery', label: 'Gallery' },
   { id: 'sets', label: 'By set' },
-  { id: 'analysis', label: 'Allocation' },
   { id: 'activity', label: 'Activity' },
 ];
+/** Older links: gallery → showcase, analysis → portfolio. */
+const LEGACY_MODE: Record<string, Mode> = { gallery: 'showcase', analysis: 'portfolio' };
 const SORTS: HoldingSort[] = ['value', 'pl', 'plPct', 'cost', 'name', 'set', 'qty', 'date'];
 
 /**
@@ -59,7 +64,11 @@ export function VaultView({ onOpenSet }: { onOpenSet?: (setId: string) => void }
   const [remote, setRemote] = useState<PortfolioStatsSummary | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const mode = (MODES.find((m) => m.id === params.get('mode'))?.id ?? 'holdings') as Mode;
+  const rawMode = params.get('mode') ?? '';
+  const filterOnly = Boolean(params.get('filter') || params.get('set') || params.get('q'));
+  const mode = (MODES.find((m) => m.id === rawMode)?.id ??
+    LEGACY_MODE[rawMode] ??
+    (filterOnly ? 'holdings' : 'showcase')) as Mode;
   const sort = (SORTS.find((s) => s === params.get('sort')) ?? 'value') as HoldingSort;
   const dir: SortDir =
     params.get('dir') === 'asc' ? 'asc' : params.get('dir') === 'desc' ? 'desc' : defaultDir(sort);
@@ -293,86 +302,88 @@ export function VaultView({ onOpenSet }: { onOpenSet?: (setId: string) => void }
       />
 
       {/* Ledger summary: three figures, each with its coverage stated. */}
-      <section
-        aria-label="Collection summary"
-        className="grid gap-x-10 gap-y-6 border-b border-rule pb-6 md:grid-cols-3"
-      >
-        <div>
-          <p className="text-meta text-ink-muted">Market value</p>
-          <Price value={summary.marketValue} size="lg" className="mt-1 block" />
-          <Basis
-            kind="Market estimate"
-            source="TCGplayer"
-            detail={
-              summary.unpricedEntries > 0
-                ? `${summary.unpricedEntries} unpriced holding${summary.unpricedEntries === 1 ? '' : 's'} not counted`
-                : 'Near Mint, raw'
-            }
-            className="mt-1.5"
-          />
-        </div>
-        <div>
-          <p className="text-meta text-ink-muted">Unrealized profit / loss</p>
-          {summary.unrealized != null ? (
-            <>
-              <p
-                className={cn(
-                  'mt-1 font-mono text-[28px] font-medium leading-none tabular-nums tracking-[-0.025em]',
-                  summary.unrealized > 0 && 'text-gain',
-                  summary.unrealized < 0 && 'text-loss'
-                )}
-              >
-                {formatCurrency(summary.unrealized, { signed: true })}
-              </p>
-              <p className="mt-1.5 text-[12px] text-ink-muted">
-                <Delta pct={summary.unrealizedPct} className="mr-1" />
-                on {formatCurrency(summary.knownCost)} of recorded cost
-              </p>
-            </>
-          ) : (
-            <p className="mt-2 text-[13.5px] text-ink-secondary">
-              Record what you paid for a card to see profit and loss.
-            </p>
-          )}
-          {remote?.realizedPnl != null && remote.realizedPnl !== 0 ? (
-            <p className="mt-1 text-[12px] text-ink-muted">
-              Realized from recorded sales:{' '}
-              <span className="font-mono text-ink-primary">
-                {formatCurrency(remote.realizedPnl, { signed: true })}
-              </span>
-            </p>
-          ) : null}
-        </div>
-        <div>
-          <p className="text-meta text-ink-muted">Cost coverage</p>
-          <p className="mt-1 font-mono text-[28px] font-medium leading-none tabular-nums tracking-[-0.025em]">
-            {Math.round(summary.costCoverage * 100)}%
-          </p>
-          <span className="mt-2.5 block">
-            <CoverageMeter value={summary.costCoverage} />
-          </span>
-          <p className="mt-1.5 text-[12px] text-ink-muted">
-            of value has a recorded cost.{' '}
-            {summary.missingCostEntries > 0 ? (
-              <button
-                type="button"
-                onClick={() => update({ mode: null, filter: 'missing-cost' })}
-                className="text-accent hover:underline"
-              >
-                {summary.missingCostEntries} holding{summary.missingCostEntries === 1 ? '' : 's'}{' '}
-                need a cost
-              </button>
+      {mode === 'holdings' ? (
+        <section
+          aria-label="Collection summary"
+          className="grid gap-x-10 gap-y-6 border-b border-rule pb-6 md:grid-cols-3"
+        >
+          <div>
+            <p className="text-meta text-ink-muted">Market value</p>
+            <Price value={summary.marketValue} size="lg" className="mt-1 block" />
+            <Basis
+              kind="Market estimate"
+              source="TCGplayer"
+              detail={
+                summary.unpricedEntries > 0
+                  ? `${summary.unpricedEntries} unpriced holding${summary.unpricedEntries === 1 ? '' : 's'} not counted`
+                  : 'Near Mint, raw'
+              }
+              className="mt-1.5"
+            />
+          </div>
+          <div>
+            <p className="text-meta text-ink-muted">Unrealized profit / loss</p>
+            {summary.unrealized != null ? (
+              <>
+                <p
+                  className={cn(
+                    'mt-1 font-mono text-[28px] font-medium leading-none tabular-nums tracking-[-0.025em]',
+                    summary.unrealized > 0 && 'text-gain',
+                    summary.unrealized < 0 && 'text-loss'
+                  )}
+                >
+                  {formatCurrency(summary.unrealized, { signed: true })}
+                </p>
+                <p className="mt-1.5 text-[12px] text-ink-muted">
+                  <Delta pct={summary.unrealizedPct} className="mr-1" />
+                  on {formatCurrency(summary.knownCost)} of recorded cost
+                </p>
+              </>
             ) : (
-              'Every holding has one.'
+              <p className="mt-2 text-[13.5px] text-ink-secondary">
+                Record what you paid for a card to see profit and loss.
+              </p>
             )}
-          </p>
-        </div>
-      </section>
+            {remote?.realizedPnl != null && remote.realizedPnl !== 0 ? (
+              <p className="mt-1 text-[12px] text-ink-muted">
+                Realized from recorded sales:{' '}
+                <span className="font-mono text-ink-primary">
+                  {formatCurrency(remote.realizedPnl, { signed: true })}
+                </span>
+              </p>
+            ) : null}
+          </div>
+          <div>
+            <p className="text-meta text-ink-muted">Cost coverage</p>
+            <p className="mt-1 font-mono text-[28px] font-medium leading-none tabular-nums tracking-[-0.025em]">
+              {Math.round(summary.costCoverage * 100)}%
+            </p>
+            <span className="mt-2.5 block">
+              <CoverageMeter value={summary.costCoverage} />
+            </span>
+            <p className="mt-1.5 text-[12px] text-ink-muted">
+              of value has a recorded cost.{' '}
+              {summary.missingCostEntries > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => update({ mode: 'holdings', filter: 'missing-cost' })}
+                  className="text-accent hover:underline"
+                >
+                  {summary.missingCostEntries} holding{summary.missingCostEntries === 1 ? '' : 's'}{' '}
+                  need a cost
+                </button>
+              ) : (
+                'Every holding has one.'
+              )}
+            </p>
+          </div>
+        </section>
+      ) : null}
 
       <div
         role="tablist"
         aria-label="Collection view"
-        className="segmented max-w-full overflow-x-auto"
+        className="scrollbar-none -mx-1 flex max-w-full gap-1 overflow-x-auto px-1"
       >
         {MODES.map((m) => (
           <button
@@ -380,14 +391,25 @@ export function VaultView({ onOpenSet }: { onOpenSet?: (setId: string) => void }
             type="button"
             role="tab"
             aria-selected={mode === m.id}
-            onClick={() => update({ mode: m.id === 'holdings' ? null : m.id })}
+            onClick={() => update({ mode: m.id === 'showcase' ? null : m.id })}
+            className={cn(
+              'relative h-11 shrink-0 rounded-full px-5 text-[14.5px] font-semibold transition-colors',
+              mode === m.id ? 'text-surface-base' : 'text-ink-secondary hover:text-ink-primary'
+            )}
           >
-            {m.label}
+            {mode === m.id ? (
+              <motion.span
+                layoutId="vault-mode"
+                className="absolute inset-0 -z-0 rounded-full bg-ink-primary"
+                transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+              />
+            ) : null}
+            <span className="relative">{m.label}</span>
           </button>
         ))}
       </div>
 
-      {mode === 'holdings' || mode === 'gallery' ? (
+      {mode === 'holdings' || mode === 'showcase' ? (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-[12rem] flex-1">
@@ -526,7 +548,7 @@ export function VaultView({ onOpenSet }: { onOpenSet?: (setId: string) => void }
               onOpen={(vc: VaultCard) => setOpenId(vc.id)}
             />
           ) : (
-            <VaultGallery rows={rows} onOpen={(vc) => setOpenId(vc.id)} />
+            <CollectionShowcase rows={rows} onEdit={(vc) => setOpenId(vc.id)} />
           )}
 
           {mode === 'holdings' && game === 'pokemon' && !filtersActive ? (
@@ -547,8 +569,14 @@ export function VaultView({ onOpenSet }: { onOpenSet?: (setId: string) => void }
       {mode === 'sets' ? (
         <VaultSets cards={cards} onOpenSet={game === 'pokemon' ? onOpenSet : undefined} />
       ) : null}
-      {mode === 'analysis' ? (
-        <VaultAnalysis cards={cards} onFilterSet={(k) => update({ mode: null, set: k })} />
+      {mode === 'portfolio' ? (
+        <>
+          <PortfolioVisualization
+            cards={cards}
+            onOpen={(vc) => setOpenId(vc.id)}
+            onFilterSet={(k) => update({ mode: 'holdings', set: k })}
+          />
+        </>
       ) : null}
       {mode === 'activity' ? <VaultActivity items={activity} /> : null}
 
