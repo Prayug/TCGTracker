@@ -202,7 +202,7 @@ function AppRoutes() {
             <Route
               path="/money-flow"
               element={
-                <ShellPage fluid flush plain atmosphere="subtle">
+                <ShellPage wide>
                   <MoneyFlowPage />
                 </ShellPage>
               }
