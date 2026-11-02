@@ -1105,12 +1105,12 @@
   }
 
   /* Glass card variant */
+  /* Legacy name kept for older panels; now a plain ruled panel, no glass blur. */
   .card-glass-scene {
-    background: var(--surface-glass);
-    border: 1px solid var(--surface-glass-border);
-    -webkit-backdrop-filter: blur(20px);
-    backdrop-filter: blur(20px);
-    padding: 20px;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-default);
+    border-radius: 0.5rem;
+    padding: 1.25rem;
   }
 
   /* Hot border */
