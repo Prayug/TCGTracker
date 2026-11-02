@@ -1,9 +1,5 @@
 import type { VaultActivityItem, VaultCard } from '../../../types/pokemon';
 import { Delta, Price, Unavailable } from '../../../components/exchange/Price';
-import { AllocationBars } from '../../../components/exchange/AllocationBars';
-import { formatCurrency } from '../../../utils/cardDisplay';
-import { allocateBy, byEra, bySet, concentration, topHoldings } from '../../../utils/portfolio';
-import { holdingMarketValue } from '../../../utils/vaultCost';
 import { type SetRollup, rollupBySet } from '../ledger';
 
 function SetRow({ row, onOpenSet }: { row: SetRollup; onOpenSet?: (key: string) => void }) {
@@ -88,109 +84,6 @@ export function VaultSets({
       <p className="mt-3 text-[12px] text-ink-muted">
         Set completion lives on each set’s page, where the full checklist is loaded.
       </p>
-    </div>
-  );
-}
-
-export function VaultAnalysis({
-  cards,
-  onFilterSet,
-}: {
-  cards: VaultCard[];
-  onFilterSet: (setKey: string) => void;
-}) {
-  const sets = allocateBy(cards, bySet, 6);
-  const eras = allocateBy(cards, byEra, 4);
-  const top = topHoldings(cards, 5);
-  const total = cards.reduce((s, vc) => s + Math.max(0, holdingMarketValue(vc)), 0);
-  const conc = concentration(cards, 5);
-  if (total <= 0) {
-    return (
-      <Unavailable title="Nothing to analyse yet">
-        None of your holdings has a market price, so there is no value to break down.
-      </Unavailable>
-    );
-  }
-  return (
-    <div className="grid gap-x-10 gap-y-10 lg:grid-cols-2">
-      <section aria-labelledby="alloc-set">
-        <h2 id="alloc-set" className="text-h2">
-          By set
-        </h2>
-        <p className="mb-3 text-meta text-ink-muted">Share of priced market value</p>
-        <AllocationBars
-          slices={sets}
-          title="Market value by set"
-          onSelect={(s) => onFilterSet(s.key)}
-        />
-      </section>
-      <section aria-labelledby="alloc-era">
-        <h2 id="alloc-era" className="text-h2">
-          By era
-        </h2>
-        <p className="mb-3 text-meta text-ink-muted">
-          Vintage to 2003 · Mid-era 2004–2016 · Modern 2017 on
-        </p>
-        <AllocationBars slices={eras} title="Market value by era" />
-      </section>
-      <section aria-labelledby="alloc-top" className="lg:col-span-2">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 id="alloc-top" className="text-h2">
-            Concentration
-          </h2>
-          <p className="text-meta text-ink-muted">
-            Your five largest holdings are{' '}
-            <span className="font-mono text-ink-primary">{Math.round(conc * 100)}%</span> of value
-          </p>
-        </div>
-        <table className="ledger ledger-tight mt-2">
-          <caption className="sr-only">Largest holdings and their share of value</caption>
-          <thead>
-            <tr>
-              <th scope="col">Holding</th>
-              <th scope="col" className="num">
-                Value
-              </th>
-              <th scope="col" className="num">
-                Share
-              </th>
-              <th scope="col" className="hidden w-1/3 sm:table-cell">
-                <span className="sr-only">Share bar</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {top.map((vc) => {
-              const v = holdingMarketValue(vc);
-              const share = v / total;
-              return (
-                <tr key={vc.id}>
-                  <th scope="row" className="text-left font-normal">
-                    <span className="block max-w-[42vw] truncate font-medium sm:max-w-none">
-                      {vc.card.name}
-                    </span>
-                    <span className="block text-meta text-ink-muted">{vc.card.set?.name}</span>
-                  </th>
-                  <td className="num">{formatCurrency(v)}</td>
-                  <td className="num">{Math.round(share * 100)}%</td>
-                  <td className="hidden sm:table-cell">
-                    <span className="block h-2 rounded-sm bg-surface-hover" aria-hidden>
-                      <span
-                        className="block h-full rounded-sm bg-ink-primary"
-                        style={{ width: `${share * 100}%` }}
-                      />
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        <p className="mt-3 max-w-[68ch] text-[12px] text-ink-muted">
-          TCGTracker does not keep a daily record of your collection’s value, so there is no value
-          chart. Movement for individual cards is on each card’s research page.
-        </p>
-      </section>
     </div>
   );
 }
