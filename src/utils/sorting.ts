@@ -25,6 +25,17 @@ const POKEMON_RARITY_ORDER = [
   'Rare Secret',
 ];
 
+/** Unpriced cards (no quote) always sort last, in either direction: unknown is not $0. */
+function byPrice(a: AnyCard, b: AnyCard, dir: 1 | -1): number {
+  const pa = getCardPrice(a);
+  const pb = getCardPrice(b);
+  const ka = Number.isFinite(pa) && pa > 0;
+  const kb = Number.isFinite(pb) && pb > 0;
+  if (ka !== kb) return ka ? -1 : 1;
+  if (!ka) return 0;
+  return (pa - pb) * dir;
+}
+
 export type GameSortOption = SortOption | OnePieceSortOption;
 
 /** Prefer releaseDate; for OP (no releaseDate) fall back to set id lexical order (OP01 < OP02). */
@@ -48,10 +59,10 @@ export const sortCards = (
 
   switch (sortBy) {
     case 'price-high':
-      return sorted.sort((a, b) => getCardPrice(b) - getCardPrice(a));
+      return sorted.sort((a, b) => byPrice(a, b, -1));
 
     case 'price-low':
-      return sorted.sort((a, b) => getCardPrice(a) - getCardPrice(b));
+      return sorted.sort((a, b) => byPrice(a, b, 1));
 
     case 'name-asc':
       return sorted.sort((a, b) => a.name.localeCompare(b.name));

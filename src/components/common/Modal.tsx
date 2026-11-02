@@ -31,6 +31,8 @@ interface ModalProps {
   flush?: boolean;
   /** Ref to the scrolling body — used for sticky-header intersection. */
   bodyRef?: React.Ref<HTMLDivElement>;
+  /** Accessible name for the dialog when it has no visible heading wired up. */
+  ariaLabel?: string;
 }
 
 const sizeClasses: Record<NonNullable<ModalProps['size']>, string> = {
@@ -99,6 +101,7 @@ export const Modal: React.FC<ModalProps> = ({
   bodyClassName,
   flush = false,
   bodyRef,
+  ariaLabel,
 }) => {
   const previousActiveElement = useRef<Element | null>(null);
   const isPack = size === 'pack' || variant === 'stage';
@@ -219,6 +222,7 @@ export const Modal: React.FC<ModalProps> = ({
               )}
               role="dialog"
               aria-modal="true"
+              aria-label={ariaLabel}
               onClick={(e) => e.stopPropagation()}
             >
               {!hideClose && (

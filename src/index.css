@@ -500,6 +500,14 @@
     background: color-mix(in srgb, var(--ink-primary) 2.5%, transparent);
   }
 
+  @media (max-width: 639px) {
+    .ledger-tight thead th,
+    .ledger-tight tbody td {
+      padding-left: 0.375rem;
+      padding-right: 0.375rem;
+    }
+  }
+
   .ledger .num {
     @apply text-right font-mono tabular-nums;
   }
