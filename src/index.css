@@ -19,6 +19,13 @@
  * dark is "graphite & carbon". Legacy names (neon-*, foil, gradient-*)
  * are kept as aliases so untouched screens inherit the new palette.
  */
+/* Lets the hero's light change colour smoothly when the front card changes. */
+@property --hero-tone {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #7f9bff;
+}
+
 @layer base {
   :root,
   [data-theme='light'] {
@@ -1664,6 +1671,20 @@
     background:
       radial-gradient(70% 90% at 90% 100%, rgba(255, 122, 61, 0.2), transparent 70%),
       var(--surface-raised);
+  }
+
+  /* Hero accent: one hue from the front card, not a rainbow. */
+  .tone-text {
+    background: linear-gradient(
+      100deg,
+      color-mix(in srgb, var(--hero-tone) 70%, white) 0%,
+      var(--hero-tone) 55%,
+      color-mix(in srgb, var(--hero-tone) 80%, #ffffff) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    transition: --hero-tone 600ms ease;
   }
 
   .holo-text {
