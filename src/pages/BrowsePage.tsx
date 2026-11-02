@@ -11,7 +11,10 @@ import { Unavailable } from '../components/exchange/Price';
 import { markOnboardingStep } from '../components/common/OnboardingChecklist';
 import { AddToVaultModal } from '../features/vault/components/AddToVaultModal';
 import { CatalogGrid, CatalogTable } from '../features/catalog/CatalogItems';
-import { CatalogDiscovery } from '../features/catalog/CatalogDiscovery';
+import { DiscoverShowcase } from '../features/catalog/DiscoverShowcase';
+import { FINISH_LABEL } from '../components/collectible/finish';
+import { CardSpotlight } from '../components/collectible/CardSpotlight';
+import { QuickPreviewFacts } from '../features/catalog/QuickPreviewFacts';
 import { FilterRail } from '../features/catalog/FilterRail';
 import {
   type CatalogSort,
@@ -125,6 +128,7 @@ export function BrowsePage() {
   });
   const [sheetOpen, setSheetOpen] = useState(false);
   const [adding, setAdding] = useState<AnyCard | null>(null);
+  const [preview, setPreview] = useState<{ card: AnyCard; layoutId: string } | null>(null);
 
   const {
     cards,
@@ -161,7 +165,7 @@ export function BrowsePage() {
   const commitQuery = useCallback(
     (q: string) => {
       // A new search starts from a clean facet slate: old set/rarity picks rarely apply.
-      const patch: Partial<CatalogState> = { q, set: '', rarity: '', type: '' };
+      const patch: Partial<CatalogState> = { q, set: '', rarity: '', type: '', finish: '' };
       if (queryContainsCjk(q)) patch.lang = 'ja';
       update(patch);
     },
@@ -185,12 +189,14 @@ export function BrowsePage() {
   const gameLabel = isOnePiece ? 'One Piece' : 'Pokémon';
   const typeLabel = isOnePiece ? 'Colour' : 'Type';
 
-  const resetFilters = () => update({ set: '', rarity: '', type: '', price: 'all', quick: 'all' });
+  const resetFilters = () =>
+    update({ set: '', rarity: '', type: '', price: 'all', quick: 'all', finish: '' });
 
   const activeTokens: { key: keyof CatalogState; label: string }[] = [];
   if (state.set) activeTokens.push({ key: 'set', label: state.set });
   if (state.rarity) activeTokens.push({ key: 'rarity', label: state.rarity });
   if (state.type) activeTokens.push({ key: 'type', label: state.type });
+  if (state.finish) activeTokens.push({ key: 'finish', label: FINISH_LABEL[state.finish] });
   if (state.price !== 'all')
     activeTokens.push({
       key: 'price',
@@ -211,6 +217,34 @@ export function BrowsePage() {
       activeCount={facetCount}
     />
   );
+
+  const searchBox = (
+    <CatalogSearch
+      value={state.q}
+      onCommit={commitQuery}
+      loading={isLoading}
+      placeholder={
+        isOnePiece ? 'Search by name, set or code, e.g. OP05-119' : 'Search by name, set or number'
+      }
+    />
+  );
+
+  if (!hasQuery) {
+    return (
+      <PageShell wide className="space-y-5">
+        <DiscoverShowcase
+          search={searchBox}
+          onSearch={(q, patch) =>
+            update(
+              { q, set: '', rarity: '', type: '', finish: '', ...(patch as Partial<CatalogState>) },
+              { push: true }
+            )
+          }
+          onAdvanced={() => document.getElementById('catalog-q')?.focus()}
+        />
+      </PageShell>
+    );
+  }
 
   return (
     <PageShell wide className="space-y-5">
@@ -376,8 +410,6 @@ export function BrowsePage() {
                 Try again
               </button>
             </Unavailable>
-          ) : !hasQuery ? (
-            <CatalogDiscovery isOnePiece={isOnePiece} onSearch={commitQuery} />
           ) : isLoading && cards.length === 0 ? (
             <div className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {Array.from({ length: 10 }).map((_, i) => (
@@ -427,6 +459,7 @@ export function BrowsePage() {
                   game={game}
                   onOpen={(c) => openCard(c as PokemonCard)}
                   onAdd={setAdding}
+                  onPreview={(card, layoutId) => setPreview({ card, layoutId })}
                 />
               )}
               <div className="mt-8 flex flex-col items-center gap-3">
@@ -465,6 +498,28 @@ export function BrowsePage() {
       >
         {rail}
       </Modal>
+
+      <CardSpotlight
+        card={(preview?.card as PokemonCard) ?? null}
+        layoutId={preview?.layoutId}
+        onClose={() => setPreview(null)}
+      >
+        {preview ? (
+          <QuickPreviewFacts
+            card={preview.card}
+            onDetails={() => {
+              const c = preview.card;
+              setPreview(null);
+              openCard(c as PokemonCard);
+            }}
+            onAdd={() => {
+              const c = preview.card;
+              setPreview(null);
+              setAdding(c);
+            }}
+          />
+        ) : null}
+      </CardSpotlight>
 
       <AddToVaultModal
         card={adding as PokemonCard | null}
