@@ -10,7 +10,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { ChevronLeft, ChevronRight, Maximize2, Replace } from 'lucide-react';
 import { CardArt } from '../../../components/exchange/CardArt';
 import type { Binder } from '../types';
-import { type Pocket, layoutPages } from '../binderLayout';
+import { type Pocket, layoutPages, pocketCard } from '../binderLayout';
 import { coverFor, type BinderCover } from '../binderCovers';
 import { useIsMobileViewport, usePrefersReducedMotion } from '../../../hooks/useMotionPreferences';
 import { cn } from '@/lib/utils';
@@ -18,17 +18,6 @@ import { cn } from '@/lib/utils';
 function pocketLabel(p: Pocket): string {
   const where = `Page ${Math.floor(p.index / 9) + 1}, pocket ${(p.index % 9) + 1}`;
   return p.card ? `${where}: ${p.card.cardName ?? p.card.cardId ?? 'card'}` : `${where}: empty`;
-}
-
-export function pocketCard(p: Pocket) {
-  return {
-    id: p.card?.cardId,
-    name: p.card?.cardName ?? 'Card',
-    images: { small: p.card?.imageSmall ?? undefined, large: p.card?.imageLarge ?? undefined },
-    number: p.card?.cardNumber,
-    set: { name: p.card?.setName },
-    rarity: p.card?.rarity,
-  };
 }
 
 /** A pocket: the card behind a clear sleeve (lip, gloss, edge), or an empty sleeve. */

@@ -210,7 +210,11 @@ function FeaturedCardGallery({
           Trending data is not available right now. Search above, or pick a way in below.
         </p>
       ) : (
-        <div onKeyDown={onKey}>
+        <div
+          role="toolbar"
+          aria-label="Trending cards. Use the left and right arrow keys to move between them."
+          onKeyDown={onKey}
+        >
           <div className="mt-7 grid items-center gap-6 sm:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] md:grid-cols-[minmax(0,17rem)_minmax(0,1fr)] md:gap-10">
             <div className="relative mx-auto w-[min(62vw,17rem)] sm:w-full">
               <AnimatePresence mode="popLayout" initial={false}>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fanPoints } from '../ForecastFan';
+import { fanPoints } from '../../../utils/forecastFan';
 import type { CardPrediction } from '../../../types';
 
 const base = {

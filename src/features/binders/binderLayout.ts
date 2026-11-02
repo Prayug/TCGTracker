@@ -135,3 +135,15 @@ export function replaceUpdate(
         : undefined,
   };
 }
+
+/** The card in a pocket, shaped for the card components. */
+export function pocketCard(p: Pocket) {
+  return {
+    id: p.card?.cardId,
+    name: p.card?.cardName ?? 'Card',
+    images: { small: p.card?.imageSmall ?? undefined, large: p.card?.imageLarge ?? undefined },
+    number: p.card?.cardNumber,
+    set: { name: p.card?.setName },
+    rarity: p.card?.rarity,
+  };
+}

@@ -135,7 +135,7 @@ export function GradeComparisonStage({ rows }: { rows: GradedSpreadRow[] }) {
           aria-label="Cards with the largest grading premium"
         >
           {usable.slice(0, 8).map((r, i) => (
-            <li key={r.cardId + r.grade} className="shrink-0">
+            <li key={`${r.cardId}-${r.grader}-${r.grade}-${i}`} className="shrink-0">
               <button
                 type="button"
                 onClick={() => setPick(i)}

@@ -108,7 +108,11 @@ export function MatchCompare({
       <figure className="min-w-0">
         <div className="overflow-hidden rounded-[8px] bg-black ring-1 ring-rule-strong">
           {photo ? (
-            <img src={photo} alt="Your photo" className="aspect-[5/7] w-full object-cover" />
+            <img
+              src={photo}
+              alt="The card as you captured it"
+              className="aspect-[5/7] w-full object-cover"
+            />
           ) : (
             <div className="grid aspect-[5/7] place-items-center text-[11px] text-ink-muted">
               No photo kept
