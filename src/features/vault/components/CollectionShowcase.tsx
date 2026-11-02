@@ -4,6 +4,7 @@ import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { VaultCard } from '../../../types/pokemon';
 import { HolographicCard } from '../../../components/collectible/HolographicCard';
+import { CardArt } from '../../../components/exchange/CardArt';
 import { CardSpotlight } from '../../../components/collectible/CardSpotlight';
 import { FINISH_LABEL, finishOf, finishRank } from '../../../components/collectible/finish';
 import { Delta, Price } from '../../../components/exchange/Price';
@@ -119,7 +120,14 @@ export function CollectionShowcase({
 
   return (
     <div className="space-y-8">
-      {featured.length ? <CollectionSpotlight pieces={featured} onEdit={onEdit} /> : null}
+      {featured.length ? (
+        <CollectionSpotlight
+          pieces={featured}
+          onEdit={onEdit}
+          onInspect={(vc) => setOpen({ vc, layoutId: `spot-${vc.id}` })}
+          hiddenId={open?.layoutId.startsWith('spot-') ? open.vc.id : null}
+        />
+      ) : null}
 
       <section aria-labelledby="case-h">
         <div className="flex flex-wrap items-end justify-between gap-3">
@@ -445,9 +453,13 @@ function HoldingFacts({ vc, onEdit }: { vc: VaultCard; onEdit: () => void }) {
 function CollectionSpotlight({
   pieces,
   onEdit,
+  onInspect,
+  hiddenId,
 }: {
   pieces: VaultCard[];
   onEdit: (vc: VaultCard) => void;
+  onInspect: (vc: VaultCard) => void;
+  hiddenId: string | null;
 }) {
   const reduced = usePrefersReducedMotion();
   const [i, setI] = useState(0);
@@ -458,14 +470,17 @@ function CollectionSpotlight({
     <section
       data-theme="dark"
       aria-labelledby="spot-h"
-      className="atmo-stage relative overflow-hidden rounded-3xl px-5 pb-6 pt-6 sm:px-10 sm:pt-10"
+      className="atmo-stage relative overflow-hidden rounded-3xl px-5 pb-6 pt-6 sm:px-10 sm:pb-8 sm:pt-8"
     >
       <div
         aria-hidden
         className="pointer-events-none absolute bottom-6 left-[8%] h-16 w-[min(60%,26rem)] rounded-[50%] bg-[radial-gradient(closest-side,rgba(227,167,58,0.35),transparent)] sm:left-[10%]"
       />
-      <div className="relative grid items-center gap-8 md:grid-cols-[minmax(0,19rem)_minmax(0,1fr)] md:gap-14">
-        <div className="relative mx-auto w-[min(62vw,19rem)] md:w-full">
+      <div className="relative grid items-center gap-8 md:grid-cols-[minmax(0,15.5rem)_minmax(0,1fr)] md:gap-12">
+        <div
+          className="relative mx-auto w-[min(56vw,15.5rem)] md:w-full"
+          style={{ opacity: hiddenId === vc.id ? 0 : 1 }}
+        >
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.div
               key={vc.id}
@@ -480,8 +495,9 @@ function CollectionSpotlight({
                 level="showcase"
                 size="large"
                 priority
-                label={`Edit ${vc.card.name}`}
-                onSelect={() => onEdit(vc)}
+                layoutId={`spot-${vc.id}`}
+                label={`Inspect ${vc.card.name}`}
+                onSelect={() => onInspect(vc)}
               />
             </motion.div>
           </AnimatePresence>
@@ -506,7 +522,7 @@ function CollectionSpotlight({
               {vc.card.set?.name}
               {vc.card.number ? ` · No. ${vc.card.number}` : ''} · {FINISH_LABEL[finishOf(vc.card)]}
             </p>
-            <dl className="mt-6 grid max-w-[32rem] grid-cols-3 gap-4 border-t border-white/10 pt-5">
+            <dl className="mt-5 grid max-w-[36rem] grid-cols-2 gap-4 border-t border-white/10 pt-4 sm:grid-cols-4">
               <div>
                 <dt className="text-[12px] text-white/55">Worth today</dt>
                 <dd className="mt-1">
@@ -527,6 +543,15 @@ function CollectionSpotlight({
                 <dt className="text-[12px] text-white/55">Copies</dt>
                 <dd className="mt-1 font-mono text-[17px]">{vc.quantity}</dd>
               </div>
+              <div>
+                <dt className="text-[12px] text-white/55">Condition</dt>
+                <dd className="mt-1 text-[15px]">
+                  {CONDITION_LABEL[vc.condition] ?? vc.condition}
+                  {vc.gradingResult ? (
+                    <span className="ml-1 text-[11.5px] text-[#f0bd55]">photo graded</span>
+                  ) : null}
+                </dd>
+              </div>
             </dl>
             {pl ? (
               <p
@@ -538,7 +563,29 @@ function CollectionSpotlight({
                 {formatCurrency(pl.profit, { signed: true })} since you bought it
               </p>
             ) : null}
-            <div className="mt-7 flex items-center gap-3">
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => onInspect(vc)}
+                className="inline-flex h-9 items-center rounded-full bg-white px-4 text-[13px] font-medium text-[#0b0e14] hover:bg-white/90"
+              >
+                Inspect
+              </button>
+              <button
+                type="button"
+                onClick={() => onEdit(vc)}
+                className="inline-flex h-9 items-center rounded-full border border-white/20 px-4 text-[13px] hover:bg-white/10"
+              >
+                Edit holding
+              </button>
+              <Link
+                to={cardPath(vc.card.id)}
+                className="inline-flex h-9 items-center rounded-full border border-white/20 px-4 text-[13px] hover:bg-white/10"
+              >
+                Compare market
+              </Link>
+            </div>
+            <div className="mt-6 flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => go(-1)}
@@ -555,8 +602,24 @@ function CollectionSpotlight({
               >
                 <ChevronRight className="h-5 w-5" aria-hidden />
               </button>
-              <span className="font-mono text-[12.5px] text-white/55">
-                {i + 1} / {pieces.length}
+              <span className="flex items-center gap-1.5">
+                {pieces.map((p, k) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setI(k)}
+                    aria-label={`Show ${p.card.name}`}
+                    aria-current={k === i ? 'true' : undefined}
+                    className={cn(
+                      'w-7 rounded-[4px] transition-[opacity,transform] duration-200',
+                      k === i
+                        ? '-translate-y-0.5 opacity-100 ring-2 ring-[#f0bd55]'
+                        : 'opacity-50 hover:opacity-90'
+                    )}
+                  >
+                    <CardArt card={p.card} flat alt="" />
+                  </button>
+                ))}
               </span>
             </div>
           </motion.div>
