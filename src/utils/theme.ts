@@ -22,8 +22,8 @@ export function resolveTheme(): Theme {
 }
 
 const THEME_COLOR: Record<Theme, string> = {
-  dark: '#0b1016',
-  light: '#f2efe9',
+  dark: '#171d21',
+  light: '#f5f2ea',
 };
 
 export function applyTheme(theme: Theme) {

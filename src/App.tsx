@@ -1,21 +1,18 @@
 import { Suspense, lazy, type ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { AnimatePresence, motion, MotionConfig } from 'motion/react';
+import { MotionConfig } from 'motion/react';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
-import { Header } from './components/layout/Header';
-import { Sidebar } from './components/layout/Sidebar';
-import { Footer } from './components/layout/Footer';
-import { BottomTabBar } from './components/layout/BottomTabBar';
+import { AppHeader, AppRail, MobileNav } from './components/exchange/AppShellNav';
+import { ScrollMemory } from './components/exchange/ScrollMemory';
 import { PageShell } from './components/layout/PageShell';
 import { CommandPalette } from './components/common/CommandPalette';
-import { OnboardingChecklist } from './components/common/OnboardingChecklist';
 import { SignInModal } from './components/auth/SignInModal';
 import { CardModalProvider } from './contexts/CardModalContext';
 import { GameProvider } from './contexts/GameContext';
 import { useAuth } from './hooks/useAuth';
 import { env } from './config/env';
 import { BrowsePage } from './pages/BrowsePage';
-import { LandingPage } from './pages/LandingPage';
+import { HomePage } from './features/home/HomePage';
 import { LoadingSpinner } from './components/common/LoadingSpinner';
 
 const PriceTrackingDashboard = lazy(() =>
@@ -85,6 +82,11 @@ const TradePage = lazy(() =>
 const BindersIndex = lazy(() =>
   import('./features/binders/components/BindersIndex').then((m) => ({ default: m.BindersIndex }))
 );
+const CardResearchPage = lazy(() =>
+  import('./features/card-research/CardResearchPage').then((m) => ({
+    default: m.CardResearchPage,
+  }))
+);
 const SettingsPage = lazy(() =>
   import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage }))
 );
@@ -98,10 +100,6 @@ function RouteFallback() {
       <LoadingSpinner />
     </div>
   );
-}
-
-function HomePage() {
-  return <LandingPage />;
 }
 
 function SetsPage() {
@@ -126,22 +124,6 @@ function VaultPage() {
     </PageShell>
   );
 }
-
-const pageVariants = {
-  initial: { opacity: 0, y: 18, scale: 0.97 },
-  animate: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] as const },
-  },
-  exit: {
-    opacity: 0,
-    y: -10,
-    scale: 1.015,
-    transition: { duration: 0.22, ease: [0.16, 1, 0.3, 1] as const },
-  },
-};
 
 function ShellPage({
   children,
@@ -168,152 +150,143 @@ function ShellPage({
 function AppRoutes() {
   const location = useLocation();
   return (
-    <AnimatePresence mode="popLayout">
-      <motion.div
-        key={location.pathname}
-        variants={pageVariants}
-        initial="initial"
-        animate="animate"
-        exit="exit"
-        className="min-w-0"
-      >
-        <Suspense fallback={<RouteFallback />}>
-          <ErrorBoundary>
-            <Routes location={location}>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/browse" element={<BrowsePage />} />
+    <div className="min-w-0">
+      <Suspense fallback={<RouteFallback />}>
+        <ErrorBoundary key={location.pathname}>
+          <Routes location={location}>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/browse" element={<BrowsePage />} />
+            <Route path="/card/:id" element={<CardResearchPage />} />
+            <Route
+              path="/prices"
+              element={
+                <ShellPage wide>
+                  <PriceTrackingDashboard />
+                </ShellPage>
+              }
+            />
+            <Route
+              path="/market-insights"
+              element={
+                <ShellPage wide fluid>
+                  <MarketInsightsDashboard />
+                </ShellPage>
+              }
+            />
+            {InsightsClarityDemo ? (
               <Route
-                path="/prices"
-                element={
-                  <ShellPage wide>
-                    <PriceTrackingDashboard />
-                  </ShellPage>
-                }
-              />
-              <Route
-                path="/market-insights"
+                path="/dev/insights-clarity"
                 element={
                   <ShellPage wide fluid>
-                    <MarketInsightsDashboard />
+                    <InsightsClarityDemo />
                   </ShellPage>
                 }
               />
-              {InsightsClarityDemo ? (
-                <Route
-                  path="/dev/insights-clarity"
-                  element={
-                    <ShellPage wide fluid>
-                      <InsightsClarityDemo />
-                    </ShellPage>
-                  }
-                />
-              ) : null}
-              <Route
-                path="/investments"
-                element={
-                  <ShellPage wide>
-                    <InvestmentsPage />
-                  </ShellPage>
-                }
-              />
-              <Route
-                path="/deals"
-                element={
-                  <ShellPage wide>
-                    <DealsPage />
-                  </ShellPage>
-                }
-              />
-              <Route
-                path="/money-flow"
-                element={
-                  <ShellPage fluid flush plain atmosphere="subtle">
-                    <MoneyFlowPage />
-                  </ShellPage>
-                }
-              />
-              <Route path="/vault" element={<VaultPage />} />
-              <Route
-                path="/wishlist"
-                element={
-                  <ShellPage>
-                    <WishlistView />
-                  </ShellPage>
-                }
-              />
-              <Route
-                path="/trade"
-                element={
-                  <ShellPage wide>
-                    <TradePage />
-                  </ShellPage>
-                }
-              />
-              <Route
-                path="/trade/:shareToken"
-                element={
-                  <ShellPage wide>
-                    <TradePage />
-                  </ShellPage>
-                }
-              />
-              <Route
-                path="/binders"
-                element={
-                  <ShellPage>
-                    <BindersIndex />
-                  </ShellPage>
-                }
-              />
-              <Route path="/sets" element={<SetsPage />} />
-              <Route path="/sets/:setId" element={<SetsPage />} />
-              <Route
-                path="/packs"
-                element={
-                  <ShellPage wide>
-                    <PackShop />
-                  </ShellPage>
-                }
-              />
-              <Route
-                path="/open"
-                element={
-                  <ShellPage wide>
-                    <OpenPacksPage />
-                  </ShellPage>
-                }
-              />
-              <Route
-                path="/scanner"
-                element={
-                  <ShellPage>
-                    <CardScanner />
-                  </ShellPage>
-                }
-              />
-              <Route
-                path="/grading"
-                element={
-                  <ShellPage wide>
-                    <GradingPage />
-                  </ShellPage>
-                }
-              />
-              <Route path="/capture/:sessionId" element={<PhoneCapturePage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/verify-email" element={<VerifyEmailPage />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </ErrorBoundary>
-        </Suspense>
-      </motion.div>
-    </AnimatePresence>
+            ) : null}
+            <Route
+              path="/investments"
+              element={
+                <ShellPage wide>
+                  <InvestmentsPage />
+                </ShellPage>
+              }
+            />
+            <Route
+              path="/deals"
+              element={
+                <ShellPage wide>
+                  <DealsPage />
+                </ShellPage>
+              }
+            />
+            <Route
+              path="/money-flow"
+              element={
+                <ShellPage fluid flush plain atmosphere="subtle">
+                  <MoneyFlowPage />
+                </ShellPage>
+              }
+            />
+            <Route path="/vault" element={<VaultPage />} />
+            <Route
+              path="/wishlist"
+              element={
+                <ShellPage>
+                  <WishlistView />
+                </ShellPage>
+              }
+            />
+            <Route
+              path="/trade"
+              element={
+                <ShellPage wide>
+                  <TradePage />
+                </ShellPage>
+              }
+            />
+            <Route
+              path="/trade/:shareToken"
+              element={
+                <ShellPage wide>
+                  <TradePage />
+                </ShellPage>
+              }
+            />
+            <Route
+              path="/binders"
+              element={
+                <ShellPage>
+                  <BindersIndex />
+                </ShellPage>
+              }
+            />
+            <Route path="/sets" element={<SetsPage />} />
+            <Route path="/sets/:setId" element={<SetsPage />} />
+            <Route
+              path="/packs"
+              element={
+                <ShellPage wide>
+                  <PackShop />
+                </ShellPage>
+              }
+            />
+            <Route
+              path="/open"
+              element={
+                <ShellPage wide>
+                  <OpenPacksPage />
+                </ShellPage>
+              }
+            />
+            <Route
+              path="/scanner"
+              element={
+                <ShellPage>
+                  <CardScanner />
+                </ShellPage>
+              }
+            />
+            <Route
+              path="/grading"
+              element={
+                <ShellPage wide>
+                  <GradingPage />
+                </ShellPage>
+              }
+            />
+            <Route path="/capture/:sessionId" element={<PhoneCapturePage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/verify-email" element={<VerifyEmailPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </ErrorBoundary>
+      </Suspense>
+    </div>
   );
 }
 
 function AppShell() {
   const location = useLocation();
-  const isHome = location.pathname === '/';
   const isPhoneCapture = location.pathname.startsWith('/capture/');
 
   if (isPhoneCapture) {
@@ -327,35 +300,28 @@ function AppShell() {
   }
 
   return (
-    <div className="flex min-h-screen min-w-0 bg-surface-base text-ink-primary">
-      <Sidebar />
+    <div className="min-h-screen min-w-0 bg-surface-base text-ink-primary">
+      <ScrollMemory />
+      <a
+        href="#main-content"
+        className="sr-only z-[95] rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+      >
+        Skip to content
+      </a>
+      <AppRail />
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <a
-          href="#main-content"
-          className="sr-only z-[95] rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-primary-foreground focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
-        >
-          Skip to content
-        </a>
-
-        <Header />
-
+      <div className="flex min-h-screen min-w-0 flex-col md:pl-[var(--rail-w)]">
+        <AppHeader />
         <main
           id="main-content"
-          className={
-            isHome
-              ? 'relative min-w-0 flex-1 overflow-hidden pb-0'
-              : 'relative min-w-0 flex-1 pb-20 md:pb-0'
-          }
+          tabIndex={-1}
+          className="relative min-w-0 flex-1 pb-20 outline-none md:pb-0"
         >
           <AppRoutes />
         </main>
-
-        <OnboardingChecklist />
-        {!isHome && <Footer />}
       </div>
 
-      <BottomTabBar />
+      <MobileNav />
       <CommandPalette />
     </div>
   );

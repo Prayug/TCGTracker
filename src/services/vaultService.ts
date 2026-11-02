@@ -10,9 +10,10 @@ import { syncVaultToServer } from './vaultSyncService';
 import { hasUsableCardImage, withResolvedCardImages } from '../utils/tcgPlayerImages';
 import {
   effectiveCostBasis,
+  hasKnownCost,
   holdingMarketValue,
   isAssumedCost,
-  resolvePurchasePrice,
+  normalizePurchasePrice,
 } from '../utils/vaultCost';
 
 const VAULT_STORAGE_KEY_POKEMON = 'tcg_vault_cards_pokemon';
@@ -91,7 +92,8 @@ class VaultService {
 
   addToVault(
     card: PokemonCard,
-    purchasePrice: number,
+    /** Price paid per copy; null/NaN = unknown (never replaced with market). */
+    purchasePrice: number | null,
     quantity: number = 1,
     condition: CardCondition = 'raw',
     notes?: string,
@@ -99,12 +101,13 @@ class VaultService {
   ): VaultCard {
     const vaultCards = this.getVaultCards(game);
     const cardWithImages = withResolvedCardImages(card);
-    const resolvedPrice = resolvePurchasePrice(cardWithImages, purchasePrice);
+    const cost = normalizePurchasePrice(purchasePrice);
 
     const vaultCard: VaultCard = {
       id: `vault-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       card: cardWithImages,
-      purchasePrice: resolvedPrice,
+      purchasePrice: cost.purchasePrice,
+      costKnown: cost.costKnown,
       purchaseDate: new Date().toISOString(),
       quantity,
       condition,
@@ -119,7 +122,9 @@ class VaultService {
       {
         action: 'add',
         cardName: cardWithImages.name,
-        detail: `${quantity}× @ $${resolvedPrice.toFixed(2)}`,
+        detail: cost.costKnown
+          ? `${quantity}× @ $${cost.purchasePrice.toFixed(2)}`
+          : `${quantity}× · cost not recorded`,
       },
       game
     );
@@ -138,8 +143,9 @@ class VaultService {
     if (index !== -1) {
       const prev = vaultCards[index];
       const next = { ...prev, ...updates };
-      if (updates.purchasePrice !== undefined) {
-        next.purchasePrice = resolvePurchasePrice(prev.card, updates.purchasePrice);
+      if (updates.purchasePrice !== undefined && updates.costKnown === undefined) {
+        // Editing the price field: a typed value is a known cost.
+        Object.assign(next, normalizePurchasePrice(updates.purchasePrice));
       }
       vaultCards[index] = next;
       this.saveVaultCards(vaultCards, game);
@@ -212,6 +218,8 @@ class VaultService {
     try {
       const key = getStorageKey(game);
       localStorage.setItem(key, JSON.stringify(vaultCards));
+      // Let open views (home, header, vault) refresh without polling.
+      queueMicrotask(() => window.dispatchEvent(new CustomEvent('tcg:vault-updated')));
     } catch (error) {
       console.error('Error saving vault cards:', error);
     }
@@ -248,7 +256,9 @@ class VaultService {
       const normalized = cards.map((entry) => ({
         ...entry,
         notes: entry.notes ?? undefined,
-        purchasePrice: resolvePurchasePrice(entry.card, entry.purchasePrice),
+        ...(typeof entry.costKnown === 'boolean'
+          ? { purchasePrice: entry.costKnown ? entry.purchasePrice : 0 }
+          : { purchasePrice: entry.purchasePrice, costKnown: hasKnownCost(entry) }),
         game: entry.game || game || 'pokemon',
       }));
       this.saveVaultCards(normalized, game);

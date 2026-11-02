@@ -11,7 +11,9 @@ export function proxyImageUrl(url: string | null | undefined): string | undefine
 
 export function formatCurrency(value: number, options?: { signed?: boolean }): string {
   const abs = Math.abs(value);
-  const formatted = `$${abs.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: abs >= 100 ? 0 : 2 })}`;
+  // Cents up to $10k (never "$2,199.9"); whole dollars above, where cents are noise.
+  const digits = abs >= 10_000 ? 0 : 2;
+  const formatted = `$${abs.toLocaleString('en-US', { maximumFractionDigits: digits, minimumFractionDigits: digits })}`;
   if (!options?.signed) return formatted;
   if (value > 0) return `+${formatted}`;
   if (value < 0) return `-${formatted}`;

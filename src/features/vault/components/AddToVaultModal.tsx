@@ -4,9 +4,10 @@ import { GradingResult } from '../../../types/grading';
 import { vaultService } from '../../../services/vaultService';
 import { markOnboardingStep } from '../../../components/common/OnboardingChecklist';
 import { Modal } from '../../../components/common/Modal';
-import { Vault, DollarSign, Package, FileText } from 'lucide-react';
 import { pokemonApi } from '../../../services/pokemonApi';
 import { useToast } from '../../../components/common/Toast';
+import { CardArt } from '../../../components/exchange/CardArt';
+import { formatCurrency } from '../../../utils/cardDisplay';
 
 interface AddToVaultModalProps {
   card: PokemonCard | null;
@@ -44,15 +45,15 @@ export const AddToVaultModal: React.FC<AddToVaultModalProps> = ({
 
   useEffect(() => {
     if (!isOpen || !card) return;
-
-    const marketPrice = card.marketPrice || pokemonApi.extractCardPrice(card);
+    // Only prefill a cost the caller actually knows. Market price is shown as
+    // a reference, never silently used as the purchase price.
     const pref =
       initialPurchasePrice != null &&
       Number.isFinite(initialPurchasePrice) &&
       initialPurchasePrice >= 0
         ? initialPurchasePrice
-        : marketPrice;
-    setPurchasePrice(pref > 0 ? pref.toFixed(2) : '');
+        : null;
+    setPurchasePrice(pref != null ? pref.toFixed(2) : '');
     setQuantity(1);
     setCondition(initialCondition ?? 'raw');
     setNotes(initialNotes ?? '');
@@ -69,7 +70,8 @@ export const AddToVaultModal: React.FC<AddToVaultModalProps> = ({
     if (!card) return;
 
     const raw = purchasePrice.trim() === '' ? NaN : parseFloat(purchasePrice);
-    const price = Number.isFinite(raw) && raw >= 0 ? raw : 0;
+    // Blank = unknown cost. It is stored as unknown, not as today's market price.
+    const price = Number.isFinite(raw) && raw >= 0 ? raw : null;
 
     if (quantity < 1) {
       showToast('Quantity must be at least 1', 'error');
@@ -113,161 +115,29 @@ export const AddToVaultModal: React.FC<AddToVaultModalProps> = ({
 
   if (!card) return null;
 
-  const marketFallback = card.marketPrice || pokemonApi.extractCardPrice(card);
+  const marketRef = card.marketPrice || pokemonApi.extractCardPrice(card);
   const parsedPrice = purchasePrice.trim() === '' ? NaN : parseFloat(purchasePrice);
-  const effectiveUnit =
-    Number.isFinite(parsedPrice) && parsedPrice > 0 ? parsedPrice : marketFallback;
-  const totalCost = effectiveUnit * quantity;
-  const usingMarketDefault = !(Number.isFinite(parsedPrice) && parsedPrice > 0);
+  const costKnown = Number.isFinite(parsedPrice) && parsedPrice >= 0;
+  const totalCost = costKnown ? parsedPrice * quantity : null;
+  const fieldClass = 'input h-10';
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} variant="slab" size="medium">
-      <div className="max-w-2xl mx-auto">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-3 bg-accent-muted rounded-xl">
-            <Vault className="w-6 h-6 text-accent" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold text-ink-primary">Add to Vault</h2>
-            <p className="text-sm text-ink-muted">Store this card in your collection</p>
-          </div>
-        </div>
-
-        <div className="bg-surface-inset rounded-xl p-4 mb-6 flex items-center gap-4">
-          <img
-            src={card.images.small}
-            alt={card.name}
-            className="w-24 h-auto rounded-lg shadow-md"
-            onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              if (target.src !== card.images.large) {
-                target.src = card.images.large;
-              }
-            }}
-          />
-          <div className="flex-1">
-            <h3 className="font-bold text-lg text-ink-primary">{card.name}</h3>
-            <p className="text-sm text-ink-muted">
-              {card.set.name} &bull; #{card.number}
-            </p>
-            {card.rarity && (
-              <span className="inline-block mt-2 px-2 py-1 bg-accent-muted text-accent rounded-full text-xs font-semibold">
-                {card.rarity}
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div className="space-y-6">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label
-                htmlFor="purchase-price"
-                className="flex items-center gap-2 text-sm font-semibold text-ink-secondary mb-2"
-              >
-                <DollarSign className="w-4 h-4" />
-                Purchase Price (per card)
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted font-medium">
-                  $
-                </span>
-                <input
-                  id="purchase-price"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={purchasePrice}
-                  onChange={(e) => setPurchasePrice(e.target.value)}
-                  className="w-full pl-8 pr-4 py-3 border-2 border-border-default rounded-xl bg-surface-inset text-ink-primary focus:ring-2 focus:ring-accent focus:border-accent transition-colors font-medium"
-                  placeholder={marketFallback > 0 ? marketFallback.toFixed(2) : '0.00'}
-                />
-              </div>
-              <p className="mt-1.5 text-xs text-ink-muted">Defaults to market if left blank</p>
-            </div>
-
-            <div>
-              <label
-                htmlFor="quantity"
-                className="flex items-center gap-2 text-sm font-semibold text-ink-secondary mb-2"
-              >
-                <Package className="w-4 h-4" />
-                Quantity
-              </label>
-              <input
-                id="quantity"
-                type="number"
-                min="1"
-                value={quantity}
-                onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
-                className="w-full px-4 py-3 border-2 border-border-default rounded-xl bg-surface-inset text-ink-primary focus:ring-2 focus:ring-accent focus:border-accent transition-colors font-medium"
-                required
-              />
-            </div>
-          </div>
-
-          <div>
-            <label
-              htmlFor="card-condition"
-              className="block text-sm font-semibold text-ink-secondary mb-2"
-            >
-              Card Condition
-            </label>
-            <select
-              id="card-condition"
-              value={condition}
-              onChange={(e) => setCondition(e.target.value as CardCondition)}
-              className="w-full px-4 py-3 border-2 border-border-default rounded-xl bg-surface-inset text-ink-primary focus:ring-2 focus:ring-accent focus:border-accent transition-colors font-medium"
-            >
-              <option value="raw">Raw (Ungraded)</option>
-              <option value="near-mint">Near Mint</option>
-              <option value="lightly-played">Lightly Played</option>
-              <option value="moderately-played">Moderately Played</option>
-              <option value="heavily-played">Heavily Played</option>
-              <option value="damaged">Damaged</option>
-            </select>
-          </div>
-
-          <div>
-            <label
-              htmlFor="notes"
-              className="flex items-center gap-2 text-sm font-semibold text-ink-secondary mb-2"
-            >
-              <FileText className="w-4 h-4" />
-              Notes (optional)
-            </label>
-            <textarea
-              id="notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              className="w-full px-4 py-3 border-2 border-border-default rounded-xl bg-surface-inset text-ink-primary focus:ring-2 focus:ring-accent focus:border-accent transition-colors resize-none"
-              placeholder="Add notes about this purchase..."
-            />
-          </div>
-
-          {totalCost > 0 && (
-            <div className="bg-accent-muted border-2 border-accent/20 rounded-xl p-4">
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-semibold text-ink-primary">
-                  {usingMarketDefault ? 'Cost at market' : 'Total Cost'}
-                </span>
-                <span className="text-2xl font-bold tabular-nums text-accent">
-                  ${totalCost.toFixed(2)}
-                </span>
-              </div>
-              <p className="text-xs text-ink-muted mt-1">
-                {quantity}x cards @ ${effectiveUnit.toFixed(2)} each
-                {usingMarketDefault ? ' (market default)' : ''}
-              </p>
-            </div>
-          )}
-
-          <div className="flex gap-3 pt-4 border-t border-border-default">
+    <Modal
+      isOpen={isOpen}
+      onClose={handleClose}
+      size="medium"
+      footer={
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-meta text-ink-muted">
+            {totalCost != null
+              ? `Cost basis ${formatCurrency(totalCost)} for ${quantity}`
+              : 'Cost not recorded · excluded from P/L until added'}
+          </p>
+          <div className="flex gap-2">
             <button
               type="button"
               onClick={handleClose}
-              className="flex-1 px-6 py-3 bg-surface-inset hover:bg-surface-hover text-ink-primary font-semibold rounded-xl transition-colors"
+              className="btn-ghost"
               disabled={isSubmitting}
             >
               Cancel
@@ -275,21 +145,124 @@ export const AddToVaultModal: React.FC<AddToVaultModalProps> = ({
             <button
               type="button"
               onClick={handleSubmit}
+              className="btn-primary"
               disabled={isSubmitting}
-              className="flex-1 px-6 py-3 bg-accent hover:bg-accent-hover text-primary-foreground font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? 'Adding...' : 'Add to Vault'}
+              {isSubmitting ? 'Adding…' : 'Add to vault'}
             </button>
           </div>
         </div>
-
-        <div className="mt-6 p-4 bg-accent-muted border border-accent/20 rounded-xl">
-          <p className="text-xs text-ink-muted">
-            Your vault is stored locally in your browser. Use the Export feature in the Vault view
-            to backup your collection.
-          </p>
+      }
+    >
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleSubmit();
+        }}
+        className="space-y-5"
+      >
+        <div className="flex items-start gap-4 border-b border-rule pb-4">
+          <div className="w-20 shrink-0">
+            <CardArt card={card} />
+          </div>
+          <div className="min-w-0">
+            <h2 className="font-display text-[22px] leading-tight">Add to vault</h2>
+            <p className="mt-1 truncate text-[14px] font-medium">{card.name}</p>
+            <p className="text-meta text-ink-muted">
+              {card.set?.name}
+              {card.number ? ` · No. ${card.number}` : ''}
+              {card.rarity ? ` · ${card.rarity}` : ''}
+            </p>
+            {marketRef > 0 ? (
+              <p className="mt-2 text-meta text-ink-muted">
+                Market reference{' '}
+                <span className="font-mono text-ink-secondary">{formatCurrency(marketRef)}</span>
+              </p>
+            ) : null}
+          </div>
         </div>
-      </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="purchase-price" className="mb-1 block text-[13px] font-medium">
+              Price paid per card
+            </label>
+            <div className="relative">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-mono text-ink-muted">
+                $
+              </span>
+              <input
+                id="purchase-price"
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0"
+                value={purchasePrice}
+                onChange={(e) => setPurchasePrice(e.target.value)}
+                className={`${fieldClass} pl-7 font-mono`}
+                placeholder="Unknown"
+                aria-describedby="purchase-price-help"
+              />
+            </div>
+            <p id="purchase-price-help" className="mt-1 text-meta text-ink-muted">
+              Leave blank if you don’t know. Enter 0 for a gift or pull.
+            </p>
+          </div>
+          <div>
+            <label htmlFor="quantity" className="mb-1 block text-[13px] font-medium">
+              Quantity
+            </label>
+            <input
+              id="quantity"
+              type="number"
+              inputMode="numeric"
+              min="1"
+              value={quantity}
+              onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+              className={`${fieldClass} font-mono`}
+              required
+            />
+          </div>
+        </div>
+
+        <div>
+          <label htmlFor="card-condition" className="mb-1 block text-[13px] font-medium">
+            Condition
+          </label>
+          <select
+            id="card-condition"
+            value={condition}
+            onChange={(e) => setCondition(e.target.value as CardCondition)}
+            className={fieldClass}
+          >
+            <option value="raw">Raw (condition not assessed)</option>
+            <option value="near-mint">Near Mint</option>
+            <option value="lightly-played">Lightly Played</option>
+            <option value="moderately-played">Moderately Played</option>
+            <option value="heavily-played">Heavily Played</option>
+            <option value="damaged">Damaged</option>
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="notes" className="mb-1 block text-[13px] font-medium">
+            Notes <span className="font-normal text-ink-muted">(optional)</span>
+          </label>
+          <textarea
+            id="notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={2}
+            className="input h-auto resize-none py-2"
+            placeholder="Where you bought it, sleeve, binder…"
+          />
+        </div>
+        {gradingResult ? (
+          <p className="text-meta text-ink-muted">
+            The photo grading estimate will be attached to this holding.
+          </p>
+        ) : null}
+      </form>
     </Modal>
   );
 };

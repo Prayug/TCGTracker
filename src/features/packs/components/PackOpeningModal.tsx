@@ -163,12 +163,12 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
     if (!packPull) return;
 
     packPull.cards.forEach((card) => {
-      const price = packPull.totalValue || card.marketPrice || pokemonApi.extractCardPrice(card);
+      // Simulated pull: there is no real acquisition cost, so record it as unknown.
       const note =
         packPull.pullKind === 'slab'
           ? `Pulled from ${packPull.pack.name} (simulated ${packPull.grader || 'PSA'} ${packPull.grade || '10'})`
           : `Pulled from ${packPull.pack.name}`;
-      vaultService.addToVault(card, price, 1, 'raw', note, game);
+      vaultService.addToVault(card, null, 1, 'raw', note, game);
     });
     markOnboardingStep('vault');
 

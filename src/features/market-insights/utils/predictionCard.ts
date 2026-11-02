@@ -53,7 +53,7 @@ export function buildPokemonCardFromPrediction(
     tcgplayer: productId
       ? {
           productId,
-          // Seed the predicted finish so InvestmentModal doesn't fall back to
+          // Seed the predicted finish so the card research page does not fall back to
           // a sparse "Normal" option when tcgplayer.prices is otherwise empty.
           prices: variantKey ? { [variantKey]: { market: source.currentPrice } } : undefined,
         }
