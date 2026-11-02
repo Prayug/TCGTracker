@@ -1,60 +1,10 @@
 import type { VaultActivityItem, VaultCard } from '../../../types/pokemon';
-import { CardArt } from '../../../components/exchange/CardArt';
 import { Delta, Price, Unavailable } from '../../../components/exchange/Price';
 import { AllocationBars } from '../../../components/exchange/AllocationBars';
 import { formatCurrency } from '../../../utils/cardDisplay';
 import { allocateBy, byEra, bySet, concentration, topHoldings } from '../../../utils/portfolio';
-import { holdingMarketValue, knownHoldingProfit } from '../../../utils/vaultCost';
+import { holdingMarketValue } from '../../../utils/vaultCost';
 import { type SetRollup, rollupBySet } from '../ledger';
-
-/** Showcase: the collection as objects, most valuable first. */
-export function VaultGallery({
-  rows,
-  onOpen,
-}: {
-  rows: VaultCard[];
-  onOpen: (vc: VaultCard) => void;
-}) {
-  return (
-    <ul className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 md:gap-x-6 lg:grid-cols-4 xl:grid-cols-6">
-      {rows.map((vc) => {
-        const pl = knownHoldingProfit(vc);
-        return (
-          <li key={vc.id} className="min-w-0">
-            <button
-              type="button"
-              onClick={() => onOpen(vc)}
-              className="group block w-full text-left"
-            >
-              <span className="relative block">
-                <CardArt
-                  card={vc.card}
-                  className="transition-transform duration-150 motion-safe:group-hover:-translate-y-1"
-                />
-                {vc.quantity > 1 ? (
-                  <span className="absolute right-2 top-2 rounded bg-surface-overlay/95 px-1.5 font-mono text-[11.5px] shadow-sm">
-                    ×{vc.quantity}
-                  </span>
-                ) : null}
-              </span>
-              <span className="mt-2.5 block truncate text-[13.5px] font-medium group-hover:underline">
-                {vc.card.name}
-              </span>
-              <span className="block truncate text-meta text-ink-muted">
-                {vc.card.set?.name}
-                {vc.card.number ? ` · No. ${vc.card.number}` : ''}
-              </span>
-              <span className="mt-1 flex items-baseline gap-2">
-                <Price value={holdingMarketValue(vc)} size="sm" />
-                {pl?.profitPct != null ? <Delta pct={pl.profitPct} /> : null}
-              </span>
-            </button>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
 
 function SetRow({ row, onOpenSet }: { row: SetRollup; onOpenSet?: (key: string) => void }) {
   const pl = row.knownCost > 0 || row.knownMarket > 0 ? row.knownMarket - row.knownCost : null;
@@ -142,10 +92,6 @@ export function VaultSets({
   );
 }
 
-/**
- * What the collection is made of. There is no stored value history, so
- * this shows composition and concentration instead of a fabricated line.
- */
 export function VaultAnalysis({
   cards,
   onFilterSet,
