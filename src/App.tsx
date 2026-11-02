@@ -232,14 +232,7 @@ function AppRoutes() {
                 </ShellPage>
               }
             />
-            <Route
-              path="/binders"
-              element={
-                <ShellPage>
-                  <BindersIndex />
-                </ShellPage>
-              }
-            />
+            <Route path="/binders" element={<BindersIndex />} />
             <Route path="/sets" element={<SetsPage />} />
             <Route path="/sets/:setId" element={<SetsPage />} />
             <Route
