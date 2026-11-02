@@ -179,7 +179,7 @@ export function AppHeader() {
             aria-keyshortcuts={isMac ? 'Meta+K' : 'Control+K'}
           >
             <Search className="h-4 w-4" />
-            <span className="flex-1 text-left">Search cards, sets, pages</span>
+            <span className="min-w-0 flex-1 truncate text-left">Search cards, sets, pages</span>
             <kbd className="rounded border border-border-default bg-surface-inset px-1.5 py-0.5 font-mono text-[11px] text-ink-secondary">
               {isMac ? '⌘K' : 'Ctrl K'}
             </kbd>

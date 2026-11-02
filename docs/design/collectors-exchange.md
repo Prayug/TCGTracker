@@ -113,8 +113,30 @@ search, game switch, alerts, account.
 
 **Market.** Breadth strip, era matrix, rotation bars, distribution — each with units, source and an explanation.
 
+**Sets.** Era-grouped index tables (fixed columns so eras line up) with owned progress from the vault and pinning. Set detail: completion, set value with priced coverage, cost to complete (unpriced missing cards named, not counted), value history, checklist grid/list, CSV export.
+
+**Binders.** Album library (spine plus first page). Opening an album shows one 3×3 page at a time: drag a card onto another to swap, or Enter to pick up, arrows to move (crossing pages), Enter to swap, Escape to cancel, announced through a live region. Planned cost is labelled as prices saved at planning time.
+
+**Wishlist.** Today's price is looked up per card (in memory only); a card still showing the price saved when added says so. Status is at target, above, no target or no price; a missing price is never "at target". List (ledger with inline priority and target) and Wall views.
+
+**Trade.** Both sides share one layout: lines with unit price and basis (market when added, or your price), quantity, cash, total. The balance shows both totals, the difference, and its share of the larger side. Unpriced cards are named as left out; the settle-up cash suggestion only appears when every card is priced.
+
+**Deals.** Each listing pairs the asking price (all in, with shipping) or current bid with the market estimate and its source/date. Match confidence is in words. Scan progress is one ruled block.
+
+**Tools.** Scanner is camera-first; confidence is worded with the number and a catalog search fallback; it never silently adds a different print. Grading is a "photo grade estimate". Packs and the One Piece simulator are labelled Simulated / play money; pack value claims come from the disclosed odds only.
+
+## 8a. Data rules in the UI
+
+- A missing price renders as an explicit unavailable mark, never $0, and is left out of totals with a count of what was left out.
+- Asking prices and bids are labelled as such and never called sales. Estimates (photo grades, forecasts, market estimates) say so.
+- Every headline figure carries its basis: source, kind and date, or "saved when added".
+- Unknown values sort last in both directions.
+- View state (filters, sort, mode, open binder) lives in the URL.
+
 ## 9. Component inventory (`src/components/exchange/`)
 
 `AppRail`, `AppHeader`, `SectionTabs`, `MobileNav`, `PageHeader`, `Price`, `Delta`, `Basis` (provenance line),
 `CardArt` (art with honest fallback), `CardIdentity`, `Ledger` (table primitives), `Figure` (chart container
-with title/unit/source/summary), `Unavailable`, `Segmented`, `BreadthStrip`, `AllocationBars`, `BrandMark`.
+with title/unit/source/summary), `Unavailable`, `Segmented`, `BreadthStrip`, `AllocationBars`, `BrandMark`, `CoverageMeter`, `StepPriceChart`.
+
+Feature modules with pure, tested logic: `features/catalog/catalogFilters.ts`, `features/vault/ledger.ts`, `features/binders/binderLayout.ts`, `features/wishlist/wishlistModel.ts`, `features/trade/fairness.ts` (`evenOut`, `unpricedCount`), `features/scanner/confidence.ts`.
