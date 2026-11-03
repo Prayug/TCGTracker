@@ -1,5 +1,12 @@
 import { getDb } from '../db/database';
-import { getLatestCanonicalPriceByCardId } from './canonicalPriceService';
+import { blendSlabMarketMark } from './slabMarketMark';
+import { expectedPcFinishFamily, type PcFinishFamily } from './priceChartingClient';
+import {
+  getUsdRawPriceForCard,
+  getUsdRawPricesForCards,
+  isCardmarketVariant,
+  type UsdRawPrice,
+} from './usdRawPrice';
 import { scoreLiquidity, type LiquidityTier } from './liquidityScore';
 import { normalizeVariantKey } from '../utils/normalizeVariantKey';
 
@@ -12,6 +19,8 @@ export interface GradedSpreadRow {
   grade: string;
   gradedPrice: number;
   rawPrice: number | null;
+  /** Where rawPrice came from (canonical feed tag, or `pricecharting`). */
+  rawSource?: string | null;
   premium: number | null;
   premiumPct: number | null;
   soldListings: number;
@@ -105,6 +114,106 @@ const all = <T>(sql: string, params: unknown[] = []): Promise<T[]> =>
     });
   });
 
+interface PsaTenRow {
+  cardId: string;
+  cardName: string | null;
+  setId: string | null;
+  setName: string | null;
+  grader: string;
+  grade: string;
+  variantKey: string | null;
+  gradedPrice: number;
+  soldListings: number;
+  fetchedAt: string | null;
+  verified: number | null;
+  lastSoldDate?: string | null;
+  lastSoldPrice?: number | null;
+}
+
+/** PriceCharting guide, or the last real sale when the guide runs far above it. */
+const slabPriceOf = (r: {
+  gradedPrice: number;
+  lastSoldDate?: string | null;
+  lastSoldPrice?: number | null;
+}): number =>
+  blendSlabMarketMark({
+    soldGuide: r.gradedPrice,
+    lastSoldDate: r.lastSoldDate,
+    lastSoldPrice: r.lastSoldPrice,
+  }).mark;
+
+const slabFamily = (variantKey?: string | null): PcFinishFamily =>
+  expectedPcFinishFamily(variantKey || 'normal');
+
+const slabRowKey = (r: { cardId: string; variantKey?: string | null }): string =>
+  `${r.cardId}::${slabFamily(r.variantKey)}`;
+
+const VARIANT_PREFERENCE = ['normal', 'holofoil', 'unlimited', 'unlimitedholofoil'];
+
+/**
+ * graded_prices keeps one copy of a slab quote per finish (normal, holofoil,
+ * cardmarket, …) even when they all come from the same PriceCharting page.
+ * Keep one row per card and print family: verified first, then freshest,
+ * then the plain finish. Cardmarket finishes are never their own slab.
+ */
+export function dedupeSlabRowsByCard<
+  T extends {
+    cardId: string;
+    variantKey?: string | null;
+    verified: number | null;
+    fetchedAt: string | null;
+  },
+>(rows: T[]): T[] {
+  const best = new Map<string, T>();
+  const rank = (r: T): number => {
+    const i = VARIANT_PREFERENCE.indexOf((r.variantKey || 'normal').toLowerCase());
+    return i === -1 ? VARIANT_PREFERENCE.length : i;
+  };
+  for (const r of rows) {
+    if (isCardmarketVariant(r.variantKey)) continue;
+    const key = slabRowKey(r);
+    const prev = best.get(key);
+    if (!prev) {
+      best.set(key, r);
+      continue;
+    }
+    const pv = Number(prev.verified) === 1;
+    const rv = Number(r.verified) === 1;
+    if (rv !== pv) {
+      if (rv) best.set(key, r);
+      continue;
+    }
+    const pf = prev.fetchedAt || '';
+    const rf = r.fetchedAt || '';
+    if (rf.slice(0, 10) !== pf.slice(0, 10)) {
+      if (rf > pf) best.set(key, r);
+      continue;
+    }
+    if (rank(r) < rank(prev)) best.set(key, r);
+  }
+  // Keep the incoming order (callers sort by price or premium afterwards).
+  const kept = new Set(best.values());
+  return rows.filter((r) => kept.has(r));
+}
+
+async function rawPricesForSlabRows(
+  rows: Array<{ cardId: string; variantKey?: string | null }>
+): Promise<Map<string, UsdRawPrice>> {
+  const out = new Map<string, UsdRawPrice>();
+  const byFamily = new Map<PcFinishFamily, string[]>();
+  for (const r of rows) {
+    const fam = slabFamily(r.variantKey);
+    const list = byFamily.get(fam);
+    if (list) list.push(r.cardId);
+    else byFamily.set(fam, [r.cardId]);
+  }
+  for (const [family, ids] of byFamily) {
+    const prices = await getUsdRawPricesForCards(ids, { family });
+    for (const [cardId, price] of prices) out.set(`${cardId}::${family}`, price);
+  }
+  return out;
+}
+
 /**
  * Graded vs raw market spreads for a card (PSA/CGC/BGS premiums).
  */
@@ -124,20 +233,23 @@ export async function getGradedSpreadsForCard(
     soldListings: number;
     fetchedAt: string | null;
     verified: number | null;
+    lastSoldDate: string | null;
+    lastSoldPrice: number | null;
   }>(
     `SELECT cardId, cardName, setId, setName, grader, grade, price, soldListings, fetchedAt,
-            COALESCE(verified, 0) AS verified
+            lastSoldDate, lastSoldPrice, COALESCE(verified, 0) AS verified
      FROM graded_prices
      WHERE cardId = ? AND variantKey = ? AND price IS NOT NULL AND price > 0
      ORDER BY grader, CAST(grade AS REAL) DESC`,
     [cardId, variantKey]
   );
 
-  const canonical = await getLatestCanonicalPriceByCardId(cardId);
-  const rawPrice = canonical?.price ?? null;
+  const raw = await getUsdRawPriceForCard(cardId, { family: slabFamily(variantKey) });
+  const rawPrice = raw?.price ?? null;
 
   const spreads: GradedSpreadRow[] = graded.map((g) => {
-    const premium = rawPrice && rawPrice > 0 ? g.price - rawPrice : null;
+    const gradedPrice = slabPriceOf({ ...g, gradedPrice: g.price });
+    const premium = rawPrice && rawPrice > 0 ? gradedPrice - rawPrice : null;
     const premiumPct =
       rawPrice && rawPrice > 0 && premium !== null ? (premium / rawPrice) * 100 : null;
     const fresh = freshness(g.fetchedAt, g.verified);
@@ -148,8 +260,9 @@ export async function getGradedSpreadsForCard(
       setName: g.setName,
       grader: g.grader,
       grade: g.grade,
-      gradedPrice: g.price,
+      gradedPrice,
       rawPrice,
+      rawSource: raw?.source ?? null,
       premium,
       premiumPct,
       soldListings: g.soldListings ?? 0,
@@ -182,49 +295,36 @@ export async function getTopGradedPremiums(
   limit = 50,
   options?: { tradeableOnly?: boolean }
 ): Promise<GradedSpreadRow[]> {
-  const rows = await all<{
-    cardId: string;
-    cardName: string | null;
-    setId: string | null;
-    setName: string | null;
-    grader: string;
-    grade: string;
-    gradedPrice: number;
-    soldListings: number;
-    fetchedAt: string | null;
-    verified: number | null;
-    matchScore: number | null;
-    historyPoints: number | null;
-    rawPrice: number | null;
-  }>(
+  const rows = await all<PsaTenRow & { matchScore: number | null; historyPoints: number | null }>(
     `SELECT
-       gp.cardId, gp.cardName, gp.setId, gp.setName, gp.grader, gp.grade,
-       gp.price AS gradedPrice, gp.soldListings, gp.fetchedAt,
+       gp.cardId, gp.cardName, gp.setId, gp.setName, gp.grader, gp.grade, gp.variantKey,
+       gp.price AS gradedPrice, gp.soldListings, gp.fetchedAt, gp.lastSoldDate, gp.lastSoldPrice,
        COALESCE(gp.verified, 0) AS verified,
        gp.matchScore,
        (
          SELECT COUNT(DISTINCT gph.date) FROM graded_price_history gph
          WHERE gph.cardId = gp.cardId AND COALESCE(gph.variantKey, 'normal') = COALESCE(gp.variantKey, 'normal') AND UPPER(gph.grader) = 'PSA' AND gph.grade = '10'
-       ) AS historyPoints,
-       (
-         SELECT c.price FROM canonical_price_history c
-         INNER JOIN card_mappings cm ON cm.uniqueIdentifier = c.uniqueIdentifier
-         WHERE cm.cardId = gp.cardId
-         ORDER BY c.date DESC, c.price DESC LIMIT 1
-       ) AS rawPrice
+       ) AS historyPoints
      FROM graded_prices gp
      WHERE UPPER(gp.grader) = 'PSA' AND gp.grade = '10'
        AND gp.price IS NOT NULL AND gp.price > 0
      ORDER BY gp.price DESC
      LIMIT ?`,
-    [Math.min(limit * 4, 600)]
+    // Every finish of a card carries its own copy of the same slab quote, so
+    // over-fetch before collapsing to one row per card.
+    [Math.min(limit * 12, 2400)]
   );
 
-  let mapped = rows
-    .filter((r) => r.rawPrice && r.rawPrice > 0)
+  const deduped = dedupeSlabRowsByCard(rows);
+  const raws = await rawPricesForSlabRows(deduped);
+
+  let mapped = deduped
     .map((r) => {
-      const premium = r.gradedPrice - (r.rawPrice as number);
-      const premiumPct = (premium / (r.rawPrice as number)) * 100;
+      const raw = raws.get(slabRowKey(r));
+      if (!raw) return null;
+      const gradedPrice = slabPriceOf(r);
+      const premium = gradedPrice - raw.price;
+      const premiumPct = (premium / raw.price) * 100;
       const fresh = freshness(r.fetchedAt, r.verified);
       return withFeeNet({
         cardId: r.cardId,
@@ -233,8 +333,9 @@ export async function getTopGradedPremiums(
         setName: r.setName,
         grader: r.grader,
         grade: r.grade,
-        gradedPrice: r.gradedPrice,
-        rawPrice: r.rawPrice,
+        gradedPrice,
+        rawPrice: raw.price,
+        rawSource: raw.source,
         premium,
         premiumPct,
         soldListings: r.soldListings ?? 0,
@@ -244,6 +345,7 @@ export async function getTopGradedPremiums(
         ...fresh,
       });
     })
+    .filter((r): r is GradedSpreadRow => r != null)
     .sort((a, b) => (b.premiumPct ?? 0) - (a.premiumPct ?? 0));
 
   if (options?.tradeableOnly) {
@@ -262,29 +364,11 @@ export async function getPsa10SpreadsForCards(cardIds: string[]): Promise<Graded
   if (ids.length === 0) return [];
 
   const placeholders = ids.map(() => '?').join(',');
-  const rows = await all<{
-    cardId: string;
-    cardName: string | null;
-    setId: string | null;
-    setName: string | null;
-    grader: string;
-    grade: string;
-    gradedPrice: number;
-    soldListings: number;
-    fetchedAt: string | null;
-    verified: number | null;
-    rawPrice: number | null;
-  }>(
+  const rows = await all<PsaTenRow>(
     `SELECT
-       gp.cardId, gp.cardName, gp.setId, gp.setName, gp.grader, gp.grade,
-       gp.price AS gradedPrice, gp.soldListings, gp.fetchedAt,
-       COALESCE(gp.verified, 0) AS verified,
-       (
-         SELECT c.price FROM canonical_price_history c
-         INNER JOIN card_mappings cm ON cm.uniqueIdentifier = c.uniqueIdentifier
-         WHERE cm.cardId = gp.cardId
-         ORDER BY c.date DESC, c.price DESC LIMIT 1
-       ) AS rawPrice
+       gp.cardId, gp.cardName, gp.setId, gp.setName, gp.grader, gp.grade, gp.variantKey,
+       gp.price AS gradedPrice, gp.soldListings, gp.fetchedAt, gp.lastSoldDate, gp.lastSoldPrice,
+       COALESCE(gp.verified, 0) AS verified
      FROM graded_prices gp
      WHERE UPPER(gp.grader) = 'PSA' AND gp.grade = '10'
        AND gp.price IS NOT NULL AND gp.price > 0
@@ -292,9 +376,14 @@ export async function getPsa10SpreadsForCards(cardIds: string[]): Promise<Graded
     ids
   );
 
-  return rows.map((r) => {
-    const rawPrice = r.rawPrice != null && r.rawPrice > 0 ? r.rawPrice : null;
-    const premium = rawPrice != null ? r.gradedPrice - rawPrice : null;
+  const deduped = dedupeSlabRowsByCard(rows);
+  const raws = await rawPricesForSlabRows(deduped);
+
+  return deduped.map((r) => {
+    const raw = raws.get(slabRowKey(r)) ?? null;
+    const rawPrice = raw ? raw.price : null;
+    const gradedPrice = slabPriceOf(r);
+    const premium = rawPrice != null ? gradedPrice - rawPrice : null;
     const premiumPct = rawPrice != null && premium != null ? (premium / rawPrice) * 100 : null;
     const fresh = freshness(r.fetchedAt, r.verified);
     return withFeeNet({
@@ -304,8 +393,9 @@ export async function getPsa10SpreadsForCards(cardIds: string[]): Promise<Graded
       setName: r.setName,
       grader: r.grader,
       grade: r.grade,
-      gradedPrice: r.gradedPrice,
+      gradedPrice,
       rawPrice,
+      rawSource: raw?.source ?? null,
       premium,
       premiumPct,
       soldListings: r.soldListings ?? 0,

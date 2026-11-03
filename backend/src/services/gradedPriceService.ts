@@ -67,6 +67,8 @@ export interface GradedPrice {
   /** Blended sold + ask mark used for ROI when asks diverge from stale comps. */
   marketMark?: number | null;
   marketMarkReason?: string | null;
+  /** PriceCharting's own guide for the grade, before any last-sale correction. */
+  guidePrice?: number | null;
   staleSold?: boolean;
   lastSoldAgeDays?: number | null;
   listedPremiumPct?: number | null;
@@ -123,16 +125,22 @@ interface CachedPriceRow {
 
 export const enrichGradedPrice = (p: GradedPrice): GradedPrice => {
   if (p.price == null || !Number.isFinite(p.price) || p.price <= 0) return p;
+  const guide = p.guidePrice != null && p.guidePrice > 0 ? p.guidePrice : p.price;
   const blended = blendSlabMarketMark({
-    soldGuide: p.price,
+    soldGuide: guide,
     lastSoldDate: p.lastSoldDate,
     lastSoldPrice: p.lastSoldPrice,
     listedLow: p.listedLow,
     listedAvg: p.listedAvg,
     listedCount: p.listedCount,
   });
+  const guideReplaced = blended.reason === 'guide_above_last_sale';
   return {
     ...p,
+    // The headline slab price follows the last real sale when PriceCharting's
+    // guide runs far above it; the guide stays available as guidePrice.
+    price: guideReplaced ? blended.mark : p.price,
+    guidePrice: guide,
     marketMark: blended.mark,
     marketMarkReason: blended.reason,
     staleSold: blended.staleSold,

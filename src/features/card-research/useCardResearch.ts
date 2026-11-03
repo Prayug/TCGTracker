@@ -254,8 +254,11 @@ export function useCardResearch(id: string, stub: AnyCard | undefined) {
         if (!cancelled) patch({ graded, spreads, gradedLoading: false });
       })
       .catch(() => !cancelled && patch({ gradedLoading: false }));
-    fetchAllGradedPriceHistory({ cardId: card.id, days: 365, variant: common.variant })
-      .then((gradedHistory) => !cancelled && patch({ gradedHistory }))
+    fetchAllGradedPriceHistory({ cardId: card.id, days: 2000, variant: common.variant })
+      .then(
+        (gradedHistory) =>
+          !cancelled && patch({ gradedHistory: gradedHistory ?? { cardId: card.id, series: [] } })
+      )
       .catch(() => undefined);
     fetchCardPopulation(common)
       .then((population) => !cancelled && patch({ population, populationLoading: false }))

@@ -35,7 +35,7 @@ describe('catalog search', () => {
       language TEXT NOT NULL DEFAULT 'en', matchName TEXT)`);
     await run('CREATE TABLE card_mappings (cardId TEXT, uniqueIdentifier TEXT)');
     await run(`CREATE TABLE price_history (uniqueIdentifier TEXT, date TEXT, source TEXT,
-      marketPrice REAL, lowPrice REAL, highPrice REAL)`);
+      price REAL, marketPrice REAL, lowPrice REAL, highPrice REAL)`);
     for (const [cardId, cardName, setId, setName, releaseDate] of CARDS) {
       await run(
         `INSERT INTO catalog_cards (cardId, cardName, setId, setName, setReleaseDate, language)

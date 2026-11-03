@@ -30,6 +30,18 @@ const get = <T>(sql: string, params: unknown[] = []): Promise<T | undefined> =>
     getDb().get(sql, params, (err, row) => (err ? reject(err) : resolve(row as T | undefined)));
   });
 
+/**
+ * 1 when a quote's market is under a third of its own lowest listing. Those
+ * come from a feed that matched the wrong product (TCGdex had Pikachu ★
+ * Holon Phantoms at $207.71 with a $6,997.84 low, while TCGCSV had $3,200).
+ * They rank after every self-consistent source for the same day instead of
+ * winning on source priority alone.
+ */
+export const INCONSISTENT_QUOTE_SQL = (alias: string): string =>
+  `(CASE WHEN IFNULL(${alias}.lowPrice, 0) > 0
+          AND COALESCE(${alias}.marketPrice, ${alias}.price, 0) < ${alias}.lowPrice / 3.0
+        THEN 1 ELSE 0 END)`;
+
 /** Ensure table exists (also created by migration 24). */
 export async function ensureCanonicalPriceTable(): Promise<void> {
   await run(`
@@ -113,7 +125,8 @@ export async function materializeCanonicalPrices(options?: {
          SELECT ph.*,
                 ROW_NUMBER() OVER (
                   PARTITION BY ph.uniqueIdentifier, ph.date
-                  ORDER BY CASE ph.source ${sourceCase} ELSE ${SOURCE_PRIORITY.length} END
+                  ORDER BY ${INCONSISTENT_QUOTE_SQL('ph')} ASC,
+                           CASE ph.source ${sourceCase} ELSE ${SOURCE_PRIORITY.length} END
                 ) AS rn
          FROM price_history ph
          ${whereClause}

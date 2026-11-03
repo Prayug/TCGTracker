@@ -24,6 +24,10 @@ export interface SlabMarketMark {
 }
 
 const STALE_SOLD_DAYS = 90;
+/** PriceCharting's guide more than this multiple of the last real sale is not trusted. */
+export const GUIDE_OVER_LAST_SALE_MAX = 2;
+/** A last sale older than this is too old to overrule the guide. */
+const LAST_SALE_OVERRIDE_MAX_AGE_DAYS = 730;
 
 export function lastSoldAgeDays(lastSoldDate?: string | null, now = new Date()): number | null {
   if (!lastSoldDate) return null;
@@ -58,6 +62,29 @@ export function blendSlabMarketMark(input: SlabMarketInputs): SlabMarketMark {
   const listedLow = Number(input.listedLow);
   const hasAsk = listedCount > 0 && Number.isFinite(listedLow) && listedLow > 0;
   const listedPremiumPct = hasAsk ? roundMoney(((listedLow - soldGuide) / soldGuide) * 100) : null;
+
+  // PriceCharting extrapolates a guide for thin grades. Rayquaza ★ Deoxys PSA 10
+  // read $365,750 against a $49,000 last sale; Pikachu ★ Holon Phantoms
+  // $427,000 against $175,000. When the guide is far above the last real
+  // sale, the last sale is the honest number.
+  const lastSold = Number(input.lastSoldPrice);
+  if (
+    Number.isFinite(lastSold) &&
+    lastSold > 0 &&
+    soldGuide > lastSold * GUIDE_OVER_LAST_SALE_MAX &&
+    ageDays != null &&
+    ageDays <= LAST_SALE_OVERRIDE_MAX_AGE_DAYS
+  ) {
+    return {
+      mark: roundMoney(lastSold),
+      soldGuide,
+      askWeight: 0,
+      staleSold,
+      lastSoldAgeDays: ageDays,
+      listedPremiumPct: hasAsk ? roundMoney(((listedLow - lastSold) / lastSold) * 100) : null,
+      reason: 'guide_above_last_sale',
+    };
+  }
 
   let reason: string;
   if (!hasAsk) {
