@@ -1,5 +1,6 @@
 import { env } from '../config/env';
 import { logger } from '../utils/logger';
+import { buildPokemonTcgNameQuery } from '../utils/searchText';
 
 const RETRYABLE_STATUS = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
 const BASE_URL = 'https://api.pokemontcg.io/v2';
@@ -130,8 +131,8 @@ class PokemonApiClient {
 
     const parts: string[] = [];
     if (params.nameQuery && params.nameQuery.trim().length > 0) {
-      const sanitizedName = params.nameQuery.trim();
-      parts.push(`name:*${sanitizedName}*`);
+      const nameQuery = buildPokemonTcgNameQuery(params.nameQuery);
+      if (nameQuery) parts.push(nameQuery);
     }
     if (params.setId) {
       parts.push(`set.id:${params.setId}`);

@@ -3,6 +3,7 @@ import { getDb } from '../db/database';
 import { buildDeterministicImageUrls, getImageColumnSelectFragment } from './cardImageUtils';
 import { extractBestListingPrice, resolveHistoryPointPrice } from '../utils/resolveListingPrice';
 import { DISPLAY_PRICE_SOURCE_SQL, sqlSourceRankCase } from './topMoversQuality';
+import { compactSearchText, compactSqlExpr, searchTokens } from '../utils/searchText';
 
 /** Sealed / non-single SKUs that pollute name search when Pokemon API is down. */
 const NON_SINGLE_CARD_PATTERN =
@@ -49,7 +50,9 @@ export const getCatalogCardsForQuery = async (
     lang === 'all' ? '' : `AND COALESCE(cc.language, 'en') = '${lang === 'ja' ? 'ja' : 'en'}'`;
 
   // Fast path: exact catalog id lookups (base1-4, bw6-90, …) skip the heavy price join.
-  const looksLikeCardId = /^[a-z0-9][a-z0-9_-]{1,40}$/i.test(trimmed) && trimmed.includes('-');
+  // Requires a digit so hyphenated names ("Ho-Oh", "Porygon-Z") still reach the name search.
+  const looksLikeCardId =
+    /^[a-z0-9][a-z0-9_-]{1,40}$/i.test(trimmed) && trimmed.includes('-') && /\d/.test(trimmed);
   if (looksLikeCardId && !setId) {
     const exact = await new Promise<any[]>((resolve, reject) => {
       db.all(
@@ -76,32 +79,102 @@ export const getCatalogCardsForQuery = async (
     return [];
   }
 
-  const likeQuery = `%${trimmed}%`;
-  // Exact cardId first so getCardById("base1-4") / "bw6-90" resolves.
-  const params: any[] = [trimmed, likeQuery, likeQuery, likeQuery];
+  const compact = compactSearchText(trimmed);
+  const tokens = searchTokens(trimmed);
+  if (!compact) return [];
 
-  let sql = `
+  const nameExpr = compactSqlExpr('cc.cardName');
+  const matchNameExpr = compactSqlExpr('cc.matchName');
+  const setNameExpr = compactSqlExpr('cc.setName');
+  const contains = `%${compact}%`;
+
+  // Match ranks (lower is better):
+  //   0 exact card id, 1 exact name, 2 name prefix, 3 name contains,
+  //   4 exact set name/id ("breakpoint", "xy9"), 5 set name contains,
+  //   6 every word appears somewhere in the name or set name ("charizard base").
+  const rankSql = `CASE
+      WHEN lower(cc.cardId) = lower(?) THEN 0
+      WHEN ${nameExpr} = ? OR ${matchNameExpr} = ? THEN 1
+      WHEN ${nameExpr} LIKE ? OR ${matchNameExpr} LIKE ? THEN 2
+      WHEN ${nameExpr} LIKE ? OR ${matchNameExpr} LIKE ? THEN 3
+      WHEN ${setNameExpr} = ? OR lower(cc.setId) = lower(?) THEN 4
+      WHEN ${setNameExpr} LIKE ? THEN 5
+      ELSE 6
+    END`;
+  const rankParams: any[] = [
+    trimmed,
+    compact,
+    compact,
+    `${compact}%`,
+    `${compact}%`,
+    contains,
+    contains,
+    compact,
+    trimmed,
+    contains,
+  ];
+
+  const whereParts = [
+    'lower(cc.cardId) = lower(?)',
+    `${nameExpr} LIKE ?`,
+    `${matchNameExpr} LIKE ?`,
+    `${setNameExpr} LIKE ?`,
+    'lower(cc.setId) = lower(?)',
+  ];
+  const whereParams: any[] = [trimmed, contains, contains, contains, trimmed];
+  if (tokens.length > 1) {
+    whereParts.push(
+      `(${tokens.map(() => `(${nameExpr} LIKE ? OR ${setNameExpr} LIKE ?)`).join(' AND ')})`
+    );
+    for (const token of tokens) whereParams.push(`%${token}%`, `%${token}%`);
+  }
+
+  let setFilter = '';
+  const setParams: any[] = [];
+  if (setId) {
+    setFilter = 'AND (cc.setId = ? OR cc.setName LIKE ?)';
+    setParams.push(setId, `%${setId}%`);
+  }
+
+  // Rank and LIMIT the catalog first, then join prices for just those rows. Joining
+  // price_history before the LIMIT ran the latest-price subquery for every match.
+  const sql = `
     SELECT
-      cc.cardId,
-      cc.cardName,
-      cc.setId,
-      cc.setName,
-      cc.setReleaseDate,
-      cc.cardNumber,
-      cc.rarity,
-      cc.types,
-      cc.artist,
-      cc.imageSmall,
-      cc.imageLarge,
-      cc.tcgplayerProductId,
-      cc.tcgplayerPrices,
-      COALESCE(cc.language, 'en') AS language,
-      COALESCE(cc.matchName, cc.cardName) AS matchName,
+      m.cardId,
+      m.cardName,
+      m.setId,
+      m.setName,
+      m.setReleaseDate,
+      m.cardNumber,
+      m.rarity,
+      m.types,
+      m.artist,
+      m.imageSmall,
+      m.imageLarge,
+      m.tcgplayerProductId,
+      m.tcgplayerPrices,
+      m.language,
+      m.matchName,
+      m.matchRank,
       ph.marketPrice as latestPrice,
       ph.lowPrice as latestLowPrice,
       ph.highPrice as latestHighPrice
-    FROM catalog_cards cc
-    LEFT JOIN card_mappings cm ON cm.cardId = cc.cardId
+    FROM (
+      SELECT
+        cc.cardId, cc.cardName, cc.setId, cc.setName, cc.setReleaseDate,
+        cc.cardNumber, cc.rarity, cc.types, cc.artist,
+        cc.imageSmall, cc.imageLarge, cc.tcgplayerProductId, cc.tcgplayerPrices,
+        COALESCE(cc.language, 'en') AS language,
+        COALESCE(cc.matchName, cc.cardName) AS matchName,
+        ${rankSql} AS matchRank
+      FROM catalog_cards cc
+      WHERE (${whereParts.join(' OR ')})
+      ${langClause}
+      ${setFilter}
+      ORDER BY matchRank ASC, cc.setReleaseDate DESC, cc.cardName ASC
+      LIMIT ?
+    ) m
+    LEFT JOIN card_mappings cm ON cm.cardId = m.cardId
     LEFT JOIN price_history ph ON ph.uniqueIdentifier = cm.uniqueIdentifier
       AND ph.rowid = (
         SELECT ph2.rowid FROM price_history ph2
@@ -111,32 +184,21 @@ export const getCatalogCardsForQuery = async (
         ORDER BY ph2.date DESC, ${sqlSourceRankCase('ph2.source')} ASC
         LIMIT 1
       )
-    WHERE (
-      cc.cardId = ?
-      OR cc.cardId LIKE ?
-      OR cc.cardName LIKE ?
-      OR IFNULL(cc.matchName, '') LIKE ?
-    )
-    ${langClause}
+    ORDER BY m.matchRank ASC, m.setReleaseDate DESC, m.cardName ASC
   `;
+  const params = [...rankParams, ...whereParams, ...setParams, limit];
 
-  if (setId) {
-    sql += ' AND (cc.setId = ? OR cc.setName LIKE ?)';
-    params.push(setId, `%${setId}%`);
-  }
-
-  sql += ` ORDER BY
-      CASE WHEN cc.cardId = ? THEN 0 ELSE 1 END,
-      cc.cardName ASC
-    LIMIT ?`;
-  params.push(trimmed, limit);
-
-  return new Promise<any[]>((resolve, reject) => {
-    db.all(sql, params, (err, rows) => {
+  const rows = await new Promise<any[]>((resolve, reject) => {
+    db.all(sql, params, (err, result) => {
       if (err) return reject(err);
-      resolve(rows || []);
+      resolve(result || []);
     });
   });
+
+  // Loose word matches only fill in when nothing matched the name or set directly,
+  // so "ho oh" shows Ho-Oh and not every card with "ho" and "oh" somewhere in it.
+  const hasDirectMatch = rows.some((row) => Number(row.matchRank) < 6);
+  return hasDirectMatch ? rows.filter((row) => Number(row.matchRank) < 6) : rows;
 };
 
 export const mapCatalogRowsToPokemonCards = (rows: any[]) => {
@@ -165,12 +227,23 @@ export const mapCatalogRowsToPokemonCards = (rows: any[]) => {
     const derivedMarketPrice =
       snapshotPrice > 0 ? snapshotPrice : fromListing.price > 0 ? fromListing.price : 0;
 
+    let types: string[] | undefined;
+    if (row.types) {
+      try {
+        const parsed = JSON.parse(row.types);
+        types = Array.isArray(parsed) ? parsed : undefined;
+      } catch {
+        types = undefined;
+      }
+    }
+
     const productId = row.tcgplayerProductId || undefined;
     const next = {
       id: row.cardId,
       name: row.cardName,
       number: row.cardNumber || '',
       rarity: row.rarity || undefined,
+      types,
       artist: row.artist || undefined,
       language: row.language || 'en',
       matchName: row.matchName || row.cardName,
