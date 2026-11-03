@@ -115,6 +115,113 @@ async function mergeLiveJaCatalogRows(
   return catalogRows;
 }
 
+/** How long a search waits on pokemontcg.io before answering from the local catalog. */
+const LIVE_SEARCH_BUDGET_MS = 3500;
+
+interface LiveSearchResult {
+  cards: any[];
+  totalCount: number;
+  pagesFetched: number;
+}
+
+const liveSearchesInFlight = new Map<string, Promise<LiveSearchResult>>();
+
+/**
+ * Fetch from pokemontcg.io and write both caches. Deduplicated per cache key, so a
+ * search that keeps running in the background is reused by repeat requests.
+ */
+function fetchLiveAndCache(
+  cacheKey: string,
+  opts: { query: string; setId?: string; pageSize: number; fetchAll: boolean; maxPages: number }
+): Promise<LiveSearchResult> {
+  const existing = liveSearchesInFlight.get(cacheKey);
+  if (existing) return existing;
+
+  const promise = (async (): Promise<LiveSearchResult> => {
+    const apiResult = await pokemonApiClient.searchCardsBulk({
+      nameQuery: opts.query,
+      setId: opts.setId,
+      pageSize: opts.pageSize,
+      fetchAll: opts.fetchAll,
+      maxPages: opts.maxPages,
+    });
+    const result: LiveSearchResult = {
+      cards: apiResult.cards,
+      totalCount: apiResult.totalCount || apiResult.cards.length,
+      pagesFetched: apiResult.pagesFetched,
+    };
+    if (result.cards.length === 0) return result;
+
+    const fetchedAt = Date.now();
+    pokemonApiCache.set(cacheKey, {
+      data: result.cards,
+      totalCount: result.totalCount,
+      fetchedAt,
+      pageSize: opts.pageSize,
+      pagesFetched: result.pagesFetched,
+    });
+    try {
+      await savePersistentPokemonCache(cacheKey, {
+        query: opts.query,
+        setId: opts.setId,
+        pageSize: opts.pageSize,
+        fetchAll: opts.fetchAll,
+        maxPages: opts.maxPages,
+        data: result.cards,
+        totalCount: result.totalCount,
+        pagesFetched: result.pagesFetched,
+        fetchedAt,
+      });
+    } catch (cacheError) {
+      logger.warn('Failed to persist pokemon search cache', cacheError);
+    }
+    logger.info(`✅ Fetched ${result.cards.length} cards for "${opts.query}" from Pokemon API`);
+    return result;
+  })();
+
+  liveSearchesInFlight.set(cacheKey, promise);
+  promise
+    .catch((err) => {
+      logger.warn('Pokemon API search failed', {
+        query: opts.query,
+        error: (err as Error).message,
+      });
+    })
+    .finally(() => liveSearchesInFlight.delete(cacheKey));
+  return promise;
+}
+
+async function livePayload(result: LiveSearchResult, limit: number) {
+  return {
+    data: await enrichCardsWithInvestmentData(result.cards),
+    totalCount: result.totalCount,
+    pageSize: limit,
+    pagesFetched: result.pagesFetched,
+    cached: false,
+    source: 'pokemon_tcg_api',
+  };
+}
+
+type Settled<T> =
+  | { status: 'fulfilled'; value: T }
+  | { status: 'rejected'; reason: unknown }
+  | { status: 'pending' };
+
+function settle<T>(promise: Promise<T>): Promise<Settled<T>> {
+  return promise.then(
+    (value) => ({ status: 'fulfilled' as const, value }),
+    (reason) => ({ status: 'rejected' as const, reason })
+  );
+}
+
+function settleWithin<T>(promise: Promise<T>, ms: number): Promise<Settled<T>> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<Settled<T>>((resolve) => {
+    timer = setTimeout(() => resolve({ status: 'pending' }), ms);
+  });
+  return Promise.race([settle(promise), timeout]).finally(() => clearTimeout(timer));
+}
+
 async function buildLocalFallback(
   sanitizedQuery: string,
   normalizedSetId: string | undefined,
@@ -311,88 +418,69 @@ router.get('/pokemon', async (req, res) => {
       }
     }
 
-    const apiResult = await pokemonApiClient.searchCardsBulk({
-      nameQuery: sanitizedQuery,
+    // Ask the live API and the local catalog at the same time. The catalog is synced
+    // nightly and answers in milliseconds; pokemontcg.io regularly takes 10–30s per page.
+    // Use live data when it lands within the budget, otherwise serve the catalog and let
+    // the live fetch finish in the background so the next search hits the cache.
+    const livePromise = fetchLiveAndCache(cacheKey, {
+      query: sanitizedQuery,
       setId: normalizedSetId,
       pageSize: limit,
       fetchAll: shouldFetchAll,
       maxPages: maxPagesToFetch,
     });
-
-    const uniqueCards = await enrichCardsWithInvestmentData(apiResult.cards);
-
-    if (uniqueCards.length === 0) {
-      logger.warn(
-        `⚠️ No cards from Pokemon API for query "${sanitizedQuery}", trying fallbacks...`
-      );
-
-      if (buildLocalFallbackResponse) {
-        const localPayload = await buildLocalFallbackResponse();
-        if (localPayload) {
-          logger.info(`✅ Serving ${localPayload.data.length} cards from local database fallback`);
-          return res.json(localPayload);
-        }
-      }
-
-      if (persistentCacheEntry) {
-        const payload = respondWithPersistent(
-          {
-            ...persistentCacheEntry,
-            pageSize: persistentCacheEntry.pageSize || limit,
-          },
-          true
-        );
-        if (payload) {
-          payload.data = await enrichCardsWithInvestmentData(payload.data);
-          logger.info(`✅ Serving ${payload.data.length} stale cached cards as fallback`);
-          return res.json(payload);
-        }
-      }
-
-      return res.status(404).json({
-        error: 'No cards found',
-        query: sanitizedQuery,
-        source: 'none',
-      });
-    }
-
-    const payload = {
-      data: uniqueCards,
-      totalCount: apiResult.totalCount || uniqueCards.length,
-      pageSize: limit,
-      pagesFetched: apiResult.pagesFetched,
-      cached: false,
-      source: 'pokemon_tcg_api',
-    };
-
-    pokemonApiCache.set(cacheKey, {
-      data: uniqueCards,
-      totalCount: payload.totalCount,
-      fetchedAt: Date.now(),
-      pageSize: limit,
-      pagesFetched: apiResult.pagesFetched,
+    const localPromise = buildLocalFallbackResponse().catch((err) => {
+      logger.warn('Local catalog search failed', { error: (err as Error).message });
+      return null;
     });
 
-    try {
-      await savePersistentPokemonCache(cacheKey, {
-        query: sanitizedQuery,
-        setId: normalizedSetId,
-        pageSize: limit,
-        fetchAll: shouldFetchAll,
-        maxPages: maxPagesToFetch,
-        data: uniqueCards,
-        totalCount: payload.totalCount,
-        pagesFetched: apiResult.pagesFetched,
-        fetchedAt: Date.now(),
-      });
-    } catch (cacheError) {
-      logger.warn('Failed to persist pokemon search cache', cacheError);
+    const live = await settleWithin(livePromise, LIVE_SEARCH_BUDGET_MS);
+    if (live.status === 'fulfilled' && live.value.cards.length > 0) {
+      return res.json(await livePayload(live.value, limit));
     }
 
-    logger.info(
-      `✅ Successfully fetched ${uniqueCards.length} cards for "${sanitizedQuery}" from Pokemon API`
-    );
-    res.json(payload);
+    const localPayload = await localPromise;
+    if (localPayload) {
+      logger.info(`✅ Serving ${localPayload.data.length} cards from local catalog`, {
+        query: sanitizedQuery,
+        live: live.status,
+      });
+      return res.json(localPayload);
+    }
+
+    // Nothing local: the live API is the only remaining source, so wait for it.
+    const liveFinal = live.status === 'pending' ? await settle(livePromise) : live;
+    if (liveFinal.status === 'fulfilled' && liveFinal.value.cards.length > 0) {
+      return res.json(await livePayload(liveFinal.value, limit));
+    }
+
+    if (persistentCacheEntry) {
+      const payload = respondWithPersistent(
+        {
+          ...persistentCacheEntry,
+          pageSize: persistentCacheEntry.pageSize || limit,
+        },
+        true
+      );
+      if (payload) {
+        payload.data = await enrichCardsWithInvestmentData(payload.data);
+        logger.info(`✅ Serving ${payload.data.length} stale cached cards as fallback`);
+        return res.json(payload);
+      }
+    }
+
+    if (liveFinal.status === 'rejected') {
+      return res.status(502).json({
+        error: 'Failed to fetch results from Pokemon TCG API',
+        message: (liveFinal.reason as Error)?.message,
+      });
+    }
+
+    return res.status(404).json({
+      error: 'No cards found',
+      query: sanitizedQuery,
+      source: 'none',
+    });
   } catch (error) {
     logger.error('❌ Error proxying Pokemon API search:', error);
 
