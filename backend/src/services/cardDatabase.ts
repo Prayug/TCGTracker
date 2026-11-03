@@ -3,6 +3,7 @@ import { getDb } from '../db/database';
 import { buildDeterministicImageUrls, getImageColumnSelectFragment } from './cardImageUtils';
 import { extractBestListingPrice, resolveHistoryPointPrice } from '../utils/resolveListingPrice';
 import { DISPLAY_PRICE_SOURCE_SQL, sqlSourceRankCase } from './topMoversQuality';
+import { INCONSISTENT_QUOTE_SQL } from './canonicalPriceService';
 
 /** Sealed / non-single SKUs that pollute name search when Pokemon API is down. */
 const NON_SINGLE_CARD_PATTERN =
@@ -108,7 +109,7 @@ export const getCatalogCardsForQuery = async (
         WHERE ph2.uniqueIdentifier = cm.uniqueIdentifier
           AND ph2.source IN (${DISPLAY_PRICE_SOURCE_SQL})
           AND IFNULL(ph2.marketPrice, 0) > 0
-        ORDER BY ph2.date DESC, ${sqlSourceRankCase('ph2.source')} ASC
+        ORDER BY ph2.date DESC, ${INCONSISTENT_QUOTE_SQL('ph2')} ASC, ${sqlSourceRankCase('ph2.source')} ASC
         LIMIT 1
       )
     WHERE (
@@ -265,7 +266,7 @@ export const getLocalCardsForQuery = async (
         WHERE ph2.uniqueIdentifier = cm.uniqueIdentifier
           AND ph2.source IN (${DISPLAY_PRICE_SOURCE_SQL})
           AND IFNULL(ph2.marketPrice, 0) > 0
-        ORDER BY ph2.date DESC, ${sqlSourceRankCase('ph2.source')} ASC
+        ORDER BY ph2.date DESC, ${INCONSISTENT_QUOTE_SQL('ph2')} ASC, ${sqlSourceRankCase('ph2.source')} ASC
         LIMIT 1
       )
     LEFT JOIN catalog_cards cc ON cc.cardId = cm.cardId

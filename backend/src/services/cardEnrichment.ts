@@ -282,7 +282,7 @@ export function pickPreferredSnapshotPrices(
   for (const row of rows) {
     const key = `${row.cardId}||${row.uniqueIdentifier}`;
     const existing = byVariant.get(key);
-    if (!existing || sourceRank(row.source) < sourceRank(existing.source)) {
+    if (!existing || pickPreferredSourceRow([existing, row]) === row) {
       byVariant.set(key, row);
     }
   }
