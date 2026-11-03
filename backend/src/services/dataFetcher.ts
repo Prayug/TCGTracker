@@ -868,6 +868,13 @@ const snapshotFromMarketProvider = async (
           }
 
           const isCardmarket = /cardmarket/i.test(rawVariantName);
+          // TCGdex falls back to Cardmarket (EUR, converted) when it has no
+          // TCGplayer price. For English cards that number was saved under the
+          // TCGplayer finish and shown as a USD market: Rayquaza ★ Deoxys read
+          // $56 against a ~$9,400 card. English cards keep TCGplayer feeds only.
+          if (isCardmarket && language !== 'ja') {
+            continue;
+          }
           entries.push({
             row,
             variantKey,

@@ -41,6 +41,8 @@ export interface GradedSpreadRow {
   grade: string;
   gradedPrice: number;
   rawPrice: number | null;
+  /** Feed behind rawPrice; `pricecharting` when its ungraded price replaced ours. */
+  rawSource?: string | null;
   premium: number | null;
   premiumPct: number | null;
   soldListings: number;

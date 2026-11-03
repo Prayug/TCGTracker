@@ -56,9 +56,35 @@ export function sourceRank(source: string): number {
 }
 
 /** Pick the highest-priority source row from a set sharing the same key. */
-export function pickPreferredSourceRow<T extends { source: string }>(rows: T[]): T | null {
+export function pickPreferredSourceRow<
+  T extends {
+    source: string;
+    price?: number | null;
+    marketPrice?: number | null;
+    lowPrice?: number | null;
+  },
+>(rows: T[]): T | null {
   if (rows.length === 0) return null;
-  return [...rows].sort((a, b) => sourceRank(a.source) - sourceRank(b.source))[0];
+  return [...rows].sort(
+    (a, b) =>
+      Number(quoteContradictsOwnLow(a)) - Number(quoteContradictsOwnLow(b)) ||
+      sourceRank(a.source) - sourceRank(b.source)
+  )[0];
+}
+
+/**
+ * A market under a third of the same quote's lowest listing means the feed
+ * priced a different product. Such rows lose to any self-consistent source.
+ */
+export function quoteContradictsOwnLow(row: {
+  price?: number | null;
+  marketPrice?: number | null;
+  lowPrice?: number | null;
+}): boolean {
+  const low = Number(row.lowPrice ?? 0);
+  if (!(low > 0)) return false;
+  const market = Number(row.marketPrice ?? row.price ?? 0);
+  return market > 0 && market < low / 3;
 }
 
 /**

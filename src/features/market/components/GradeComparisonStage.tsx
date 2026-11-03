@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { pokemonApi } from '../../../services/pokemonApi';
 import type { GradedSpreadRow } from '../../../services/gradedPricesApi';
@@ -12,7 +12,17 @@ import { cn } from '@/lib/utils';
  * the most, from recorded graded sales. Pick another card from the rail.
  */
 export function GradeComparisonStage({ rows }: { rows: GradedSpreadRow[] }) {
-  const usable = rows.filter((r) => r.rawPrice != null && r.rawPrice > 0 && r.gradedPrice > 0);
+  const usable = useMemo(() => {
+    const seen = new Set<string>();
+    return rows.filter((r) => {
+      if (!(r.rawPrice != null && r.rawPrice > 0 && r.gradedPrice > 0)) return false;
+      // One chip per card and grade, even if an older API sends a copy per finish.
+      const key = `${r.cardId}|${r.grader}|${r.grade}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [rows]);
   const [pick, setPick] = useState(0);
   const row = usable[Math.min(pick, usable.length - 1)];
   const [cards, setCards] = useState<Record<string, PokemonCard | null>>({});
@@ -79,7 +89,11 @@ export function GradeComparisonStage({ rows }: { rows: GradedSpreadRow[] }) {
             </motion.div>
           </AnimatePresence>
           <figcaption className="mt-3 text-center">
-            <span className="block text-[12px] text-white/55">Raw</span>
+            <span className="block text-[12px] text-white/55">
+              {row.rawSource === 'pricecharting'
+                ? 'Raw · PriceCharting ungraded'
+                : 'Raw · TCGplayer NM'}
+            </span>
             <span className="font-mono text-[22px] font-medium tabular-nums">
               {formatCurrency(raw)}
             </span>
@@ -157,8 +171,10 @@ export function GradeComparisonStage({ rows }: { rows: GradedSpreadRow[] }) {
         </ul>
       ) : null}
       <p className="mt-3 text-[12px] text-white/50">
-        Graded price is the recorded sale figure for that grade; raw is TCGplayer market. Grading
-        fees, shipping and the chance of a lower grade are not included.
+        Graded price is PriceCharting&rsquo;s guide for that grade, which can rest on very few
+        sales. Raw is the TCGplayer Near Mint market, or PriceCharting ungraded when our TCGplayer
+        quote fails its checks. Grading fees, shipping and the chance of a lower grade are not
+        included.
       </p>
     </section>
   );

@@ -51,7 +51,17 @@ import {
   type DealThresholds,
   type MatchConfidenceTier,
 } from '../utils/dealScoring';
-import { normalizeCardNumber, pcFinishSearchTerms } from './priceChartingClient';
+import {
+  expectedPcFinishFamily,
+  normalizeCardNumber,
+  pcFinishSearchTerms,
+} from './priceChartingClient';
+import {
+  getUsdRawPriceForCard,
+  isCardmarketVariant,
+  isSelfConsistentQuote,
+  MIN_RAW_TO_PC_UNGRADED_RATIO,
+} from './usdRawPrice';
 
 export type DealGame = 'pokemon' | 'onepiece';
 export type DealSort = 'best' | 'discount_pct' | 'savings' | 'price' | 'market' | 'ending';
@@ -1584,8 +1594,35 @@ async function resolveRawMarketUncached(card: CatalogCardRef): Promise<{
     return null;
   }
 
+  const family = expectedPcFinishFamily(card.variantKey || 'normal');
+  const checked = await getUsdRawPriceForCard(card.cardId, { family });
   const canonical = await getLatestCanonicalPrice(card.uniqueIdentifier);
-  if (!canonical || !(canonical.price > 0)) return null;
+  const canonicalUsable =
+    canonical &&
+    canonical.price > 0 &&
+    canonical.source !== 'cardmarket' &&
+    !isCardmarketVariant(card.variantKey, card.uniqueIdentifier) &&
+    isSelfConsistentQuote(canonical.price, canonical.lowPrice);
+
+  // The matched finish's own quote is wrong (Cardmarket euros, a market far
+  // under its own low, or a quarter of PriceCharting's ungraded price): use
+  // the card-level USD price that passed those checks instead.
+  if (
+    checked &&
+    (!canonicalUsable ||
+      checked.replacedByPriceCharting ||
+      (canonical && canonical.price < checked.price * MIN_RAW_TO_PC_UNGRADED_RATIO))
+  ) {
+    return {
+      value: checked.price,
+      source: checked.replacedByPriceCharting
+        ? 'TCGTracker raw price (PriceCharting ungraded; TCGplayer quote failed checks)'
+        : `TCGTracker canonical raw price (${checked.source})`,
+      updatedAt: checked.date,
+      volume: null,
+    };
+  }
+  if (!canonical || !canonicalUsable) return null;
 
   const plateau = await rawPricePlateau(card.uniqueIdentifier, canonical.price);
   const quoteAgeDays = canonical.date ? daysBetween(canonical.date) : null;
@@ -1684,7 +1721,10 @@ async function resolveGradedMarket(
   const ageHours = hoursSince(row.fetchedAt.includes('T') ? row.fetchedAt : `${row.fetchedAt}Z`);
   return {
     value: enriched.price as number,
-    source: `${grader.toUpperCase()} ${grade} reference`,
+    source:
+      enriched.marketMarkReason === 'guide_above_last_sale'
+        ? `${grader.toUpperCase()} ${grade} last sale (PriceCharting guide ran far above it)`
+        : `${grader.toUpperCase()} ${grade} reference`,
     updatedAt: row.fetchedAt,
     soldListings: row.soldListings || 0,
     verified: row.verified === 1,
