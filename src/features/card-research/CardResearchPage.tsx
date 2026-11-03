@@ -9,6 +9,7 @@ import { useToast } from '../../components/common/Toast';
 import { CardArt } from '../../components/exchange/CardArt';
 import { Basis, Delta, Price, Unavailable } from '../../components/exchange/Price';
 import { StepPriceChart } from '../../components/exchange/StepPriceChart';
+import { SlabPriceHistory } from './SlabPriceHistory';
 import { AddToVaultModal } from '../vault/components/AddToVaultModal';
 import { vaultService } from '../../services/vaultService';
 import { cardWishlistService } from '../../services/cardWishlistService';
@@ -573,6 +574,14 @@ export function CardResearchPage() {
               ))}
             </dl>
           ) : null}
+
+          <h3 className="mt-10 font-display text-[17px] font-medium">Slab prices</h3>
+          <p className="mt-1 text-meta text-ink-muted">
+            Daily PriceCharting quotes per grade. Pick up to four grades to compare.
+          </p>
+          <div className="mt-3">
+            <SlabPriceHistory history={r.gradedHistory} range={range} cardName={card.name} />
+          </div>
         </section>
 
         {/* Grading economics */}
