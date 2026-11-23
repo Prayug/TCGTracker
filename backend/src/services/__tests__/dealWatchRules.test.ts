@@ -102,7 +102,11 @@ describe('new set detection', () => {
     const index = pickRecentPokemonSets(
       [
         { setId: 'me55', setName: '30th Celebration', setReleaseDate: '2026/09/16' },
-        { setId: 'me55c', setName: '30th Celebration: Classic Collection', setReleaseDate: '2026/09/16' },
+        {
+          setId: 'me55c',
+          setName: '30th Celebration: Classic Collection',
+          setReleaseDate: '2026/09/16',
+        },
         { setId: 'me5', setName: 'Pitch Black', setReleaseDate: '2026/07/17' },
         { setId: 'me6', setName: 'Future Set', setReleaseDate: '2026/11/28' },
         { setId: 'sv1', setName: 'Scarlet & Violet', setReleaseDate: '2023/03/31' },
@@ -140,8 +144,16 @@ describe('new set detection', () => {
 describe('alert email', () => {
   it('puts new-set deals first and includes the link', () => {
     const alerts: DealAlert[] = [
-      { game: 'pokemon', isNewSet: false, deal: deal({ listingId: 'a', dealScore: 99, cardName: 'Old Card' }) },
-      { game: 'onepiece', isNewSet: true, deal: deal({ listingId: 'b', dealScore: 50, cardName: 'Luffy' }) },
+      {
+        game: 'pokemon',
+        isNewSet: false,
+        deal: deal({ listingId: 'a', dealScore: 99, cardName: 'Old Card' }),
+      },
+      {
+        game: 'onepiece',
+        isNewSet: true,
+        deal: deal({ listingId: 'b', dealScore: 50, cardName: 'Luffy' }),
+      },
     ];
     expect(sortAlerts(alerts).map((a) => a.deal.listingId)).toEqual(['b', 'a']);
     const { subject, text } = formatDealAlertEmail(alerts, { appUrl: 'http://localhost:5173/' });

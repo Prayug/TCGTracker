@@ -172,8 +172,10 @@ export function pickNewestOnePieceSets(
   keep: { OP: number; EB: number; PRB: number } = { OP: 2, EB: 1, PRB: 1 }
 ): NewSetIndex {
   const index = emptyNewSetIndex();
-  const groups: Record<'OP' | 'EB' | 'PRB', Map<number, Array<{ setId: string; setName: string }>>> =
-    { OP: new Map(), EB: new Map(), PRB: new Map() };
+  const groups: Record<
+    'OP' | 'EB' | 'PRB',
+    Map<number, Array<{ setId: string; setName: string }>>
+  > = { OP: new Map(), EB: new Map(), PRB: new Map() };
   for (const s of sets) {
     const m = /^(OP|EB|PRB)-?(\d+)/i.exec(s.setId.trim());
     if (!m) continue;
@@ -252,7 +254,9 @@ export function formatDealAlertEmail(
     const seller = deal.sellerUsername
       ? `Seller ${deal.sellerUsername}${feedback ? ` (${feedback})` : ''}`
       : 'Seller unknown';
-    lines.push(`   ${seller} · match ${deal.matchConfidenceTier} · market from ${deal.marketSource}`);
+    lines.push(
+      `   ${seller} · match ${deal.matchConfidenceTier} · market from ${deal.marketSource}`
+    );
     if (deal.riskFlags.length) lines.push(`   Flags: ${deal.riskFlags.join(', ')}`);
     lines.push(`   ${deal.listingUrl}`);
     lines.push('');

@@ -371,7 +371,11 @@ function mergeDealPool(game: DealGame, evaluated: EvaluatedListing[]): Evaluated
 
 /** The background deal watcher scores listings too; keep them in the Deals feed. */
 export function rememberWatcherDeals(game: DealGame, deals: DealCardPayload[]): void {
-  if (deals.length) mergeDealPool(game, deals.map((deal) => ({ deal })));
+  if (deals.length)
+    mergeDealPool(
+      game,
+      deals.map((deal) => ({ deal }))
+    );
 }
 
 function poolEntriesForState(state: CrawlState): Array<{ deal: DealCardPayload; seenAt: number }> {

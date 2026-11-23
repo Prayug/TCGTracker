@@ -385,102 +385,105 @@ export const searchEbayListings = async (
 
   try {
     return await enqueueEbay(async () => {
-    await ensureCooldownLoaded();
-    const waitMs = Math.max(0, ebayCooldownUntil - Date.now());
-    // Do not spend another Browse call while a quota/throttle window is open.
-    // Waiting-then-firing is what kept the 429 loop alive for 20+ minutes.
-    if (waitMs > MIN_EBAY_INTERVAL_MS + 500) {
-      return { listings: [], total: null, error: 'rate_limited' as const };
-    }
-    if (waitMs > 0) await sleep(waitMs);
-
-    const token = await fetchAppToken();
-    if (!token) {
-      return { listings: [], total: null, error: 'unavailable' as const };
-    }
-
-    const limit = Math.min(
-      Math.max(options.limit ?? EBAY_BROWSE_PAGE_SIZE, 1),
-      EBAY_BROWSE_PAGE_SIZE
-    );
-    const offset = Math.min(Math.max(options.offset ?? 0, 0), EBAY_BROWSE_MAX_OFFSET);
-    const filterParts = ['deliveryCountry:US'];
-    if (options.buyingOptions === 'FIXED_PRICE') {
-      filterParts.push('buyingOptions:{FIXED_PRICE}');
-    } else if (options.buyingOptions === 'AUCTION') {
-      filterParts.push('buyingOptions:{AUCTION}');
-    }
-    if (options.priceMin != null || options.priceMax != null) {
-      const lo =
-        options.priceMin != null && Number.isFinite(options.priceMin) ? options.priceMin : 0;
-      const hi =
-        options.priceMax != null && Number.isFinite(options.priceMax)
-          ? options.priceMax
-          : 1_000_000;
-      filterParts.push(`price:[${lo}..${hi}]`);
-      filterParts.push('priceCurrency:USD');
-    }
-
-    const params = new URLSearchParams({
-      q: options.query.trim(),
-      category_ids: options.categoryId || CCG_INDIVIDUAL_CARDS_CATEGORY,
-      limit: String(limit),
-      offset: String(offset),
-      sort: options.sort || 'newlyListed',
-      filter: filterParts.join(','),
-      fieldgroups: 'EXTENDED',
-    });
-
-    const signal = AbortSignal.timeout(SEARCH_TIMEOUT_MS);
-    try {
-      const response = await fetch(`${apiHost()}/buy/browse/v1/item_summary/search?${params}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
-          Accept: 'application/json',
-        },
-        signal,
-      });
-      if (response.status === 429) {
-        consecutive429 += 1;
-        const detail = await readResponseText(response, signal).catch(() => '');
-        const retryMs = cooldownMsFrom429(response, detail);
-        await persistCooldown(Date.now() + retryMs);
-        logger.warn('eBay Browse search rate limited', {
-          query: options.query,
-          retryMs,
-          consecutive429,
-          retryAfter: response.headers.get('retry-after'),
-          detail: detail.slice(0, 300),
-        });
+      await ensureCooldownLoaded();
+      const waitMs = Math.max(0, ebayCooldownUntil - Date.now());
+      // Do not spend another Browse call while a quota/throttle window is open.
+      // Waiting-then-firing is what kept the 429 loop alive for 20+ minutes.
+      if (waitMs > MIN_EBAY_INTERVAL_MS + 500) {
         return { listings: [], total: null, error: 'rate_limited' as const };
       }
-      consecutive429 = 0;
-      ebayCooldownUntil = Math.max(ebayCooldownUntil, Date.now() + MIN_EBAY_INTERVAL_MS);
-      if (!response.ok) {
-        logger.warn('eBay Browse search failed', { status: response.status, query: options.query });
+      if (waitMs > 0) await sleep(waitMs);
+
+      const token = await fetchAppToken();
+      if (!token) {
         return { listings: [], total: null, error: 'unavailable' as const };
       }
-      const json = JSON.parse(await readResponseText(response, signal)) as {
-        itemSummaries?: BrowseItemSummary[];
-        total?: number;
-      };
-      const listings: EbayListingSummary[] = [];
-      for (const item of json.itemSummaries ?? []) {
-        const summary = toListingSummary(item);
-        if (summary) listings.push(summary);
+
+      const limit = Math.min(
+        Math.max(options.limit ?? EBAY_BROWSE_PAGE_SIZE, 1),
+        EBAY_BROWSE_PAGE_SIZE
+      );
+      const offset = Math.min(Math.max(options.offset ?? 0, 0), EBAY_BROWSE_MAX_OFFSET);
+      const filterParts = ['deliveryCountry:US'];
+      if (options.buyingOptions === 'FIXED_PRICE') {
+        filterParts.push('buyingOptions:{FIXED_PRICE}');
+      } else if (options.buyingOptions === 'AUCTION') {
+        filterParts.push('buyingOptions:{AUCTION}');
       }
-      const total =
-        json.total != null && Number.isFinite(Number(json.total)) ? Number(json.total) : null;
-      return { listings, total };
-    } catch (error) {
-      logger.warn('eBay Browse search errored', {
-        error: (error as Error).message,
-        query: options.query,
+      if (options.priceMin != null || options.priceMax != null) {
+        const lo =
+          options.priceMin != null && Number.isFinite(options.priceMin) ? options.priceMin : 0;
+        const hi =
+          options.priceMax != null && Number.isFinite(options.priceMax)
+            ? options.priceMax
+            : 1_000_000;
+        filterParts.push(`price:[${lo}..${hi}]`);
+        filterParts.push('priceCurrency:USD');
+      }
+
+      const params = new URLSearchParams({
+        q: options.query.trim(),
+        category_ids: options.categoryId || CCG_INDIVIDUAL_CARDS_CATEGORY,
+        limit: String(limit),
+        offset: String(offset),
+        sort: options.sort || 'newlyListed',
+        filter: filterParts.join(','),
+        fieldgroups: 'EXTENDED',
       });
-      return { listings: [], total: null, error: 'unavailable' as const };
-    }
-  });
+
+      const signal = AbortSignal.timeout(SEARCH_TIMEOUT_MS);
+      try {
+        const response = await fetch(`${apiHost()}/buy/browse/v1/item_summary/search?${params}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
+            Accept: 'application/json',
+          },
+          signal,
+        });
+        if (response.status === 429) {
+          consecutive429 += 1;
+          const detail = await readResponseText(response, signal).catch(() => '');
+          const retryMs = cooldownMsFrom429(response, detail);
+          await persistCooldown(Date.now() + retryMs);
+          logger.warn('eBay Browse search rate limited', {
+            query: options.query,
+            retryMs,
+            consecutive429,
+            retryAfter: response.headers.get('retry-after'),
+            detail: detail.slice(0, 300),
+          });
+          return { listings: [], total: null, error: 'rate_limited' as const };
+        }
+        consecutive429 = 0;
+        ebayCooldownUntil = Math.max(ebayCooldownUntil, Date.now() + MIN_EBAY_INTERVAL_MS);
+        if (!response.ok) {
+          logger.warn('eBay Browse search failed', {
+            status: response.status,
+            query: options.query,
+          });
+          return { listings: [], total: null, error: 'unavailable' as const };
+        }
+        const json = JSON.parse(await readResponseText(response, signal)) as {
+          itemSummaries?: BrowseItemSummary[];
+          total?: number;
+        };
+        const listings: EbayListingSummary[] = [];
+        for (const item of json.itemSummaries ?? []) {
+          const summary = toListingSummary(item);
+          if (summary) listings.push(summary);
+        }
+        const total =
+          json.total != null && Number.isFinite(Number(json.total)) ? Number(json.total) : null;
+        return { listings, total };
+      } catch (error) {
+        logger.warn('eBay Browse search errored', {
+          error: (error as Error).message,
+          query: options.query,
+        });
+        return { listings: [], total: null, error: 'unavailable' as const };
+      }
+    });
   } catch (error) {
     logger.warn('eBay Browse search errored', {
       error: (error as Error).message,
@@ -566,76 +569,76 @@ export const fetchPsa10ListingQuote = async (
 
   try {
     return await enqueueEbay(async () => {
-    await ensureCooldownLoaded();
-    const waitMs = Math.max(0, ebayCooldownUntil - Date.now());
-    if (waitMs > MIN_EBAY_INTERVAL_MS + 500) return null;
+      await ensureCooldownLoaded();
+      const waitMs = Math.max(0, ebayCooldownUntil - Date.now());
+      if (waitMs > MIN_EBAY_INTERVAL_MS + 500) return null;
 
-    const token = await fetchAppToken();
-    if (!token) return null;
+      const token = await fetchAppToken();
+      if (!token) return null;
 
-    const opFamily = input.game === 'onepiece' ? expectedOpPrintFamily(input) : null;
-    const query = [
-      input.game === 'onepiece'
-        ? stripOpNameDecorators(input.cardName) || input.cardName
-        : input.cardName,
-      input.game === 'onepiece' ? opSearchSetName(input.setName, opFamily!) : input.setName,
-      input.cardNumber ? `#${input.cardNumber}` : '',
-      input.game === 'onepiece'
-        ? opFamilySearchTerms(opFamily!)
-        : pcFinishSearchTerms(input.variant),
-      'PSA 10',
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .trim();
-    const params = new URLSearchParams({
-      q: query,
-      category_ids: '183454',
-      limit: '50',
-      sort: 'price',
-      filter: 'buyingOptions:{FIXED_PRICE},deliveryCountry:US',
-    });
-
-    const signal = AbortSignal.timeout(SEARCH_TIMEOUT_MS);
-    try {
-      if (waitMs > 0) await sleep(waitMs);
-      const response = await fetch(`${apiHost()}/buy/browse/v1/item_summary/search?${params}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
-          Accept: 'application/json',
-        },
-        signal,
+      const opFamily = input.game === 'onepiece' ? expectedOpPrintFamily(input) : null;
+      const query = [
+        input.game === 'onepiece'
+          ? stripOpNameDecorators(input.cardName) || input.cardName
+          : input.cardName,
+        input.game === 'onepiece' ? opSearchSetName(input.setName, opFamily!) : input.setName,
+        input.cardNumber ? `#${input.cardNumber}` : '',
+        input.game === 'onepiece'
+          ? opFamilySearchTerms(opFamily!)
+          : pcFinishSearchTerms(input.variant),
+        'PSA 10',
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+      const params = new URLSearchParams({
+        q: query,
+        category_ids: '183454',
+        limit: '50',
+        sort: 'price',
+        filter: 'buyingOptions:{FIXED_PRICE},deliveryCountry:US',
       });
-      if (response.status === 429) {
-        consecutive429 += 1;
-        const detail = await readResponseText(response, signal).catch(() => '');
-        const retryMs = cooldownMsFrom429(response, detail);
-        await persistCooldown(Date.now() + retryMs);
-        logger.warn('eBay Browse PSA 10 quote rate limited', { query, retryMs });
+
+      const signal = AbortSignal.timeout(SEARCH_TIMEOUT_MS);
+      try {
+        if (waitMs > 0) await sleep(waitMs);
+        const response = await fetch(`${apiHost()}/buy/browse/v1/item_summary/search?${params}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
+            Accept: 'application/json',
+          },
+          signal,
+        });
+        if (response.status === 429) {
+          consecutive429 += 1;
+          const detail = await readResponseText(response, signal).catch(() => '');
+          const retryMs = cooldownMsFrom429(response, detail);
+          await persistCooldown(Date.now() + retryMs);
+          logger.warn('eBay Browse PSA 10 quote rate limited', { query, retryMs });
+          return null;
+        }
+        consecutive429 = 0;
+        ebayCooldownUntil = Math.max(ebayCooldownUntil, Date.now() + MIN_EBAY_INTERVAL_MS);
+        if (!response.ok) {
+          logger.warn('eBay Browse search failed', { status: response.status, query });
+          return null;
+        }
+        const json = JSON.parse(await readResponseText(response, signal)) as {
+          itemSummaries?: BrowseItemSummary[];
+        };
+        const prices: number[] = [];
+        for (const item of json.itemSummaries ?? []) {
+          if (!item.title || !isPsa10ActiveListingTitle(item.title, input)) continue;
+          const price = parseItemPrice(item);
+          if (price != null) prices.push(price);
+        }
+        return summarizeListingPrices(prices);
+      } catch (error) {
+        logger.warn('eBay Browse search errored', { error: (error as Error).message, query });
         return null;
       }
-      consecutive429 = 0;
-      ebayCooldownUntil = Math.max(ebayCooldownUntil, Date.now() + MIN_EBAY_INTERVAL_MS);
-      if (!response.ok) {
-        logger.warn('eBay Browse search failed', { status: response.status, query });
-        return null;
-      }
-      const json = JSON.parse(await readResponseText(response, signal)) as {
-        itemSummaries?: BrowseItemSummary[];
-      };
-      const prices: number[] = [];
-      for (const item of json.itemSummaries ?? []) {
-        if (!item.title || !isPsa10ActiveListingTitle(item.title, input)) continue;
-        const price = parseItemPrice(item);
-        if (price != null) prices.push(price);
-      }
-      return summarizeListingPrices(prices);
-    } catch (error) {
-      logger.warn('eBay Browse search errored', { error: (error as Error).message, query });
-      return null;
-    }
-  });
+    });
   } catch (error) {
     logger.warn('eBay Browse search errored', { error: (error as Error).message });
     return null;
