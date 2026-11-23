@@ -50,15 +50,12 @@ export function EraExplorer() {
 
   return (
     <section aria-labelledby="eras-h">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-rule pb-2">
         <div>
-          <h2
-            id="eras-h"
-            className="text-[clamp(1.4rem,2.4vw,1.9rem)] font-semibold tracking-[-0.02em]"
-          >
-            Vintage to modern
+          <h2 id="eras-h" className="text-h2">
+            Sets by era
           </h2>
-          <p className="text-[13px] text-ink-muted">Every set in the catalog, by release year.</p>
+          <p className="text-meta text-ink-muted">Every set in the catalog, by release year.</p>
         </div>
         <div className="segmented" role="group" aria-label="Era">
           {ERAS.map((e) => (
@@ -77,11 +74,11 @@ export function EraExplorer() {
         </div>
       </div>
 
-      <div className="mt-4 rounded-xl border border-border-default bg-surface-raised p-5 sm:p-6">
+      <div className="mt-4">
         {!sets ? (
           <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
             {Array.from({ length: 12 }, (_, i) => (
-              <div key={i} className="skeleton h-16 rounded-xl" />
+              <div key={i} className="skeleton h-16 rounded-md" />
             ))}
           </div>
         ) : (
@@ -115,7 +112,7 @@ export function EraExplorer() {
                   <li key={s.id}>
                     <Link
                       to={`/sets/${encodeURIComponent(s.id)}`}
-                      className="group flex h-full flex-col items-center gap-1.5 rounded-xl border border-transparent p-2 text-center transition-colors hover:border-border-default hover:bg-surface-hover"
+                      className="group flex h-full flex-col items-center gap-1.5 rounded-md p-2 text-center transition-colors hover:bg-surface-hover"
                     >
                       <span className="grid h-12 w-full place-items-center">
                         {s.images?.logo ? (
