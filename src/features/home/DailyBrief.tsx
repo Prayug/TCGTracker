@@ -22,6 +22,8 @@ import { moveOver, partOfDay, type Move } from './briefModel';
 import { cn } from '@/lib/utils';
 
 const WINDOW_DAYS = 7;
+/** Holdings move slowly; a month shows a real change where a week is often flat. */
+const VAULT_DAYS = 30;
 const TRACKED = 8;
 
 /**
@@ -146,7 +148,7 @@ function useHoldingMoves(holdings: VaultCard[]) {
               productId: c.tcgplayer?.productId,
               variant: c.preferredVariant,
             }).catch(() => []);
-            moveCache.set(c.id, moveOver(Array.isArray(hist) ? hist : [], WINDOW_DAYS));
+            moveCache.set(c.id, moveOver(Array.isArray(hist) ? hist : [], VAULT_DAYS));
           })
         );
         if (!alive) return;
@@ -187,7 +189,7 @@ function VaultMoves({ cards }: { cards: VaultCard[] }) {
       <SectionHeader
         id="vault-moves-h"
         title="What moved in your vault"
-        note={`Your ${holdings.length} most valuable holdings · ${WINDOW_DAYS}-day change in market price`}
+        note={`Your ${holdings.length} most valuable holdings · ${VAULT_DAYS}-day change in market price`}
         action={{ to: '/vault?mode=holdings', label: 'All holdings' }}
       />
       {holdings.length === 0 ? (
@@ -224,7 +226,7 @@ function VaultMoves({ cards }: { cards: VaultCard[] }) {
           {unknown > 0 ? (
             <p className="mt-2 text-[11.5px] text-ink-muted">
               {unknown} holding{unknown === 1 ? ' has' : 's have'} no price history reaching back{' '}
-              {WINDOW_DAYS} days.
+              {VAULT_DAYS} days.
             </p>
           ) : null}
         </>
@@ -405,7 +407,12 @@ function MarketToday() {
     return list
       .filter((e) => {
         const k = moverKey(e);
-        if (seen.has(k) || !(e.currentPrice >= MIN_PRICE) || !Number.isFinite(e.changePercent))
+        if (
+          seen.has(k) ||
+          !e.cardNumber || // singles only: sealed product moves on different news
+          !(e.currentPrice >= MIN_PRICE) ||
+          !Number.isFinite(e.changePercent)
+        )
           return false;
         seen.add(k);
         return up ? e.changePercent > 0 : e.changePercent < 0;
@@ -455,7 +462,7 @@ function MarketToday() {
       <SectionHeader
         id="market-today-h"
         title="Market this week"
-        note={`Raw Near Mint market prices, cards over $${MIN_PRICE}, ranked by dollars moved${asOf ? ` · as of ${asOf}` : ''}`}
+        note={`Single cards over $${MIN_PRICE}, TCGplayer market price, ranked by dollars moved${asOf ? ` · as of ${asOf}` : ''}`}
         action={{ to: '/money-flow', label: 'Market overview' }}
       />
       {!data && !failed ? (

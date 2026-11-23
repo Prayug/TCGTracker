@@ -170,7 +170,20 @@ function GradedSpotlight() {
   const [rows, setRows] = useState<GradedSpreadRow[] | null>(null);
   useEffect(() => {
     let alive = true;
-    fetchTopGradedPremiums(12).then((r) => alive && setRows(r));
+    fetchTopGradedPremiums(12).then(
+      (r) =>
+        alive &&
+        // Only comparisons a collector can trust: real sales on file, a raw
+        // price worth grading, and a multiple that isn't a data artefact.
+        setRows(
+          (r ?? []).filter(
+            (x) =>
+              x.soldListings >= 3 &&
+              (x.rawPrice ?? 0) >= 5 &&
+              x.gradedPrice / (x.rawPrice as number) <= 60
+          )
+        )
+    );
     return () => {
       alive = false;
     };

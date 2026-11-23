@@ -130,12 +130,9 @@ export function CollectionShowcase({
       ) : null}
 
       <section aria-labelledby="case-h">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <h2
-            id="case-h"
-            className="text-[clamp(1.4rem,2.4vw,1.9rem)] font-semibold tracking-[-0.02em]"
-          >
-            The whole case{' '}
+        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-rule pb-2">
+          <h2 id="case-h" className="text-h2">
+            All holdings{' '}
             <span className="font-mono text-[15px] font-normal text-ink-muted">{rows.length}</span>
           </h2>
           <div className="flex flex-wrap items-center gap-2">
