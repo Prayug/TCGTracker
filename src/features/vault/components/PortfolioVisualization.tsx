@@ -57,7 +57,7 @@ export function PortfolioVisualization({
     <div className="space-y-6">
       <section
         aria-label="Portfolio figures"
-        className="atmo-cobalt rounded-3xl border border-border-default p-5 sm:p-7"
+        className="atmo-cobalt rounded-xl border border-border-default p-5 sm:p-7"
       >
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <div>
@@ -122,9 +122,9 @@ export function PortfolioVisualization({
         <AllocationExplorer cards={cards} setDates={setDates} onOpen={onOpen} onFilter={onFilter} />
         <section
           aria-labelledby="top-hold-h"
-          className="rounded-3xl border border-border-default bg-surface-raised p-5 sm:p-6"
+          className="rounded-xl border border-border-default bg-surface-raised p-5 sm:p-6"
         >
-          <h3 id="top-hold-h" className="font-display text-[19px] font-semibold">
+          <h3 id="top-hold-h" className="text-[19px] font-semibold">
             Most valuable holdings
           </h3>
           <p className="text-[12.5px] text-ink-muted">
@@ -271,7 +271,7 @@ function BuildTimeline({ cards, highlight }: { cards: VaultCard[]; highlight: st
     <div className="mt-7">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h3 className="font-display text-[19px] font-semibold">Collection growth</h3>
+          <h3 className="text-[19px] font-semibold">Collection growth</h3>
           <p className="max-w-[62ch] text-[12.5px] text-ink-muted">
             Running total by purchase date: what you recorded paying, and what those same cards are
             worth at today’s prices. Not a history of past values.
@@ -489,7 +489,7 @@ function BuildTimeline({ cards, highlight }: { cards: VaultCard[]; highlight: st
  */
 function ActualPerformance() {
   return (
-    <div className="mt-5 flex flex-wrap items-start gap-3 rounded-2xl border border-dashed border-border-strong px-4 py-3">
+    <div className="mt-5 flex flex-wrap items-start gap-3 rounded-xl border border-dashed border-border-strong px-4 py-3">
       <svg viewBox="0 0 40 24" className="mt-0.5 h-6 w-10 shrink-0 text-ink-muted" aria-hidden>
         <path d="M2 20h36" stroke="currentColor" strokeOpacity=".4" />
         <path

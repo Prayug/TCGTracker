@@ -52,16 +52,14 @@ export function ForecastWorkspace({
     <section
       data-theme="dark"
       aria-labelledby="fw-h"
-      className="atmo-stage relative overflow-hidden rounded-3xl p-5 text-white sm:p-7"
+      className="atmo-stage relative overflow-hidden rounded-xl p-5 text-white sm:p-7"
     >
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <p className="font-mono text-[11.5px] uppercase tracking-[0.14em] text-white/55">
-            Forecast workspace
-          </p>
+          <p className="text-[12.5px] text-white/55">Forecast workspace</p>
           <h2
             id="fw-h"
-            className="mt-1 font-display text-[clamp(1.5rem,2.8vw,2.2rem)] font-semibold leading-tight tracking-[-0.02em]"
+            className="mt-1 text-[clamp(1.5rem,2.8vw,2.2rem)] font-semibold leading-tight tracking-[-0.02em]"
           >
             {p.cardName}
           </h2>
@@ -126,7 +124,7 @@ export function ForecastWorkspace({
             <dd className="mt-1">
               <span className="block h-1.5 overflow-hidden rounded-full bg-white/12">
                 <motion.span
-                  className="block h-full rounded-full bg-[#7f9bff]"
+                  className="block h-full rounded-full bg-stage-cobalt"
                   initial={{ width: 0 }}
                   animate={{ width: `${Math.max(0, Math.min(100, conf))}%` }}
                   transition={{ duration: 0.7 }}
@@ -159,7 +157,7 @@ export function ForecastWorkspace({
                 className={cn(
                   'flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12.5px] transition-colors',
                   r.id === p.id
-                    ? 'border-white bg-white text-[#0b0e14]'
+                    ? 'border-white bg-white text-stage'
                     : 'border-white/20 text-white/80 hover:bg-white/10'
                 )}
               >

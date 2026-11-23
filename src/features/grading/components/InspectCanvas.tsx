@@ -127,7 +127,7 @@ export const InspectCanvas: React.FC<InspectCanvasProps> = ({
 
       <div
         ref={frameRef}
-        className="relative flex min-h-[28rem] items-center justify-center overflow-hidden rounded-2xl border border-border-subtle bg-surface-inset/50 sm:min-h-[32rem] lg:min-h-[36rem]"
+        className="relative flex min-h-[28rem] items-center justify-center overflow-hidden rounded-xl border border-border-subtle bg-surface-inset/50 sm:min-h-[32rem] lg:min-h-[36rem]"
       >
         {src ? (
           <img

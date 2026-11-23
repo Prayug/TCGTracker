@@ -15,9 +15,9 @@ import { formatUsd, PanelLoading } from './shared';
 import { cn } from '@/lib/utils';
 
 const GRADE: Record<OpportunityGrade, { label: string; cls: string }> = {
-  strong_buy: { label: 'Strong buy', cls: 'bg-[#0f8a66] text-white' },
-  buy: { label: 'Buy', cls: 'bg-[#1fb38a]/85 text-white' },
-  watch: { label: 'Watch', cls: 'bg-[#f0bd55] text-[#1b1b1b]' },
+  strong_buy: { label: 'Strong buy', cls: 'bg-gain text-white' },
+  buy: { label: 'Buy', cls: 'bg-gain/85 text-white' },
+  watch: { label: 'Watch', cls: 'bg-stage-gold text-stage' },
   pass: { label: 'Pass', cls: 'bg-white/20 text-white' },
 };
 
@@ -64,8 +64,8 @@ export function InvestmentsOverview({
       ) : featured ? (
         <FeaturedOpportunity o={featured} onOpen={() => openCard(featured.cardId)} />
       ) : (
-        <section className="rounded-3xl border border-dashed border-border-strong p-6 sm:p-8">
-          <h2 className="font-display text-[20px] font-semibold">No scored opportunities now</h2>
+        <section className="rounded-xl border border-dashed border-border-strong p-6 sm:p-8">
+          <h2 className="text-[20px] font-semibold">No scored opportunities now</h2>
           <p className="mt-1 max-w-[62ch] text-[13.5px] text-ink-secondary">
             {error
               ? 'The opportunity service did not answer, so nothing is scored right now. The research tools below still work from their own data.'
@@ -77,7 +77,7 @@ export function InvestmentsOverview({
       {rows.length > 1 ? (
         <section aria-labelledby="opp-gallery-h">
           <div className="flex items-end justify-between border-b border-rule-strong pb-2">
-            <h2 id="opp-gallery-h" className="font-display text-[22px] font-medium">
+            <h2 id="opp-gallery-h" className="text-[22px] font-medium">
               More opportunities
             </h2>
             <button
@@ -159,11 +159,9 @@ function FeaturedOpportunity({ o, onOpen }: { o: Opportunity; onOpen: () => void
     <section
       data-theme="dark"
       aria-labelledby="feat-opp-h"
-      className="atmo-stage relative overflow-hidden rounded-3xl p-5 text-white sm:p-8"
+      className="atmo-stage relative overflow-hidden rounded-xl p-5 text-white sm:p-8"
     >
-      <p className="font-mono text-[11.5px] uppercase tracking-[0.14em] text-white/55">
-        Featured opportunity
-      </p>
+      <p className="text-[12.5px] text-white/55">Featured opportunity</p>
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={o.cardId}
@@ -197,7 +195,7 @@ function FeaturedOpportunity({ o, onOpen }: { o: Opportunity; onOpen: () => void
             </span>
             <h2
               id="feat-opp-h"
-              className="mt-2 font-display text-[clamp(1.7rem,3.4vw,2.6rem)] font-semibold leading-tight tracking-[-0.02em]"
+              className="mt-2 text-[clamp(1.7rem,3.4vw,2.6rem)] font-semibold leading-tight tracking-[-0.02em]"
             >
               {o.cardName ?? o.cardId}
             </h2>
@@ -226,7 +224,7 @@ function FeaturedOpportunity({ o, onOpen }: { o: Opportunity; onOpen: () => void
             <button
               type="button"
               onClick={onOpen}
-              className="mt-5 inline-flex h-9 items-center rounded-full bg-white px-4 text-[13px] font-medium text-[#0b0e14] hover:bg-white/90"
+              className="mt-5 inline-flex h-9 items-center rounded-full bg-white px-4 text-[13px] font-medium text-stage hover:bg-white/90"
             >
               Research this card
             </button>
@@ -277,9 +275,9 @@ function Workspace({
   return (
     <section
       aria-labelledby="ws-h"
-      className="rounded-3xl border border-border-default bg-surface-raised p-5 sm:p-6"
+      className="rounded-xl border border-border-default bg-surface-raised p-5 sm:p-6"
     >
-      <h2 id="ws-h" className="font-display text-[19px] font-semibold">
+      <h2 id="ws-h" className="text-[19px] font-semibold">
         Research workspace
       </h2>
       <ul className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -288,7 +286,7 @@ function Workspace({
             <button
               type="button"
               onClick={() => onTab(t.tab)}
-              className="group flex h-full w-full flex-col rounded-2xl border border-border-default p-4 text-left transition-colors hover:border-ink-muted"
+              className="group flex h-full w-full flex-col rounded-xl border border-border-default p-4 text-left transition-colors hover:border-ink-muted"
             >
               <span className="text-[14.5px] font-semibold">{t.title}</span>
               <span className="mt-1 flex-1 text-[12.5px] text-ink-muted">{t.body}</span>
@@ -325,7 +323,7 @@ function StrategyLab({ onOpen }: { onOpen: () => void }) {
   return (
     <section
       aria-labelledby="lab-h"
-      className="flex flex-col rounded-3xl border border-border-default bg-surface-raised p-5 sm:p-6"
+      className="flex flex-col rounded-xl border border-border-default bg-surface-raised p-5 sm:p-6"
     >
       <svg viewBox="0 0 120 48" className="h-12 w-28 text-accent" aria-hidden>
         <path d="M2 44h116" stroke="currentColor" strokeOpacity=".25" />
@@ -346,7 +344,7 @@ function StrategyLab({ onOpen }: { onOpen: () => void }) {
           strokeLinecap="round"
         />
       </svg>
-      <h2 id="lab-h" className="mt-3 font-display text-[19px] font-semibold">
+      <h2 id="lab-h" className="mt-3 text-[19px] font-semibold">
         Strategy lab
       </h2>
       <p className="mt-1 flex-1 text-[13px] text-ink-secondary">

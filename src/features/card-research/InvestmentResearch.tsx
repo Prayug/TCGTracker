@@ -86,12 +86,7 @@ export function InvestmentResearch({
       <div className="grid gap-6 md:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
         <div>
           <p className="text-meta text-ink-muted">Model read</p>
-          <p
-            className={cn(
-              'font-display text-[26px] leading-tight',
-              insufficient && 'text-ink-secondary'
-            )}
-          >
+          <p className={cn('text-[26px] leading-tight', insufficient && 'text-ink-secondary')}>
             {label}
           </p>
           <p className="mt-1 text-meta text-ink-secondary">

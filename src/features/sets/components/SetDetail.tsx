@@ -761,7 +761,7 @@ function SetAlbumCover({
     <section
       data-theme="dark"
       aria-label={`${name} album`}
-      className="relative mt-3 overflow-hidden rounded-3xl text-white"
+      className="relative mt-3 overflow-hidden rounded-xl text-white"
       style={{ background: `radial-gradient(110% 120% at 90% 10%, ${t.from}, #0b0e14 72%)` }}
     >
       <span
@@ -777,9 +777,7 @@ function SetAlbumCover({
               className="h-16 w-48 border-0 bg-transparent p-0 [&_img]:max-h-16"
             />
           ) : null}
-          <h1 className="mt-3 font-display text-[clamp(2rem,4.4vw,3.4rem)] font-semibold leading-[0.95] tracking-[-0.03em]">
-            {name}
-          </h1>
+          <h1 className="mt-3 font-display text-display">{name}</h1>
           <p className="mt-2 font-mono text-[12.5px] text-white/65">
             {[
               meta?.series,

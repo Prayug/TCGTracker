@@ -202,7 +202,7 @@ export function PhoneCapturePage() {
     <div className="mx-auto flex min-h-[100dvh] max-w-lg flex-col bg-surface-base px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] text-ink-primary">
       <header className="mb-4">
         <p className="text-[11.5px] font-medium text-foil">Phone capture</p>
-        <h1 className="font-display text-2xl text-ink-primary">
+        <h1 className="text-2xl text-ink-primary">
           {modeLabel === 'grade' ? 'Grade with phone' : 'Scan with phone'}
         </h1>
         <p className="mt-1 text-sm text-ink-muted">
@@ -245,7 +245,7 @@ export function PhoneCapturePage() {
 
       {(phase === 'camera' || phase === 'uploading') && (
         <div className="flex flex-1 flex-col gap-3">
-          <div className="relative aspect-[3/4] overflow-hidden rounded-2xl bg-black">
+          <div className="relative aspect-[3/4] overflow-hidden rounded-xl bg-black">
             <video
               ref={videoRef}
               autoPlay
@@ -320,7 +320,7 @@ export function PhoneCapturePage() {
           <img
             src={preview}
             alt={`${side} preview`}
-            className="mx-auto max-h-[55dvh] w-auto rounded-2xl border border-border-subtle object-contain"
+            className="mx-auto max-h-[55dvh] w-auto rounded-xl border border-border-subtle object-contain"
           />
           <div className="grid grid-cols-2 gap-2">
             <button

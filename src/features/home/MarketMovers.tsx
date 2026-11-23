@@ -88,7 +88,7 @@ export function MarketMovers() {
     <section aria-labelledby="movers-h">
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-rule-strong pb-2">
         <div>
-          <h2 id="movers-h" className="font-display text-[22px] font-medium leading-tight">
+          <h2 id="movers-h" className="text-[22px] font-medium leading-tight">
             Market movers
           </h2>
           <p className="text-meta text-ink-muted">
@@ -233,7 +233,7 @@ function MoverGallery({
                     <span
                       className={cn(
                         'absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 font-mono text-[11px] font-medium tabular-nums text-white shadow',
-                        e.changePercent >= 0 ? 'bg-[#0f8a66]' : 'bg-[#c2402f]'
+                        e.changePercent >= 0 ? 'bg-gain' : 'bg-loss'
                       )}
                     >
                       {e.changePercent > 0 ? '+' : ''}
@@ -311,10 +311,10 @@ function MoverFanPanel({
   return (
     <div
       data-theme="dark"
-      className="atmo-stage col-span-full overflow-hidden rounded-3xl p-5 text-white sm:p-8"
+      className="atmo-stage col-span-full overflow-hidden rounded-xl p-5 text-white sm:p-8"
     >
       <div className="relative z-20 flex flex-wrap items-center justify-between gap-3">
-        <p className="font-display text-[20px] font-semibold">
+        <p className="text-[20px] font-semibold">
           The hand this {period === '24h' ? 'day' : period === '7d' ? 'week' : 'month'} dealt
         </p>
         <div className="segmented" role="group" aria-label="Show">
@@ -352,7 +352,7 @@ function MoverFanPanel({
                 aria-live="polite"
               >
                 <p className="text-[13px] text-white/60">{moverSubtitle(current)}</p>
-                <p className="mt-1 font-display text-[clamp(1.5rem,2.6vw,2.2rem)] font-semibold leading-tight">
+                <p className="mt-1 text-[clamp(1.5rem,2.6vw,2.2rem)] font-semibold leading-tight">
                   {current.productName}
                 </p>
                 <div className="mt-3 flex flex-wrap items-baseline gap-3">
@@ -365,7 +365,7 @@ function MoverFanPanel({
                     [
                       'Now',
                       current.currentPrice,
-                      current.changePercent >= 0 ? 'bg-[#3fd3a8]' : 'bg-[#ff7a6b]',
+                      current.changePercent >= 0 ? 'bg-stage-teal' : 'bg-stage-coral',
                     ],
                   ].map(([k, v, c]) => (
                     <div

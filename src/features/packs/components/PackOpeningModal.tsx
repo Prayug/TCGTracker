@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useRef, useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { Pack, PackPull } from '../../../types/pokemon';
 import { Modal } from '../../../components/common/Modal';
 import { tieredPackService } from '../../../services/tieredPackService';
@@ -271,10 +271,8 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
         {stage === 'prep' && (
           <div className="flex h-full flex-col justify-start gap-5 pb-2 sm:gap-6">
             <div>
-              <p className={cn('text-[11px] font-semibold uppercase tracking-[0.2em]', tier.text)}>
-                {pack.tier}
-              </p>
-              <h2 className="mt-1 font-display text-3xl font-semibold text-ink-primary sm:text-4xl">
+              <p className={cn('text-[12.5px] font-semibold', tier.text)}>{pack.tier}</p>
+              <h2 className="mt-1 text-3xl font-semibold text-ink-primary sm:text-4xl">
                 {pack.name}
               </h2>
               <p className="mt-1 text-lg font-semibold tabular-nums text-ink-secondary">
@@ -301,7 +299,7 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
             />
 
             {pack.boostedValueRanges && (
-              <label className="flex w-full cursor-pointer select-none items-center justify-between gap-3 rounded-2xl border border-neon-amber/30 bg-accent-muted/60 px-4 py-3 transition-colors hover:bg-accent-muted">
+              <label className="flex w-full cursor-pointer select-none items-center justify-between gap-3 rounded-xl border border-neon-amber/30 bg-accent-muted/60 px-4 py-3 transition-colors hover:bg-accent-muted">
                 <div className="flex items-center gap-2.5">
                   <Zap className="h-5 w-5 shrink-0 text-neon-amber" />
                   <div>
@@ -329,10 +327,10 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
         {stage === 'opening' && (
           <div className="flex h-full flex-col items-center justify-center gap-6 pb-2">
             <div className="relative">
-              <div className="absolute inset-0 rounded-2xl bg-gradient-accent opacity-40 blur-2xl motion-safe:animate-pulse" />
+              <div className="absolute inset-0 rounded-xl bg-gradient-accent opacity-40 blur-2xl motion-safe:animate-pulse" />
               <div
                 className={cn(
-                  'relative rounded-2xl bg-gradient-to-br p-10 shadow-2xl sm:p-12 motion-safe:animate-bounce',
+                  'relative rounded-xl bg-gradient-to-br p-10 shadow-2xl sm:p-12 motion-safe:animate-bounce',
                   tier.gradient
                 )}
               >
@@ -423,7 +421,7 @@ export const PackOpeningModal: React.FC<PackOpeningModalProps> = ({
                         <div className="relative">
                           <div
                             className={cn(
-                              'absolute -inset-4 rounded-3xl bg-gradient-to-r opacity-60 blur-2xl motion-safe:animate-pulse',
+                              'absolute -inset-4 rounded-xl bg-gradient-to-r opacity-60 blur-2xl motion-safe:animate-pulse',
                               isSlab
                                 ? 'from-amber-400 via-yellow-300 to-orange-500'
                                 : getRarityColor(card.rarity)

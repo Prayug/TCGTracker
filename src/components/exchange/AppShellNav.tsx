@@ -163,7 +163,7 @@ export function AppHeader() {
         <Link to="/" className="flex items-center gap-2 md:hidden" aria-label="TCGTracker home">
           <BrandMark className="h-6 w-6 text-ink-primary" />
           {area && area.id !== 'home' ? (
-            <span className="font-display text-[19px] font-medium">{area.label}</span>
+            <span className="text-[19px] font-medium">{area.label}</span>
           ) : (
             <Wordmark className="hidden min-[400px]:inline" />
           )}
@@ -171,7 +171,7 @@ export function AppHeader() {
 
         {/* Desktop identity + sections */}
         <div className="hidden min-w-0 items-stretch gap-5 md:flex">
-          <p className="flex items-center font-display text-[20px] font-medium tracking-[-0.01em]">
+          <p className="flex items-center text-[20px] font-medium tracking-[-0.01em]">
             {area ? area.label : pathname.startsWith('/settings') ? 'Settings' : 'TCGTracker'}
           </p>
           {area ? <SectionTabs area={area} className="flex items-stretch" /> : null}

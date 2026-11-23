@@ -81,7 +81,7 @@ export const PullsCollection: React.FC<PullsCollectionProps> = ({ refreshKey = 0
 
   if (pulls.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border-strong bg-surface-inset px-6 py-12 text-center">
+      <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border-strong bg-surface-inset px-6 py-12 text-center">
         <BookOpen className="h-8 w-8 text-ink-muted" />
         <div>
           <p className="text-sm font-semibold text-ink-primary">No saved pulls yet</p>
@@ -126,7 +126,7 @@ export const PullsCollection: React.FC<PullsCollectionProps> = ({ refreshKey = 0
       {groupUnique.map((group) => (
         <div key={group.code}>
           <div className="mb-3 flex items-baseline gap-2">
-            <h4 className="font-display text-base font-bold text-ink-primary">{group.code}</h4>
+            <h4 className="text-base font-bold text-ink-primary">{group.code}</h4>
             <span className="truncate text-xs text-ink-muted">{group.setName}</span>
             <span className="ml-auto shrink-0 text-xs tabular-nums text-ink-muted">
               {group.unique.length} unique · {group.pulls.length} cards

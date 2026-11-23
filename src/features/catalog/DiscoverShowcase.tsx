@@ -130,7 +130,7 @@ export function DiscoverShowcase({
       {isOnePiece ? null : <EraExplorer />}
       {isOnePiece ? null : <GradedSpotlight />}
       <section aria-labelledby="names-h">
-        <h2 id="names-h" className="font-display text-[20px] font-semibold">
+        <h2 id="names-h" className="text-[20px] font-semibold">
           Or start with a name
         </h2>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -194,13 +194,13 @@ function FeaturedCardGallery({
     <section
       data-theme="dark"
       aria-labelledby="discover-h"
-      className="atmo-stage relative overflow-hidden rounded-3xl p-5 sm:p-7"
+      className="atmo-stage relative overflow-hidden rounded-xl p-5 sm:p-7"
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1
             id="discover-h"
-            className="font-display text-[clamp(2.2rem,4.4vw,3.6rem)] font-semibold leading-[0.95] tracking-[-0.03em] text-white"
+            className="text-[clamp(2.2rem,4.4vw,3.6rem)] font-semibold leading-[0.95] tracking-[-0.03em] text-white"
           >
             Discover
           </h1>
@@ -225,7 +225,7 @@ function FeaturedCardGallery({
           </div>
         </div>
       ) : !current ? (
-        <p className="mt-8 rounded-2xl border border-white/15 bg-white/5 p-5 text-white/75">
+        <p className="mt-8 rounded-xl border border-white/15 bg-white/5 p-5 text-white/75">
           Trending data is not available right now. Search above, or pick a way in below.
         </p>
       ) : (
@@ -274,7 +274,7 @@ function FeaturedCardGallery({
                   No. {String(index + 1).padStart(2, '0')} of{' '}
                   {String(items.length).padStart(2, '0')}
                 </p>
-                <h2 className="mt-1 font-display text-[clamp(1.7rem,3.4vw,2.8rem)] font-semibold leading-[1.02] tracking-[-0.02em]">
+                <h2 className="mt-1 text-[clamp(1.7rem,3.4vw,2.8rem)] font-semibold leading-[1.02] tracking-[-0.02em]">
                   {current.card.name}
                 </h2>
                 <p className="mt-1.5 text-[14px] text-white/65">{current.subtitle}</p>
@@ -394,7 +394,7 @@ function EditorialColumn({
       {!isOnePiece ? (
         <Link
           to={latest ? `/sets/${encodeURIComponent(latest.id)}` : '/sets'}
-          className="atmo-gold group relative flex min-h-[11rem] flex-col justify-between overflow-hidden rounded-3xl border border-border-default p-5 transition-transform active:scale-[0.99]"
+          className="atmo-gold group relative flex min-h-[11rem] flex-col justify-between overflow-hidden rounded-xl border border-border-default p-5 transition-transform active:scale-[0.99]"
         >
           <span className="text-[13px] font-medium text-gold">Set spotlight · newest release</span>
           <div className="relative">
@@ -405,7 +405,7 @@ function EditorialColumn({
                 className="mb-3 h-14 w-auto max-w-[70%] object-contain drop-shadow-[0_6px_12px_rgba(0,0,0,0.25)] transition-transform duration-300 group-hover:-translate-y-0.5"
               />
             ) : null}
-            <p className="font-display text-[26px] font-semibold leading-tight">
+            <p className="text-[26px] font-semibold leading-tight">
               {latest?.name ?? 'Browse every set'}
             </p>
             <p className="mt-1 text-[13.5px] text-ink-secondary">
@@ -425,11 +425,11 @@ function EditorialColumn({
         <button
           type="button"
           onClick={() => openCard(bigMove.card)}
-          className="atmo-cobalt group grid min-h-[11rem] grid-cols-[minmax(0,1fr)_5.5rem] items-center gap-4 overflow-hidden rounded-3xl border border-border-default p-5 text-left transition-transform active:scale-[0.99]"
+          className="atmo-cobalt group grid min-h-[11rem] grid-cols-[minmax(0,1fr)_5.5rem] items-center gap-4 overflow-hidden rounded-xl border border-border-default p-5 text-left transition-transform active:scale-[0.99]"
         >
           <div className="min-w-0">
             <span className="text-[13px] font-medium text-accent">Biggest dollar move · 7d</span>
-            <p className="mt-2 truncate font-display text-[22px] font-semibold leading-tight">
+            <p className="mt-2 truncate text-[22px] font-semibold leading-tight">
               {bigMove.card.name}
             </p>
             <p className="mt-1 font-mono text-[15px] tabular-nums">
@@ -454,10 +454,10 @@ function EditorialColumn({
       <button
         type="button"
         onClick={onAdvanced}
-        className="group flex min-h-[8rem] items-center justify-between gap-4 rounded-3xl border border-dashed border-border-strong p-5 text-left transition-colors hover:border-accent"
+        className="group flex min-h-[8rem] items-center justify-between gap-4 rounded-xl border border-dashed border-border-strong p-5 text-left transition-colors hover:border-accent"
       >
         <span>
-          <span className="block font-display text-[20px] font-semibold">Advanced search</span>
+          <span className="block text-[20px] font-semibold">Advanced search</span>
           <span className="mt-1 block text-[13.5px] text-ink-secondary">
             Filter by set, rarity, finish, type and price. List view for research.
           </span>
@@ -492,7 +492,7 @@ const CATEGORIES: Category[] = [
     label: 'Vintage',
     line: 'Wizards-era sets, 1999 to 2003',
     art: ['base1-4', 'neo1-9'],
-    tone: 'from-[#7a4b12] to-[#2a1606]',
+    tone: 'from-stage-gold/40 to-stage',
     go: { kind: 'link', to: '/sets?era=vintage' },
     pokemonOnly: true,
   },
@@ -501,7 +501,7 @@ const CATEGORIES: Category[] = [
     label: 'Modern',
     line: 'Scarlet & Violet and Sword & Shield',
     art: ['sv3pt5-199', 'swsh7-215'],
-    tone: 'from-[#2341b8] to-[#0b1233]',
+    tone: 'from-stage-cobalt/40 to-stage',
     go: { kind: 'link', to: '/sets?era=modern' },
     pokemonOnly: true,
   },
@@ -510,7 +510,7 @@ const CATEGORIES: Category[] = [
     label: 'Alternate arts',
     line: 'Illustration and alternate-art prints',
     art: ['swsh7-215', 'sv3pt5-199'],
-    tone: 'from-[#7b2b8c] to-[#1d0b2a]',
+    tone: 'from-stage-cobalt/25 to-stage',
     go: { kind: 'search', q: 'Umbreon', patch: { finish: 'illustration' } },
     pokemonOnly: true,
   },
@@ -519,7 +519,7 @@ const CATEGORIES: Category[] = [
     label: 'Gold stars',
     line: 'Gold and star rarity prints',
     art: ['base1-58'],
-    tone: 'from-[#a77714] to-[#2e2005]',
+    tone: 'from-stage-gold/50 to-stage',
     go: { kind: 'search', q: 'Pikachu', patch: { finish: 'gold' } },
     pokemonOnly: true,
   },
@@ -528,7 +528,7 @@ const CATEGORIES: Category[] = [
     label: 'Full arts',
     line: 'Ultra and full-art textured foils',
     art: ['swsh12pt5gg-GG44'],
-    tone: 'from-[#136b62] to-[#04201d]',
+    tone: 'from-stage-teal/35 to-stage',
     go: { kind: 'search', q: 'Charizard', patch: { finish: 'textured' } },
     pokemonOnly: true,
   },
@@ -537,7 +537,7 @@ const CATEGORIES: Category[] = [
     label: 'Graded cards',
     line: 'PSA, CGC and BGS prices and population',
     art: ['base1-4'],
-    tone: 'from-[#3b4250] to-[#0e1117]',
+    tone: 'from-stage-raised to-stage',
     go: { kind: 'link', to: '/prices' },
   },
   {
@@ -545,7 +545,7 @@ const CATEGORIES: Category[] = [
     label: 'Japanese cards',
     line: 'The Japanese catalog, searched in English',
     art: [],
-    tone: 'from-[#b3263a] to-[#2b0810]',
+    tone: 'from-stage-red/45 to-stage',
     go: { kind: 'search', q: 'Pikachu', patch: { lang: 'ja' } },
     pokemonOnly: true,
   },
@@ -554,7 +554,7 @@ const CATEGORIES: Category[] = [
     label: 'One Piece',
     line: 'Switch the catalog to One Piece',
     art: [],
-    tone: 'from-[#c2410c] to-[#2a0e02]',
+    tone: 'from-stage-coral/40 to-stage',
     go: { kind: 'game' },
   },
 ];
@@ -598,7 +598,7 @@ function CategoryTiles({
     <section aria-labelledby="ways-h">
       <h2
         id="ways-h"
-        className="font-display text-[clamp(1.4rem,2.4vw,1.9rem)] font-semibold tracking-[-0.02em]"
+        className="text-[clamp(1.4rem,2.4vw,1.9rem)] font-semibold tracking-[-0.02em]"
       >
         Ways in
       </h2>
@@ -618,7 +618,7 @@ function CategoryTiles({
                 type="button"
                 onClick={() => act(c)}
                 className={cn(
-                  'group relative flex h-48 w-full flex-col justify-end overflow-hidden rounded-3xl bg-gradient-to-br p-5 text-left text-white transition-transform duration-200 active:scale-[0.985]',
+                  'group relative flex h-48 w-full flex-col justify-end overflow-hidden rounded-xl bg-gradient-to-br p-5 text-left text-white transition-transform duration-200 active:scale-[0.985]',
                   c.tone
                 )}
               >
@@ -637,14 +637,12 @@ function CategoryTiles({
                     </span>
                   ))}
                   {cards.length === 0 ? (
-                    <span className="mr-6 mt-10 font-display text-[88px] font-bold leading-none text-white/10">
+                    <span className="mr-6 mt-10 text-[88px] font-bold leading-none text-white/10">
                       {c.label.slice(0, 2)}
                     </span>
                   ) : null}
                 </span>
-                <span className="relative font-display text-[22px] font-semibold leading-tight">
-                  {c.label}
-                </span>
+                <span className="relative text-[22px] font-semibold leading-tight">{c.label}</span>
                 <span className="relative mt-1 text-[13px] text-white/75">{c.line}</span>
               </button>
             </li>

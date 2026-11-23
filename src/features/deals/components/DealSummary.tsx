@@ -12,11 +12,11 @@ export function DealSummary({ summary }: { summary: DealSummary }) {
     <section
       data-theme="dark"
       aria-label="Scan summary"
-      className="atmo-stage relative overflow-hidden rounded-3xl p-5 text-white sm:p-7"
+      className="atmo-stage relative overflow-hidden rounded-xl p-5 text-white sm:p-7"
     >
       <div className="grid items-center gap-6 md:grid-cols-[minmax(0,1fr)_auto]">
         <div className="min-w-0">
-          <p className="font-display text-[clamp(1.5rem,3vw,2.3rem)] font-semibold leading-tight tracking-[-0.02em]">
+          <p className="text-[clamp(1.5rem,3vw,2.3rem)] font-semibold leading-tight tracking-[-0.02em]">
             {summary.dealsFound.toLocaleString()} listing{summary.dealsFound === 1 ? '' : 's'} under
             the market estimate
           </p>

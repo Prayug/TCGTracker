@@ -75,12 +75,12 @@ export function CinematicCardHero() {
           transition={{ duration: 0.6, ease: [0.23, 1, 0.32, 1] }}
         >
           <p className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[13px] text-white/75">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#7cf2c2]" aria-hidden />
+            <span className="h-1.5 w-1.5 rounded-full bg-stage-teal" aria-hidden />
             {isOnePiece ? 'One Piece Card Game' : 'Pokémon TCG'} · live catalog and market prices
           </p>
           <h1
             id="hero-h"
-            className="mt-5 font-display text-[clamp(2.4rem,4.6vw,4.4rem)] font-semibold leading-[0.95] tracking-[-0.035em] text-white"
+            className="mt-5 text-[clamp(2.4rem,4.6vw,4.4rem)] font-semibold leading-[0.95] tracking-[-0.035em] text-white"
           >
             {heading}
           </h1>
@@ -98,7 +98,9 @@ export function CinematicCardHero() {
                 {summary.unrealized != null ? (
                   <>
                     {' · '}
-                    <span className={summary.unrealized >= 0 ? 'text-[#3fd3a8]' : 'text-[#ff7a6b]'}>
+                    <span
+                      className={summary.unrealized >= 0 ? 'text-stage-teal' : 'text-stage-coral'}
+                    >
                       {formatCurrency(summary.unrealized, { signed: true })}
                     </span>{' '}
                     on recorded cost
@@ -151,7 +153,7 @@ export function CinematicCardHero() {
               {front ? <FrontCaption item={front} owned={owner} /> : null}
             </>
           ) : (
-            <p className="rounded-2xl border border-white/15 bg-white/5 p-6 text-white/70">
+            <p className="rounded-xl border border-white/15 bg-white/5 p-6 text-white/70">
               The catalog could not be reached, so there are no cards to show right now.
             </p>
           )}
@@ -237,7 +239,7 @@ function SpotlightFacts({
         </div>
         <div className="rounded-xl bg-white/5 p-3">
           <dt className="text-[12px] text-white/55">{owned ? 'You own' : 'Finish'}</dt>
-          <dd className="mt-1 font-display text-[22px] font-semibold">
+          <dd className="mt-1 text-[22px] font-semibold">
             {owned
               ? `${item.quantity ?? 1} ${item.quantity === 1 ? 'copy' : 'copies'}`
               : FINISH_LABEL[finish]}

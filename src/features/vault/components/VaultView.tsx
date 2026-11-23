@@ -206,7 +206,7 @@ export function VaultView({ onOpenSet }: { onOpenSet?: (setId: string) => void }
         <PageHeader title="Vault" meta={`${gameLabel} collection`} />
         <div className="grid gap-8 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <div>
-            <h2 className="font-display text-[24px] leading-tight">Start your ledger</h2>
+            <h2 className="text-[24px] leading-tight">Start your ledger</h2>
             <p className="mt-2 max-w-[52ch] text-[14px] text-ink-secondary">
               Add the cards you own and what you paid. The vault values them at today’s market,
               shows profit only where you recorded a cost, and tells you what the collection is made

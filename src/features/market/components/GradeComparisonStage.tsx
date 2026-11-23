@@ -55,16 +55,14 @@ export function GradeComparisonStage({ rows }: { rows: GradedSpreadRow[] }) {
     <section
       data-theme="dark"
       aria-labelledby="grade-cmp-h"
-      className="atmo-stage relative overflow-hidden rounded-3xl p-5 text-white sm:p-8"
+      className="atmo-stage relative overflow-hidden rounded-xl p-5 text-white sm:p-8"
     >
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="font-mono text-[11.5px] uppercase tracking-[0.14em] text-white/55">
-            Grade comparison
-          </p>
+          <p className="text-[12.5px] text-white/55">Grade comparison</p>
           <h2
             id="grade-cmp-h"
-            className="mt-1 font-display text-[clamp(1.6rem,3vw,2.4rem)] font-semibold leading-tight tracking-[-0.02em]"
+            className="mt-1 text-[clamp(1.6rem,3vw,2.4rem)] font-semibold leading-tight tracking-[-0.02em]"
           >
             What a {row.grader.toUpperCase()} {row.grade} does to {row.cardName ?? 'this card'}
           </h2>
@@ -103,7 +101,7 @@ export function GradeComparisonStage({ rows }: { rows: GradedSpreadRow[] }) {
         <div className="flex flex-col items-center gap-1 text-center" aria-live="polite">
           <motion.span
             key={row.cardId + '-x'}
-            className="font-display text-[clamp(2.6rem,6vw,4.2rem)] font-semibold leading-none text-[#f0bd55]"
+            className="text-[clamp(2.6rem,6vw,4.2rem)] font-semibold leading-none text-stage-gold"
             initial={reduce ? false : { scale: 0.7, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ type: 'spring', stiffness: 220, damping: 16 }}
@@ -136,7 +134,7 @@ export function GradeComparisonStage({ rows }: { rows: GradedSpreadRow[] }) {
             <span className="block text-[12px] text-white/55">
               {row.grader.toUpperCase()} {row.grade}
             </span>
-            <span className="font-mono text-[22px] font-medium tabular-nums text-[#f0bd55]">
+            <span className="font-mono text-[22px] font-medium tabular-nums text-stage-gold">
               {formatCurrency(row.gradedPrice)}
             </span>
           </figcaption>
@@ -157,7 +155,7 @@ export function GradeComparisonStage({ rows }: { rows: GradedSpreadRow[] }) {
                 className={cn(
                   'flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12.5px] transition-colors',
                   row === r
-                    ? 'border-white bg-white text-[#0b0e14]'
+                    ? 'border-white bg-white text-stage'
                     : 'border-white/20 text-white/80 hover:bg-white/10'
                 )}
               >
@@ -192,11 +190,9 @@ function Slab({
 }) {
   return (
     <div className="relative rounded-[10px] bg-gradient-to-b from-white/35 to-white/10 p-[7%] pt-[4%] shadow-[0_30px_60px_-20px_rgba(0,0,0,0.7)] ring-1 ring-white/40 backdrop-blur-sm">
-      <div className="mb-[6%] flex items-center justify-between gap-2 rounded-[4px] bg-gradient-to-r from-[#e8e3d6] to-[#f6f1e4] px-2 py-1.5 text-[#1b1b1b]">
-        <span className="min-w-0 truncate text-[9.5px] font-semibold uppercase tracking-[0.04em]">
-          {name}
-        </span>
-        <span className="shrink-0 rounded-[3px] bg-[#c8102e] px-1.5 py-0.5 font-mono text-[10px] font-bold text-white">
+      <div className="mb-[6%] flex items-center justify-between gap-2 rounded-[4px] bg-gradient-to-r from-stage-ink to-stage-ink px-2 py-1.5 text-stage">
+        <span className="min-w-0 truncate text-[10px] font-semibold">{name}</span>
+        <span className="shrink-0 rounded-[3px] bg-stage-red px-1.5 py-0.5 font-mono text-[10px] font-bold text-white">
           {label}
         </span>
       </div>

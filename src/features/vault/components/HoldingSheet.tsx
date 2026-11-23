@@ -209,7 +209,7 @@ export function HoldingSheet({
               <CardArt card={card} />
             </div>
             <div className="min-w-0 sm:mt-3">
-              <h2 className="font-display text-[22px] leading-tight">{card.name}</h2>
+              <h2 className="text-[22px] leading-tight">{card.name}</h2>
               <p className="text-meta text-ink-muted">
                 {card.set?.name}
                 {card.number ? ` · No. ${card.number}` : ''}

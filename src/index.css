@@ -8,7 +8,6 @@
 @import '@fontsource/ibm-plex-mono/500.css';
 @import '@fontsource/ibm-plex-mono/600.css';
 @import '@fontsource-variable/newsreader/opsz.css';
-@import '@fontsource-variable/bricolage-grotesque/index.css';
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -45,18 +44,18 @@
 
     --ink-primary: #20272b;
     --ink-secondary: #4e575c;
-    --ink-muted: #6b7276;
+    --ink-muted: #6e7579;
     --ink-faint: #a3a59f;
 
-    --accent: #2f56e6;
-    --accent-hover: #2345c4;
-    --accent-muted: rgba(47, 86, 230, 0.1);
+    --accent: #3559b7;
+    --accent-hover: #2a4796;
+    --accent-muted: rgba(53, 89, 183, 0.1);
     --accent-foreground: #ffffff;
-    --gold: #9a6a12;
-    --gold-muted: rgba(181, 138, 67, 0.14);
-    --gold-line: #d79b2b;
-    --warn: #8f6210;
-    --warn-muted: rgba(196, 140, 32, 0.13);
+    --gold: #946c2c;
+    --gold-muted: rgba(148, 108, 44, 0.12);
+    --gold-line: #b58a43;
+    --warn: #9a6a10;
+    --warn-muted: rgba(154, 106, 16, 0.12);
 
     --foil: #8a6427;
     --foil-muted: rgba(181, 138, 67, 0.14);
@@ -79,8 +78,8 @@
     --loss-muted: rgba(192, 76, 54, 0.1);
 
     --chart-grid: rgba(32, 39, 43, 0.07);
-    --chart-tick: #6b7276;
-    --chart-series-1: #2f56e6;
+    --chart-tick: #6e7579;
+    --chart-series-1: #3559b7;
     --chart-series-2: #b58a43;
     --chart-series-3: #167f73;
     --chart-series-4: #7d5ba6;
@@ -91,7 +90,7 @@
     --scrollbar-thumb-hover: #c2bba9;
     --selection-bg: rgba(53, 89, 183, 0.16);
     --selection-fg: #20272b;
-    --focus-ring: #2f56e6;
+    --focus-ring: #3559b7;
     --ring-accent: rgba(53, 89, 183, 0.2);
     --shadow-glow: 0 10px 30px rgba(32, 39, 43, 0.1);
     --card-shadow: 0 1px 1px rgba(32, 39, 43, 0.08), 0 6px 14px -6px rgba(32, 39, 43, 0.28);
@@ -119,6 +118,7 @@
     --cobalt-deep: #10205e;
     --ember: #ff7a3d;
     --ink-stage: #0b0e14;
+    --stage-ink: #f1eee7;
 
     --rail-w: 76px;
     --header-h: 56px;
@@ -126,30 +126,30 @@
 
   [data-theme='dark'] {
     color-scheme: dark;
-    --surface-inset: #0a0d12;
-    --surface-base: #0e1117;
-    --surface-raised: #161a22;
-    --surface-overlay: #1b202a;
-    --surface-hover: #232a36;
-    --surface-chrome: #0b0e13;
-    --surface-band: #12161e;
-    --surface-glass: rgba(22, 26, 34, 0.92);
+    --surface-inset: #12171a;
+    --surface-base: #171d21;
+    --surface-raised: #1e262a;
+    --surface-overlay: #242c30;
+    --surface-hover: #28323a;
+    --surface-chrome: #141a1d;
+    --surface-band: #1a2125;
+    --surface-glass: rgba(30, 38, 42, 0.92);
     --surface-glass-border: rgba(236, 233, 225, 0.1);
 
-    --ink-primary: #f1eee7;
-    --ink-secondary: #b9bcc4;
-    --ink-muted: #8d93a0;
+    --ink-primary: #ece9e1;
+    --ink-secondary: #a9afa9;
+    --ink-muted: #80878a;
     --ink-faint: #5b6366;
 
-    --accent: #7f9bff;
-    --accent-hover: #a3b7ff;
-    --accent-muted: rgba(127, 155, 255, 0.14);
-    --accent-foreground: #0b1233;
-    --gold: #f0bd55;
-    --gold-muted: rgba(214, 178, 116, 0.14);
-    --gold-line: #e3a73a;
-    --warn: #e2b759;
-    --warn-muted: rgba(226, 183, 89, 0.13);
+    --accent: #8ea8f0;
+    --accent-hover: #a9bdf5;
+    --accent-muted: rgba(142, 168, 240, 0.14);
+    --accent-foreground: #10182e;
+    --gold: #d2ae6d;
+    --gold-muted: rgba(210, 174, 109, 0.14);
+    --gold-line: #c69a4f;
+    --warn: #e0b354;
+    --warn-muted: rgba(224, 179, 84, 0.13);
 
     --foil: #d6b274;
     --foil-muted: rgba(214, 178, 116, 0.14);
@@ -165,16 +165,16 @@
     --rule: rgba(236, 233, 225, 0.1);
     --rule-strong: #ece9e1;
 
-    --gain: #3fd3a8;
-    --gain-muted: rgba(85, 194, 173, 0.12);
-    --loss: #ff7a6b;
-    --loss-muted: rgba(239, 138, 116, 0.12);
+    --gain: #4fbfa9;
+    --gain-muted: rgba(79, 191, 169, 0.12);
+    --loss: #ee8670;
+    --loss-muted: rgba(238, 134, 112, 0.12);
 
     --chart-grid: rgba(236, 233, 225, 0.07);
     --chart-tick: #878e90;
-    --chart-series-1: #7f9bff;
-    --chart-series-2: #f0bd55;
-    --chart-series-3: #55c2ad;
+    --chart-series-1: #8ea8f0;
+    --chart-series-2: #d2ae6d;
+    --chart-series-3: #4fbfa9;
     --chart-series-4: #b99be0;
     --chart-series-5: #878e90;
 
@@ -183,7 +183,7 @@
     --scrollbar-thumb-hover: #46525a;
     --selection-bg: rgba(147, 172, 240, 0.25);
     --selection-fg: #ece9e1;
-    --focus-ring: #a3b7ff;
+    --focus-ring: #a9bdf5;
     --ring-accent: rgba(147, 172, 240, 0.25);
     --shadow-glow: 0 12px 32px rgba(0, 0, 0, 0.4);
     --card-shadow: 0 1px 1px rgba(0, 0, 0, 0.4), 0 8px 18px -8px rgba(0, 0, 0, 0.7);

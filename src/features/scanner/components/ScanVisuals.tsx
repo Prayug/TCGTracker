@@ -37,7 +37,7 @@ export function FramingGuide({
         <span className="absolute bottom-[3%] left-[6%] h-[5%] w-[30%] rounded-[4px] border border-dashed border-white/35" />
         {!reduce ? (
           <motion.span
-            className="absolute inset-x-[4%] h-[2px] rounded-full bg-gradient-to-r from-transparent via-[#7f9bff] to-transparent shadow-[0_0_14px_2px_rgba(127,155,255,0.6)]"
+            className="absolute inset-x-[4%] h-[2px] rounded-full bg-gradient-to-r from-transparent via-stage-cobalt to-transparent shadow-[0_0_14px_2px_rgba(127,155,255,0.6)]"
             // Two passes to show where to aim, then it rests: guidance, not decoration.
             animate={{ top: ['8%', '92%', '8%'], opacity: [1, 1, 0] }}
             transition={{ duration: 3.2, repeat: 1, ease: 'easeInOut' }}
@@ -77,7 +77,7 @@ export function ReadingSweep({
         )}
         {!reduce ? (
           <motion.span
-            className="absolute inset-x-0 h-10 bg-gradient-to-b from-transparent via-[#7f9bff]/45 to-transparent"
+            className="absolute inset-x-0 h-10 bg-gradient-to-b from-transparent via-stage-cobalt/45 to-transparent"
             animate={{ top: ['-20%', '100%'] }}
             transition={{ duration: 1.4, repeat: Infinity, ease: 'linear' }}
           />

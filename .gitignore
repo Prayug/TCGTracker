@@ -70,3 +70,6 @@ backend/.money-flow-cache/
 # Generated / local eval output
 *.tsbuildinfo
 backend/prediction-eval-results.json
+
+# Local visual QA captures
+screenshots/

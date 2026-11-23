@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { PullCard } from '../types';
 import { PullCardView } from './PullCardView';
 import { opRarityStyle, OP_RARITY_LABELS } from './opRarityStyles';
@@ -91,7 +91,7 @@ export const RevealCard: React.FC<RevealCardProps> = ({
         >
           <div
             className={cn(
-              'mx-auto w-fit rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider',
+              'mx-auto w-fit rounded-full border px-2 py-0.5 text-[10px] font-semibold',
               opRarityStyle(card.rarity).badge
             )}
           >

@@ -122,7 +122,7 @@ function ArtSlip({ card }: { card: CardArtSource }) {
         </svg>
       </span>
       <span className="min-w-0">
-        <span className="block font-display text-[clamp(11px,1.05vw,15px)] font-semibold leading-tight text-ink-primary">
+        <span className="block text-[clamp(11px,1.05vw,15px)] font-semibold leading-tight text-ink-primary">
           {card.name}
         </span>
         {card.set?.name ? (
@@ -131,7 +131,7 @@ function ArtSlip({ card }: { card: CardArtSource }) {
           </span>
         ) : null}
       </span>
-      <span className="self-start rounded-full border border-rule-strong px-1.5 py-px text-[9.5px] font-medium uppercase tracking-[0.06em] text-ink-muted">
+      <span className="self-start rounded-full border border-rule-strong px-1.5 py-px text-[10px] font-medium text-ink-muted">
         No artwork
       </span>
     </div>

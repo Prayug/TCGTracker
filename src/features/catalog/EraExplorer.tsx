@@ -54,7 +54,7 @@ export function EraExplorer() {
         <div>
           <h2
             id="eras-h"
-            className="font-display text-[clamp(1.4rem,2.4vw,1.9rem)] font-semibold tracking-[-0.02em]"
+            className="text-[clamp(1.4rem,2.4vw,1.9rem)] font-semibold tracking-[-0.02em]"
           >
             Vintage to modern
           </h2>
@@ -77,7 +77,7 @@ export function EraExplorer() {
         </div>
       </div>
 
-      <div className="mt-4 rounded-3xl border border-border-default bg-surface-raised p-5 sm:p-6">
+      <div className="mt-4 rounded-xl border border-border-default bg-surface-raised p-5 sm:p-6">
         {!sets ? (
           <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
             {Array.from({ length: 12 }, (_, i) => (
@@ -126,9 +126,7 @@ export function EraExplorer() {
                             className="max-h-12 max-w-full object-contain transition-transform duration-200 group-hover:scale-105"
                           />
                         ) : (
-                          <span className="font-display text-[13px] font-semibold text-ink-muted">
-                            {s.name}
-                          </span>
+                          <span className="text-[13px] font-semibold text-ink-muted">{s.name}</span>
                         )}
                       </span>
                       <span className="w-full truncate text-[12px] font-medium">{s.name}</span>

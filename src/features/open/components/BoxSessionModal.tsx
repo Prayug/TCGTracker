@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { Modal } from '../../../components/common/Modal';
 import { BoxSession, OpenedPack, PullCard } from '../types';
 import { PullCardView } from './PullCardView';
@@ -93,7 +93,7 @@ export const BoxSessionModal: React.FC<BoxSessionModalProps> = ({
           initial={{ opacity: 0.55, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.2 }}
-          className="font-display text-xl font-bold tabular-nums text-ink-primary"
+          className="text-xl font-bold tabular-nums text-ink-primary"
         >
           {formatCurrency(liveBoxValue)}
         </motion.span>
@@ -116,9 +116,7 @@ export const BoxSessionModal: React.FC<BoxSessionModalProps> = ({
             <p className="section-label">
               Booster box · {session.code} · {session.packs.length} packs
             </p>
-            <h3 className="truncate font-display text-xl font-bold text-ink-primary">
-              {session.setName}
-            </h3>
+            <h3 className="truncate text-xl font-bold text-ink-primary">{session.setName}</h3>
           </div>
           <button
             type="button"

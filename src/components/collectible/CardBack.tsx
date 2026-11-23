@@ -11,7 +11,7 @@ export function CardBack() {
       <div className="absolute inset-[9%] rounded-[2.8%/2%] border border-white/10" />
       <div className="relative flex flex-col items-center gap-2 text-white">
         <BrandMark className="h-14 w-14" />
-        <span className="font-display text-[13px] font-semibold tracking-[0.02em]">TCGTracker</span>
+        <span className="text-[13px] font-semibold tracking-[0.02em]">TCGTracker</span>
       </div>
       <span className="absolute bottom-[6%] font-mono text-[9px] text-white/55">
         Collector's archive

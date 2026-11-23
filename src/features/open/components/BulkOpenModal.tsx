@@ -71,7 +71,7 @@ export const BulkOpenModal: React.FC<BulkOpenModalProps> = ({
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="flex items-baseline gap-2">
         <span className="section-label">Total value</span>
-        <span className="font-display text-xl font-bold tabular-nums text-ink-primary">
+        <span className="text-xl font-bold tabular-nums text-ink-primary">
           {formatCurrency(session.totalValue)}
         </span>
       </div>
@@ -118,9 +118,7 @@ export const BulkOpenModal: React.FC<BulkOpenModalProps> = ({
               {session.isCase ? 'Case rip' : 'Bulk rip'} · {session.code} · {session.boxCount}{' '}
               {session.boxCount === 1 ? 'box' : 'boxes'} · {session.packCount} packs
             </p>
-            <h3 className="truncate font-display text-xl font-bold text-ink-primary">
-              {session.setName}
-            </h3>
+            <h3 className="truncate text-xl font-bold text-ink-primary">{session.setName}</h3>
           </div>
           <button
             type="button"

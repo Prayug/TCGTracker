@@ -45,6 +45,30 @@ export default tseslint.config(
       ],
       'no-console': ['warn', { allow: ['warn', 'error'] }],
       'no-alert': 'error',
+      // Collector's Exchange guard rails (docs/design/collectors-exchange.md):
+      // colours come from tokens, radii from the compressed scale, and no
+      // letter-spaced uppercase eyebrows.
+      'no-restricted-syntax': [
+        'error',
+        ...[
+          ['Literal', 'value'],
+          ['TemplateElement', 'value.raw'],
+        ].flatMap(([node, key]) => [
+          {
+            selector: `${node}[${key}=/\\[#[0-9a-fA-F]{3,8}/]`,
+            message:
+              'Arbitrary hex colour in a class. Use a design token (bg-surface-*, text-ink-*, accent, gold, gain, loss, warn, stage).',
+          },
+          {
+            selector: `${node}[${key}=/rounded(-[trblxyse]{1,2})?-(2xl|3xl)/]`,
+            message: 'rounded-2xl/3xl are retired. Controls use rounded-md, sheets rounded-lg/xl.',
+          },
+          {
+            selector: `${node}[${key}=/\\buppercase\\b[^'"\x60]*\\btracking-|\\btracking-[^'"\x60]*\\buppercase\\b/]`,
+            message: 'No letter-spaced uppercase eyebrows. Use a sentence-case label (text-meta text-ink-muted).',
+          },
+        ]),
+      ],
       '@typescript-eslint/no-unused-vars': [
         'error',
         {

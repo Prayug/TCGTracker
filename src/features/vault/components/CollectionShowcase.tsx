@@ -133,7 +133,7 @@ export function CollectionShowcase({
         <div className="flex flex-wrap items-end justify-between gap-3">
           <h2
             id="case-h"
-            className="font-display text-[clamp(1.4rem,2.4vw,1.9rem)] font-semibold tracking-[-0.02em]"
+            className="text-[clamp(1.4rem,2.4vw,1.9rem)] font-semibold tracking-[-0.02em]"
           >
             The whole case{' '}
             <span className="font-mono text-[15px] font-normal text-ink-muted">{rows.length}</span>
@@ -317,7 +317,7 @@ function HoldingFacts({ vc, onEdit }: { vc: VaultCard; onEdit: () => void }) {
             {status === 'recorded' ? (
               formatCurrency(vc.purchasePrice * vc.quantity)
             ) : status === 'unverified' ? (
-              <span className="text-[#f0bd55]">
+              <span className="text-stage-gold">
                 {formatCurrency(vc.purchasePrice * vc.quantity)}
                 <span className="ml-1 font-sans text-[11px]">unverified</span>
               </span>
@@ -329,7 +329,7 @@ function HoldingFacts({ vc, onEdit }: { vc: VaultCard; onEdit: () => void }) {
             <dd>
               <button
                 type="button"
-                className="text-[11.5px] text-[#9db4ff] hover:underline"
+                className="text-[11.5px] text-stage-cobalt hover:underline"
                 onClick={() => vaultService.confirmCosts([vc.id], game)}
               >
                 Confirm this is what I paid
@@ -345,8 +345,8 @@ function HoldingFacts({ vc, onEdit }: { vc: VaultCard; onEdit: () => void }) {
               pl == null
                 ? 'font-sans text-[13px] text-white/60'
                 : pl.profit >= 0
-                  ? 'text-[#3fd3a8]'
-                  : 'text-[#ff7a6b]'
+                  ? 'text-stage-teal'
+                  : 'text-stage-coral'
             )}
           >
             {pl == null ? 'Needs a recorded cost' : formatCurrency(pl.profit, { signed: true })}
@@ -406,7 +406,7 @@ function HoldingFacts({ vc, onEdit }: { vc: VaultCard; onEdit: () => void }) {
                   <motion.span
                     className={cn(
                       'block h-full rounded-full',
-                      r.k === 'Raw' ? 'bg-white/45' : 'bg-[#f0bd55]'
+                      r.k === 'Raw' ? 'bg-white/45' : 'bg-stage-gold'
                     )}
                     initial={{ width: 0 }}
                     animate={{ width: `${(Math.max(0, r.v) / top) * 100}%` }}
@@ -470,7 +470,7 @@ function CollectionSpotlight({
     <section
       data-theme="dark"
       aria-labelledby="spot-h"
-      className="atmo-stage relative overflow-hidden rounded-3xl px-5 pb-6 pt-6 sm:px-10 sm:pb-8 sm:pt-8"
+      className="atmo-stage relative overflow-hidden rounded-xl px-5 pb-6 pt-6 sm:px-10 sm:pb-8 sm:pt-8"
     >
       <div
         aria-hidden
@@ -512,10 +512,10 @@ function CollectionSpotlight({
             className="text-white"
             aria-live="polite"
           >
-            <p id="spot-h" className="text-[13px] font-medium text-[#f0bd55]">
+            <p id="spot-h" className="text-[13px] font-medium text-stage-gold">
               Collection spotlight · No. {i + 1} by value
             </p>
-            <h2 className="mt-2 font-display text-[clamp(2rem,4.4vw,3.6rem)] font-semibold leading-[0.98] tracking-[-0.03em]">
+            <h2 className="mt-2 text-[clamp(2rem,4.4vw,3.6rem)] font-semibold leading-[0.98] tracking-[-0.03em]">
               {vc.card.name}
             </h2>
             <p className="mt-2 text-[14px] text-white/65">
@@ -548,7 +548,7 @@ function CollectionSpotlight({
                 <dd className="mt-1 text-[15px]">
                   {CONDITION_LABEL[vc.condition] ?? vc.condition}
                   {vc.gradingResult ? (
-                    <span className="ml-1 text-[11.5px] text-[#f0bd55]">photo graded</span>
+                    <span className="ml-1 text-[11.5px] text-stage-gold">photo graded</span>
                   ) : null}
                 </dd>
               </div>
@@ -557,7 +557,7 @@ function CollectionSpotlight({
               <p
                 className={cn(
                   'mt-3 font-mono text-[14px]',
-                  pl.profit >= 0 ? 'text-[#3fd3a8]' : 'text-[#ff7a6b]'
+                  pl.profit >= 0 ? 'text-stage-teal' : 'text-stage-coral'
                 )}
               >
                 {formatCurrency(pl.profit, { signed: true })} since you bought it
@@ -567,7 +567,7 @@ function CollectionSpotlight({
               <button
                 type="button"
                 onClick={() => onInspect(vc)}
-                className="inline-flex h-9 items-center rounded-full bg-white px-4 text-[13px] font-medium text-[#0b0e14] hover:bg-white/90"
+                className="inline-flex h-9 items-center rounded-full bg-white px-4 text-[13px] font-medium text-stage hover:bg-white/90"
               >
                 Inspect
               </button>
@@ -613,7 +613,7 @@ function CollectionSpotlight({
                     className={cn(
                       'w-7 rounded-[4px] transition-[opacity,transform] duration-200',
                       k === i
-                        ? '-translate-y-0.5 opacity-100 ring-2 ring-[#f0bd55]'
+                        ? '-translate-y-0.5 opacity-100 ring-2 ring-stage-gold'
                         : 'opacity-50 hover:opacity-90'
                     )}
                   >

@@ -242,7 +242,7 @@ function BreadthStrip({
       <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-rule-strong pb-2">
         <h2
           id="breadth-h"
-          className="font-display text-[clamp(1.35rem,2.2vw,1.75rem)] font-semibold tracking-[-0.02em]"
+          className="text-[clamp(1.35rem,2.2vw,1.75rem)] font-semibold tracking-[-0.02em]"
         >
           Breadth
         </h2>
@@ -378,7 +378,7 @@ function RotationBoard({
       <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-rule-strong pb-2">
         <h2
           id="rot-h"
-          className="font-display text-[clamp(1.35rem,2.2vw,1.75rem)] font-semibold tracking-[-0.02em]"
+          className="text-[clamp(1.35rem,2.2vw,1.75rem)] font-semibold tracking-[-0.02em]"
         >
           Rotation
         </h2>
@@ -387,7 +387,7 @@ function RotationBoard({
       {rows.length ? (
         <div
           aria-hidden
-          className="mt-2 grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)_5.5rem] gap-x-3 font-mono text-[11px] uppercase tracking-[0.1em] text-ink-muted sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)_6rem]"
+          className="mt-2 grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)_5.5rem] gap-x-3 text-[12.5px] text-ink-muted sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)_6rem]"
         >
           <span />
           <span className="flex justify-between">

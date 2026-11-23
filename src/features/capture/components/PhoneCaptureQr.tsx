@@ -172,7 +172,7 @@ export function PhoneCaptureQr({
       )}
 
       <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
-        <div className="rounded-2xl border border-border-subtle bg-white p-3 shadow-sm">
+        <div className="rounded-xl border border-border-subtle bg-white p-3 shadow-sm">
           {captureUrl && !missingLan ? (
             <QRCodeSVG value={captureUrl} size={180} level="M" includeMargin={false} />
           ) : (

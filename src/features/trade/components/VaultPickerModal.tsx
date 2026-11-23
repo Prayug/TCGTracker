@@ -18,7 +18,7 @@ export function VaultPickerModal({ isOpen, game, onClose, onSelect }: VaultPicke
   return (
     <Modal isOpen={isOpen} onClose={onClose} variant="slab" size="medium">
       <div className="mx-auto max-w-xl">
-        <h2 className="font-display text-xl text-ink-primary">Add from vault</h2>
+        <h2 className="text-xl text-ink-primary">Add from vault</h2>
         <p className="mt-1 text-sm text-ink-muted">
           Pick a holding to put on this side of the trade.
         </p>

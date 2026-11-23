@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { Modal } from '../../../components/common/Modal';
 import { OpenedPack, PullCard } from '../types';
 import { PackTear } from './PackTear';
@@ -71,7 +71,7 @@ export const PackRevealModal: React.FC<PackRevealModalProps> = ({
           initial={{ opacity: 0.55, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.2 }}
-          className="font-display text-xl font-bold tabular-nums text-ink-primary"
+          className="text-xl font-bold tabular-nums text-ink-primary"
         >
           {formatCurrency(liveValue)}
         </motion.span>
@@ -115,7 +115,7 @@ export const PackRevealModal: React.FC<PackRevealModalProps> = ({
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="section-label">Pack opening · {pack.code}</p>
-            <h3 className="font-display text-xl font-bold text-ink-primary">
+            <h3 className="text-xl font-bold text-ink-primary">
               {pack.setName}
               <span className="ml-2 align-middle text-xs font-medium text-ink-muted">
                 {revealOrder.length} cards

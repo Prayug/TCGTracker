@@ -43,19 +43,17 @@ export function PulseStage({
     <section
       data-theme="dark"
       aria-labelledby="pulse-h"
-      className="atmo-stage relative overflow-hidden rounded-3xl p-5 text-white sm:p-8"
+      className="atmo-stage relative overflow-hidden rounded-xl p-5 text-white sm:p-8"
     >
       <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-center">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="font-mono text-[12px] uppercase tracking-[0.14em] text-white/60">
-              Market pulse · {days} days
-            </p>
+            <p className="text-[12.5px] text-white/60">Market pulse · {days} days</p>
             {windowControl}
           </div>
           <h1
             id="pulse-h"
-            className="mt-4 max-w-[22ch] font-display text-[clamp(1.9rem,3.8vw,3.2rem)] font-semibold leading-[1.02] tracking-[-0.025em]"
+            className="mt-4 max-w-[22ch] text-[clamp(1.9rem,3.8vw,3.2rem)] font-semibold leading-[1.02] tracking-[-0.025em]"
           >
             {headline.summary}
           </h1>
@@ -125,7 +123,7 @@ export function PulseStage({
                   interactive={false}
                 />
                 {i === 0 ? (
-                  <span className="absolute -bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[color:var(--gain)] px-2.5 py-1 font-mono text-[12px] font-semibold text-[#06140f] shadow-lg">
+                  <span className="absolute -bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[color:var(--gain)] px-2.5 py-1 font-mono text-[12px] font-semibold text-stage shadow-lg">
                     {formatPct(g.changePercent)}
                   </span>
                 ) : null}
@@ -376,10 +374,7 @@ function Legend() {
 function SectionHead({ id, title, note }: { id: string; title: string; note?: string }) {
   return (
     <div className="flex flex-wrap items-baseline justify-between gap-2">
-      <h2
-        id={id}
-        className="font-display text-[clamp(1.35rem,2.2vw,1.75rem)] font-semibold tracking-[-0.02em]"
-      >
+      <h2 id={id} className="text-[clamp(1.35rem,2.2vw,1.75rem)] font-semibold tracking-[-0.02em]">
         {title}
       </h2>
       {note ? <p className="text-meta text-ink-muted">{note}</p> : null}
@@ -539,13 +534,13 @@ export function MoversGallery({
     <section
       aria-labelledby="gallery-h"
       data-theme="dark"
-      className="atmo-stage relative overflow-hidden rounded-3xl p-5 text-white sm:p-8"
+      className="atmo-stage relative overflow-hidden rounded-xl p-5 text-white sm:p-8"
     >
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2
             id="gallery-h"
-            className="font-display text-[clamp(1.5rem,2.6vw,2.1rem)] font-semibold tracking-[-0.02em]"
+            className="text-[clamp(1.5rem,2.6vw,2.1rem)] font-semibold tracking-[-0.02em]"
           >
             The cards doing the moving
           </h2>
@@ -654,12 +649,10 @@ function SpreadExplorer({ row, days }: { row: MoneyFlowMoverRow; days: number })
 
   return (
     <div
-      className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 sm:p-5"
+      className="rounded-xl border border-white/10 bg-white/[0.04] p-4 sm:p-5"
       aria-live="polite"
     >
-      <p className="font-mono text-[11.5px] uppercase tracking-[0.12em] text-white/50">
-        Raw to graded
-      </p>
+      <p className="text-[12.5px] text-white/50">Raw to graded</p>
       <h3 className="mt-1 text-[17px] font-semibold">{row.productName}</h3>
       <p className="text-[12.5px] text-white/60">{row.setName}</p>
       <div className="mt-4 grid grid-cols-2 gap-3 font-mono text-[13px]">

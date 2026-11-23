@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence, type Variants } from 'framer-motion';
+import { motion, AnimatePresence, type Variants } from 'motion/react';
 import FocusTrap from 'focus-trap-react';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';

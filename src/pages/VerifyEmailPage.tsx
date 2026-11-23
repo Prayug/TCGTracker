@@ -46,7 +46,7 @@ export function VerifyEmailPage() {
   return (
     <PageShell>
       <PageHeader title="Email verification" description={message} />
-      <div className="mx-auto flex max-w-md flex-col items-center rounded-2xl border border-border-default bg-surface-raised px-6 py-10 text-center">
+      <div className="mx-auto flex max-w-md flex-col items-center rounded-xl border border-border-default bg-surface-raised px-6 py-10 text-center">
         {status === 'loading' && (
           <Loader2 className="mb-4 h-10 w-10 animate-spin text-accent" aria-hidden />
         )}

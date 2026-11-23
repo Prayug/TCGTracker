@@ -131,7 +131,7 @@ export function InspectionSequence({ src }: { src: string | null }) {
   return (
     <div
       data-theme="dark"
-      className="atmo-stage mx-auto grid max-w-3xl items-center gap-6 rounded-3xl p-6 text-white sm:grid-cols-[12rem_minmax(0,1fr)]"
+      className="atmo-stage mx-auto grid max-w-3xl items-center gap-6 rounded-xl p-6 text-white sm:grid-cols-[12rem_minmax(0,1fr)]"
       role="status"
       aria-live="polite"
     >
@@ -156,19 +156,19 @@ export function InspectionSequence({ src }: { src: string | null }) {
           >
             {key === 'centering' ? (
               <>
-                <span className="absolute inset-[9%] rounded-[6px] border border-dashed border-[#7f9bff]" />
-                <span className="absolute inset-y-0 left-1/2 w-px bg-[#7f9bff]/70" />
-                <span className="absolute inset-x-0 top-1/2 h-px bg-[#7f9bff]/70" />
+                <span className="absolute inset-[9%] rounded-[6px] border border-dashed border-stage-cobalt" />
+                <span className="absolute inset-y-0 left-1/2 w-px bg-stage-cobalt/70" />
+                <span className="absolute inset-x-0 top-1/2 h-px bg-stage-cobalt/70" />
               </>
             ) : key === 'corners' ? (
               ['left-1 top-1', 'right-1 top-1', 'bottom-1 left-1', 'bottom-1 right-1'].map((c) => (
                 <span
                   key={c}
-                  className={cn('absolute h-8 w-8 rounded-full border-2 border-[#f0bd55]', c)}
+                  className={cn('absolute h-8 w-8 rounded-full border-2 border-stage-gold', c)}
                 />
               ))
             ) : key === 'edges' ? (
-              <span className="absolute inset-[3px] rounded-[8px] border-[3px] border-[#3fd3a8]/80" />
+              <span className="absolute inset-[3px] rounded-[8px] border-[3px] border-stage-teal/80" />
             ) : !reduce ? (
               <motion.span
                 className="absolute inset-x-0 h-12 bg-gradient-to-b from-transparent via-white/35 to-transparent"
@@ -180,7 +180,7 @@ export function InspectionSequence({ src }: { src: string | null }) {
         </AnimatePresence>
       </div>
       <div>
-        <p className="font-display text-[22px] font-semibold leading-tight">Inspecting your card</p>
+        <p className="text-[22px] font-semibold leading-tight">Inspecting your card</p>
         <ol className="mt-3 space-y-1.5">
           {ORDER.map((o, n) => (
             <li
@@ -193,7 +193,7 @@ export function InspectionSequence({ src }: { src: string | null }) {
               <span
                 className={cn(
                   'grid h-5 w-5 place-items-center rounded-full font-mono text-[11px]',
-                  o === key ? 'bg-white text-[#0b0e14]' : 'bg-white/10'
+                  o === key ? 'bg-white text-stage' : 'bg-white/10'
                 )}
               >
                 {n + 1}

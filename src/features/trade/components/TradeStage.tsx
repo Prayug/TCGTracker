@@ -45,7 +45,7 @@ export function TradeStage({
     <section
       data-theme="dark"
       aria-labelledby="trade-balance"
-      className="atmo-stage relative overflow-hidden rounded-3xl px-4 pb-6 pt-6 text-white sm:px-8 sm:pb-8"
+      className="atmo-stage relative overflow-hidden rounded-xl px-4 pb-6 pt-6 text-white sm:px-8 sm:pb-8"
     >
       <h2 id="trade-balance" className="sr-only">
         Balance
@@ -149,7 +149,7 @@ function Pile({
   const mirror = side === 'get' ? -1 : 1;
   return (
     <div className={cn('min-w-0', side === 'get' && 'text-right')}>
-      <p className="font-mono text-[11.5px] uppercase tracking-[0.14em] text-white/55">{title}</p>
+      <p className="text-[12.5px] text-white/55">{title}</p>
       <p className="mt-0.5 font-mono text-[24px] font-medium tabular-nums sm:text-[30px]">
         {formatCurrency(value)}
       </p>
@@ -196,7 +196,7 @@ function Pile({
                   />
                 </div>
                 {l.quantity > 1 && i === 0 ? (
-                  <span className="absolute -right-2 -top-2 rounded-full bg-white px-2 py-0.5 font-mono text-[11px] font-semibold text-[#0b0e14]">
+                  <span className="absolute -right-2 -top-2 rounded-full bg-white px-2 py-0.5 font-mono text-[11px] font-semibold text-stage">
                     ×{l.quantity}
                   </span>
                 ) : null}

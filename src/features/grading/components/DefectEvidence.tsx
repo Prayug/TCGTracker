@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, ChevronRight, Eye, AlertTriangle } from 'lucide-react';
 import { DefectRegion } from '../../../types/grading';
 import { ZoomModal } from './ZoomModal';

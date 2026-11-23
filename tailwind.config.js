@@ -86,6 +86,28 @@ export default {
           DEFAULT: 'var(--warn)',
           muted: 'var(--warn-muted)',
         },
+        // Fixed dark viewing surface for camera feeds, slabs and pack opening
+        // only (play and capture). Literal values so opacity modifiers work.
+        // Not for page chrome: pages stay paper/graphite.
+        stage: {
+          DEFAULT: '#0b0e14',
+          raised: '#1a222c',
+          ink: '#f1eee7',
+          cobalt: '#7f9bff',
+          gold: '#f0bd55',
+          brass: '#d4b483',
+          teal: '#3fd3a8',
+          coral: '#ff7a6b',
+          red: '#c41e3a',
+        },
+        // Pack shop tier swatches (play money tiers).
+        tier: {
+          starter: '#8a8f98',
+          bronze: '#a0673a',
+          silver: '#9aa3ad',
+          gold: '#c9a227',
+          platinum: '#5b7f8f',
+        },
         rule: {
           DEFAULT: 'var(--rule)',
           strong: 'var(--rule-strong)',
@@ -100,8 +122,6 @@ export default {
         md: '6px',
         lg: '8px',
         xl: '9px',
-        '2xl': '10px',
-        '3xl': '12px',
         full: '9999px',
       },
       borderColor: {
@@ -146,8 +166,9 @@ export default {
       fontFamily: {
         sans: ['"IBM Plex Sans"', 'system-ui', '-apple-system', 'sans-serif'],
         mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
-        display: ['"Bricolage Grotesque Variable"', '"IBM Plex Sans"', 'system-ui', 'sans-serif'],
-        editorial: ['"Newsreader Variable"', '"Newsreader"', 'Georgia', 'serif'],
+        // Newsreader is for rare display moments only (page titles, the card
+        // name on its research page). Everything else is Plex Sans.
+        display: ['"Newsreader Variable"', '"Newsreader"', 'Georgia', 'serif'],
       },
       fontSize: {
         display: [

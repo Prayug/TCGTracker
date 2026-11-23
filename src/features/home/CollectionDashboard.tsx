@@ -52,7 +52,7 @@ export function CollectionDashboard() {
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <h2 className="font-display text-[clamp(1.5rem,2.4vw,2rem)] font-semibold tracking-[-0.02em]">
+        <h2 className="text-[clamp(1.5rem,2.4vw,2rem)] font-semibold tracking-[-0.02em]">
           Today in your collection
         </h2>
         <Link to="/vault" className="text-[13px] text-accent hover:underline">
@@ -94,13 +94,10 @@ function RecentStage({
     <section
       data-theme="dark"
       aria-labelledby="recent-h"
-      className="atmo-stage relative overflow-hidden rounded-3xl p-5 text-white sm:p-7"
+      className="atmo-stage relative overflow-hidden rounded-xl p-5 text-white sm:p-7"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3
-          id="recent-h"
-          className="font-mono text-[11.5px] uppercase tracking-[0.14em] text-white/60"
-        >
+        <h3 id="recent-h" className="text-[12.5px] text-white/60">
           Latest additions
         </h3>
         {lastEvent ? (
@@ -136,7 +133,7 @@ function RecentStage({
             {active.card.set?.name}
             {active.card.number ? ` · #${active.card.number}` : ''}
           </p>
-          <p className="mt-0.5 font-display text-[clamp(1.6rem,3vw,2.3rem)] font-semibold leading-tight tracking-[-0.02em]">
+          <p className="mt-0.5 text-[clamp(1.6rem,3vw,2.3rem)] font-semibold leading-tight tracking-[-0.02em]">
             {active.card.name}
           </p>
           <p className="mt-3 font-mono text-[28px] font-medium tabular-nums">
@@ -156,7 +153,7 @@ function RecentStage({
                 {status === 'recorded' ? (
                   formatCurrency(active.purchasePrice * active.quantity)
                 ) : status === 'unverified' ? (
-                  <span className="text-[#f0bd55]">Unverified</span>
+                  <span className="text-stage-gold">Unverified</span>
                 ) : (
                   <span className="text-white/60">Not recorded</span>
                 )}
@@ -166,7 +163,7 @@ function RecentStage({
           <button
             type="button"
             onClick={() => openCard(active.card)}
-            className="mt-5 inline-flex h-9 items-center rounded-full bg-white px-4 text-[13px] font-medium text-[#0b0e14] hover:bg-white/90"
+            className="mt-5 inline-flex h-9 items-center rounded-full bg-white px-4 text-[13px] font-medium text-stage hover:bg-white/90"
           >
             Inspect card
           </button>
@@ -220,7 +217,7 @@ function Performance({
   return (
     <section
       aria-labelledby="perf-h"
-      className="rounded-3xl border border-border-default bg-surface-raised p-5 sm:p-6"
+      className="rounded-xl border border-border-default bg-surface-raised p-5 sm:p-6"
     >
       <h3 id="perf-h" className="text-[13px] font-medium text-ink-secondary">
         Collection value
@@ -399,7 +396,7 @@ function QuickActions() {
             </>
           );
           const cls =
-            'group flex h-full w-full items-center gap-3 rounded-2xl border border-border-default bg-surface-raised px-4 py-3.5 text-left transition-colors hover:border-ink-muted';
+            'group flex h-full w-full items-center gap-3 rounded-xl border border-border-default bg-surface-raised px-4 py-3.5 text-left transition-colors hover:border-ink-muted';
           return (
             <li key={it.key}>
               {it.to ? (
@@ -551,7 +548,7 @@ function Opportunities({ cards, game }: { cards: VaultCard[]; game: 'pokemon' | 
   return (
     <section aria-labelledby="opps-h">
       <div className="flex items-end justify-between border-b border-rule-strong pb-2">
-        <h3 id="opps-h" className="font-display text-[22px] font-medium leading-tight">
+        <h3 id="opps-h" className="text-[22px] font-medium leading-tight">
           Collection opportunities
         </h3>
         <span className="hidden text-meta text-ink-muted sm:inline">
@@ -568,7 +565,7 @@ function Opportunities({ cards, game }: { cards: VaultCard[]; game: 'pokemon' | 
             <li key={o.key}>
               <Link
                 to={o.to}
-                className="group flex h-full flex-col rounded-2xl border border-border-default bg-surface-raised p-3 transition-colors hover:border-ink-muted sm:p-4"
+                className="group flex h-full flex-col rounded-xl border border-border-default bg-surface-raised p-3 transition-colors hover:border-ink-muted sm:p-4"
               >
                 {o.art.length ? (
                   <span

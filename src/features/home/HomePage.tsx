@@ -34,7 +34,7 @@ function VisitorHome() {
       <div>
         <h2
           id="visitor-h"
-          className="font-display text-[clamp(1.6rem,3vw,2.4rem)] font-semibold tracking-[-0.02em]"
+          className="text-[clamp(1.6rem,3vw,2.4rem)] font-semibold tracking-[-0.02em]"
         >
           What is this card worth?
         </h2>

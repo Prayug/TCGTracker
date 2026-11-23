@@ -63,7 +63,7 @@ function SectionHeading({
 }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-3 border-b border-rule-strong pb-2">
-      <h2 id={`${id}-h`} className="font-display text-[22px] font-medium leading-tight">
+      <h2 id={`${id}-h`} className="text-[22px] font-medium leading-tight">
         {title}
       </h2>
       {children}
@@ -575,7 +575,7 @@ export function CardResearchPage() {
             </dl>
           ) : null}
 
-          <h3 className="mt-10 font-display text-[17px] font-medium">Slab prices</h3>
+          <h3 className="mt-10 text-[17px] font-medium">Slab prices</h3>
           <p className="mt-1 text-meta text-ink-muted">
             Daily PriceCharting quotes per grade. Pick up to four grades to compare.
           </p>

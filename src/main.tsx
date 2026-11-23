@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import { MotionConfig } from 'framer-motion';
+import { MotionConfig } from 'motion/react';
 import App from './App.tsx';
 import { ErrorBoundary } from './components/common/ErrorBoundary.tsx';
 import { ToastProvider } from './components/common/Toast.tsx';

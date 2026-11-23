@@ -38,7 +38,7 @@ export function InsightsClarityDemoPage() {
     <InsightsApiContext.Provider value={marketInsightsApi}>
       <div className="insights-page mx-auto max-w-6xl px-4 py-6">
         <div className="mb-4 space-y-1">
-          <h1 className="font-display text-h1 text-ink-primary">Market Insights</h1>
+          <h1 className="text-h1 text-ink-primary">Market Insights</h1>
           <p className="text-sm text-ink-secondary">
             Forecasts, classifications, and model checks for Pokémon
           </p>

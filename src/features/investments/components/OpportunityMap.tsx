@@ -43,16 +43,14 @@ export function OpportunityMap({
     <section
       data-theme="dark"
       aria-labelledby="opp-map-h"
-      className="atmo-stage relative overflow-hidden rounded-3xl p-5 text-white sm:p-7"
+      className="atmo-stage relative overflow-hidden rounded-xl p-5 text-white sm:p-7"
     >
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <p className="font-mono text-[11.5px] uppercase tracking-[0.14em] text-white/55">
-            Opportunity explorer
-          </p>
+          <p className="text-[12.5px] text-white/55">Opportunity explorer</p>
           <h2
             id="opp-map-h"
-            className="mt-1 font-display text-[clamp(1.4rem,2.6vw,2rem)] font-semibold tracking-[-0.02em]"
+            className="mt-1 text-[clamp(1.4rem,2.6vw,2rem)] font-semibold tracking-[-0.02em]"
           >
             Return against risk
           </h2>
@@ -177,7 +175,7 @@ export function OpportunityMap({
               return (
                 <div
                   role="tooltip"
-                  className="pointer-events-none absolute z-40 w-56 rounded-xl border border-white/15 bg-[#161a22] p-3 text-[12px] shadow-2xl"
+                  className="pointer-events-none absolute z-40 w-56 rounded-xl border border-white/15 bg-stage-raised p-3 text-[12px] shadow-2xl"
                   style={{
                     left: Math.min(width - 232, Math.max(0, cx + 30)),
                     top: Math.max(0, Math.min(H - 120, cy - 50)),
