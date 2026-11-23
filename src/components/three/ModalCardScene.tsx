@@ -50,7 +50,7 @@ export function ModalCardScene({ imageUrl, className }: ModalCardSceneProps) {
             draggable={false}
           />
         ) : (
-          <div className="h-full w-40 rounded-xl border border-foil/30 bg-gradient-to-br from-accent/40 via-foil/30 to-surface-raised shadow-glow-foil" />
+          <div className="h-full w-40 rounded-lg border border-border-default bg-surface-inset" />
         )}
         <div
           className="pointer-events-none absolute inset-0 rounded-xl opacity-30"

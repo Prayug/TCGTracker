@@ -139,4 +139,16 @@ search, game switch, alerts, account.
 `CardArt` (art with honest fallback), `CardIdentity`, `Ledger` (table primitives), `Figure` (chart container
 with title/unit/source/summary), `Unavailable`, `Segmented`, `BreadthStrip`, `AllocationBars`, `BrandMark`, `CoverageMeter`, `StepPriceChart`.
 
+Shared kit added in the production polish pass (use these before writing a one-off):
+`Section`/`SectionHeader`/`LinkRow` (sentence-case title on a hairline, one quiet action; a link row
+replaces grids of identical "Open →" tiles), `CardTile` (`tile`, `compact`, `row` densities; badges go
+beside figures, never over names), `DataTable` (ledger rows, columns drop out instead of scrolling),
+`Sparkline` (direction-coloured, always next to a stated change), `States` (`LoadingRows`,
+`LoadingTiles`, `EmptyState`, `ErrorState`), `Change` (alias of `Delta`) and `paths.cardPath`.
+
+Guard rails enforced by ESLint (`no-restricted-syntax` in `eslint.config.js`): no arbitrary hex
+colours in class strings, no `rounded-2xl`/`rounded-3xl`, no letter-spaced uppercase eyebrows. Fixed
+dark surfaces exist only as the `stage-*` tokens (camera, slab and pack-opening views) and `tier-*`
+(pack shop swatches). `.sheet` is the one raised box, for a spotlight or a form.
+
 Feature modules with pure, tested logic: `features/catalog/catalogFilters.ts`, `features/vault/ledger.ts`, `features/binders/binderLayout.ts`, `features/wishlist/wishlistModel.ts`, `features/trade/fairness.ts` (`evenOut`, `unpricedCount`), `features/scanner/confidence.ts`.

@@ -244,13 +244,6 @@ export const Modal: React.FC<ModalProps> = ({
                 </div>
               ) : null}
 
-              {variant === 'reveal' && !reducedMotion ? (
-                <div
-                  className="pointer-events-none absolute inset-x-0 top-0 z-10 h-1 bg-gradient-to-r from-accent via-foil to-accent"
-                  aria-hidden
-                />
-              ) : null}
-
               {header ? <div className="shrink-0">{header}</div> : null}
 
               <div
