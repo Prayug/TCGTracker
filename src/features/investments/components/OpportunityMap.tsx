@@ -2,12 +2,13 @@ import { useMemo, useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import type { Opportunity, OpportunityGrade } from '../types';
 import { useElementWidth } from '../../../components/exchange/useElementWidth';
+import { displayGrade } from '../utils/opportunityReasons';
 
 const GRADE_RING: Record<OpportunityGrade, string> = {
   strong_buy: 'var(--gain)',
-  buy: 'color-mix(in srgb, var(--gain) 60%, white)',
-  watch: '#f0bd55',
-  pass: 'rgba(255,255,255,0.35)',
+  buy: 'color-mix(in srgb, var(--gain) 60%, var(--surface-raised))',
+  watch: 'var(--warn)',
+  pass: 'var(--border-strong)',
 };
 
 /**
@@ -40,22 +41,14 @@ export function OpportunityMap({
   const size = (s: number) => 26 + (s / maxScore) * 26;
 
   return (
-    <section
-      data-theme="dark"
-      aria-labelledby="opp-map-h"
-      className="atmo-stage relative overflow-hidden rounded-xl p-5 text-white sm:p-7"
-    >
+    <section aria-labelledby="opp-map-h" className="relative border-y border-rule py-5">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <p className="text-[12.5px] text-white/55">Opportunity explorer</p>
-          <h2
-            id="opp-map-h"
-            className="mt-1 text-[clamp(1.4rem,2.6vw,2rem)] font-semibold tracking-[-0.02em]"
-          >
-            Return against risk
+          <h2 id="opp-map-h" className="text-h2">
+            Forecast against risk
           </h2>
         </div>
-        <p className="max-w-md text-[12.5px] text-white/60">
+        <p className="max-w-md text-[12.5px] text-ink-muted">
           Up: higher 90-day estimate. Right: higher risk score. Size: opportunity score. The
           top-left quadrant is where estimates are strong and risk is low.
         </p>
@@ -67,16 +60,16 @@ export function OpportunityMap({
             y={pad.t}
             width={(width - pad.l - pad.r) / 2}
             height={(H - pad.t - pad.b) / 2}
-            fill="rgba(63,211,168,0.07)"
+            fill="var(--gain-muted)"
             rx="8"
           />
-          <line x1={pad.l} x2={width - pad.r} y1={y(0)} y2={y(0)} stroke="rgba(255,255,255,0.25)" />
+          <line x1={pad.l} x2={width - pad.r} y1={y(0)} y2={y(0)} stroke="var(--border-strong)" />
           <line
             x1={x(50)}
             x2={x(50)}
             y1={pad.t}
             y2={H - pad.b}
-            stroke="rgba(255,255,255,0.12)"
+            stroke="var(--border-default)"
             strokeDasharray="3 4"
           />
           {[yMax * 0.66, 0, -yMax * 0.66].map((t) => (
@@ -87,7 +80,7 @@ export function OpportunityMap({
               dy="0.32em"
               textAnchor="end"
               fontSize="11"
-              fill="rgba(255,255,255,0.5)"
+              fill="var(--chart-tick)"
             >
               {t > 0 ? '+' : ''}
               {Math.round(t)}%
@@ -100,21 +93,15 @@ export function OpportunityMap({
               y={H - 18}
               textAnchor="middle"
               fontSize="11"
-              fill="rgba(255,255,255,0.5)"
+              fill="var(--chart-tick)"
             >
               {t}
             </text>
           ))}
-          <text
-            x={width - pad.r}
-            y={H - 4}
-            textAnchor="end"
-            fontSize="11"
-            fill="rgba(255,255,255,0.45)"
-          >
+          <text x={width - pad.r} y={H - 4} textAnchor="end" fontSize="11" fill="var(--chart-tick)">
             Risk score →
           </text>
-          <text x={pad.l + 8} y={y(0) - 8} fontSize="11" fill="rgba(63,211,168,0.8)">
+          <text x={pad.l + 8} y={y(0) - 8} fontSize="11" fill="var(--gain)">
             Strong estimate, lower risk
           </text>
         </svg>
@@ -133,14 +120,14 @@ export function OpportunityMap({
               onFocus={() => setHover(o.cardId)}
               onBlur={() => setHover(null)}
               aria-label={`${o.cardName ?? o.cardId}: ${o.predictedReturn90d}% 90-day estimate, risk ${o.riskScore}, score ${o.score}. Open detail.`}
-              className="absolute overflow-hidden rounded-[5px] bg-white/10 shadow-lg"
+              className="absolute overflow-hidden rounded-[5px] bg-surface-hover shadow-lg"
               style={{
                 width: s,
                 height: s * 1.4,
                 left: cx - s / 2,
                 top: cy - (s * 1.4) / 2,
                 zIndex: active ? 30 : Math.round(o.score),
-                boxShadow: `0 0 0 2px ${GRADE_RING[o.grade]}, 0 10px 24px -8px rgba(0,0,0,0.6)`,
+                boxShadow: `0 0 0 2px ${GRADE_RING[displayGrade(o).grade]}, 0 6px 16px -8px rgb(var(--shadow-color) / 0.5)`,
               }}
               initial={reduce ? false : { opacity: 0, scale: 0.4 }}
               animate={{ opacity: 1, scale: active ? 1.35 : 1 }}
@@ -159,7 +146,7 @@ export function OpportunityMap({
                   className="h-full w-full object-cover"
                 />
               ) : (
-                <span className="grid h-full place-items-center text-[9px] text-white/70">
+                <span className="grid h-full place-items-center text-[9px] text-ink-secondary">
                   {(o.cardName ?? '').slice(0, 8)}
                 </span>
               )}
@@ -175,26 +162,26 @@ export function OpportunityMap({
               return (
                 <div
                   role="tooltip"
-                  className="pointer-events-none absolute z-40 w-56 rounded-xl border border-white/15 bg-stage-raised p-3 text-[12px] shadow-2xl"
+                  className="pointer-events-none absolute z-40 w-56 rounded-xl border border-border-default bg-surface-overlay p-3 text-[12px] shadow-2xl"
                   style={{
                     left: Math.min(width - 232, Math.max(0, cx + 30)),
                     top: Math.max(0, Math.min(H - 120, cy - 50)),
                   }}
                 >
                   <p className="font-semibold">{o.cardName}</p>
-                  <p className="text-white/55">{o.setName}</p>
+                  <p className="text-ink-muted">{o.setName}</p>
                   <p className="mt-1.5 font-mono tabular-nums">
                     {o.predictedReturn90d! > 0 ? '+' : ''}
                     {o.predictedReturn90d}% est. · risk {o.riskScore} · score {o.score}
                   </p>
-                  <p className="mt-1 line-clamp-2 text-white/65">{o.why}</p>
+                  <p className="mt-1 line-clamp-2 text-ink-muted">{o.why}</p>
                 </div>
               );
             })()
           : null}
       </div>
       {unplaced > 0 ? (
-        <p className="mt-2 text-[12px] text-white/50">
+        <p className="mt-2 text-[12px] text-ink-muted">
           {unplaced} opportunit{unplaced === 1 ? 'y has' : 'ies have'} no risk score or 90-day
           estimate and {unplaced === 1 ? 'is' : 'are'} listed below only.
         </p>
