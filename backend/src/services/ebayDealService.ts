@@ -224,7 +224,7 @@ interface EvaluatedListing {
   deal: DealCardPayload;
 }
 
-interface CandidateCard extends CatalogCardRef {
+export interface CandidateCard extends CatalogCardRef {
   marketHint?: number;
   gradedSearch?: boolean;
 }
@@ -367,6 +367,11 @@ function mergeDealPool(game: DealGame, evaluated: EvaluatedListing[]): Evaluated
     combined.set(row.deal.listingId, row);
   }
   return [...combined.values()].sort((a, b) => b.deal.dealScore - a.deal.dealScore);
+}
+
+/** The background deal watcher scores listings too; keep them in the Deals feed. */
+export function rememberWatcherDeals(game: DealGame, deals: DealCardPayload[]): void {
+  if (deals.length) mergeDealPool(game, deals.map((deal) => ({ deal })));
 }
 
 function poolEntriesForState(state: CrawlState): Array<{ deal: DealCardPayload; seenAt: number }> {
@@ -1792,7 +1797,7 @@ async function matchListing(
   return { card: match.card, match };
 }
 
-async function evaluateListing(
+export async function evaluateListing(
   listing: EbayListingSummary,
   game: DealGame,
   targets: CandidateCard[] | null,
