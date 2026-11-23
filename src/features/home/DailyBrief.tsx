@@ -211,11 +211,15 @@ function VaultMoves({ cards }: { cards: VaultCard[] }) {
                   figure={<Price value={holdingMarketValue(h)} size="sm" />}
                   aside={
                     <span className="flex items-center gap-2">
-                      {m ? <Sparkline values={m.series} width={56} height={16} /> : null}
-                      {m ? (
-                        <Delta pct={m.pct} />
+                      {m && Math.abs(m.pct) >= 0.05 ? (
+                        <>
+                          <Sparkline values={m.series} width={56} height={16} />
+                          <Delta pct={m.pct} />
+                        </>
                       ) : (
-                        <span className="text-meta text-ink-muted">No recent sales</span>
+                        <span className="text-meta text-ink-muted">
+                          {m ? 'Unchanged' : 'No price history'}
+                        </span>
                       )}
                     </span>
                   }
@@ -223,6 +227,11 @@ function VaultMoves({ cards }: { cards: VaultCard[] }) {
               </li>
             ))}
           </ul>
+          {rows.length > 0 && rows.every(({ m }) => !m || Math.abs(m.pct) < 0.05) ? (
+            <p className="mt-2 text-[11.5px] text-ink-muted">
+              None of these market prices has changed in {VAULT_DAYS} days.
+            </p>
+          ) : null}
           {unknown > 0 ? (
             <p className="mt-2 text-[11.5px] text-ink-muted">
               {unknown} holding{unknown === 1 ? ' has' : 's have'} no price history reaching back{' '}
