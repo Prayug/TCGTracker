@@ -99,13 +99,64 @@ export async function getEbayCooldownRemainingMs(): Promise<number> {
   return Math.max(0, ebayCooldownUntil - Date.now());
 }
 
+/**
+ * One Browse call that never settles used to pin ebayChain forever: every later
+ * search waited behind it, and the crawl stayed "scanning" with a frozen clock.
+ * AbortSignal alone is not enough — a body read can outlive the socket.
+ */
+const CALL_DEADLINE_MS = SEARCH_TIMEOUT_MS * 2 + 6_000;
+
+function settleWithin<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('eBay request timed out')), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
 function enqueueEbay<T>(fn: () => Promise<T>): Promise<T> {
-  const run = ebayChain.then(fn, fn);
+  const guarded = () => {
+    const work = fn();
+    // If the deadline wins, work may still reject later. Don't surface that.
+    work.catch(() => undefined);
+    return settleWithin(work, CALL_DEADLINE_MS);
+  };
+  const run = ebayChain.then(guarded, guarded);
   ebayChain = run.then(
     () => undefined,
     () => undefined
   );
   return run;
+}
+
+/** Headers can arrive before the body. The fetch timeout must still end the read. */
+function readResponseText(response: Response, signal: AbortSignal): Promise<string> {
+  const body = response.text();
+  body.catch(() => undefined);
+  return new Promise((resolve, reject) => {
+    const fail = (error: Error) => {
+      void response.body?.cancel().catch(() => undefined);
+      reject(error);
+    };
+    if (signal.aborted) {
+      fail(new Error('eBay response aborted'));
+      return;
+    }
+    const onAbort = () => fail(new Error('eBay response aborted'));
+    signal.addEventListener('abort', onAbort, { once: true });
+    body.then(
+      (text) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(text);
+      },
+      (error) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(error);
+      }
+    );
+  });
 }
 
 export interface Psa10ListingQuote {
@@ -332,7 +383,8 @@ export const searchEbayListings = async (
     return { listings: [], total: null, error: 'not_configured' };
   }
 
-  return enqueueEbay(async () => {
+  try {
+    return await enqueueEbay(async () => {
     await ensureCooldownLoaded();
     const waitMs = Math.max(0, ebayCooldownUntil - Date.now());
     // Do not spend another Browse call while a quota/throttle window is open.
@@ -379,6 +431,7 @@ export const searchEbayListings = async (
       fieldgroups: 'EXTENDED',
     });
 
+    const signal = AbortSignal.timeout(SEARCH_TIMEOUT_MS);
     try {
       const response = await fetch(`${apiHost()}/buy/browse/v1/item_summary/search?${params}`, {
         headers: {
@@ -386,11 +439,11 @@ export const searchEbayListings = async (
           'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
           Accept: 'application/json',
         },
-        signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
+        signal,
       });
       if (response.status === 429) {
         consecutive429 += 1;
-        const detail = await response.text().catch(() => '');
+        const detail = await readResponseText(response, signal).catch(() => '');
         const retryMs = cooldownMsFrom429(response, detail);
         await persistCooldown(Date.now() + retryMs);
         logger.warn('eBay Browse search rate limited', {
@@ -408,7 +461,7 @@ export const searchEbayListings = async (
         logger.warn('eBay Browse search failed', { status: response.status, query: options.query });
         return { listings: [], total: null, error: 'unavailable' as const };
       }
-      const json = (await response.json()) as {
+      const json = JSON.parse(await readResponseText(response, signal)) as {
         itemSummaries?: BrowseItemSummary[];
         total?: number;
       };
@@ -428,13 +481,30 @@ export const searchEbayListings = async (
       return { listings: [], total: null, error: 'unavailable' as const };
     }
   });
+  } catch (error) {
+    logger.warn('eBay Browse search errored', {
+      error: (error as Error).message,
+      query: options.query,
+    });
+    return { listings: [], total: null, error: 'unavailable' as const };
+  }
 };
 
 const fetchAppToken = async (): Promise<string | null> => {
   if (!isEbayBrowseConfigured()) return null;
   if (cachedToken && cachedToken.expiresAt > Date.now()) return cachedToken.value;
 
+  try {
+    return await requestAppToken();
+  } catch (error) {
+    logger.warn('eBay OAuth token failed', { error: (error as Error).message });
+    return null;
+  }
+};
+
+const requestAppToken = async (): Promise<string | null> => {
   const basic = Buffer.from(`${env.ebay.clientId}:${env.ebay.clientSecret}`).toString('base64');
+  const signal = AbortSignal.timeout(SEARCH_TIMEOUT_MS);
   const response = await fetch(`${apiHost()}/identity/v1/oauth2/token`, {
     method: 'POST',
     headers: {
@@ -442,17 +512,20 @@ const fetchAppToken = async (): Promise<string | null> => {
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: 'grant_type=client_credentials&scope=https://api.ebay.com/oauth/api_scope',
-    signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
+    signal,
   });
   if (!response.ok) {
-    const detail = await response.text().catch(() => '');
+    const detail = await readResponseText(response, signal).catch(() => '');
     logger.warn('eBay OAuth token failed', {
       status: response.status,
       detail: detail.slice(0, 300),
     });
     return null;
   }
-  const json = (await response.json()) as { access_token?: string; expires_in?: number };
+  const json = JSON.parse(await readResponseText(response, signal)) as {
+    access_token?: string;
+    expires_in?: number;
+  };
   if (!json.access_token) return null;
   cachedToken = {
     value: json.access_token,
@@ -491,7 +564,8 @@ export const fetchPsa10ListingQuote = async (
 ): Promise<Psa10ListingQuote | null> => {
   if (!isEbayBrowseConfigured()) return null;
 
-  return enqueueEbay(async () => {
+  try {
+    return await enqueueEbay(async () => {
     await ensureCooldownLoaded();
     const waitMs = Math.max(0, ebayCooldownUntil - Date.now());
     if (waitMs > MIN_EBAY_INTERVAL_MS + 500) return null;
@@ -522,6 +596,7 @@ export const fetchPsa10ListingQuote = async (
       filter: 'buyingOptions:{FIXED_PRICE},deliveryCountry:US',
     });
 
+    const signal = AbortSignal.timeout(SEARCH_TIMEOUT_MS);
     try {
       if (waitMs > 0) await sleep(waitMs);
       const response = await fetch(`${apiHost()}/buy/browse/v1/item_summary/search?${params}`, {
@@ -530,11 +605,11 @@ export const fetchPsa10ListingQuote = async (
           'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
           Accept: 'application/json',
         },
-        signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
+        signal,
       });
       if (response.status === 429) {
         consecutive429 += 1;
-        const detail = await response.text().catch(() => '');
+        const detail = await readResponseText(response, signal).catch(() => '');
         const retryMs = cooldownMsFrom429(response, detail);
         await persistCooldown(Date.now() + retryMs);
         logger.warn('eBay Browse PSA 10 quote rate limited', { query, retryMs });
@@ -546,7 +621,9 @@ export const fetchPsa10ListingQuote = async (
         logger.warn('eBay Browse search failed', { status: response.status, query });
         return null;
       }
-      const json = (await response.json()) as { itemSummaries?: BrowseItemSummary[] };
+      const json = JSON.parse(await readResponseText(response, signal)) as {
+        itemSummaries?: BrowseItemSummary[];
+      };
       const prices: number[] = [];
       for (const item of json.itemSummaries ?? []) {
         if (!item.title || !isPsa10ActiveListingTitle(item.title, input)) continue;
@@ -559,4 +636,8 @@ export const fetchPsa10ListingQuote = async (
       return null;
     }
   });
+  } catch (error) {
+    logger.warn('eBay Browse search errored', { error: (error as Error).message });
+    return null;
+  }
 };
