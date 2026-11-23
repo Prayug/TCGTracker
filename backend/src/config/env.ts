@@ -37,7 +37,8 @@ const envSchema = z.object({
   APP_URL: z.string().optional(),
   SENTRY_DSN: z.string().optional(),
   SENTRY_ENVIRONMENT: z.string().default('development'),
-  ADMIN_USERNAME: z.string().default('admin'),
+  /** Comma-separated emails whose verified accounts are admins. Empty = no admins. */
+  ADMIN_EMAILS: z.string().default(''),
   CLOUD_SYNC_ENABLED: z.string().default('false'),
   SUPABASE_URL: z.string().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
@@ -126,7 +127,9 @@ export const env = {
     bucket: parsedEnv.data.SUPABASE_BUCKET,
   },
   admin: {
-    username: parsedEnv.data.ADMIN_USERNAME,
+    emails: parsedEnv.data.ADMIN_EMAILS.split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean),
   },
   isDevelopment: parsedEnv.data.NODE_ENV === 'development',
   isProduction: parsedEnv.data.NODE_ENV === 'production',

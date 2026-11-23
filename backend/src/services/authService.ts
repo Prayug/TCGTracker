@@ -206,8 +206,9 @@ export class AuthService {
       user,
       requiresVerification: true,
       emailSent,
-      // Always expose the link when mail failed so local testing isn't blocked.
-      ...(!emailSent ? { verifyUrl } : {}),
+      // Expose the link when mail failed only outside production, so local testing isn't
+      // blocked but nobody can verify an address they don't own on the live site.
+      ...(!emailSent && !env.isProduction ? { verifyUrl } : {}),
     };
   }
 
