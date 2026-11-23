@@ -240,10 +240,7 @@ function BreadthStrip({
   return (
     <section aria-labelledby="breadth-h">
       <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-rule-strong pb-2">
-        <h2
-          id="breadth-h"
-          className="text-[clamp(1.35rem,2.2vw,1.75rem)] font-semibold tracking-[-0.02em]"
-        >
+        <h2 id="breadth-h" className="text-h2">
           Breadth
         </h2>
         <p className="text-meta text-ink-muted">Tracked prints by size of {days}-day move</p>
@@ -376,10 +373,7 @@ function RotationBoard({
   return (
     <section aria-labelledby="rot-h">
       <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-rule-strong pb-2">
-        <h2
-          id="rot-h"
-          className="text-[clamp(1.35rem,2.2vw,1.75rem)] font-semibold tracking-[-0.02em]"
-        >
+        <h2 id="rot-h" className="text-h2">
           Rotation
         </h2>
         <p className="text-meta text-ink-muted">Net dollar change across each segment’s prints</p>

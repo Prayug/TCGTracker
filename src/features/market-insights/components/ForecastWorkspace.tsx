@@ -50,20 +50,19 @@ export function ForecastWorkspace({
 
   return (
     <section
-      data-theme="dark"
       aria-labelledby="fw-h"
-      className="atmo-stage relative overflow-hidden rounded-xl p-5 text-white sm:p-7"
+      className="sheet relative overflow-hidden rounded-lg p-5 text-ink-primary sm:p-7"
     >
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <p className="text-[12.5px] text-white/55">Forecast workspace</p>
+          <p className="text-[12.5px] text-ink-muted">Forecast workspace</p>
           <h2
             id="fw-h"
-            className="mt-1 text-[clamp(1.5rem,2.8vw,2.2rem)] font-semibold leading-tight tracking-[-0.02em]"
+            className="mt-1 text-[clamp(1.25rem,2vw,1.6rem)] font-semibold leading-tight"
           >
             {p.cardName}
           </h2>
-          <p className="text-[13px] text-white/60">
+          <p className="text-[13px] text-ink-muted">
             {p.setName}
             {p.cardNumber ? ` · ${p.cardNumber}` : ''}
           </p>
@@ -71,7 +70,7 @@ export function ForecastWorkspace({
         <button
           type="button"
           onClick={() => onViewDetail(p)}
-          className="btn-glass h-9 px-4 text-[13px]"
+          className="btn-secondary h-9 px-4 text-[13px]"
         >
           Full detail
         </button>
@@ -94,18 +93,18 @@ export function ForecastWorkspace({
         </motion.div>
         <div className="min-w-0">
           <ForecastFan prediction={p} dark />
-          <p className="mt-1 text-[11.5px] text-white/50">
+          <p className="mt-1 text-[11.5px] text-ink-muted">
             Band: the model&apos;s low to high range at each horizon. Line: its midpoint. Dashed:
             today.
           </p>
         </div>
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3 lg:grid-cols-1">
           <div>
-            <dt className="text-[12px] text-white/55">Today</dt>
+            <dt className="text-[12px] text-ink-muted">Today</dt>
             <dd className="font-mono text-[20px] tabular-nums">${p.currentPrice.toFixed(2)}</dd>
           </div>
           <div>
-            <dt className="text-[12px] text-white/55">90-day midpoint</dt>
+            <dt className="text-[12px] text-ink-muted">90-day midpoint</dt>
             <dd
               className={cn(
                 'font-mono text-[20px] tabular-nums',
@@ -120,21 +119,21 @@ export function ForecastWorkspace({
             </dd>
           </div>
           <div className="col-span-2 lg:col-span-1">
-            <dt className="text-[12px] text-white/55">Confidence</dt>
+            <dt className="text-[12px] text-ink-muted">Confidence</dt>
             <dd className="mt-1">
-              <span className="block h-1.5 overflow-hidden rounded-full bg-white/12">
+              <span className="block h-1.5 overflow-hidden rounded-full bg-surface-hover">
                 <motion.span
-                  className="block h-full rounded-full bg-stage-cobalt"
+                  className="block h-full rounded-full bg-accent"
                   initial={{ width: 0 }}
                   animate={{ width: `${Math.max(0, Math.min(100, conf))}%` }}
                   transition={{ duration: 0.7 }}
                 />
               </span>
-              <span className="mt-1 block font-mono text-[12px] text-white/70">
+              <span className="mt-1 block font-mono text-[12px] text-ink-secondary">
                 {conf}/100{p.reliability ? ` · ${RELIABILITY[p.reliability] ?? p.reliability}` : ''}
               </span>
               {p.historyPoints != null ? (
-                <span className="block text-[11.5px] text-white/50">
+                <span className="block text-[11.5px] text-ink-muted">
                   {p.historyPoints} price points behind it
                 </span>
               ) : null}
@@ -157,8 +156,8 @@ export function ForecastWorkspace({
                 className={cn(
                   'flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12.5px] transition-colors',
                   r.id === p.id
-                    ? 'border-white bg-white text-stage'
-                    : 'border-white/20 text-white/80 hover:bg-white/10'
+                    ? 'border-ink-primary bg-ink-primary text-surface-base'
+                    : 'border-border-default text-ink-secondary hover:bg-surface-hover'
                 )}
               >
                 <span className="max-w-[9rem] truncate">{r.cardName}</span>

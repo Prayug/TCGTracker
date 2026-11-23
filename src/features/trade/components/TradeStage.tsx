@@ -43,9 +43,8 @@ export function TradeStage({
 
   return (
     <section
-      data-theme="dark"
       aria-labelledby="trade-balance"
-      className="atmo-stage relative overflow-hidden rounded-xl px-4 pb-6 pt-6 text-white sm:px-8 sm:pb-8"
+      className="sheet relative overflow-hidden rounded-lg px-4 pb-6 pt-6 text-ink-primary sm:px-8 sm:pb-8"
     >
       <h2 id="trade-balance" className="sr-only">
         Balance
@@ -62,13 +61,13 @@ export function TradeStage({
         <div className="order-last col-span-2 lg:order-none lg:col-span-1">
           <div className="relative mx-auto h-32 max-w-[26rem]" aria-hidden>
             {/* Fulcrum */}
-            <span className="absolute bottom-0 left-1/2 h-16 w-0 -translate-x-1/2 border-x-[22px] border-b-[56px] border-x-transparent border-b-white/15" />
+            <span className="absolute bottom-0 left-1/2 h-16 w-0 -translate-x-1/2 border-x-[22px] border-b-[56px] border-x-transparent border-b-border-strong" />
             <motion.div
               className="absolute inset-x-0 top-[calc(50%-4px)] origin-center"
               animate={{ rotate: reduce ? 0 : -tilt }}
               transition={{ type: 'spring', stiffness: 90, damping: 11, mass: 1.1 }}
             >
-              <div className="relative h-1.5 rounded-full bg-gradient-to-r from-white/50 via-white/80 to-white/50">
+              <div className="relative h-1.5 rounded-full bg-ink-muted">
                 <Pan
                   label={formatCurrency(giveValue)}
                   className="left-0"
@@ -90,13 +89,13 @@ export function TradeStage({
                   ? 'text-[color:var(--gain)]'
                   : verdictTone === 'loss'
                     ? 'text-[color:var(--loss)]'
-                    : 'text-white'
+                    : 'text-ink-primary'
               )}
             >
               {fair ? <Check className="mr-1 inline h-4 w-4 align-[-2px]" aria-hidden /> : null}
               {verdict}
             </p>
-            <p className="mt-1 text-[13px] tabular-nums text-white/65">{detail}</p>
+            <p className="mt-1 text-[13px] tabular-nums text-ink-muted">{detail}</p>
           </div>
         </div>
         <Pile
@@ -120,8 +119,8 @@ function Pan({ label, className, tilt }: { label: string; className: string; til
       animate={{ rotate: -tilt }}
       transition={{ type: 'spring', stiffness: 90, damping: 11, mass: 1.1 }}
     >
-      <span className="h-6 w-px bg-white/40" />
-      <span className="rounded-full bg-white/10 px-2.5 py-1 font-mono text-[12.5px] tabular-nums text-white ring-1 ring-white/20 backdrop-blur">
+      <span className="h-6 w-px bg-ink-muted" />
+      <span className="rounded-full bg-surface-hover px-2.5 py-1 font-mono text-[12.5px] tabular-nums text-ink-primary ring-1 ring-accent/20 backdrop-blur">
         {label}
       </span>
     </motion.span>
@@ -149,11 +148,11 @@ function Pile({
   const mirror = side === 'get' ? -1 : 1;
   return (
     <div className={cn('min-w-0', side === 'get' && 'text-right')}>
-      <p className="text-[12.5px] text-white/55">{title}</p>
+      <p className="text-[12.5px] text-ink-muted">{title}</p>
       <p className="mt-0.5 font-mono text-[24px] font-medium tabular-nums sm:text-[30px]">
         {formatCurrency(value)}
       </p>
-      <p className="text-[12.5px] text-white/55">
+      <p className="text-[12.5px] text-ink-muted">
         {copies ? `${copies} card${copies === 1 ? '' : 's'}` : 'No cards yet'}
         {cash > 0 ? ` · ${formatCurrency(cash)} cash` : ''}
       </p>
@@ -163,7 +162,7 @@ function Pile({
             type="button"
             onClick={onAdd}
             className={cn(
-              'absolute top-0 grid aspect-[5/7] h-full place-items-center rounded-[6%/4.3%] border-2 border-dashed border-white/25 text-white/60 transition-colors hover:border-white/50 hover:text-white',
+              'absolute top-0 grid aspect-[5/7] h-full place-items-center rounded-[6%/4.3%] border-2 border-dashed border-border-default text-ink-muted transition-colors hover:border-border-default hover:text-ink-primary',
               side === 'get' ? 'right-0' : 'left-0'
             )}
           >
@@ -196,7 +195,7 @@ function Pile({
                   />
                 </div>
                 {l.quantity > 1 && i === 0 ? (
-                  <span className="absolute -right-2 -top-2 rounded-full bg-white px-2 py-0.5 font-mono text-[11px] font-semibold text-stage">
+                  <span className="absolute -right-2 -top-2 rounded-full bg-ink-primary px-2 py-0.5 font-mono text-[11px] font-semibold text-surface-base">
                     ×{l.quantity}
                   </span>
                 ) : null}
@@ -207,7 +206,7 @@ function Pile({
         {lines.length > shown.length ? (
           <span
             className={cn(
-              'absolute bottom-0 rounded-full bg-white/10 px-2 py-0.5 font-mono text-[11px] text-white/75',
+              'absolute bottom-0 rounded-full bg-surface-hover px-2 py-0.5 font-mono text-[11px] text-ink-secondary',
               side === 'get' ? 'left-0' : 'right-0'
             )}
           >
