@@ -190,9 +190,6 @@ export default {
         'float': 'float 6s ease-in-out infinite',
         'float-reverse': 'floatReverse 7s ease-in-out infinite',
         'perspective-enter': 'perspectiveEnter 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards',
-        'hero-float': 'heroFloat 5.5s ease-in-out infinite',
-        'hero-float-slow': 'heroFloat 7s ease-in-out infinite',
-        'hero-float-delay': 'heroFloat 6.2s ease-in-out 0.8s infinite',
       },
       keyframes: {
         fadeIn: {
@@ -230,10 +227,6 @@ export default {
         perspectiveEnter: {
           '0%': { opacity: '0', transform: 'perspective(1200px) rotateX(8deg) translateY(60px) scale(0.95)' },
           '100%': { opacity: '1', transform: 'perspective(1200px) rotateX(0) translateY(0) scale(1)' },
-        },
-        heroFloat: {
-          '0%, 100%': { transform: 'translateY(0px)' },
-          '50%': { transform: 'translateY(-10px)' },
         },
       },
     },

@@ -18,13 +18,6 @@
  * dark is "graphite & carbon". Legacy names (neon-*, foil, gradient-*)
  * are kept as aliases so untouched screens inherit the new palette.
  */
-/* Lets the hero's light change colour smoothly when the front card changes. */
-@property --hero-tone {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: #7f9bff;
-}
-
 @layer base {
   :root,
   [data-theme='light'] {
@@ -944,43 +937,6 @@
   }
 
   /* Hero foil sweep */
-  .hero-foil-sweep {
-    position: absolute;
-    inset: 0;
-    overflow: hidden;
-    pointer-events: none;
-  }
-
-  .hero-foil-sweep::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    bottom: -50%;
-    width: 30%;
-    background: linear-gradient(
-      100deg,
-      transparent 0%,
-      color-mix(in srgb, var(--neon-gold) 12%, transparent) 40%,
-      color-mix(in srgb, var(--neon-gold) 20%, transparent) 50%,
-      color-mix(in srgb, var(--neon-gold) 12%, transparent) 60%,
-      transparent 100%
-    );
-    transform: translateX(-200%) skewX(-16deg);
-    animation: heroFoilSweep 6s ease-in-out infinite;
-  }
-
-  @keyframes heroFoilSweep {
-    0% {
-      transform: translateX(-200%) skewX(-16deg);
-    }
-    50% {
-      transform: translateX(400%) skewX(-16deg);
-    }
-    100% {
-      transform: translateX(-200%) skewX(-16deg);
-    }
-  }
-
   /* Scroll cue */
   @keyframes scrollCue {
     0% {
@@ -1491,11 +1447,6 @@
 
     .holo-sweep::before,
     .holo-texture,
-    .hero-foil-sweep::before {
-      animation: none !important;
-      opacity: 0 !important;
-    }
-
     .marquee-content {
       animation: none !important;
     }
@@ -1649,20 +1600,6 @@
   .atmo-stage {
     background: var(--ink-stage);
     color: var(--stage-ink);
-  }
-
-  /* Hero accent: one hue from the front card, not a rainbow. */
-  .tone-text {
-    background: linear-gradient(
-      100deg,
-      color-mix(in srgb, var(--hero-tone) 70%, white) 0%,
-      var(--hero-tone) 55%,
-      color-mix(in srgb, var(--hero-tone) 80%, #ffffff) 100%
-    );
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    transition: --hero-tone 600ms ease;
   }
 
   .holo-text {
