@@ -307,6 +307,39 @@ export function VaultView({ onOpenSet }: { onOpenSet?: (setId: string) => void }
         }
       />
 
+      {/* Outside the ledger, the headline figures stay on one quiet line. */}
+      {mode !== 'holdings' ? (
+        <p
+          aria-label="Collection summary"
+          className="-mt-4 flex flex-wrap items-baseline gap-x-5 gap-y-1 text-[13px] text-ink-secondary"
+        >
+          <span className="inline-flex items-baseline gap-1.5">
+            <span className="text-ink-muted">Market value</span>
+            <Price value={summary.marketValue} size="sm" />
+          </span>
+          {summary.unrealized != null ? (
+            <span className="inline-flex items-baseline gap-1.5">
+              <span className="text-ink-muted">P/L on recorded cost</span>
+              <span
+                className={cn(
+                  'font-mono tabular-nums',
+                  summary.unrealized > 0 && 'text-gain',
+                  summary.unrealized < 0 && 'text-loss'
+                )}
+              >
+                {formatCurrency(summary.unrealized, { signed: true })}
+              </span>
+            </span>
+          ) : null}
+          <span className="inline-flex items-baseline gap-1.5">
+            <span className="text-ink-muted">Cost recorded</span>
+            <span className="font-mono tabular-nums">
+              {Math.round(summary.costCoverage * 100)}%
+            </span>
+          </span>
+        </p>
+      ) : null}
+
       {/* Ledger summary: three figures, each with its coverage stated. */}
       {mode === 'holdings' ? (
         <section

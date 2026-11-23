@@ -57,7 +57,7 @@ export function PortfolioVisualization({
     <div className="space-y-6">
       <section
         aria-label="Portfolio figures"
-        className="atmo-cobalt rounded-xl border border-border-default p-5 sm:p-7"
+        className="sheet rounded-xl border border-border-default p-5 sm:p-7"
       >
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <div>

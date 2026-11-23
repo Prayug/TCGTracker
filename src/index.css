@@ -1638,6 +1638,13 @@
   }
 
   /* Atmospheres: distinct, purposeful backdrops for feature sections. */
+  /* A raised paper sheet: the one boxed surface, for a spotlight or a form. */
+  .sheet {
+    background: var(--surface-raised);
+    border: 1px solid var(--border-default);
+    color: var(--ink-primary);
+  }
+
   .atmo-stage {
     background:
       radial-gradient(60% 70% at 72% 40%, rgba(47, 86, 230, 0.45), transparent 70%),
