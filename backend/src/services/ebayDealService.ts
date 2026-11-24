@@ -224,7 +224,7 @@ interface EvaluatedListing {
   deal: DealCardPayload;
 }
 
-interface CandidateCard extends CatalogCardRef {
+export interface CandidateCard extends CatalogCardRef {
   marketHint?: number;
   gradedSearch?: boolean;
 }
@@ -367,6 +367,15 @@ function mergeDealPool(game: DealGame, evaluated: EvaluatedListing[]): Evaluated
     combined.set(row.deal.listingId, row);
   }
   return [...combined.values()].sort((a, b) => b.deal.dealScore - a.deal.dealScore);
+}
+
+/** The background deal watcher scores listings too; keep them in the Deals feed. */
+export function rememberWatcherDeals(game: DealGame, deals: DealCardPayload[]): void {
+  if (deals.length)
+    mergeDealPool(
+      game,
+      deals.map((deal) => ({ deal }))
+    );
 }
 
 function poolEntriesForState(state: CrawlState): Array<{ deal: DealCardPayload; seenAt: number }> {
@@ -1398,25 +1407,38 @@ function maybeStartCrawl(state: CrawlState): void {
     clearTimeout(existing);
     scheduledStarts.delete(state.key);
   }
-  void getEbayCooldownRemainingMs().then((wait) => {
-    if (!state.running || state.done || crawlRuns.has(state.key)) return;
-    if (wait <= 0) {
-      startCrawl(state);
-      return;
-    }
-    if (wait > 5_000) state.error = 'rate_limited';
-    state.updatedAt = Date.now();
-    logger.info('Delaying eBay crawl until Browse cooldown ends', {
-      key: state.key,
-      waitMs: wait,
-    });
-    const timer = setTimeout(() => {
-      scheduledStarts.delete(state.key);
+  const cooldown = Promise.race([
+    getEbayCooldownRemainingMs(),
+    // A stuck database read must not leave the crawl "scanning" with a frozen clock.
+    new Promise<number>((resolve) => setTimeout(() => resolve(0), 5_000)),
+  ]);
+  void cooldown
+    .then((wait) => {
+      if (!state.running || state.done || crawlRuns.has(state.key)) return;
+      if (wait <= 0) {
+        startCrawl(state);
+        return;
+      }
+      if (wait > 5_000) state.error = 'rate_limited';
+      state.updatedAt = Date.now();
+      logger.info('Delaying eBay crawl until Browse cooldown ends', {
+        key: state.key,
+        waitMs: wait,
+      });
+      const timer = setTimeout(() => {
+        scheduledStarts.delete(state.key);
+        if (!state.running || state.done || crawlRuns.has(state.key)) return;
+        startCrawl(state);
+      }, wait + 3_000);
+      scheduledStarts.set(state.key, timer);
+    })
+    .catch((err) => {
+      logger.warn('eBay crawl could not read Browse cooldown', {
+        error: (err as Error).message,
+      });
       if (!state.running || state.done || crawlRuns.has(state.key)) return;
       startCrawl(state);
-    }, wait + 3_000);
-    scheduledStarts.set(state.key, timer);
-  });
+    });
 }
 
 /**
@@ -1431,8 +1453,16 @@ function queueCrawl(state: CrawlState): void {
     maybeStartCrawl(state);
     return;
   }
-  void inFlight.finally(() => {
+  const released = inFlight.then(
+    () => undefined,
+    () => undefined
+  );
+  // A Browse call that never settles used to leave the replacement scan waiting
+  // forever, still marked running, with the progress clock stuck.
+  const giveUp = new Promise<void>((resolve) => setTimeout(resolve, 35_000));
+  void Promise.race([released, giveUp]).then(() => {
     if (crawlStates.get(state.key) !== state || !state.running || state.done) return;
+    if (crawlRuns.get(state.key) === inFlight) crawlRuns.delete(state.key);
     if (crawlRuns.has(state.key) || scheduledStarts.has(state.key)) return;
     maybeStartCrawl(state);
   });
@@ -1771,7 +1801,7 @@ async function matchListing(
   return { card: match.card, match };
 }
 
-async function evaluateListing(
+export async function evaluateListing(
   listing: EbayListingSummary,
   game: DealGame,
   targets: CandidateCard[] | null,

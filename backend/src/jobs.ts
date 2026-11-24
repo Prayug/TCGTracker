@@ -120,6 +120,11 @@ async function runSignalScrapeJob(label: string): Promise<void> {
 }
 
 export function setupScheduledJobs(alertService: AlertService): void {
+  // Emails new Pokémon / One Piece eBay listings that look like deals (see dealWatcher.ts).
+  void import('./services/dealWatcher')
+    .then(({ startDealWatcher }) => startDealWatcher())
+    .catch((error) => logger.warn('Deal watcher failed to start', { error: error.message }));
+
   cron.schedule(
     '0 2 * * *',
     () => {
