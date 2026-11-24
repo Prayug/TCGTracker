@@ -87,7 +87,7 @@ export const PackPullResults: React.FC<PackPullResultsProps> = ({ packPull, rari
 
         <div
           className={cn(
-            'relative grid h-full min-h-0 grid-cols-1 items-center gap-6 rounded-2xl border border-border-subtle/60 bg-surface-inset/30 p-4 sm:p-6',
+            'relative grid h-full min-h-0 grid-cols-1 items-center gap-6 rounded-xl border border-border-subtle/60 bg-surface-inset/30 p-4 sm:p-6',
             isSlab
               ? 'sm:grid-cols-2 sm:gap-8'
               : 'mx-auto max-w-3xl sm:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] sm:gap-8'
@@ -124,7 +124,7 @@ export const PackPullResults: React.FC<PackPullResultsProps> = ({ packPull, rari
 
           <div className="flex min-h-0 flex-col justify-center gap-4">
             <div>
-              <h3 className="font-display text-3xl font-semibold leading-tight text-ink-primary sm:text-[2.35rem]">
+              <h3 className="text-3xl font-semibold leading-tight text-ink-primary sm:text-[2.35rem]">
                 {card.name}
               </h3>
               <p className="mt-1.5 text-sm text-ink-secondary sm:text-base">

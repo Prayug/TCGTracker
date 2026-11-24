@@ -166,7 +166,7 @@ export const AddToVaultModal: React.FC<AddToVaultModalProps> = ({
             <CardArt card={card} />
           </div>
           <div className="min-w-0">
-            <h2 className="font-display text-[22px] leading-tight">Add to vault</h2>
+            <h2 className="text-[22px] leading-tight">Add to vault</h2>
             <p className="mt-1 truncate text-[14px] font-medium">{card.name}</p>
             <p className="text-meta text-ink-muted">
               {card.set?.name}

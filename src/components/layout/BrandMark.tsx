@@ -54,7 +54,7 @@ export function BrandMark({ className, title }: { className?: string; title?: st
 export function Wordmark({ className }: { className?: string }) {
   return (
     <span className={className}>
-      <span className="font-display text-[19px] font-semibold tracking-[-0.02em] text-ink-primary">
+      <span className="text-[19px] font-semibold tracking-[-0.02em] text-ink-primary">
         TCG<span className="font-normal">Tracker</span>
       </span>
     </span>

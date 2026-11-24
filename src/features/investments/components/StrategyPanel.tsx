@@ -376,7 +376,7 @@ function StateCard({
   return (
     <section
       role={icon === 'error' ? 'alert' : undefined}
-      className="grid gap-5 rounded-3xl border border-border-default bg-surface-raised p-6 sm:grid-cols-[auto_minmax(0,1fr)] sm:p-8"
+      className="grid gap-5 rounded-xl border border-border-default bg-surface-raised p-6 sm:grid-cols-[auto_minmax(0,1fr)] sm:p-8"
     >
       <svg
         viewBox="0 0 48 48"
@@ -386,7 +386,7 @@ function StateCard({
         {STATE_ICONS[icon]}
       </svg>
       <div className="max-w-[62ch]">
-        <h3 className="font-display text-[clamp(1.2rem,2.2vw,1.5rem)] font-semibold tracking-[-0.01em]">
+        <h3 className="text-[clamp(1.2rem,2.2vw,1.5rem)] font-semibold tracking-[-0.01em]">
           {title}
         </h3>
         <p className="mt-2 text-[14px] text-ink-secondary">{body}</p>
@@ -463,11 +463,9 @@ function Results({
 
   return (
     <div className="space-y-5">
-      <section className="rounded-3xl border border-border-default bg-surface-raised p-5 sm:p-7">
-        <p className={cn('font-mono text-[11.5px] uppercase tracking-[0.14em]', q.tone)}>
-          {q.label}
-        </p>
-        <h3 className="mt-1 font-display text-[clamp(1.3rem,2.6vw,1.9rem)] font-semibold tracking-[-0.02em]">
+      <section className="rounded-xl border border-border-default bg-surface-raised p-5 sm:p-7">
+        <p className={cn('text-[12.5px]', q.tone)}>{q.label}</p>
+        <h3 className="mt-1 text-[clamp(1.3rem,2.6vw,1.9rem)] font-semibold tracking-[-0.02em]">
           {state.quality === 'poor'
             ? `Buying at random did as well as any strategy over ${horizon} weeks`
             : `${state.best.label}: ${pct(state.best.meanExcess)} vs random per ${horizon}-week hold`}

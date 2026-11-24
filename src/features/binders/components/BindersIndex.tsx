@@ -157,7 +157,7 @@ export const BindersIndex: React.FC = () => {
             <section className="grid items-center gap-10 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
               <OpenAlbumPreview />
               <div>
-                <h2 className="font-display text-[clamp(1.8rem,3.4vw,2.8rem)] font-semibold leading-[1.02] tracking-[-0.02em]">
+                <h2 className="text-[clamp(1.8rem,3.4vw,2.8rem)] font-semibold leading-[1.02] tracking-[-0.02em]">
                   Plan a page before you buy for it
                 </h2>
                 <p className="mt-2 max-w-[52ch] text-[14px] text-ink-secondary">
@@ -261,7 +261,7 @@ function Album({ binder, onOpen }: { binder: Binder; onOpen: () => void }) {
             </span>
           ) : null}
           <span className="relative ml-3 rounded-lg bg-black/20 px-3 py-2 backdrop-blur-sm">
-            <span className="block truncate font-display text-[18px] font-semibold leading-tight">
+            <span className="block truncate text-[18px] font-semibold leading-tight">
               {binder.name}
             </span>
             {binder.themeDescription ? (

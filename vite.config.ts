@@ -31,7 +31,7 @@ export default defineConfig(({ mode }) => {
         manualChunks: {
           'react-vendor': ['react', 'react-dom'],
           'charts': ['recharts'],
-          'motion': ['framer-motion'],
+          'motion': ['motion'],
         },
       },
     },

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import {
   AlertCircle,
   Camera,
@@ -238,7 +238,7 @@ export const GradingResultView: React.FC<GradingResultViewProps> = ({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease }}
-      className="relative overflow-hidden rounded-2xl border border-border-strong bg-surface-raised shadow-elevated"
+      className="relative overflow-hidden rounded-xl border border-border-strong bg-surface-raised shadow-elevated"
     >
       <div className="grid gap-0 lg:grid-cols-[minmax(280px,1.15fr)_minmax(300px,0.85fr)]">
         <div className="border-b border-border-subtle p-4 sm:p-6 lg:border-b-0 lg:border-r">
@@ -262,7 +262,7 @@ export const GradingResultView: React.FC<GradingResultViewProps> = ({
         <aside className="flex min-w-0 flex-col gap-5 p-4 sm:p-6 lg:sticky lg:top-16 lg:max-h-[calc(100dvh-5rem)] lg:overflow-y-auto">
           <div>
             <div className="flex items-start justify-between gap-3">
-              <h2 className="font-display text-h2 text-ink-primary">{decision.displayName}</h2>
+              <h2 className="text-h2 text-ink-primary">{decision.displayName}</h2>
               {unidentified && onIdentifyCard && (
                 <button
                   type="button"
@@ -274,7 +274,7 @@ export const GradingResultView: React.FC<GradingResultViewProps> = ({
                 </button>
               )}
             </div>
-            <p className="mt-4 font-display text-[2.75rem] font-semibold leading-none tracking-tight tabular-nums text-ink-primary">
+            <p className="mt-4 text-[2.75rem] font-semibold leading-none tracking-tight tabular-nums text-ink-primary">
               {decision.psaRangeLabel ?? 'No PSA estimate'}
             </p>
             <p className="mt-2 text-sm text-ink-secondary">
@@ -312,9 +312,7 @@ export const GradingResultView: React.FC<GradingResultViewProps> = ({
           )}
 
           <div className="rounded-xl border border-border-subtle bg-surface-inset/40 p-4">
-            <p className="font-display text-lg font-semibold text-ink-primary">
-              {decision.recommendationTitle}
-            </p>
+            <p className="text-lg font-semibold text-ink-primary">{decision.recommendationTitle}</p>
             <p className="mt-1 text-sm leading-relaxed text-ink-secondary">
               {decision.recommendationBody}
             </p>

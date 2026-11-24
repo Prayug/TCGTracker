@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { X } from 'lucide-react';
 
 interface ZoomModalProps {
@@ -102,7 +102,7 @@ export function ZoomModal({ imageSrc, label, onClose }: ZoomModalProps) {
         initial={{ opacity: 0, scale: 0.72, filter: 'blur(10px)', rotateX: 12 }}
         animate={{ opacity: 1, scale: 1, filter: 'blur(0px)', rotateX: 0 }}
         transition={{ type: 'spring', stiffness: 340, damping: 28 }}
-        className="relative flex w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-foil/35 bg-surface-overlay shadow-2xl shadow-glow-foil"
+        className="relative flex w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-foil/35 bg-surface-overlay shadow-2xl shadow-glow-foil"
         style={{
           height: 'min(calc(100dvh - 1rem), 52rem)',
           maxHeight: 'calc(100dvh - 1rem)',
@@ -114,10 +114,6 @@ export function ZoomModal({ imageSrc, label, onClose }: ZoomModalProps) {
         aria-modal="true"
         aria-label={label}
       >
-        <div
-          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-1 bg-gradient-to-r from-accent via-foil to-accent"
-          aria-hidden
-        />
         <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-border-subtle px-3 sm:px-4">
           <span className="truncate text-sm font-medium text-ink-primary">{label}</span>
           <div className="flex shrink-0 items-center gap-2">

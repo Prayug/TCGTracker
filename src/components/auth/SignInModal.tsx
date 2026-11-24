@@ -99,7 +99,7 @@ export function SignInModal({ isOpen, mode, onModeChange, onClose }: SignInModal
             <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />
             Account
           </p>
-          <h2 className="mt-2 font-display text-xl font-semibold text-ink-primary">
+          <h2 className="mt-2 text-xl font-semibold text-ink-primary">
             {pendingVerifyEmail
               ? 'Check your email'
               : mode === 'login'

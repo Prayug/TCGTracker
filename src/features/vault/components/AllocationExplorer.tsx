@@ -73,11 +73,11 @@ export function AllocationExplorer({
   return (
     <section
       aria-labelledby="alloc-h"
-      className="rounded-3xl border border-border-default bg-surface-raised p-5 sm:p-6"
+      className="rounded-xl border border-border-default bg-surface-raised p-5 sm:p-6"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 id="alloc-h" className="font-display text-[19px] font-semibold">
+          <h3 id="alloc-h" className="text-[19px] font-semibold">
             Where the value sits
           </h3>
           <p className="text-[12.5px] text-ink-muted">
@@ -291,7 +291,7 @@ function ValueMap({ cards, onOpen }: { cards: VaultCard[]; onOpen: (vc: VaultCar
   if (!tiles.length)
     return <p className="mt-4 text-[13.5px] text-ink-muted">No priced holdings yet.</p>;
   return (
-    <div ref={wrap} className="relative mt-4 overflow-hidden rounded-2xl" style={{ height }}>
+    <div ref={wrap} className="relative mt-4 overflow-hidden rounded-xl" style={{ height }}>
       {tiles.map((t, i) => {
         const share = t.value / total;
         const big = t.w > 90 && t.h > 70;

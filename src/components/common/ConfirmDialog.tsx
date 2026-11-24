@@ -42,7 +42,7 @@ export function ConfirmDialog({
       variant={variant === 'destructive' ? 'confirm' : 'slab'}
     >
       <div className="p-2">
-        <h3 className="font-display text-lg font-semibold text-ink-primary">{title}</h3>
+        <h3 className="text-lg font-semibold text-ink-primary">{title}</h3>
         <div className="mt-2 text-sm text-ink-secondary">
           {typeof message === 'string' ? <p>{message}</p> : message}
         </div>

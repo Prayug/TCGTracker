@@ -8,6 +8,8 @@ import { useGame } from '../../contexts/GameContext';
 import { useToast } from '../../components/common/Toast';
 import { CardArt } from '../../components/exchange/CardArt';
 import { Basis, Delta, Price, Unavailable } from '../../components/exchange/Price';
+import { SectionHeader } from '../../components/exchange/Section';
+import { LoadingRows } from '../../components/exchange/States';
 import { StepPriceChart } from '../../components/exchange/StepPriceChart';
 import { SlabPriceHistory } from './SlabPriceHistory';
 import { AddToVaultModal } from '../vault/components/AddToVaultModal';
@@ -61,14 +63,7 @@ function SectionHeading({
   title: string;
   children?: React.ReactNode;
 }) {
-  return (
-    <div className="flex flex-wrap items-end justify-between gap-3 border-b border-rule-strong pb-2">
-      <h2 id={`${id}-h`} className="font-display text-[22px] font-medium leading-tight">
-        {title}
-      </h2>
-      {children}
-    </div>
-  );
+  return <SectionHeader id={`${id}-h`} title={title} action={children} strong />;
 }
 
 export function CardResearchPage() {
@@ -575,7 +570,7 @@ export function CardResearchPage() {
             </dl>
           ) : null}
 
-          <h3 className="mt-10 font-display text-[17px] font-medium">Slab prices</h3>
+          <h3 className="mt-10 text-h3">Slab prices</h3>
           <p className="mt-1 text-meta text-ink-muted">
             Daily PriceCharting quotes per grade. Pick up to four grades to compare.
           </p>
@@ -644,7 +639,7 @@ export function CardResearchPage() {
             separately because an asking price is not a sale.
           </p>
           {r.gradedLoading ? (
-            <div className="skeleton mt-4 h-32 rounded" />
+            <LoadingRows className="mt-4" rows={4} label="Loading recent sales" />
           ) : r.gradedRows.length === 0 ? (
             <Unavailable className="mt-4" title="No comparable sales recorded">
               We don’t have verified sold data for this card and finish. Treat the market estimate

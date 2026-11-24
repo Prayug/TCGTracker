@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion, useReducedMotion } from 'motion/react';
 import { Sparkle } from 'lucide-react';
 import { gradeHex, gradeTextClass } from '../../../types/grading';
 
@@ -92,7 +92,7 @@ export const GradeBadge: React.FC<GradeBadgeProps> = ({
             }}
           >
             <span
-              className={`font-display font-bold leading-none tabular-nums ${conf.numeral}`}
+              className={`font-bold leading-none tabular-nums ${conf.numeral}`}
               style={{
                 color: hex,
                 textShadow: celebrate ? `0 0 18px ${hex}66` : undefined,

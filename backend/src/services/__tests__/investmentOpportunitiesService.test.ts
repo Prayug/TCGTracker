@@ -5,6 +5,7 @@ import {
   moveCorrelation,
   computeBuyoutScore,
   computeOpportunityScore,
+  gradeOpportunity,
   type SeriesPoint,
 } from '../investmentOpportunitiesService';
 
@@ -302,5 +303,24 @@ describe('computeOpportunityScore (weighting)', () => {
     expect(withMomentum.grade).not.toBe('pass');
     // No momentum + no signals = nothing to act on.
     expect(flat.grade).toBe('pass');
+  });
+});
+
+describe('gradeOpportunity', () => {
+  it('maps score bands to grades', () => {
+    expect(gradeOpportunity(80, 10).grade).toBe('strong_buy');
+    expect(gradeOpportunity(65, null).grade).toBe('buy');
+    expect(gradeOpportunity(50, null).grade).toBe('watch');
+    expect(gradeOpportunity(20, null).grade).toBe('pass');
+  });
+
+  it('caps a negative 90-day forecast at watch', () => {
+    expect(gradeOpportunity(90, -4.2)).toEqual({ grade: 'watch', capped: true });
+    expect(gradeOpportunity(62, -0.1)).toEqual({ grade: 'watch', capped: true });
+  });
+
+  it('does not lift low scores or touch flat/positive forecasts', () => {
+    expect(gradeOpportunity(30, -10)).toEqual({ grade: 'pass', capped: false });
+    expect(gradeOpportunity(90, 0)).toEqual({ grade: 'strong_buy', capped: false });
   });
 });

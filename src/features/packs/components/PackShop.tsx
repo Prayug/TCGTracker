@@ -44,11 +44,11 @@ export const PackShop: React.FC = () => {
 
   /** A flat colour band per tier, so packs read as distinct objects without glows. */
   const tierBand: Record<string, string> = {
-    starter: 'bg-[#8a8f98]',
-    bronze: 'bg-[#a0673a]',
-    silver: 'bg-[#9aa3ad]',
-    gold: 'bg-[#c9a227]',
-    platinum: 'bg-[#5b7f8f]',
+    starter: 'bg-tier-starter',
+    bronze: 'bg-tier-bronze',
+    silver: 'bg-tier-silver',
+    gold: 'bg-tier-gold',
+    platinum: 'bg-tier-platinum',
   };
 
   if (isLoading) {
@@ -138,7 +138,7 @@ export const PackShop: React.FC = () => {
                     />
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <h3 className="font-display text-[22px] leading-tight">{pack.name}</h3>
+                        <h3 className="text-[22px] leading-tight">{pack.name}</h3>
                         <p className="text-[13px] text-ink-muted">{pack.description}</p>
                       </div>
                       <span className="shrink-0 rounded-full border border-border-strong px-2 py-0.5 text-[11.5px] text-ink-muted">

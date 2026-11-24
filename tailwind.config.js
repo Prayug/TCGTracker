@@ -86,6 +86,28 @@ export default {
           DEFAULT: 'var(--warn)',
           muted: 'var(--warn-muted)',
         },
+        // Fixed dark viewing surface for camera feeds, slabs and pack opening
+        // only (play and capture). Literal values so opacity modifiers work.
+        // Not for page chrome: pages stay paper/graphite.
+        stage: {
+          DEFAULT: '#0b0e14',
+          raised: '#1a222c',
+          ink: '#f1eee7',
+          cobalt: '#7f9bff',
+          gold: '#f0bd55',
+          brass: '#d4b483',
+          teal: '#3fd3a8',
+          coral: '#ff7a6b',
+          red: '#c41e3a',
+        },
+        // Pack shop tier swatches (play money tiers).
+        tier: {
+          starter: '#8a8f98',
+          bronze: '#a0673a',
+          silver: '#9aa3ad',
+          gold: '#c9a227',
+          platinum: '#5b7f8f',
+        },
         rule: {
           DEFAULT: 'var(--rule)',
           strong: 'var(--rule-strong)',
@@ -100,8 +122,6 @@ export default {
         md: '6px',
         lg: '8px',
         xl: '9px',
-        '2xl': '10px',
-        '3xl': '12px',
         full: '9999px',
       },
       borderColor: {
@@ -146,8 +166,9 @@ export default {
       fontFamily: {
         sans: ['"IBM Plex Sans"', 'system-ui', '-apple-system', 'sans-serif'],
         mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
-        display: ['"Bricolage Grotesque Variable"', '"IBM Plex Sans"', 'system-ui', 'sans-serif'],
-        editorial: ['"Newsreader Variable"', '"Newsreader"', 'Georgia', 'serif'],
+        // Newsreader is for rare display moments only (page titles, the card
+        // name on its research page). Everything else is Plex Sans.
+        display: ['"Newsreader Variable"', '"Newsreader"', 'Georgia', 'serif'],
       },
       fontSize: {
         display: [
@@ -169,9 +190,6 @@ export default {
         'float': 'float 6s ease-in-out infinite',
         'float-reverse': 'floatReverse 7s ease-in-out infinite',
         'perspective-enter': 'perspectiveEnter 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards',
-        'hero-float': 'heroFloat 5.5s ease-in-out infinite',
-        'hero-float-slow': 'heroFloat 7s ease-in-out infinite',
-        'hero-float-delay': 'heroFloat 6.2s ease-in-out 0.8s infinite',
       },
       keyframes: {
         fadeIn: {
@@ -209,10 +227,6 @@ export default {
         perspectiveEnter: {
           '0%': { opacity: '0', transform: 'perspective(1200px) rotateX(8deg) translateY(60px) scale(0.95)' },
           '100%': { opacity: '1', transform: 'perspective(1200px) rotateX(0) translateY(0) scale(1)' },
-        },
-        heroFloat: {
-          '0%, 100%': { transform: 'translateY(0px)' },
-          '50%': { transform: 'translateY(-10px)' },
         },
       },
     },

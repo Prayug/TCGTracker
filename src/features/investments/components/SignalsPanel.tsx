@@ -120,7 +120,7 @@ function MarketPulseBar({ pulse }: { pulse: InvestmentSignalsResult['pulse'] }) 
       {pulse.strongestSignal && pulse.strongestSignal.score >= 35 && (
         <div className="mt-3 rounded-lg border border-gain/20 bg-gain-muted/50 px-3 py-3">
           <p className="text-[11.5px] font-medium text-gain">Strongest actionable signal</p>
-          <p className="mt-1 font-display text-sm font-semibold text-ink-primary">
+          <p className="mt-1 text-sm font-semibold text-ink-primary">
             {pulse.strongestSignal.signalTitle}
           </p>
           <p className="mt-0.5 text-xs text-ink-secondary">{pulse.strongestSignal.entityLabel}</p>
@@ -283,7 +283,7 @@ function SignalCard({
       >
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 flex-1 space-y-2">
-            <p className="font-display text-lg font-semibold leading-tight text-ink-primary">
+            <p className="text-lg font-semibold leading-tight text-ink-primary">
               {signal.entityLabel}
             </p>
 
@@ -415,7 +415,7 @@ function SignalSection({
   return (
     <section className="space-y-2">
       <div>
-        <h2 className="font-display text-sm font-semibold text-ink-primary">{title}</h2>
+        <h2 className="text-sm font-semibold text-ink-primary">{title}</h2>
         <p className="text-xs text-ink-muted">{subtitle}</p>
       </div>
       <ul className="overflow-hidden rounded-xl border border-border-default/80 bg-surface-overlay">

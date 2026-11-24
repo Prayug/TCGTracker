@@ -44,7 +44,7 @@ export function PackTear({
         {/* Cards waiting inside */}
         <motion.div
           aria-hidden
-          className="absolute inset-x-[12%] top-[10%] h-[72%] rounded-[8px] bg-gradient-to-b from-[#f6f1e4] to-[#d9d2bf] shadow-lg"
+          className="absolute inset-x-[12%] top-[10%] h-[72%] rounded-[8px] bg-gradient-to-b from-stage-ink to-stage-brass/60 shadow-lg"
           initial={false}
           animate={torn ? { y: reduce ? 0 : -110, opacity: 1 } : { y: 0, opacity: 0.9 }}
           transition={{ type: 'spring', stiffness: 120, damping: 14, delay: 0.25 }}
@@ -72,10 +72,10 @@ export function PackTear({
             aria-hidden
             className="foil foil-rainbow pointer-events-none absolute inset-0 opacity-50 mix-blend-overlay"
           />
-          <span className="absolute inset-x-0 top-[26%] text-center font-display text-[26px] font-semibold leading-tight tracking-[-0.02em] text-white drop-shadow">
+          <span className="absolute inset-x-0 top-[26%] text-center text-[26px] font-semibold leading-tight tracking-[-0.02em] text-white drop-shadow">
             {title}
           </span>
-          <span className="absolute inset-x-0 top-[44%] text-center font-mono text-[12px] uppercase tracking-[0.2em] text-white/75">
+          <span className="absolute inset-x-0 top-[44%] text-center text-[13px] font-medium text-white/75">
             {code} · {count} cards
           </span>
           {/* Bottom crimp */}

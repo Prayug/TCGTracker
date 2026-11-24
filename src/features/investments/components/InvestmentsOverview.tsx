@@ -1,33 +1,45 @@
 import { useState } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useSearchParams } from 'react-router-dom';
 import type {
   InvestmentSignalsResult,
   InvestmentsTab,
   OpportunitiesResult,
   Opportunity,
-  OpportunityGrade,
   SlabMoversResult,
 } from '../types';
-import { HolographicCard } from '../../../components/collectible/HolographicCard';
 import { CardArt } from '../../../components/exchange/CardArt';
-import { formatUsd, PanelLoading } from './shared';
+import { Price } from '../../../components/exchange/Price';
+import { SectionHeader } from '../../../components/exchange/Section';
+import { EmptyState, LoadingRows } from '../../../components/exchange/States';
+import {
+  GRADE_LABEL,
+  GRADE_TONE,
+  displayGrade,
+  opportunityReasons,
+} from '../utils/opportunityReasons';
 import { cn } from '@/lib/utils';
 
-const GRADE: Record<OpportunityGrade, { label: string; cls: string }> = {
-  strong_buy: { label: 'Strong buy', cls: 'bg-[#0f8a66] text-white' },
-  buy: { label: 'Buy', cls: 'bg-[#1fb38a]/85 text-white' },
-  watch: { label: 'Watch', cls: 'bg-[#f0bd55] text-[#1b1b1b]' },
-  pass: { label: 'Pass', cls: 'bg-white/20 text-white' },
-};
-
 const signed = (n: number | null, suffix = '%') =>
-  n == null || !Number.isFinite(n) ? '—' : `${n > 0 ? '+' : ''}${Math.round(n * 10) / 10}${suffix}`;
+  n == null || !Number.isFinite(n)
+    ? '—'
+    : `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(Math.round(n * 10) / 10)}${suffix}`;
+
+const tone = (n: number | null) =>
+  n == null || Math.abs(n) < 0.05 ? 'text-ink-secondary' : n > 0 ? 'text-gain' : 'text-loss';
+
+function art(o: Opportunity) {
+  return {
+    id: o.cardId,
+    name: o.cardName ?? 'Card',
+    images: { small: o.imageSmall ?? undefined },
+    set: { name: o.setName },
+  };
+}
 
 /**
- * The Investments landing: the highest-scoring opportunity on a stage, the
- * next ones as a gallery to pick from, a research workspace that leads into
- * each tool with what it currently holds, and the strategy lab kept apart.
+ * Investments landing: the top-scoring card with the reasons behind its
+ * grade, the rest as a ledger you can pick from, and the research tools as a
+ * short list with what each currently holds.
  */
 export function InvestmentsOverview({
   opportunities,
@@ -45,7 +57,7 @@ export function InvestmentsOverview({
   onTab: (t: InvestmentsTab) => void;
 }) {
   const rows = (opportunities?.rows ?? [])
-    .filter((o) => o.grade !== 'pass')
+    .filter((o) => displayGrade(o).grade !== 'pass')
     .sort((a, b) => b.score - a.score);
   const [pick, setPick] = useState<string | null>(null);
   const featured = rows.find((o) => o.cardId === pick) ?? rows[0] ?? null;
@@ -58,189 +70,235 @@ export function InvestmentsOverview({
     });
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       {loading && !opportunities ? (
-        <PanelLoading />
+        <LoadingRows rows={5} art label="Scoring opportunities" />
       ) : featured ? (
-        <FeaturedOpportunity o={featured} onOpen={() => openCard(featured.cardId)} />
+        <TopPick o={featured} onOpen={() => openCard(featured.cardId)} />
       ) : (
-        <section className="rounded-3xl border border-dashed border-border-strong p-6 sm:p-8">
-          <h2 className="font-display text-[20px] font-semibold">No scored opportunities now</h2>
-          <p className="mt-1 max-w-[62ch] text-[13.5px] text-ink-secondary">
-            {error
-              ? 'The opportunity service did not answer, so nothing is scored right now. The research tools below still work from their own data.'
-              : 'Every card the model scored this run came out as a pass. That is a result, not missing data; check back after the next scoring run.'}
-          </p>
-        </section>
+        <EmptyState title="No scored opportunities right now">
+          {error
+            ? 'The opportunity service did not answer, so nothing is scored. The research tools below work from their own data.'
+            : 'Every card scored this run came out as a pass. That is a result, not missing data; check back after the next scoring run.'}
+        </EmptyState>
       )}
 
       {rows.length > 1 ? (
-        <section aria-labelledby="opp-gallery-h">
-          <div className="flex items-end justify-between border-b border-rule-strong pb-2">
-            <h2 id="opp-gallery-h" className="font-display text-[22px] font-medium">
-              More opportunities
-            </h2>
-            <button
-              type="button"
-              onClick={() => onTab('opportunities')}
-              className="text-[13px] text-accent hover:underline"
-            >
-              Map all {opportunities?.count ?? rows.length} →
-            </button>
-          </div>
-          <ul className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-8">
-            {rows.slice(0, 8).map((o, i) => (
-              <li key={`${o.cardId}-${i}`}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPick(o.cardId);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  aria-pressed={featured?.cardId === o.cardId}
-                  className={cn(
-                    'group block w-full rounded-xl p-1.5 text-left transition-colors',
-                    featured?.cardId === o.cardId
-                      ? 'bg-surface-hover ring-1 ring-ink-muted'
-                      : 'hover:bg-surface-hover/70'
-                  )}
-                >
-                  <span className="relative block">
-                    <CardArt
-                      card={{
-                        id: o.cardId,
-                        name: o.cardName ?? 'Card',
-                        images: { small: o.imageSmall ?? undefined },
-                        set: { name: o.setName },
-                      }}
-                      alt=""
-                    />
-                    <span
-                      className={cn(
-                        'absolute left-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold',
-                        GRADE[o.grade].cls
-                      )}
-                    >
-                      {o.score}
-                    </span>
-                  </span>
-                  <span className="mt-1.5 block truncate text-[12.5px] font-medium">
-                    {o.cardName ?? o.cardId}
-                  </span>
-                  <span className="block font-mono text-[11px] tabular-nums text-ink-muted">
-                    {signed(o.predictedReturn90d)} est. 90d
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
+        <section aria-labelledby="opp-list-h">
+          <SectionHeader
+            id="opp-list-h"
+            title="Next best scores"
+            note="Pick a row to read its reasons above"
+            action={
+              <button
+                type="button"
+                onClick={() => onTab('opportunities')}
+                className="text-[13px] text-accent hover:underline"
+              >
+                All {opportunities?.count ?? rows.length} opportunities
+              </button>
+            }
+          />
+          <OpportunityLedger
+            rows={rows.slice(0, 8)}
+            activeId={featured?.cardId ?? null}
+            onPick={(id) => {
+              setPick(id);
+              document.getElementById('top-pick')?.scrollIntoView({ behavior: 'smooth' });
+            }}
+          />
         </section>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-        <Workspace movers={movers} signals={signals} onTab={onTab} />
-        <StrategyLab onOpen={() => onTab('strategy')} />
-      </div>
+      <ResearchTools movers={movers} signals={signals} onTab={onTab} />
     </div>
   );
 }
 
-function FeaturedOpportunity({ o, onOpen }: { o: Opportunity; onOpen: () => void }) {
-  const reduce = useReducedMotion();
-  const figures: [string, string][] = [
-    ['Score', String(o.score)],
-    ['90-day estimate', signed(o.predictedReturn90d)],
+function GradeLabel({ o, className }: { o: Opportunity; className?: string }) {
+  const { grade } = displayGrade(o);
+  return (
+    <span
+      className={cn(
+        'inline-flex items-baseline gap-1.5 whitespace-nowrap font-medium',
+        GRADE_TONE[grade],
+        className
+      )}
+    >
+      <span
+        aria-hidden
+        className="inline-block h-1.5 w-1.5 translate-y-[-1px] rounded-full bg-current"
+      />
+      {GRADE_LABEL[grade]}
+    </span>
+  );
+}
+
+function TopPick({ o, onOpen }: { o: Opportunity; onOpen: () => void }) {
+  const reasons = opportunityReasons(o);
+  const figures: [string, string, string?][] = [
+    ['90-day forecast', signed(o.predictedReturn90d), tone(o.predictedReturn90d)],
+    [`Graded price, ${o.momentumDays}d`, signed(o.momentumPct), tone(o.momentumPct)],
     ['Confidence', o.confidence == null ? '—' : `${Math.round(o.confidence)}%`],
-    ['Risk score', o.riskScore == null ? '—' : String(o.riskScore)],
-    [`Momentum ${o.momentumDays}d`, signed(o.momentumPct)],
-    ['Price', o.currentPrice == null ? '—' : formatUsd(o.currentPrice)],
+    ['Risk', o.riskScore == null ? '—' : `${o.riskScore}/100`],
   ];
   return (
-    <section
-      data-theme="dark"
-      aria-labelledby="feat-opp-h"
-      className="atmo-stage relative overflow-hidden rounded-3xl p-5 text-white sm:p-8"
-    >
-      <p className="font-mono text-[11.5px] uppercase tracking-[0.14em] text-white/55">
-        Featured opportunity
-      </p>
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.div
-          key={o.cardId}
-          initial={reduce ? false : { opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.25 }}
-          className="mt-4 grid items-center gap-6 md:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] md:gap-10"
+    <section id="top-pick" aria-labelledby="top-pick-h" className="scroll-mt-28">
+      <SectionHeader
+        title="Highest score today"
+        note="Scored from prices, sales and listings"
+        strong
+      />
+      <div className="mt-5 grid gap-6 sm:grid-cols-[9rem_minmax(0,1fr)] md:grid-cols-[11rem_minmax(0,1fr)] md:gap-8">
+        <button
+          type="button"
+          onClick={onOpen}
+          className="mx-auto block w-36 sm:w-full"
+          aria-label={`Research ${o.cardName ?? 'this card'}`}
         >
-          <div className="mx-auto w-40 md:w-full">
-            <HolographicCard
-              card={{
-                id: o.cardId,
-                name: o.cardName ?? 'Card',
-                images: { small: o.imageSmall ?? undefined },
-                set: { name: o.setName },
-              }}
-              level="showcase"
-              onSelect={onOpen}
-              label={`Research ${o.cardName ?? 'this card'}`}
-            />
-          </div>
-          <div className="min-w-0">
-            <span
-              className={cn(
-                'inline-block rounded-full px-2 py-0.5 text-[11.5px] font-semibold',
-                GRADE[o.grade].cls
-              )}
-            >
-              {GRADE[o.grade].label}
+          <CardArt card={art(o)} priority />
+        </button>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <GradeLabel o={o} className="text-[14px]" />
+            <span className="font-mono text-[13px] tabular-nums text-ink-muted">
+              score {o.score}/100
             </span>
-            <h2
-              id="feat-opp-h"
-              className="mt-2 font-display text-[clamp(1.7rem,3.4vw,2.6rem)] font-semibold leading-tight tracking-[-0.02em]"
-            >
-              {o.cardName ?? o.cardId}
-            </h2>
-            <p className="text-[13px] text-white/60">{o.setName}</p>
-            <p className="mt-3 max-w-[60ch] text-[14px] text-white/80">{o.why}</p>
-            <dl className="mt-5 grid grid-cols-3 gap-x-6 gap-y-3 sm:grid-cols-6">
-              {figures.map(([k, v]) => (
-                <div key={k}>
-                  <dt className="text-[11.5px] text-white/50">{k}</dt>
-                  <dd className="font-mono text-[16px] tabular-nums">{v}</dd>
-                </div>
-              ))}
-            </dl>
-            {o.keySignals.length ? (
-              <ul className="mt-4 flex flex-wrap gap-1.5">
-                {o.keySignals.slice(0, 4).map((s) => (
-                  <li
-                    key={s}
-                    className="rounded-full border border-white/20 px-2.5 py-0.5 text-[11.5px] text-white/75"
-                  >
-                    {s}
-                  </li>
-                ))}
-              </ul>
+          </div>
+          <h2
+            id="top-pick-h"
+            className="mt-1 text-[clamp(1.4rem,2.4vw,1.9rem)] font-semibold leading-tight"
+          >
+            {o.cardName ?? o.cardId}
+          </h2>
+          <p className="text-meta text-ink-muted">
+            {o.setName}
+            {o.currentPrice != null ? (
+              <>
+                {' · '}
+                <Price value={o.currentPrice} size="sm" className="text-ink-secondary" />
+              </>
             ) : null}
-            <button
-              type="button"
-              onClick={onOpen}
-              className="mt-5 inline-flex h-9 items-center rounded-full bg-white px-4 text-[13px] font-medium text-[#0b0e14] hover:bg-white/90"
+          </p>
+
+          {reasons.length ? (
+            <ul
+              className="mt-4 max-w-[60ch] border-t border-rule"
+              aria-label="Why it scored this way"
             >
+              {reasons.map((r) => (
+                <li key={r} className="border-b border-rule py-2 text-[13.5px] text-ink-primary">
+                  {r}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          <dl className="mt-4 grid max-w-[40rem] grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+            {figures.map(([k, v, cls]) => (
+              <div key={k}>
+                <dt className="text-meta text-ink-muted">{k}</dt>
+                <dd className={cn('font-mono text-[16px] tabular-nums', cls)}>{v}</dd>
+              </div>
+            ))}
+          </dl>
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <button type="button" onClick={onOpen} className="btn-primary">
               Research this card
             </button>
-            <p className="mt-3 text-[11.5px] text-white/45">
-              A model score from price, sales and signal data, not advice. Estimates can be wrong.
+            <p className="text-[11.5px] text-ink-muted">
+              A model score, not advice. Forecasts can be wrong.
             </p>
           </div>
-        </motion.div>
-      </AnimatePresence>
+        </div>
+      </div>
     </section>
   );
 }
 
-function Workspace({
+function OpportunityLedger({
+  rows,
+  activeId,
+  onPick,
+}: {
+  rows: Opportunity[];
+  activeId: string | null;
+  onPick: (id: string) => void;
+}) {
+  return (
+    <table className="ledger ledger-tight mt-1">
+      <caption className="sr-only">Opportunities by score</caption>
+      <thead>
+        <tr>
+          <th scope="col">Card</th>
+          <th scope="col" className="hidden sm:table-cell">
+            Grade
+          </th>
+          <th scope="col" className="num">
+            Score
+          </th>
+          <th scope="col" className="num">
+            90d forecast
+          </th>
+          <th scope="col" className="num hidden md:table-cell">
+            Graded price
+          </th>
+          <th scope="col" className="num hidden lg:table-cell">
+            Price
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((o, i) => (
+          <tr
+            key={`${o.cardId}-${i}`}
+            className={cn(o.cardId === activeId && '[&>td]:bg-surface-hover')}
+          >
+            <td className="w-full max-w-0">
+              <button
+                type="button"
+                onClick={() => onPick(o.cardId)}
+                aria-pressed={o.cardId === activeId}
+                className="group flex w-full min-w-0 items-center gap-3 text-left"
+              >
+                <span className="w-8 shrink-0">
+                  <CardArt card={art(o)} flat alt="" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate font-medium group-hover:underline">
+                    {o.cardName ?? o.cardId}
+                  </span>
+                  <span className="block truncate text-meta text-ink-muted">
+                    {o.setName}
+                    <span className="sm:hidden">
+                      {' · '}
+                      <GradeLabel o={o} />
+                    </span>
+                  </span>
+                </span>
+              </button>
+            </td>
+            <td className="hidden whitespace-nowrap sm:table-cell">
+              <GradeLabel o={o} className="text-[13px]" />
+            </td>
+            <td className="num whitespace-nowrap">{o.score}</td>
+            <td className={cn('num', tone(o.predictedReturn90d))}>
+              {signed(o.predictedReturn90d)}
+            </td>
+            <td className={cn('num hidden md:table-cell', tone(o.momentumPct))}>
+              {signed(o.momentumPct)}
+            </td>
+            <td className="num hidden lg:table-cell">
+              <Price value={o.currentPrice} size="sm" unavailableLabel="—" />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function ResearchTools({
   movers,
   signals,
   onTab,
@@ -249,114 +307,55 @@ function Workspace({
   signals: InvestmentSignalsResult | null;
   onTab: (t: InvestmentsTab) => void;
 }) {
-  const topMovers = (movers?.rows ?? []).slice(0, 3);
   const tools: { tab: InvestmentsTab; title: string; body: string; count?: string }[] = [
     {
       tab: 'movers',
       title: 'Slab movers',
-      body: 'Graded prices that moved most, with sale counts and liquidity.',
-      count: movers ? `${movers.count} moving over ${movers.days}d` : undefined,
+      body: 'Graded prices that moved most, with sale counts',
+      count: movers ? `${movers.count} over ${movers.days}d` : undefined,
     },
-    {
-      tab: 'buyouts',
-      title: 'Buyout scanner',
-      body: 'Cards whose cheap listings are thinning out.',
-    },
+    { tab: 'buyouts', title: 'Buyouts', body: 'Cards whose cheap listings are thinning out' },
     {
       tab: 'similar',
       title: 'Comparables',
-      body: 'Alt grades, set mates and the same character, side by side.',
+      body: 'Other grades, set mates and the same character',
     },
     {
       tab: 'signals',
-      title: 'Signals',
-      body: 'News and events, each with what the market did after.',
-      count: signals ? `${signals.actionable.length} actionable of ${signals.count}` : undefined,
+      title: 'News and events',
+      body: 'Each with what the market did after',
+      count: signals ? `${signals.actionable.length} worth a look` : undefined,
+    },
+    {
+      tab: 'strategy',
+      title: 'Strategy lab',
+      body: 'Replay buying rules on real weekly prices, after fees',
     },
   ];
   return (
-    <section
-      aria-labelledby="ws-h"
-      className="rounded-3xl border border-border-default bg-surface-raised p-5 sm:p-6"
-    >
-      <h2 id="ws-h" className="font-display text-[19px] font-semibold">
-        Research workspace
-      </h2>
-      <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+    <section aria-labelledby="tools-h">
+      <SectionHeader id="tools-h" title="More research" />
+      <ul className="divide-y divide-rule">
         {tools.map((t) => (
           <li key={t.tab}>
             <button
               type="button"
               onClick={() => onTab(t.tab)}
-              className="group flex h-full w-full flex-col rounded-2xl border border-border-default p-4 text-left transition-colors hover:border-ink-muted"
+              className="group grid w-full grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 py-2.5 text-left sm:grid-cols-[10rem_minmax(0,1fr)_auto]"
             >
-              <span className="text-[14.5px] font-semibold">{t.title}</span>
-              <span className="mt-1 flex-1 text-[12.5px] text-ink-muted">{t.body}</span>
-              {t.tab === 'movers' && topMovers.length ? (
-                <span className="mt-3 flex gap-1.5" aria-hidden>
-                  {topMovers.map((m, i) => (
-                    <span key={`${m.cardId}-${i}`} className="w-9">
-                      <CardArt
-                        card={{
-                          id: m.cardId,
-                          name: m.cardName ?? 'Card',
-                          images: { small: m.imageSmall ?? undefined },
-                        }}
-                        flat
-                        alt=""
-                      />
-                    </span>
-                  ))}
-                </span>
-              ) : null}
-              <span className="mt-3 flex items-center justify-between text-[12.5px]">
-                <span className="font-mono text-ink-secondary">{t.count ?? ''}</span>
-                <span className="text-accent group-hover:underline">Open →</span>
+              <span className="text-[13.5px] font-medium text-accent group-hover:underline">
+                {t.title}
+              </span>
+              <span className="hidden truncate text-[13px] text-ink-secondary sm:block">
+                {t.body}
+              </span>
+              <span className="font-mono text-[12px] tabular-nums text-ink-muted">
+                {t.count ?? ''}
               </span>
             </button>
           </li>
         ))}
       </ul>
-    </section>
-  );
-}
-
-function StrategyLab({ onOpen }: { onOpen: () => void }) {
-  return (
-    <section
-      aria-labelledby="lab-h"
-      className="flex flex-col rounded-3xl border border-border-default bg-surface-raised p-5 sm:p-6"
-    >
-      <svg viewBox="0 0 120 48" className="h-12 w-28 text-accent" aria-hidden>
-        <path d="M2 44h116" stroke="currentColor" strokeOpacity=".25" />
-        <path
-          d="M4 38 22 33 38 36 56 24 72 27 90 14 116 10"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-        />
-        <path
-          d="M4 38 22 37 38 39 56 34 72 36 90 33 116 32"
-          fill="none"
-          stroke="currentColor"
-          strokeOpacity=".45"
-          strokeWidth="2"
-          strokeDasharray="3 4"
-          strokeLinecap="round"
-        />
-      </svg>
-      <h2 id="lab-h" className="mt-3 font-display text-[19px] font-semibold">
-        Strategy lab
-      </h2>
-      <p className="mt-1 flex-1 text-[13px] text-ink-secondary">
-        Replay simple buying rules on real weekly prices, after fees and shipping, and see whether
-        any did better than buying a random card. It says plainly when there is not enough history
-        to tell.
-      </p>
-      <button type="button" onClick={onOpen} className="btn-secondary mt-4 self-start">
-        Test strategies
-      </button>
     </section>
   );
 }

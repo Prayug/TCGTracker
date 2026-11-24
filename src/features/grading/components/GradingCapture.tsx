@@ -305,9 +305,7 @@ export const GradingCapture: React.FC<GradingCaptureProps> = ({
           />
           <div className="flex flex-1 flex-col justify-center gap-3">
             <div>
-              <h2 className="font-display text-h3 text-ink-primary">
-                Front is in. Photograph the back.
-              </h2>
+              <h2 className="text-h3 text-ink-primary">Front is in. Photograph the back.</h2>
               <p className="mt-1 text-sm text-ink-secondary">
                 Same distance and lighting, card flipped. Both sides are required for a PSA number.
               </p>
@@ -353,7 +351,7 @@ export const GradingCapture: React.FC<GradingCaptureProps> = ({
           </div>
           <div className="flex flex-1 flex-col justify-center gap-3">
             <div>
-              <h2 className="font-display text-h3 text-ink-primary">Both sides captured</h2>
+              <h2 className="text-h3 text-ink-primary">Both sides captured</h2>
               <p className="mt-1 text-sm text-ink-secondary">
                 We’ll return a predicted PSA number from these two photos.
               </p>
@@ -426,7 +424,7 @@ export const GradingCapture: React.FC<GradingCaptureProps> = ({
             style={{ width: 92, aspectRatio: '63 / 88', borderRadius: 8 }}
             aria-hidden
           />
-          <h2 className="font-display text-h3 text-ink-primary">
+          <h2 className="text-h3 text-ink-primary">
             {askingBack ? 'Photograph the back' : 'Photograph the front'}
           </h2>
           <p className="mt-1 max-w-md text-sm text-ink-secondary">
@@ -498,7 +496,7 @@ export const GradingCapture: React.FC<GradingCaptureProps> = ({
 
 function CaptureShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-border-subtle bg-surface-raised p-5 sm:p-6">
+    <div className="rounded-xl border border-border-subtle bg-surface-raised p-5 sm:p-6">
       {children}
     </div>
   );

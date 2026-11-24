@@ -37,11 +37,11 @@ export function CostReview({
   return (
     <section
       aria-labelledby="cost-review-h"
-      className="rounded-3xl border border-[color-mix(in_srgb,var(--warn)_40%,transparent)] bg-warn-muted p-5 sm:p-6"
+      className="rounded-xl border border-[color-mix(in_srgb,var(--warn)_40%,transparent)] bg-warn-muted p-5 sm:p-6"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="max-w-[62ch]">
-          <h3 id="cost-review-h" className="font-display text-[19px] font-semibold">
+          <h3 id="cost-review-h" className="text-[19px] font-semibold">
             Review your costs
           </h3>
           <p className="mt-1 text-[13px] text-ink-secondary">

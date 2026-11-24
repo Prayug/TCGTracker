@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { FastForward, Sparkles } from 'lucide-react';
 import { Pack, PackPull } from '../../../types/pokemon';
 import { PackPullCardDisplay } from './PackPullCardDisplay';
@@ -28,7 +28,7 @@ const MysteryCard: React.FC<{ gradient: string }> = ({ gradient }) => (
     />
     <div
       className={cn(
-        'relative aspect-[63/88] overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br shadow-elevated',
+        'relative aspect-[63/88] overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br shadow-elevated',
         gradient
       )}
     >
@@ -119,7 +119,7 @@ export const PackRevealStage: React.FC<PackRevealStageProps> = ({
         />
         <p
           className={cn(
-            'text-center text-xs font-bold uppercase tracking-[0.28em]',
+            'text-center text-[13px] font-semibold',
             theme && visualPhase !== 'mystery' ? theme.accent : 'text-ink-muted'
           )}
         >

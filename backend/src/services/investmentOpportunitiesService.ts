@@ -1123,6 +1123,29 @@ export interface OpportunityRow {
   keySignals: string[];
 }
 
+/**
+ * Score → grade, with one guard: a card the model expects to lose value over
+ * 90 days is never graded above "watch", however strong its other signals.
+ * (Momentum alone can push the blended score into "buy" territory while the
+ * forecast points down; showing "Strong buy" next to a negative forecast
+ * reads as a contradiction.)
+ */
+export function gradeOpportunity(
+  score: number,
+  predictedReturn90d: number | null | undefined
+): { grade: OpportunityGrade; capped: boolean } {
+  const raw: OpportunityGrade =
+    score >= 75 ? 'strong_buy' : score >= 60 ? 'buy' : score >= 45 ? 'watch' : 'pass';
+  if (
+    predictedReturn90d != null &&
+    predictedReturn90d < 0 &&
+    (raw === 'strong_buy' || raw === 'buy')
+  ) {
+    return { grade: 'watch', capped: true };
+  }
+  return { grade: raw, capped: false };
+}
+
 /** "Investment opportunities" — prediction + momentum + buyout + sentiment blend. */
 export async function getOpportunities(options?: {
   limit?: number;
@@ -1343,8 +1366,7 @@ export async function getOpportunities(options?: {
     });
 
     const score = clamp(Math.round(baseScore + bulk.economicBoost - bulk.penalty), 0, 100);
-    const grade: OpportunityGrade =
-      score >= 75 ? 'strong_buy' : score >= 60 ? 'buy' : score >= 45 ? 'watch' : 'pass';
+    const { grade, capped } = gradeOpportunity(score, pred?.expected_90d_return ?? null);
 
     const keySignals: string[] = [];
     if (pred?.expected_90d_return != null) {
@@ -1368,6 +1390,7 @@ export async function getOpportunities(options?: {
       keySignals.push(`set_momentum:+${compMomentumPct}%`);
     }
 
+    if (capped) keySignals.push('grade_capped:negative_forecast');
     if (bulk.overrideActive) {
       keySignals.push('bulk_override:demand_evidence');
     }
@@ -1399,6 +1422,7 @@ export async function getOpportunities(options?: {
       whyParts.push('premium below set median');
     }
 
+    if (capped) whyParts.push('held at watch because the 90-day forecast is negative');
     const baseWhy = `${whyParts.join('; ')}.`;
     const why = buildBulkAwareWhy({ marketPrice, bulk, baseWhy: baseWhy });
 

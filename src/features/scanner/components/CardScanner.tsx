@@ -400,20 +400,20 @@ export function CardScanner() {
             type="button"
             data-theme="dark"
             onClick={() => handleModeSelect('camera')}
-            className="atmo-stage group relative grid w-full overflow-hidden rounded-3xl text-left text-white sm:grid-cols-[minmax(0,1fr)_15rem]"
+            className="atmo-stage group relative grid w-full overflow-hidden rounded-xl text-left text-white sm:grid-cols-[minmax(0,1fr)_15rem]"
           >
             <span className="flex flex-col justify-center gap-2 p-6 sm:p-8">
-              <span className="grid h-11 w-11 place-items-center rounded-xl bg-white text-[#0b0e14]">
+              <span className="grid h-11 w-11 place-items-center rounded-xl bg-white text-stage">
                 <Camera className="h-5 w-5" aria-hidden />
               </span>
-              <span className="mt-2 font-display text-[clamp(1.5rem,3vw,2.1rem)] font-semibold leading-tight tracking-[-0.02em]">
+              <span className="mt-2 text-[clamp(1.5rem,3vw,2.1rem)] font-semibold leading-tight tracking-[-0.02em]">
                 Point your camera at a card
               </span>
               <span className="text-[14px] text-white/70">
                 Hold it flat in even light and fill the frame. You will see the match next to your
                 photo before anything is saved.
               </span>
-              <span className="mt-2 inline-flex items-center gap-1 text-[13.5px] font-medium text-[#a3b7ff]">
+              <span className="mt-2 inline-flex items-center gap-1 text-[13.5px] font-medium text-stage-cobalt">
                 Start the camera
                 <ChevronRight
                   className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
@@ -422,8 +422,8 @@ export function CardScanner() {
               </span>
             </span>
             <span className="relative hidden h-full min-h-[17rem] sm:block" aria-hidden>
-              <span className="absolute left-1/2 top-1/2 aspect-[5/7] h-[62%] -translate-x-1/2 -translate-y-1/2 rotate-[-4deg] rounded-[10px] bg-gradient-to-br from-[#f0bd55] via-[#d79b2b] to-[#7f4b0c] shadow-2xl">
-                <span className="absolute inset-[7%] rounded-[6px] bg-gradient-to-b from-[#7f9bff]/70 to-[#2f56e6]/40" />
+              <span className="absolute left-1/2 top-1/2 aspect-[5/7] h-[62%] -translate-x-1/2 -translate-y-1/2 rotate-[-4deg] rounded-[10px] bg-gradient-to-br from-stage-gold via-stage-brass to-gold shadow-2xl">
+                <span className="absolute inset-[7%] rounded-[6px] bg-gradient-to-b from-stage-cobalt/70 to-stage-cobalt/30" />
               </span>
               <FramingGuide bare className="[&>div]:h-[80%] [&>div]:shadow-none" />
             </span>

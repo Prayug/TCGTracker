@@ -61,7 +61,7 @@ function RealisticGradedSlab({
             aria-hidden
           />
           <div
-            className="pointer-events-none absolute inset-0 z-0 rounded-2xl"
+            className="pointer-events-none absolute inset-0 z-0 rounded-xl"
             style={{
               background: `radial-gradient(circle at 50% 40%, rgba(${glowRgb},0.22), transparent 62%)`,
             }}
@@ -111,7 +111,7 @@ function RealisticGradedSlab({
             <div className="flex h-full items-center justify-between gap-2 px-[4%]">
               <div className="min-w-0 leading-none">
                 <div className="flex items-baseline gap-1.5">
-                  <span className="text-[9px] font-black italic tracking-tight text-[#c41e3a] sm:text-[11px]">
+                  <span className="text-[9px] font-black italic tracking-tight text-stage-red sm:text-[11px]">
                     {grader}
                   </span>
                   <span className="text-[5px] font-bold tracking-[0.18em] text-slate-500 sm:text-[7px]">
@@ -251,7 +251,7 @@ export const PackPullCardDisplay: React.FC<PackPullCardDisplayProps> = ({
     <div className={`relative ${hero ? 'flex h-full w-full items-center justify-center' : ''}`}>
       <div
         className={cn(
-          'overflow-hidden rounded-2xl border-2 p-[3px] shadow-2xl',
+          'overflow-hidden rounded-xl border-2 p-[3px] shadow-2xl',
           theme ? theme.border : 'border-transparent',
           theme ? 'bg-surface-inset' : `bg-gradient-to-br ${rarityClassName}`,
           rawShell

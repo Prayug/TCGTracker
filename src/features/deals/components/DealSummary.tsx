@@ -10,13 +10,12 @@ export function DealSummary({ summary }: { summary: DealSummary }) {
   const best = summary.bestDeal;
   return (
     <section
-      data-theme="dark"
       aria-label="Scan summary"
-      className="atmo-stage relative overflow-hidden rounded-3xl p-5 text-white sm:p-7"
+      className="sheet relative overflow-hidden rounded-lg p-5 text-ink-primary sm:p-7"
     >
       <div className="grid items-center gap-6 md:grid-cols-[minmax(0,1fr)_auto]">
         <div className="min-w-0">
-          <p className="font-display text-[clamp(1.5rem,3vw,2.3rem)] font-semibold leading-tight tracking-[-0.02em]">
+          <p className="text-[clamp(1.25rem,2vw,1.6rem)] font-semibold leading-tight">
             {summary.dealsFound.toLocaleString()} listing{summary.dealsFound === 1 ? '' : 's'} under
             the market estimate
           </p>
@@ -32,7 +31,7 @@ export function DealSummary({ summary }: { summary: DealSummary }) {
             <Stat label="Deepest" value={best ? formatPercent(best.discountPercent) : '—'} />
           </dl>
           {best ? (
-            <p className="mt-4 text-[13.5px] text-white/70">
+            <p className="mt-4 text-[13.5px] text-ink-secondary">
               The deepest is {best.cardName}, {formatCurrency(best.allInCost)} all in against a{' '}
               {formatCurrency(best.marketValue)} estimate. Asking prices are not sales; check the
               listing before you buy.
@@ -67,7 +66,7 @@ export function DealSummary({ summary }: { summary: DealSummary }) {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-[12px] text-white/55">{label}</dt>
+      <dt className="text-[12px] text-ink-muted">{label}</dt>
       <dd className="font-mono text-[17px] font-medium tabular-nums sm:text-[26px]">{value}</dd>
     </div>
   );

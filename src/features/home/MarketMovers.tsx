@@ -88,7 +88,7 @@ export function MarketMovers() {
     <section aria-labelledby="movers-h">
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-rule-strong pb-2">
         <div>
-          <h2 id="movers-h" className="font-display text-[22px] font-medium leading-tight">
+          <h2 id="movers-h" className="text-[22px] font-medium leading-tight">
             Market movers
           </h2>
           <p className="text-meta text-ink-muted">
@@ -232,8 +232,8 @@ function MoverGallery({
                     />
                     <span
                       className={cn(
-                        'absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 font-mono text-[11px] font-medium tabular-nums text-white shadow',
-                        e.changePercent >= 0 ? 'bg-[#0f8a66]' : 'bg-[#c2402f]'
+                        'absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 font-mono text-[11px] font-medium tabular-nums text-ink-primary shadow',
+                        e.changePercent >= 0 ? 'bg-gain' : 'bg-loss'
                       )}
                     >
                       {e.changePercent > 0 ? '+' : ''}
@@ -309,12 +309,9 @@ function MoverFanPanel({
   const max = current ? Math.max(current.currentPrice, current.previousPrice) : 1;
 
   return (
-    <div
-      data-theme="dark"
-      className="atmo-stage col-span-full overflow-hidden rounded-3xl p-5 text-white sm:p-8"
-    >
+    <div className="col-span-full border-b border-rule pb-6">
       <div className="relative z-20 flex flex-wrap items-center justify-between gap-3">
-        <p className="font-display text-[20px] font-semibold">
+        <p className="text-[20px] font-semibold">
           The hand this {period === '24h' ? 'day' : period === '7d' ? 'week' : 'month'} dealt
         </p>
         <div className="segmented" role="group" aria-label="Show">
@@ -327,7 +324,7 @@ function MoverFanPanel({
         </div>
       </div>
       {items.length === 0 ? (
-        <p className="mt-6 text-white/70">
+        <p className="mt-6 text-ink-secondary">
           No {side === 'up' ? 'rising' : 'falling'} cards with artwork this period.
         </p>
       ) : (
@@ -351,28 +348,28 @@ function MoverFanPanel({
                 className="pb-2"
                 aria-live="polite"
               >
-                <p className="text-[13px] text-white/60">{moverSubtitle(current)}</p>
-                <p className="mt-1 font-display text-[clamp(1.5rem,2.6vw,2.2rem)] font-semibold leading-tight">
+                <p className="text-[13px] text-ink-muted">{moverSubtitle(current)}</p>
+                <p className="mt-1 text-[clamp(1.25rem,2vw,1.6rem)] font-semibold leading-tight">
                   {current.productName}
                 </p>
                 <div className="mt-3 flex flex-wrap items-baseline gap-3">
-                  <Price value={current.currentPrice} size="lg" className="text-white" />
+                  <Price value={current.currentPrice} size="lg" className="text-ink-primary" />
                   <Delta pct={current.changePercent} />
                 </div>
                 <div className="mt-5 space-y-2" aria-hidden>
                   {[
-                    ['Before', current.previousPrice, 'bg-white/35'],
+                    ['Before', current.previousPrice, 'bg-ink-primary/35'],
                     [
                       'Now',
                       current.currentPrice,
-                      current.changePercent >= 0 ? 'bg-[#3fd3a8]' : 'bg-[#ff7a6b]',
+                      current.changePercent >= 0 ? 'bg-gain' : 'bg-loss',
                     ],
                   ].map(([k, v, c]) => (
                     <div
                       key={k as string}
                       className="grid grid-cols-[3.5rem_minmax(0,1fr)_5.5rem] items-center gap-3 text-[12.5px]"
                     >
-                      <span className="text-white/60">{k}</span>
+                      <span className="text-ink-muted">{k}</span>
                       <motion.span
                         className={cn('h-2.5 rounded-full', c as string)}
                         initial={{ width: 0 }}
@@ -385,11 +382,11 @@ function MoverFanPanel({
                     </div>
                   ))}
                 </div>
-                <p className="mt-3 text-[12px] text-white/50">
+                <p className="mt-3 text-[12px] text-ink-muted">
                   Raw Near Mint market price, {period} change. Drag across the hand or use the arrow
                   keys.
                 </p>
-                <button type="button" onClick={() => onOpen(current)} className="btn-tactile mt-5">
+                <button type="button" onClick={() => onOpen(current)} className="btn-primary mt-5">
                   Open {current.productName}
                 </button>
               </motion.div>

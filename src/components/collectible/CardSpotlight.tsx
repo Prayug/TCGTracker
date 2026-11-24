@@ -59,7 +59,7 @@ export function CardSpotlight({
               type="button"
               aria-label="Close"
               tabIndex={-1}
-              className="absolute inset-0 cursor-default bg-[#05070b]/75 backdrop-blur-md"
+              className="absolute inset-0 cursor-default bg-stage/75 backdrop-blur-md"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -78,7 +78,7 @@ export function CardSpotlight({
                 />
               </div>
               <motion.div
-                className="relative rounded-2xl border border-white/10 bg-[#0e1117]/90 p-5 text-[#f1eee7] shadow-2xl sm:p-6"
+                className="relative rounded-lg border border-border-default bg-surface-overlay p-5 text-ink-primary shadow-popover sm:p-6"
                 initial={reduced ? false : { opacity: 0, x: 24 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 12 }}
@@ -91,20 +91,20 @@ export function CardSpotlight({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-[13px] text-white/60">
+                    <p className="text-[13px] text-ink-muted">
                       {card.set?.name ?? 'Unknown set'}
                       {card.number ? ` · No. ${card.number}` : ''}
                     </p>
-                    <h2 className="mt-1 font-display text-[clamp(1.6rem,3vw,2.3rem)] font-semibold leading-[1.05]">
+                    <h2 className="mt-1 text-[clamp(1.4rem,2.6vw,1.9rem)] font-semibold leading-tight">
                       {card.name}
                     </h2>
                     <p className="mt-2 flex flex-wrap gap-2 text-[12.5px]">
                       {card.rarity ? (
-                        <span className="rounded-full bg-white/10 px-2.5 py-0.5">
+                        <span className="rounded-full bg-surface-hover px-2.5 py-0.5">
                           {card.rarity}
                         </span>
                       ) : null}
-                      <span className="rounded-full bg-white/10 px-2.5 py-0.5">
+                      <span className="rounded-full bg-surface-hover px-2.5 py-0.5">
                         {FINISH_LABEL[finishOf(card)]}
                       </span>
                     </p>
@@ -112,7 +112,7 @@ export function CardSpotlight({
                   <button
                     type="button"
                     onClick={onClose}
-                    className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/10 hover:bg-white/20"
+                    className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-surface-hover hover:bg-surface-hover"
                     aria-label="Close preview"
                   >
                     <X className="h-5 w-5" aria-hidden />
@@ -122,7 +122,7 @@ export function CardSpotlight({
                 <button
                   type="button"
                   onClick={() => setFlipped((f) => !f)}
-                  className="mt-5 inline-flex items-center gap-2 text-[13px] text-white/70 hover:text-white"
+                  className="mt-5 inline-flex items-center gap-2 text-[13px] text-ink-secondary hover:text-ink-primary"
                   aria-pressed={flipped}
                 >
                   <RotateCcw className="h-4 w-4" aria-hidden />

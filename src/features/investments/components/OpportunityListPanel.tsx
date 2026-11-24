@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { displayGrade, opportunityReasons } from '../utils/opportunityReasons';
 import { X } from 'lucide-react';
 import { InsightsApiContext } from '../../market-insights/hooks/insightsApiContext';
 import { slabInsightsApi } from '../../../services/marketInsightsApi';
@@ -92,9 +93,9 @@ export function OpportunityListPanel({ data, loading, minScore, onMinScoreChange
                         <p className="truncate text-xs text-ink-muted">{o.setName}</p>
                       </div>
                       <span
-                        className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${GRADE_STYLES[o.grade]}`}
+                        className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${GRADE_STYLES[displayGrade(o).grade]}`}
                       >
-                        {GRADE_LABELS[o.grade]}
+                        {GRADE_LABELS[displayGrade(o).grade]}
                       </span>
                     </div>
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -141,7 +142,9 @@ export function OpportunityListPanel({ data, loading, minScore, onMinScoreChange
                   </div>
                 </div>
 
-                <p className="mt-2 line-clamp-2 text-xs text-ink-muted">{o.why}</p>
+                <p className="mt-2 line-clamp-2 text-xs text-ink-muted">
+                  {opportunityReasons(o, 2).join(' · ')}
+                </p>
               </button>
             ))}
           </div>
@@ -180,9 +183,9 @@ export function OpportunityListPanel({ data, loading, minScore, onMinScoreChange
                   </p>
                 </div>
                 <span
-                  className={`ml-auto rounded-full border px-2.5 py-1 text-xs font-semibold ${GRADE_STYLES[selected.grade]}`}
+                  className={`ml-auto rounded-full border px-2.5 py-1 text-xs font-semibold ${GRADE_STYLES[displayGrade(selected).grade]}`}
                 >
-                  {GRADE_LABELS[selected.grade]} · {selected.score}
+                  {GRADE_LABELS[displayGrade(selected).grade]} · {selected.score}
                 </span>
               </div>
 
@@ -220,20 +223,20 @@ export function OpportunityListPanel({ data, loading, minScore, onMinScoreChange
               </div>
 
               <div>
-                <p className="mb-1.5 text-[11.5px] font-medium text-ink-muted">Key signals</p>
-                <ul className="flex flex-wrap gap-1.5">
-                  {selected.keySignals.map((s) => (
+                <p className="mb-1 text-[12.5px] font-medium text-ink-secondary">
+                  Why it scored this way
+                </p>
+                <ul className="border-t border-rule">
+                  {opportunityReasons(selected).map((r) => (
                     <li
-                      key={s}
-                      className="rounded-full border border-border-default bg-surface-inset px-2 py-0.5 text-[10px] text-ink-secondary"
+                      key={r}
+                      className="border-b border-rule py-1.5 text-[13px] text-ink-primary"
                     >
-                      {s.replace(/_/g, ' ')}
+                      {r}
                     </li>
                   ))}
                 </ul>
               </div>
-
-              <p className="text-xs text-ink-secondary">{selected.why}</p>
 
               <div className="rounded-xl border border-border-default bg-surface-raised">
                 <p className="border-b border-border-subtle px-3 py-2 text-[11.5px] font-medium text-ink-muted">

@@ -69,13 +69,13 @@ const PULL_THEMES: Record<PullVisualKind, PullTheme> = {
     label: 'BGS 10',
     hitLabel: 'BGS 10',
     resultEyebrow: 'BGS 10',
-    accent: 'text-[#d4b483]',
-    badge: 'border-[#d4b483]/45 bg-[#d4b483]/12 text-[#e0c49a]',
+    accent: 'text-stage-brass',
+    badge: 'border-stage-brass/45 bg-stage-brass/12 text-stage-brass',
     glow: 'bg-[radial-gradient(circle_at_50%_42%,rgba(212,180,131,0.24),transparent_62%)]',
     glowRgb: '212,180,131',
-    bar: 'bg-[#d4b483]/35',
-    border: 'border-[#d4b483]/40',
-    modalRing: 'ring-1 ring-[#d4b483]/30',
+    bar: 'bg-stage-brass/35',
+    border: 'border-stage-brass/40',
+    modalRing: 'ring-1 ring-stage-brass/30',
   },
 };
 
@@ -86,28 +86,28 @@ export function packTierTheme(tier: PackTier | string): PackTierTheme {
         text: 'text-orange-300',
         bar: 'bg-orange-400/40',
         gradient: 'from-orange-400 to-orange-600',
-        soft: 'from-[#1a222c] to-[#0b0f14]',
+        soft: 'from-stage-raised to-stage',
       };
     case 'silver':
       return {
         text: 'text-slate-200',
         bar: 'bg-slate-300/40',
         gradient: 'from-slate-300 to-slate-500',
-        soft: 'from-[#12201c] to-[#0b0f14]',
+        soft: 'from-stage-teal/10 to-stage',
       };
     case 'gold':
       return {
         text: 'text-amber-300',
         bar: 'bg-amber-400/40',
         gradient: 'from-amber-400 to-yellow-600',
-        soft: 'from-[#1c2410] via-[#121820] to-[#0b0f14]',
+        soft: 'from-stage-gold/10 via-stage-raised to-stage',
       };
     case 'platinum':
       return {
         text: 'text-violet-300',
         bar: 'bg-violet-400/40',
         gradient: 'from-violet-400 to-purple-600',
-        soft: 'from-[#102428] via-[#0b0f14] to-[#05060a]',
+        soft: 'from-stage-cobalt/15 via-stage to-stage',
       };
     default:
       return {

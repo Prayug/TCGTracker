@@ -130,12 +130,9 @@ export function CollectionShowcase({
       ) : null}
 
       <section aria-labelledby="case-h">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <h2
-            id="case-h"
-            className="font-display text-[clamp(1.4rem,2.4vw,1.9rem)] font-semibold tracking-[-0.02em]"
-          >
-            The whole case{' '}
+        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-rule pb-2">
+          <h2 id="case-h" className="text-h2">
+            All holdings{' '}
             <span className="font-mono text-[15px] font-normal text-ink-muted">{rows.length}</span>
           </h2>
           <div className="flex flex-wrap items-center gap-2">
@@ -300,36 +297,36 @@ function HoldingFacts({ vc, onEdit }: { vc: VaultCard; onEdit: () => void }) {
   const top = Math.max(unit, ...grades.map((g) => g.gradedPrice), 1);
 
   return (
-    <div className="space-y-4 text-white">
+    <div className="space-y-4 text-ink-primary">
       <dl className="grid grid-cols-2 gap-x-5 gap-y-3 sm:grid-cols-3">
         <div>
-          <dt className="text-[11.5px] text-white/55">Holding value</dt>
+          <dt className="text-[11.5px] text-ink-muted">Holding value</dt>
           <dd className="mt-0.5">
-            <Price value={holdingMarketValue(vc)} size="lg" className="text-white" />
+            <Price value={holdingMarketValue(vc)} size="lg" className="text-ink-primary" />
           </dd>
-          <dd className="text-[11px] text-white/50">
+          <dd className="text-[11px] text-ink-muted">
             {vc.quantity} × {unit > 0 ? formatCurrency(unit) : 'no price'}
           </dd>
         </div>
         <div>
-          <dt className="text-[11.5px] text-white/55">Cost basis</dt>
+          <dt className="text-[11.5px] text-ink-muted">Cost basis</dt>
           <dd className="mt-1 font-mono text-[16px] tabular-nums">
             {status === 'recorded' ? (
               formatCurrency(vc.purchasePrice * vc.quantity)
             ) : status === 'unverified' ? (
-              <span className="text-[#f0bd55]">
+              <span className="text-gold">
                 {formatCurrency(vc.purchasePrice * vc.quantity)}
                 <span className="ml-1 font-sans text-[11px]">unverified</span>
               </span>
             ) : (
-              <span className="font-sans text-[13px] text-white/60">Not recorded</span>
+              <span className="font-sans text-[13px] text-ink-muted">Not recorded</span>
             )}
           </dd>
           {status === 'unverified' ? (
             <dd>
               <button
                 type="button"
-                className="text-[11.5px] text-[#9db4ff] hover:underline"
+                className="text-[11.5px] text-accent hover:underline"
                 onClick={() => vaultService.confirmCosts([vc.id], game)}
               >
                 Confirm this is what I paid
@@ -338,29 +335,29 @@ function HoldingFacts({ vc, onEdit }: { vc: VaultCard; onEdit: () => void }) {
           ) : null}
         </div>
         <div>
-          <dt className="text-[11.5px] text-white/55">Profit / loss</dt>
+          <dt className="text-[11.5px] text-ink-muted">Profit / loss</dt>
           <dd
             className={cn(
               'mt-1 font-mono text-[16px] tabular-nums',
               pl == null
-                ? 'font-sans text-[13px] text-white/60'
+                ? 'font-sans text-[13px] text-ink-muted'
                 : pl.profit >= 0
-                  ? 'text-[#3fd3a8]'
-                  : 'text-[#ff7a6b]'
+                  ? 'text-gain'
+                  : 'text-loss'
             )}
           >
             {pl == null ? 'Needs a recorded cost' : formatCurrency(pl.profit, { signed: true })}
             {pl?.profitPct != null ? (
-              <span className="ml-1 text-[11px] text-white/55">{pl.profitPct.toFixed(1)}%</span>
+              <span className="ml-1 text-[11px] text-ink-muted">{pl.profitPct.toFixed(1)}%</span>
             ) : null}
           </dd>
         </div>
         <div>
-          <dt className="text-[11.5px] text-white/55">Condition</dt>
+          <dt className="text-[11.5px] text-ink-muted">Condition</dt>
           <dd className="mt-0.5 text-[14px]">{CONDITION_LABEL[vc.condition] ?? vc.condition}</dd>
         </div>
         <div>
-          <dt className="text-[11.5px] text-white/55">Added</dt>
+          <dt className="text-[11.5px] text-ink-muted">Added</dt>
           <dd className="mt-0.5 text-[14px]">
             {vc.purchaseDate
               ? new Date(vc.purchaseDate).toLocaleDateString('en-US', {
@@ -372,19 +369,19 @@ function HoldingFacts({ vc, onEdit }: { vc: VaultCard; onEdit: () => void }) {
           </dd>
         </div>
         <div>
-          <dt className="text-[11.5px] text-white/55">Photo grade</dt>
+          <dt className="text-[11.5px] text-ink-muted">Photo grade</dt>
           <dd className="mt-0.5 text-[14px]">
-            {vc.gradingResult ? 'On file' : <span className="text-white/60">None yet</span>}
+            {vc.gradingResult ? 'On file' : <span className="text-ink-muted">None yet</span>}
           </dd>
         </div>
       </dl>
 
-      <div className="border-t border-white/10 pt-3">
-        <p className="text-[12px] font-medium text-white/70">Raw against graded sales</p>
+      <div className="border-t border-border-default pt-3">
+        <p className="text-[12px] font-medium text-ink-secondary">Raw against graded sales</p>
         {spreads === 'loading' ? (
-          <div className="mt-2 h-16 animate-pulse rounded-lg bg-white/5" />
+          <div className="mt-2 h-16 animate-pulse rounded-lg bg-surface-hover" />
         ) : grades.length === 0 ? (
-          <p className="mt-1 text-[12px] text-white/50">
+          <p className="mt-1 text-[12px] text-ink-muted">
             No graded sales on file for this card, so there is nothing to compare yet.
           </p>
         ) : (
@@ -401,12 +398,12 @@ function HoldingFacts({ vc, onEdit }: { vc: VaultCard; onEdit: () => void }) {
                 key={r.k}
                 className="grid grid-cols-[4.5rem_minmax(0,1fr)_5.5rem] items-center gap-2 text-[12px]"
               >
-                <span className="text-white/65">{r.k}</span>
-                <span className="h-2 rounded-full bg-white/10">
+                <span className="text-ink-muted">{r.k}</span>
+                <span className="h-2 rounded-full bg-surface-hover">
                   <motion.span
                     className={cn(
                       'block h-full rounded-full',
-                      r.k === 'Raw' ? 'bg-white/45' : 'bg-[#f0bd55]'
+                      r.k === 'Raw' ? 'bg-ink-muted' : 'bg-gold'
                     )}
                     initial={{ width: 0 }}
                     animate={{ width: `${(Math.max(0, r.v) / top) * 100}%` }}
@@ -415,32 +412,32 @@ function HoldingFacts({ vc, onEdit }: { vc: VaultCard; onEdit: () => void }) {
                 </span>
                 <span className="text-right font-mono tabular-nums">
                   {r.v > 0 ? formatCurrency(r.v) : '—'}
-                  {r.n != null ? <span className="ml-1 text-white/40">{r.n}</span> : null}
+                  {r.n != null ? <span className="ml-1 text-ink-muted">{r.n}</span> : null}
                 </span>
               </li>
             ))}
           </ul>
         )}
         {grades.length ? (
-          <p className="mt-1.5 text-[11px] text-white/45">
+          <p className="mt-1.5 text-[11px] text-ink-muted">
             Graded figures are recorded sales (count shown); fees and grade risk not included.
           </p>
         ) : null}
       </div>
 
       <div className="flex flex-wrap gap-2 pt-1">
-        <button type="button" className="btn-tactile" onClick={onEdit}>
+        <button type="button" className="btn-primary" onClick={onEdit}>
           Edit, sell or record cost
         </button>
         <Link
           to={cardPath(vc.card.id)}
-          className="inline-flex h-10 items-center rounded-full border border-white/20 px-4 text-[13px] hover:bg-white/10"
+          className="inline-flex h-10 items-center rounded-md border border-border-default px-3.5 text-[13px] hover:bg-surface-hover"
         >
           Full research
         </Link>
         <Link
           to="/grading"
-          className="inline-flex h-10 items-center rounded-full border border-white/20 px-4 text-[13px] hover:bg-white/10"
+          className="inline-flex h-10 items-center rounded-md border border-border-default px-3.5 text-[13px] hover:bg-surface-hover"
         >
           Photo grade
         </Link>
@@ -468,14 +465,9 @@ function CollectionSpotlight({
   const go = (d: number) => setI((x) => (x + d + pieces.length) % pieces.length);
   return (
     <section
-      data-theme="dark"
       aria-labelledby="spot-h"
-      className="atmo-stage relative overflow-hidden rounded-3xl px-5 pb-6 pt-6 sm:px-10 sm:pb-8 sm:pt-8"
+      className="sheet relative overflow-hidden rounded-lg px-5 py-6 sm:px-8 sm:py-7"
     >
-      <div
-        aria-hidden
-        className="pointer-events-none absolute bottom-6 left-[8%] h-16 w-[min(60%,26rem)] rounded-[50%] bg-[radial-gradient(closest-side,rgba(227,167,58,0.35),transparent)] sm:left-[10%]"
-      />
       <div className="relative grid items-center gap-8 md:grid-cols-[minmax(0,15.5rem)_minmax(0,1fr)] md:gap-12">
         <div
           className="relative mx-auto w-[min(56vw,15.5rem)] md:w-full"
@@ -509,46 +501,46 @@ function CollectionSpotlight({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -10 }}
             transition={{ duration: 0.22 }}
-            className="text-white"
+            className="text-ink-primary"
             aria-live="polite"
           >
-            <p id="spot-h" className="text-[13px] font-medium text-[#f0bd55]">
-              Collection spotlight · No. {i + 1} by value
+            <p id="spot-h" className="text-meta text-ink-muted">
+              Your most valuable pieces · {i + 1} of {pieces.length}
             </p>
-            <h2 className="mt-2 font-display text-[clamp(2rem,4.4vw,3.6rem)] font-semibold leading-[0.98] tracking-[-0.03em]">
+            <h2 className="mt-1 text-[clamp(1.5rem,2.8vw,2.125rem)] font-semibold leading-tight tracking-[-0.015em]">
               {vc.card.name}
             </h2>
-            <p className="mt-2 text-[14px] text-white/65">
+            <p className="mt-2 text-[14px] text-ink-muted">
               {vc.card.set?.name}
               {vc.card.number ? ` · No. ${vc.card.number}` : ''} · {FINISH_LABEL[finishOf(vc.card)]}
             </p>
-            <dl className="mt-5 grid max-w-[36rem] grid-cols-2 gap-4 border-t border-white/10 pt-4 sm:grid-cols-4">
+            <dl className="mt-5 grid max-w-[36rem] grid-cols-2 gap-4 border-t border-border-default pt-4 sm:grid-cols-4">
               <div>
-                <dt className="text-[12px] text-white/55">Worth today</dt>
+                <dt className="text-[12px] text-ink-muted">Worth today</dt>
                 <dd className="mt-1">
-                  <Price value={holdingMarketValue(vc)} size="md" className="text-white" />
+                  <Price value={holdingMarketValue(vc)} size="md" className="text-ink-primary" />
                 </dd>
               </div>
               <div>
-                <dt className="text-[12px] text-white/55">You paid</dt>
+                <dt className="text-[12px] text-ink-muted">You paid</dt>
                 <dd className="mt-1 font-mono text-[17px]">
                   {pl ? (
                     formatCurrency(vc.purchasePrice * vc.quantity)
                   ) : (
-                    <span className="text-[13px] text-white/55">Not recorded</span>
+                    <span className="text-[13px] text-ink-muted">Not recorded</span>
                   )}
                 </dd>
               </div>
               <div>
-                <dt className="text-[12px] text-white/55">Copies</dt>
+                <dt className="text-[12px] text-ink-muted">Copies</dt>
                 <dd className="mt-1 font-mono text-[17px]">{vc.quantity}</dd>
               </div>
               <div>
-                <dt className="text-[12px] text-white/55">Condition</dt>
+                <dt className="text-[12px] text-ink-muted">Condition</dt>
                 <dd className="mt-1 text-[15px]">
                   {CONDITION_LABEL[vc.condition] ?? vc.condition}
                   {vc.gradingResult ? (
-                    <span className="ml-1 text-[11.5px] text-[#f0bd55]">photo graded</span>
+                    <span className="ml-1 text-[11.5px] text-gold">photo graded</span>
                   ) : null}
                 </dd>
               </div>
@@ -557,31 +549,20 @@ function CollectionSpotlight({
               <p
                 className={cn(
                   'mt-3 font-mono text-[14px]',
-                  pl.profit >= 0 ? 'text-[#3fd3a8]' : 'text-[#ff7a6b]'
+                  pl.profit >= 0 ? 'text-gain' : 'text-loss'
                 )}
               >
                 {formatCurrency(pl.profit, { signed: true })} since you bought it
               </p>
             ) : null}
             <div className="mt-5 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => onInspect(vc)}
-                className="inline-flex h-9 items-center rounded-full bg-white px-4 text-[13px] font-medium text-[#0b0e14] hover:bg-white/90"
-              >
+              <button type="button" onClick={() => onInspect(vc)} className="btn-primary">
                 Inspect
               </button>
-              <button
-                type="button"
-                onClick={() => onEdit(vc)}
-                className="inline-flex h-9 items-center rounded-full border border-white/20 px-4 text-[13px] hover:bg-white/10"
-              >
+              <button type="button" onClick={() => onEdit(vc)} className="btn-secondary">
                 Edit holding
               </button>
-              <Link
-                to={cardPath(vc.card.id)}
-                className="inline-flex h-9 items-center rounded-full border border-white/20 px-4 text-[13px] hover:bg-white/10"
-              >
+              <Link to={cardPath(vc.card.id)} className="btn-secondary">
                 Compare market
               </Link>
             </div>
@@ -589,7 +570,7 @@ function CollectionSpotlight({
               <button
                 type="button"
                 onClick={() => go(-1)}
-                className="grid h-11 w-11 place-items-center rounded-full border border-white/20 hover:bg-white/10"
+                className="btn-icon border border-border-default"
                 aria-label="Previous piece"
               >
                 <ChevronLeft className="h-5 w-5" aria-hidden />
@@ -597,7 +578,7 @@ function CollectionSpotlight({
               <button
                 type="button"
                 onClick={() => go(1)}
-                className="grid h-11 w-11 place-items-center rounded-full border border-white/20 hover:bg-white/10"
+                className="btn-icon border border-border-default"
                 aria-label="Next piece"
               >
                 <ChevronRight className="h-5 w-5" aria-hidden />
@@ -613,7 +594,7 @@ function CollectionSpotlight({
                     className={cn(
                       'w-7 rounded-[4px] transition-[opacity,transform] duration-200',
                       k === i
-                        ? '-translate-y-0.5 opacity-100 ring-2 ring-[#f0bd55]'
+                        ? '-translate-y-0.5 opacity-100 ring-2 ring-gold'
                         : 'opacity-50 hover:opacity-90'
                     )}
                   >

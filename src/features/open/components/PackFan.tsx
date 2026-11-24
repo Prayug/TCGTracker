@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { MousePointerClick, Shuffle, Trash2 } from 'lucide-react';
 import { PullCard } from '../types';
 import { RevealCard } from './RevealCard';

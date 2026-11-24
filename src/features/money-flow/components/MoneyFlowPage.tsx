@@ -240,10 +240,7 @@ function BreadthStrip({
   return (
     <section aria-labelledby="breadth-h">
       <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-rule-strong pb-2">
-        <h2
-          id="breadth-h"
-          className="font-display text-[clamp(1.35rem,2.2vw,1.75rem)] font-semibold tracking-[-0.02em]"
-        >
+        <h2 id="breadth-h" className="text-h2">
           Breadth
         </h2>
         <p className="text-meta text-ink-muted">Tracked prints by size of {days}-day move</p>
@@ -376,10 +373,7 @@ function RotationBoard({
   return (
     <section aria-labelledby="rot-h">
       <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-rule-strong pb-2">
-        <h2
-          id="rot-h"
-          className="font-display text-[clamp(1.35rem,2.2vw,1.75rem)] font-semibold tracking-[-0.02em]"
-        >
+        <h2 id="rot-h" className="text-h2">
           Rotation
         </h2>
         <p className="text-meta text-ink-muted">Net dollar change across each segment’s prints</p>
@@ -387,7 +381,7 @@ function RotationBoard({
       {rows.length ? (
         <div
           aria-hidden
-          className="mt-2 grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)_5.5rem] gap-x-3 font-mono text-[11px] uppercase tracking-[0.1em] text-ink-muted sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)_6rem]"
+          className="mt-2 grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)_5.5rem] gap-x-3 text-[12.5px] text-ink-muted sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)_6rem]"
         >
           <span />
           <span className="flex justify-between">

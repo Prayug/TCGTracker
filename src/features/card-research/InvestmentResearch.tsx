@@ -2,6 +2,7 @@ import type { BuyThesisAnalysis } from '../buy-thesis/types';
 import { BUY_CATEGORY_LABELS } from '../buy-thesis/types';
 import { Unavailable } from '../../components/exchange/Price';
 import { formatCurrency } from '../../utils/cardDisplay';
+import { LoadingRows } from '../../components/exchange/States';
 import { cn } from '@/lib/utils';
 
 const TIER_COPY: Record<string, string> = {
@@ -49,7 +50,7 @@ export function InvestmentResearch({
   finishLabel: string;
   disagrees: boolean;
 }) {
-  if (loading) return <div className="skeleton mt-4 h-40 rounded" />;
+  if (loading) return <LoadingRows className="mt-4" rows={5} label="Loading investment research" />;
   if (error || !thesis) {
     return (
       <Unavailable className="mt-4" title="No analysis for this card">
@@ -85,13 +86,8 @@ export function InvestmentResearch({
 
       <div className="grid gap-6 md:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
         <div>
-          <p className="text-meta text-ink-muted">Model read</p>
-          <p
-            className={cn(
-              'font-display text-[26px] leading-tight',
-              insufficient && 'text-ink-secondary'
-            )}
-          >
+          <p className="text-meta text-ink-muted">Our read</p>
+          <p className={cn('text-[26px] leading-tight', insufficient && 'text-ink-secondary')}>
             {label}
           </p>
           <p className="mt-1 text-meta text-ink-secondary">

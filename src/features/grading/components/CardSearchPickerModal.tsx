@@ -127,7 +127,7 @@ export const CardSearchPickerModal: React.FC<CardSearchPickerModalProps> = ({
     <Modal isOpen={isOpen} onClose={onClose} variant="slab" size="medium">
       <div className="mx-auto max-w-xl">
         <div className="mb-4">
-          <h2 className="font-display text-xl text-ink-primary">{title}</h2>
+          <h2 className="text-xl text-ink-primary">{title}</h2>
           <p className="mt-1 text-sm text-ink-muted">{description}</p>
         </div>
 

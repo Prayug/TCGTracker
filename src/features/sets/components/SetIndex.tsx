@@ -59,7 +59,7 @@ function SetCover({
       <button
         type="button"
         onClick={onSelect}
-        className="relative flex aspect-[4/3] w-full flex-col justify-between overflow-hidden rounded-2xl p-4 text-left text-white transition-transform duration-300 ease-out motion-safe:group-hover:-translate-y-1 active:scale-[0.99]"
+        className="relative flex aspect-[4/3] w-full flex-col justify-between overflow-hidden rounded-xl p-4 text-left text-white transition-transform duration-300 ease-out motion-safe:group-hover:-translate-y-1 active:scale-[0.99]"
         style={{ background: `radial-gradient(120% 90% at 80% 0%, ${t.from}, ${t.to})` }}
         aria-label={`${set.name}${year ? `, ${year}` : ''}${total ? `, ${owned} of ${total} owned` : ''}`}
       >
@@ -81,7 +81,7 @@ function SetCover({
               onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = 'none')}
             />
           ) : (
-            <span className="font-display text-[22px] font-semibold leading-tight text-white/90">
+            <span className="text-[22px] font-semibold leading-tight text-white/90">
               {set.name}
             </span>
           )}
@@ -115,7 +115,7 @@ function SetCover({
           className={cn(
             'absolute right-2.5 top-8 grid h-8 w-8 place-items-center rounded-full bg-black/30 backdrop-blur transition-opacity hover:bg-black/50',
             pinned
-              ? 'text-[#f0bd55]'
+              ? 'text-stage-gold'
               : 'text-white/80 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100'
           )}
         >
@@ -248,7 +248,7 @@ export const SetIndex: React.FC<SetIndexProps> = ({ onSelectSet }) => {
       <section
         data-theme="dark"
         aria-labelledby="sets-h"
-        className="relative overflow-hidden rounded-3xl p-5 text-white transition-[background] duration-500 sm:p-8"
+        className="relative overflow-hidden rounded-xl p-5 text-white transition-[background] duration-500 sm:p-8"
         style={{
           background: `radial-gradient(90% 120% at 85% 0%, ${activeTone.from}, #0b0e14 70%)`,
         }}
@@ -257,7 +257,7 @@ export const SetIndex: React.FC<SetIndexProps> = ({ onSelectSet }) => {
           <div>
             <h1
               id="sets-h"
-              className="font-display text-[clamp(2.2rem,4.6vw,3.8rem)] font-semibold leading-[0.95] tracking-[-0.03em]"
+              className="text-[clamp(2.2rem,4.6vw,3.8rem)] font-semibold leading-[0.95] tracking-[-0.03em]"
             >
               {isPokemon ? 'Every set, every era' : 'One Piece sets'}
             </h1>
@@ -350,7 +350,7 @@ export const SetIndex: React.FC<SetIndexProps> = ({ onSelectSet }) => {
           aria-busy="true"
         >
           {Array.from({ length: 10 }).map((_, i) => (
-            <div key={i} className="skeleton aspect-[4/3] rounded-2xl" />
+            <div key={i} className="skeleton aspect-[4/3] rounded-xl" />
           ))}
         </div>
       ) : error ? (
@@ -381,7 +381,7 @@ export const SetIndex: React.FC<SetIndexProps> = ({ onSelectSet }) => {
                 <div className="flex items-baseline justify-between gap-2">
                   <h2
                     id={`era-${g.era}`}
-                    className="flex items-center gap-3 font-display text-[clamp(1.4rem,2.4vw,1.9rem)] font-semibold tracking-[-0.02em]"
+                    className="flex items-center gap-3 text-[clamp(1.4rem,2.4vw,1.9rem)] font-semibold tracking-[-0.02em]"
                   >
                     <span
                       aria-hidden
@@ -456,7 +456,7 @@ function EraStop({
     >
       <span aria-hidden className="absolute left-3 top-3 grid h-3 w-3 place-items-center">
         <span
-          className="h-3 w-3 rounded-full ring-4 ring-[#0b0e14] transition-transform group-hover:scale-125"
+          className="h-3 w-3 rounded-full ring-4 ring-stage transition-transform group-hover:scale-125"
           style={{ background: color }}
         />
       </span>

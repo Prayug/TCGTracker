@@ -40,44 +40,35 @@ export function PulseStage({
   const reduce = useReducedMotion();
   const lead = data.topGainers.filter((g) => g.imageSmall || g.imageLarge).slice(0, 3);
   return (
-    <section
-      data-theme="dark"
-      aria-labelledby="pulse-h"
-      className="atmo-stage relative overflow-hidden rounded-3xl p-5 text-white sm:p-8"
-    >
+    <section aria-labelledby="pulse-h" className="relative border-b border-rule-strong pb-8">
       <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-center">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="font-mono text-[12px] uppercase tracking-[0.14em] text-white/60">
-              Market pulse · {days} days
-            </p>
+            <p className="text-[12.5px] text-ink-muted">Last {days} days</p>
             {windowControl}
           </div>
-          <h1
-            id="pulse-h"
-            className="mt-4 max-w-[22ch] font-display text-[clamp(1.9rem,3.8vw,3.2rem)] font-semibold leading-[1.02] tracking-[-0.025em]"
-          >
+          <h1 id="pulse-h" className="mt-3 max-w-[30ch] font-display text-h1">
             {headline.summary}
           </h1>
           <dl className="mt-6 grid max-w-xl grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-[13.5px]">
-            <dt className="text-white/55">Money moving into</dt>
-            <dd className="text-white/90">
+            <dt className="text-ink-muted">Money moving into</dt>
+            <dd className="text-ink-secondary">
               {headline.intoLabels.length ? headline.intoLabels.join(', ') : 'No clear segment'}
             </dd>
-            <dt className="text-white/55">Moving out of</dt>
-            <dd className="text-white/90">
+            <dt className="text-ink-muted">Moving out of</dt>
+            <dd className="text-ink-secondary">
               {headline.outLabels.length ? headline.outLabels.join(', ') : 'No clear segment'}
             </dd>
           </dl>
           <div className="mt-7">
             <div
-              className="flex h-3 overflow-hidden rounded-full bg-white/10"
+              className="flex h-3 overflow-hidden rounded-full bg-surface-hover"
               role="img"
               aria-label={`${summary.risingCount} prints rising, ${summary.flatCount} flat, ${summary.fallingCount} falling`}
             >
               {[
                 { n: summary.risingCount, c: 'var(--gain)' },
-                { n: summary.flatCount, c: 'rgba(255,255,255,0.28)' },
+                { n: summary.flatCount, c: 'var(--border-strong)' },
                 { n: summary.fallingCount, c: 'var(--loss)' },
               ].map((s, i) => (
                 <motion.span
@@ -92,10 +83,10 @@ export function PulseStage({
             </div>
             <div className="mt-2.5 grid grid-cols-3 gap-2 text-[12.5px]">
               <Count label="Rising" n={summary.risingCount} tone="text-[color:var(--gain)]" />
-              <Count label="Flat" n={summary.flatCount} tone="text-white/70" />
+              <Count label="Flat" n={summary.flatCount} tone="text-ink-secondary" />
               <Count label="Falling" n={summary.fallingCount} tone="text-[color:var(--loss)]" />
             </div>
-            <p className="mt-3 font-mono text-[11.5px] text-white/50">
+            <p className="mt-3 font-mono text-[11.5px] text-ink-muted">
               Median move {formatPct(summary.medianMovePct)} across{' '}
               {summary.trackedCount.toLocaleString()} tracked prints
             </p>
@@ -125,7 +116,7 @@ export function PulseStage({
                   interactive={false}
                 />
                 {i === 0 ? (
-                  <span className="absolute -bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[color:var(--gain)] px-2.5 py-1 font-mono text-[12px] font-semibold text-[#06140f] shadow-lg">
+                  <span className="absolute -bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-surface-raised px-2 py-0.5 font-mono text-[12px] font-medium text-gain shadow-sm ring-1 ring-border-default">
                     {formatPct(g.changePercent)}
                   </span>
                 ) : null}
@@ -146,7 +137,7 @@ function Count({ label, n, tone }: { label: string; n: number; tone: string }) {
       >
         {n.toLocaleString()}
       </span>
-      <span className="text-white/55">{label}</span>
+      <span className="text-ink-muted">{label}</span>
     </span>
   );
 }
@@ -375,11 +366,8 @@ function Legend() {
 
 function SectionHead({ id, title, note }: { id: string; title: string; note?: string }) {
   return (
-    <div className="flex flex-wrap items-baseline justify-between gap-2">
-      <h2
-        id={id}
-        className="font-display text-[clamp(1.35rem,2.2vw,1.75rem)] font-semibold tracking-[-0.02em]"
-      >
+    <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-rule pb-2">
+      <h2 id={id} className="text-h2">
         {title}
       </h2>
       {note ? <p className="text-meta text-ink-muted">{note}</p> : null}
@@ -536,20 +524,13 @@ export function MoversGallery({
   const rail = useRef<HTMLUListElement>(null);
 
   return (
-    <section
-      aria-labelledby="gallery-h"
-      data-theme="dark"
-      className="atmo-stage relative overflow-hidden rounded-3xl p-5 text-white sm:p-8"
-    >
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <section aria-labelledby="gallery-h" className="relative">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-rule pb-2">
         <div>
-          <h2
-            id="gallery-h"
-            className="font-display text-[clamp(1.5rem,2.6vw,2.1rem)] font-semibold tracking-[-0.02em]"
-          >
-            The cards doing the moving
+          <h2 id="gallery-h" className="text-h2">
+            Biggest movers
           </h2>
-          <p className="text-[13px] text-white/60">
+          <p className="text-[13px] text-ink-muted">
             {filter ? `In ${filter.label}` : `Largest ${days}-day moves in the tracked pool`}
           </p>
         </div>
@@ -573,7 +554,7 @@ export function MoversGallery({
         </div>
       </div>
       {rows.length === 0 ? (
-        <p className="mt-6 text-[14px] text-white/65">
+        <p className="mt-6 text-[14px] text-ink-muted">
           No {side === 'up' ? 'rising' : 'falling'} prints with artwork in this segment.
         </p>
       ) : (
@@ -616,7 +597,9 @@ export function MoversGallery({
                     >
                       {formatPct(r.changePercent)}
                     </span>
-                    <span className="text-white/60">{r.finish === 'psa10' ? 'PSA 10' : 'Raw'}</span>
+                    <span className="text-ink-muted">
+                      {r.finish === 'psa10' ? 'PSA 10' : 'Raw'}
+                    </span>
                   </p>
                 </li>
               );
@@ -654,21 +637,19 @@ function SpreadExplorer({ row, days }: { row: MoneyFlowMoverRow; days: number })
 
   return (
     <div
-      className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 sm:p-5"
+      className="rounded-lg border border-border-default bg-surface-raised p-4 sm:p-5"
       aria-live="polite"
     >
-      <p className="font-mono text-[11.5px] uppercase tracking-[0.12em] text-white/50">
-        Raw to graded
-      </p>
+      <p className="text-[12.5px] text-ink-muted">Raw to graded</p>
       <h3 className="mt-1 text-[17px] font-semibold">{row.productName}</h3>
-      <p className="text-[12.5px] text-white/60">{row.setName}</p>
+      <p className="text-[12.5px] text-ink-muted">{row.setName}</p>
       <div className="mt-4 grid grid-cols-2 gap-3 font-mono text-[13px]">
         <span>
-          <span className="block text-[11px] text-white/50">{days} days ago</span>$
+          <span className="block text-[11px] text-ink-muted">{days} days ago</span>$
           {row.previousPrice.toFixed(2)}
         </span>
         <span>
-          <span className="block text-[11px] text-white/50">
+          <span className="block text-[11px] text-ink-muted">
             Now · {row.finish === 'psa10' ? 'PSA 10' : 'raw'}
           </span>
           ${row.currentPrice.toFixed(2)}
@@ -678,11 +659,11 @@ function SpreadExplorer({ row, days }: { row: MoneyFlowMoverRow; days: number })
         {loading ? (
           <div className="space-y-2" aria-busy="true">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="h-6 animate-pulse rounded bg-white/10" />
+              <div key={i} className="h-6 animate-pulse rounded bg-surface-hover" />
             ))}
           </div>
         ) : !row.cardId || !rungs.length ? (
-          <p className="text-[13px] text-white/65">
+          <p className="text-[13px] text-ink-muted">
             No graded sales are on file for this card, so there is no spread to show. Its{' '}
             {row.finish === 'psa10' ? 'PSA 10' : 'raw'} move above is from TCGplayer market prices.
           </p>
@@ -693,7 +674,7 @@ function SpreadExplorer({ row, days }: { row: MoneyFlowMoverRow; days: number })
                 label="Raw"
                 price={raw}
                 max={max}
-                tone="rgba(255,255,255,0.55)"
+                tone="var(--ink-muted)"
                 reduce={!!reduce}
               />
             ) : null}
@@ -703,7 +684,7 @@ function SpreadExplorer({ row, days }: { row: MoneyFlowMoverRow; days: number })
                 label={`${s.grader.toUpperCase()} ${s.grade}`}
                 price={s.gradedPrice}
                 max={max}
-                tone={i === rungs.length - 1 ? '#f0bd55' : '#7f9bff'}
+                tone={i === rungs.length - 1 ? 'var(--gold)' : 'var(--accent)'}
                 note={
                   s.premiumPct != null
                     ? `${s.premiumPct > 0 ? '+' : ''}${Math.round(s.premiumPct)}% over raw · ${s.soldListings} sold`
@@ -767,7 +748,7 @@ function SpreadBar({
             : formatMoney(price)}
         </span>
       </div>
-      <div className="mt-1 h-2 overflow-hidden rounded-full bg-white/10">
+      <div className="mt-1 h-2 overflow-hidden rounded-full bg-surface-hover">
         <motion.span
           className="block h-full rounded-full"
           style={{ background: tone }}
@@ -776,7 +757,7 @@ function SpreadBar({
           transition={{ duration: 0.7, delay, ease: [0.2, 0.8, 0.2, 1] }}
         />
       </div>
-      {note ? <p className="mt-0.5 font-mono text-[11px] text-white/50">{note}</p> : null}
+      {note ? <p className="mt-0.5 font-mono text-[11px] text-ink-muted">{note}</p> : null}
     </li>
   );
 }

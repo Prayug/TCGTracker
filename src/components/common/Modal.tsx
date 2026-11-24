@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence, type Variants } from 'framer-motion';
+import { motion, AnimatePresence, type Variants } from 'motion/react';
 import FocusTrap from 'focus-trap-react';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -242,13 +242,6 @@ export const Modal: React.FC<ModalProps> = ({
                 <div className="border-b border-border-subtle bg-surface-inset/80">
                   <ModalCardScene imageUrl={sceneImageUrl} />
                 </div>
-              ) : null}
-
-              {variant === 'reveal' && !reducedMotion ? (
-                <div
-                  className="pointer-events-none absolute inset-x-0 top-0 z-10 h-1 bg-gradient-to-r from-accent via-foil to-accent"
-                  aria-hidden
-                />
               ) : null}
 
               {header ? <div className="shrink-0">{header}</div> : null}

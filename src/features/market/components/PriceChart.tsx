@@ -105,7 +105,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({
       {!compact && (
         <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
           <div>
-            <h3 className="font-display text-sm font-semibold text-ink-primary">{title}</h3>
+            <h3 className="text-sm font-semibold text-ink-primary">{title}</h3>
             <p className="mt-0.5 text-xs text-ink-muted">
               {quoteCount} quotes
               {carriedDayCount > 0 ? ` · ${carriedDayCount} carried` : ''}

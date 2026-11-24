@@ -190,3 +190,6 @@ export function Unavailable({
     </div>
   );
 }
+
+/** Alias used by the shared kit: signed movement with its period. */
+export const Change = Delta;

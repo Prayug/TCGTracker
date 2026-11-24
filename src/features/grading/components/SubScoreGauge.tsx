@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { AlertTriangle, Check, ChevronDown } from 'lucide-react';
 import { normalizeScore } from '../../../types/grading';
 
@@ -53,7 +53,7 @@ export const SubScoreGauge: React.FC<SubScoreGaugeProps> = ({
         <p className="text-[12px] font-medium text-ink-secondary">{label}</p>
         <div className="flex items-baseline gap-1">
           <span
-            className="font-display text-[1.7rem] font-bold leading-none tabular-nums"
+            className="text-[1.7rem] font-bold leading-none tabular-nums"
             style={{
               color: hex,
               textShadow: `0 0 16px color-mix(in srgb, ${hex} 33%, transparent)`,

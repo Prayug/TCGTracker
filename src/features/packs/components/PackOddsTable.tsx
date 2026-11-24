@@ -16,7 +16,7 @@ export const PackOddsTable: React.FC<PackOddsTableProps> = ({
   boosted = false,
   isOnePiece = false,
 }) => (
-  <div className="w-full rounded-2xl border border-border-subtle bg-surface-inset/80 p-4 sm:p-5">
+  <div className="w-full rounded-xl border border-border-subtle bg-surface-inset/80 p-4 sm:p-5">
     <div className="mb-3 flex items-center justify-between gap-2">
       <h3 className="text-xs font-medium text-ink-secondary">Odds</h3>
       {boosted ? (
